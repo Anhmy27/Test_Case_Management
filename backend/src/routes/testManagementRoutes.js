@@ -42,7 +42,7 @@ router.put('/test-plans/:testPlanId/assign', authorize('admin'), assignTestPlanI
 
 router.get('/test-runs', listTestRuns);
 router.post('/test-runs', authorize('admin', 'employee'), startTestRun);
-router.patch('/test-runs/:runId/end', authorize('admin'), endTestRun);
+router.patch('/test-runs/:runId/end', authorize('admin', 'employee'), endTestRun);
 
 router.get('/test-runs/:runId/my-items', getMyRunItems);
 router.patch('/test-runs/:runId/results/:resultId', updateRunResult);

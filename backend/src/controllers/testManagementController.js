@@ -17,12 +17,10 @@ const toObjectId = (id, fieldName) => {
 };
 
 const isPlanAssignedToUser = (testPlan, userId) => {
-  return Array.isArray(testPlan.items) && testPlan.items.some((item) => {
-    const ownerMatch = item.owner && String(item.owner) === userId;
-    const assigneeMatch = Array.isArray(item.assignees)
-      && item.assignees.some((assignee) => String(assignee) === userId);
-    return ownerMatch || assigneeMatch;
-  });
+  const ownerMatch = testPlan.owner && String(testPlan.owner) === userId;
+  const assigneeMatch = Array.isArray(testPlan.assignees)
+    && testPlan.assignees.some((assignee) => String(assignee) === userId);
+  return ownerMatch || assigneeMatch;
 };
 
 const createProject = asyncHandler(async (req, res) => {
@@ -224,7 +222,6 @@ const createTestPlan = asyncHandler(async (req, res) => {
     project: project._id,
     version: version._id,
     createdBy: req.user.id,
-    status: 'ready',
     items: validCaseIds,
   });
 
@@ -247,9 +244,9 @@ const listTestPlans = asyncHandler(async (req, res) => {
     .sort({ createdAt: -1 })
     .populate('project', 'name code')
     .populate('version', 'name')
+    .populate('owner', 'name email role')
+    .populate('assignees', 'name email role')
     .populate('items.testCase', 'caseKey title')
-    .populate('items.owner', 'name email role')
-    .populate('items.assignees', 'name email role')
     .lean();
 
   const visiblePlans = req.user.role === 'admin'
@@ -261,10 +258,10 @@ const listTestPlans = asyncHandler(async (req, res) => {
 
 const assignTestPlanItems = asyncHandler(async (req, res) => {
   const { testPlanId } = req.params;
-  const { assignments } = req.body;
+  const { ownerId, assigneeIds } = req.body;
 
-  if (!Array.isArray(assignments)) {
-    throw httpError(400, 'assignments[] is required');
+  if (!ownerId && !Array.isArray(assigneeIds)) {
+    throw httpError(400, 'ownerId or assigneeIds[] is required');
   }
 
   const testPlan = await TestPlan.findById(toObjectId(testPlanId, 'testPlanId'));
@@ -272,24 +269,21 @@ const assignTestPlanItems = asyncHandler(async (req, res) => {
     throw httpError(404, 'Test plan not found');
   }
 
-  assignments.forEach((assignment) => {
-    const item = testPlan.items.id(assignment.itemId);
-    if (!item) {
-      return;
-    }
+  if (ownerId !== undefined) {
+    testPlan.owner = ownerId ? toObjectId(ownerId, 'ownerId') : undefined;
+  }
 
-    item.owner = assignment.ownerId ? toObjectId(assignment.ownerId, 'ownerId') : undefined;
-    item.assignees = Array.isArray(assignment.assigneeIds)
-      ? assignment.assigneeIds.map((id, index) => toObjectId(id, `assigneeIds[${index}]`))
-      : [];
-  });
+  if (Array.isArray(assigneeIds)) {
+    testPlan.assignees = assigneeIds.map((id, index) => toObjectId(id, `assigneeIds[${index}]`));
+  }
 
   await testPlan.save();
 
   const populated = await TestPlan.findById(testPlan._id)
+    .populate('owner', 'name email role')
+    .populate('assignees', 'name email role')
     .populate('items.testCase', 'caseKey title')
-    .populate('items.owner', 'name email role')
-    .populate('items.assignees', 'name email role');
+    .lean();
 
   res.json({ testPlan: populated });
 });
@@ -309,31 +303,12 @@ const startTestRun = asyncHandler(async (req, res) => {
     throw httpError(403, 'You are not assigned to this test plan');
   }
 
-  const hasUnassignedItems = (testPlan.items || []).some((item) => {
-    const noOwner = !item.owner;
-    const noAssignees = !item.assignees || item.assignees.length === 0;
-    return noOwner && noAssignees;
-  });
-
-  if (hasUnassignedItems) {
-    throw httpError(400, 'Please assign all test cases before starting a run');
-  }
-
-  const existingRunning = await TestRun.findOne({
-    testPlan: testPlan._id,
-    status: 'running',
-  }).lean();
-
-  if (existingRunning) {
-    throw httpError(409, 'A running test run already exists for this test plan');
-  }
-
   const results = testPlan.items.map((item) => ({
     planItemId: item._id,
     testCase: item.testCase,
-    owner: item.owner,
-    assignees: item.assignees || [],
-    tester: item.owner || (item.assignees && item.assignees.length > 0 ? item.assignees[0] : undefined),
+    owner: testPlan.owner,
+    assignees: testPlan.assignees || [],
+    tester: testPlan.owner || (testPlan.assignees && testPlan.assignees.length > 0 ? testPlan.assignees[0] : undefined),
     status: 'untested',
     note: '',
   }));
@@ -348,8 +323,6 @@ const startTestRun = asyncHandler(async (req, res) => {
     startedBy: req.user.id,
     results,
   });
-
-  await TestPlan.findByIdAndUpdate(testPlan._id, { status: 'running' });
 
   res.status(201).json({ testRun });
 });
@@ -465,6 +438,13 @@ const endTestRun = asyncHandler(async (req, res) => {
     throw httpError(404, 'Test run not found');
   }
 
+  const isAdmin = req.user.role === 'admin';
+  const isStarter = String(testRun.startedBy) === req.user.id;
+
+  if (!isAdmin && !isStarter) {
+    throw httpError(403, 'You do not have permission to end this test run');
+  }
+
   if (testRun.status === 'completed') {
     throw httpError(409, 'Test run already completed');
   }
@@ -473,8 +453,6 @@ const endTestRun = asyncHandler(async (req, res) => {
   testRun.endedAt = new Date();
   testRun.endedBy = req.user.id;
   await testRun.save();
-
-  await TestPlan.findByIdAndUpdate(testRun.testPlan, { status: 'completed' });
 
   res.json({ testRun });
 });

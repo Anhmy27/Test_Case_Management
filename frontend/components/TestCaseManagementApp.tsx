@@ -58,12 +58,27 @@ export default function TestCaseManagementApp() {
   });
 
   const [selectedPlanId, setSelectedPlanId] = useState<string>("");
-  const [assignDraft, setAssignDraft] = useState<Record<string, { ownerId: string; assigneeIds: string[] }>>({});
+  const [assignDraft, setAssignDraft] = useState<{ ownerId: string; assigneeIds: string[] }>({
+    ownerId: "",
+    assigneeIds: [],
+  });
   const [selectedRunId, setSelectedRunId] = useState<string>("");
   const [myItems, setMyItems] = useState<RecordAny[]>([]);
   const lastAlertRef = useRef<string>("");
 
   const isAdmin = currentUser?.role === "admin";
+  const selectedRun = useMemo(() => runs.find((run) => String(run._id) === selectedRunId), [runs, selectedRunId]);
+  const canEndRun = useCallback((run?: RecordAny) => {
+    if (!run) {
+      return false;
+    }
+
+    if (isAdmin) {
+      return true;
+    }
+
+    return String(run.startedBy?._id || run.startedBy) === String(currentUser?._id || "");
+  }, [currentUser?._id, isAdmin]);
 
   const availableTabs = isAdmin
     ? ["overview", "admin", "execution", "dashboard"]
@@ -151,19 +166,16 @@ export default function TestCaseManagementApp() {
 
     const selectedPlan = plans.find((plan) => String(plan._id) === planId);
     if (!selectedPlan) {
-      setAssignDraft({});
+      setAssignDraft({ ownerId: "", assigneeIds: [] });
       return;
     }
 
-    const nextDraft: Record<string, { ownerId: string; assigneeIds: string[] }> = {};
-    (selectedPlan.items || []).forEach((item: any) => {
-      nextDraft[String(item._id)] = {
-        ownerId: getId(item.owner),
-        assigneeIds: Array.isArray(item.assignees) ? item.assignees.map((u: any) => getId(u)) : [],
-      };
+    setAssignDraft({
+      ownerId: getId(selectedPlan.owner),
+      assigneeIds: Array.isArray(selectedPlan.assignees)
+        ? selectedPlan.assignees.map((user: any) => getId(user))
+        : [],
     });
-
-    setAssignDraft(nextDraft);
   }
 
   async function handleAuthSubmit(event: FormEvent) {
@@ -334,18 +346,12 @@ export default function TestCaseManagementApp() {
     }
 
     await withAction(async () => {
-      const assignments = Object.entries(assignDraft).map(([itemId, value]) => ({
-        itemId,
-        ownerId: value.ownerId,
-        assigneeIds: value.assigneeIds,
-      }));
-
       await apiRequest(`/api/test-plans/${selectedPlanId}/assign`, token, {
         method: "PUT",
-        body: JSON.stringify({ assignments }),
+        body: JSON.stringify(assignDraft),
       });
 
-      setMessage("Da assign owner va assignees");
+      setMessage("Da assign owner va assignees cho test plan");
     });
   }
 
@@ -663,49 +669,34 @@ export default function TestCaseManagementApp() {
                   </select>
                 </label>
 
-                <div className="list" style={{ marginTop: "0.6rem" }}>
-                  {(plans.find((plan) => String(plan._id) === selectedPlanId)?.items || []).map((item: any) => (
-                    <div className="item" key={item._id}>
-                      <b>{item.testCase?.caseKey} - {item.testCase?.title}</b>
-                      <div className="row">
-                        <label className="field">
-                          <span>Owner</span>
-                          <select
-                            value={assignDraft[item._id]?.ownerId || ""}
-                            onChange={(e) => setAssignDraft((prev) => ({
-                              ...prev,
-                              [item._id]: {
-                                ownerId: e.target.value,
-                                assigneeIds: prev[item._id]?.assigneeIds || [],
-                              },
-                            }))}
-                          >
-                            <option value="">Chua gan</option>
-                            {users.map((user) => <option key={user._id} value={user._id}>{user.name} ({user.role})</option>)}
-                          </select>
-                        </label>
-                        <label className="field">
-                          <span>Assignees</span>
-                          <select
-                            multiple
-                            value={assignDraft[item._id]?.assigneeIds || []}
-                            onChange={(e) => {
-                              const selected = Array.from(e.target.selectedOptions).map((option) => option.value);
-                              setAssignDraft((prev) => ({
-                                ...prev,
-                                [item._id]: {
-                                  ownerId: prev[item._id]?.ownerId || "",
-                                  assigneeIds: selected,
-                                },
-                              }));
-                            }}
-                          >
-                            {users.map((user) => <option key={user._id} value={user._id}>{user.name} ({user.role})</option>)}
-                          </select>
-                        </label>
-                      </div>
-                    </div>
-                  ))}
+                <div className="row" style={{ marginTop: "0.6rem" }}>
+                  <label className="field">
+                    <span>Owner</span>
+                    <select
+                      value={assignDraft.ownerId}
+                      onChange={(e) => setAssignDraft((prev) => ({ ...prev, ownerId: e.target.value }))}
+                    >
+                      <option value="">Chua gan</option>
+                      {users.map((user) => <option key={user._id} value={user._id}>{user.name} ({user.role})</option>)}
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>Assignees</span>
+                    <select
+                      multiple
+                      value={assignDraft.assigneeIds}
+                      onChange={(e) => {
+                        const selected = Array.from(e.target.selectedOptions).map((option) => option.value);
+                        setAssignDraft((prev) => ({ ...prev, assigneeIds: selected }));
+                      }}
+                    >
+                      {users.map((user) => <option key={user._id} value={user._id}>{user.name} ({user.role})</option>)}
+                    </select>
+                  </label>
+                </div>
+                <div className="item" style={{ marginTop: "0.6rem" }}>
+                  <b>Applies to all test cases in this plan</b>
+                  <span>Owner and assignees are stored at test-plan level.</span>
                 </div>
                 <button className="btn btn-primary" type="submit" style={{ marginTop: "0.5rem" }}>Luu assign</button>
               </form>
@@ -748,6 +739,11 @@ export default function TestCaseManagementApp() {
                   {runs.map((run) => <option key={run._id} value={run._id}>{run.name} ({run.status})</option>)}
                 </select>
               </div>
+              {selectedRun && selectedRun.status === "running" && canEndRun(selectedRun) && (
+                <button className="btn btn-warn" type="button" onClick={() => endRun(selectedRun._id)} style={{ marginTop: "0.5rem" }}>
+                  End run
+                </button>
+              )}
 
               <div className="list" style={{ marginTop: "0.6rem" }}>
                 {myItems.map((item) => {

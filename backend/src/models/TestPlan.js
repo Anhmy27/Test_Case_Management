@@ -56,12 +56,16 @@ const testPlanSchema = new mongoose.Schema(
       ref: 'User',
       required: true,
     },
-    status: {
-      type: String,
-      enum: ['draft', 'ready', 'running', 'completed'],
-      default: 'draft',
-      index: true,
+    owner: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
     },
+    assignees: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
     items: {
       type: [planItemSchema],
       default: [],
