@@ -4,6 +4,8 @@ const {
   listProjects,
   createVersion,
   listVersions,
+  createTestCaseGroup,
+  listTestCaseGroups,
   createTestCase,
   listTestCases,
   createTestPlan,
@@ -28,6 +30,9 @@ router.post('/projects', authorize('admin'), createProject);
 router.get('/versions', listVersions);
 router.post('/versions', authorize('admin'), createVersion);
 
+router.get('/test-case-groups', listTestCaseGroups);
+router.post('/test-case-groups', authorize('admin'), createTestCaseGroup);
+
 router.get('/test-cases', listTestCases);
 router.post('/test-cases', authorize('admin'), createTestCase);
 
@@ -36,7 +41,7 @@ router.post('/test-plans', authorize('admin'), createTestPlan);
 router.put('/test-plans/:testPlanId/assign', authorize('admin'), assignTestPlanItems);
 
 router.get('/test-runs', listTestRuns);
-router.post('/test-runs', authorize('admin'), startTestRun);
+router.post('/test-runs', authorize('admin', 'employee'), startTestRun);
 router.patch('/test-runs/:runId/end', authorize('admin'), endTestRun);
 
 router.get('/test-runs/:runId/my-items', getMyRunItems);

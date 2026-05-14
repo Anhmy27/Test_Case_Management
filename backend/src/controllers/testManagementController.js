@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const Project = require('../models/Project');
 const Version = require('../models/Version');
 const TestCase = require('../models/TestCase');
+const TestCaseGroup = require('../models/TestCaseGroup');
 const TestPlan = require('../models/TestPlan');
 const TestRun = require('../models/TestRun');
 const { asyncHandler } = require('../utils/asyncHandler');
@@ -13,6 +14,15 @@ const toObjectId = (id, fieldName) => {
   }
 
   return new mongoose.Types.ObjectId(id);
+};
+
+const isPlanAssignedToUser = (testPlan, userId) => {
+  return Array.isArray(testPlan.items) && testPlan.items.some((item) => {
+    const ownerMatch = item.owner && String(item.owner) === userId;
+    const assigneeMatch = Array.isArray(item.assignees)
+      && item.assignees.some((assignee) => String(assignee) === userId);
+    return ownerMatch || assigneeMatch;
+  });
 };
 
 const createProject = asyncHandler(async (req, res) => {
@@ -69,9 +79,48 @@ const listVersions = asyncHandler(async (req, res) => {
   res.json({ versions });
 });
 
+const createTestCaseGroup = asyncHandler(async (req, res) => {
+  const { projectId, name, description } = req.body;
+
+  if (!projectId || !name) {
+    throw httpError(400, 'projectId and name are required');
+  }
+
+  const project = await Project.findById(toObjectId(projectId, 'projectId')).lean();
+  if (!project) {
+    throw httpError(404, 'Project not found');
+  }
+
+  const group = await TestCaseGroup.create({
+    project: project._id,
+    name,
+    description: description || '',
+    createdBy: req.user.id,
+  });
+
+  res.status(201).json({ group });
+});
+
+const listTestCaseGroups = asyncHandler(async (req, res) => {
+  const { projectId } = req.query;
+  const query = {};
+
+  if (projectId) {
+    query.project = toObjectId(projectId, 'projectId');
+  }
+
+  const groups = await TestCaseGroup.find(query)
+    .sort({ createdAt: -1 })
+    .populate('project', 'name code')
+    .lean();
+
+  res.json({ groups });
+});
+
 const createTestCase = asyncHandler(async (req, res) => {
   const {
     projectId,
+    groupId,
     caseKey,
     title,
     description,
@@ -81,13 +130,18 @@ const createTestCase = asyncHandler(async (req, res) => {
     type,
   } = req.body;
 
-  if (!projectId || !caseKey || !title) {
-    throw httpError(400, 'projectId, caseKey and title are required');
+  if (!projectId || !groupId || !caseKey || !title) {
+    throw httpError(400, 'projectId, groupId, caseKey and title are required');
   }
 
   const project = await Project.findById(toObjectId(projectId, 'projectId')).lean();
   if (!project) {
     throw httpError(404, 'Project not found');
+  }
+
+  const group = await TestCaseGroup.findById(toObjectId(groupId, 'groupId')).lean();
+  if (!group || String(group.project) !== String(project._id)) {
+    throw httpError(404, 'Test case group not found in selected project');
   }
 
   const normalizedSteps = Array.isArray(steps)
@@ -102,6 +156,7 @@ const createTestCase = asyncHandler(async (req, res) => {
 
   const testCase = await TestCase.create({
     project: project._id,
+    group: group._id,
     caseKey,
     title,
     description: description || '',
@@ -125,6 +180,7 @@ const listTestCases = asyncHandler(async (req, res) => {
   const testCases = await TestCase.find(query)
     .sort({ createdAt: -1 })
     .populate('project', 'name code')
+    .populate('group', 'name description')
     .lean();
 
   res.json({ testCases });
@@ -196,7 +252,11 @@ const listTestPlans = asyncHandler(async (req, res) => {
     .populate('items.assignees', 'name email role')
     .lean();
 
-  res.json({ testPlans });
+  const visiblePlans = req.user.role === 'admin'
+    ? testPlans
+    : testPlans.filter((plan) => isPlanAssignedToUser(plan, req.user.id));
+
+  res.json({ testPlans: visiblePlans });
 });
 
 const assignTestPlanItems = asyncHandler(async (req, res) => {
@@ -243,6 +303,20 @@ const startTestRun = asyncHandler(async (req, res) => {
   const testPlan = await TestPlan.findById(toObjectId(testPlanId, 'testPlanId')).lean();
   if (!testPlan) {
     throw httpError(404, 'Test plan not found');
+  }
+
+  if (req.user.role !== 'admin' && !isPlanAssignedToUser(testPlan, req.user.id)) {
+    throw httpError(403, 'You are not assigned to this test plan');
+  }
+
+  const hasUnassignedItems = (testPlan.items || []).some((item) => {
+    const noOwner = !item.owner;
+    const noAssignees = !item.assignees || item.assignees.length === 0;
+    return noOwner && noAssignees;
+  });
+
+  if (hasUnassignedItems) {
+    throw httpError(400, 'Please assign all test cases before starting a run');
   }
 
   const existingRunning = await TestRun.findOne({
@@ -501,6 +575,8 @@ module.exports = {
   listProjects,
   createVersion,
   listVersions,
+  createTestCaseGroup,
+  listTestCaseGroups,
   createTestCase,
   listTestCases,
   createTestPlan,

@@ -2,10 +2,11 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiRequest, getId, userName } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
+type TestCaseStepForm = { action: string };
 
 export default function TestCaseManagementApp() {
   const [token, setToken] = useState<string>(() => {
@@ -23,6 +24,7 @@ export default function TestCaseManagementApp() {
   const [users, setUsers] = useState<RecordAny[]>([]);
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [versions, setVersions] = useState<RecordAny[]>([]);
+  const [groups, setGroups] = useState<RecordAny[]>([]);
   const [testCases, setTestCases] = useState<RecordAny[]>([]);
   const [plans, setPlans] = useState<RecordAny[]>([]);
   const [runs, setRuns] = useState<RecordAny[]>([]);
@@ -30,13 +32,15 @@ export default function TestCaseManagementApp() {
 
   const [projectForm, setProjectForm] = useState({ name: "", code: "", description: "" });
   const [versionForm, setVersionForm] = useState({ projectId: "", name: "", releaseDate: "" });
+  const [groupForm, setGroupForm] = useState({ projectId: "", name: "", description: "" });
   const [testCaseForm, setTestCaseForm] = useState({
     projectId: "",
+    groupId: "",
     caseKey: "",
     title: "",
     description: "",
-    action: "",
     expected: "",
+    steps: [{ action: "" }] as TestCaseStepForm[],
   });
   const [planForm, setPlanForm] = useState({
     name: "",
@@ -57,6 +61,7 @@ export default function TestCaseManagementApp() {
   const [assignDraft, setAssignDraft] = useState<Record<string, { ownerId: string; assigneeIds: string[] }>>({});
   const [selectedRunId, setSelectedRunId] = useState<string>("");
   const [myItems, setMyItems] = useState<RecordAny[]>([]);
+  const lastAlertRef = useRef<string>("");
 
   const isAdmin = currentUser?.role === "admin";
 
@@ -83,9 +88,18 @@ export default function TestCaseManagementApp() {
     return testCases.filter((testCase) => getId(testCase.project) === planForm.projectId);
   }, [testCases, planForm.projectId]);
 
+  const filteredGroups = useMemo(() => {
+    if (!testCaseForm.projectId) {
+      return groups;
+    }
+
+    return groups.filter((group) => getId(group.project) === testCaseForm.projectId);
+  }, [groups, testCaseForm.projectId]);
+
   const refreshAll = useCallback(async (currentToken: string, role?: string) => {
     const projectResp = await apiRequest<{ projects: RecordAny[] }>("/api/projects", currentToken);
     const versionResp = await apiRequest<{ versions: RecordAny[] }>("/api/versions", currentToken);
+    const groupResp = await apiRequest<{ groups: RecordAny[] }>("/api/test-case-groups", currentToken);
     const caseResp = await apiRequest<{ testCases: RecordAny[] }>("/api/test-cases", currentToken);
     const planResp = await apiRequest<{ testPlans: RecordAny[] }>("/api/test-plans", currentToken);
     const runResp = await apiRequest<{ testRuns: RecordAny[] }>("/api/test-runs", currentToken);
@@ -93,6 +107,7 @@ export default function TestCaseManagementApp() {
 
     setProjects(projectResp.projects || []);
     setVersions(versionResp.versions || []);
+    setGroups(groupResp.groups || []);
     setTestCases(caseResp.testCases || []);
     setPlans(planResp.testPlans || []);
     setRuns(runResp.testRuns || []);
@@ -119,6 +134,17 @@ export default function TestCaseManagementApp() {
         setToken("");
       });
   }, [token, refreshAll]);
+
+  useEffect(() => {
+    if (!message || message === lastAlertRef.current) {
+      return;
+    }
+
+    lastAlertRef.current = message;
+    if (typeof window !== "undefined") {
+      window.alert(message);
+    }
+  }, [message]);
 
   function selectPlanForAssignment(planId: string) {
     setSelectedPlanId(planId);
@@ -202,28 +228,83 @@ export default function TestCaseManagementApp() {
     });
   }
 
+  async function createGroup(event: FormEvent) {
+    event.preventDefault();
+    await withAction(async () => {
+      await apiRequest("/api/test-case-groups", token, {
+        method: "POST",
+        body: JSON.stringify(groupForm),
+      });
+      setGroupForm({ projectId: groupForm.projectId, name: "", description: "" });
+      setMessage("Da tao nhom test case");
+    });
+  }
+
   async function createCase(event: FormEvent) {
     event.preventDefault();
     await withAction(async () => {
+      const steps = testCaseForm.steps
+        .filter((step) => step.action.trim())
+        .map((step) => ({
+          action: step.action,
+          expected: testCaseForm.expected,
+        }));
+
+      if (steps.length === 0 || !testCaseForm.expected.trim()) {
+        throw new Error("Hay nhap it nhat 1 step va expected");
+      }
+
+      if (!testCaseForm.groupId) {
+        throw new Error("Hay chon nhom test case");
+      }
+
       await apiRequest("/api/test-cases", token, {
         method: "POST",
         body: JSON.stringify({
           projectId: testCaseForm.projectId,
+          groupId: testCaseForm.groupId,
           caseKey: testCaseForm.caseKey,
           title: testCaseForm.title,
           description: testCaseForm.description,
-          steps: [{ action: testCaseForm.action, expected: testCaseForm.expected }],
+          steps,
         }),
       });
       setTestCaseForm({
         projectId: testCaseForm.projectId,
+        groupId: testCaseForm.groupId,
         caseKey: "",
         title: "",
         description: "",
-        action: "",
         expected: "",
+        steps: [{ action: "" }],
       });
       setMessage("Da tao test case");
+    });
+  }
+
+  function addTestCaseStep() {
+    setTestCaseForm((prev) => ({
+      ...prev,
+      steps: [...prev.steps, { action: "" }],
+    }));
+  }
+
+  function updateTestCaseStep(index: number, field: keyof TestCaseStepForm, value: string) {
+    setTestCaseForm((prev) => ({
+      ...prev,
+      steps: prev.steps.map((step, stepIndex) => (
+        stepIndex === index ? { ...step, [field]: value } : step
+      )),
+    }));
+  }
+
+  function removeTestCaseStep(index: number) {
+    setTestCaseForm((prev) => {
+      const nextSteps = prev.steps.filter((_, stepIndex) => stepIndex !== index);
+      return {
+        ...prev,
+        steps: nextSteps.length > 0 ? nextSteps : [{ action: "" }],
+      };
     });
   }
 
@@ -292,6 +373,9 @@ export default function TestCaseManagementApp() {
     try {
       const response = await apiRequest<{ results: RecordAny[] }>(`/api/test-runs/${runId}/my-items`, token);
       setMyItems(response.results || []);
+      if (!isAdmin && (!response.results || response.results.length === 0)) {
+        setMessage("Ban chua duoc assign testcase nao trong run nay");
+      }
     } catch (error: any) {
       setMessage(error.message || "Khong tai duoc danh sach case");
     }
@@ -484,18 +568,44 @@ export default function TestCaseManagementApp() {
             </section>
 
             <section className="panel">
-              <h2>2) Tao Test Case</h2>
+              <h2>2) Tao Nhom Test Case</h2>
+              <form onSubmit={createGroup}>
+                <div className="row">
+                  <label className="field"><span>Project</span><select value={groupForm.projectId} onChange={(e) => setGroupForm((p) => ({ ...p, projectId: e.target.value }))} required><option value="">Chon</option>{projects.map((project) => <option key={project._id} value={project._id}>{project.name}</option>)}</select></label>
+                  <label className="field"><span>Group name</span><input value={groupForm.name} onChange={(e) => setGroupForm((p) => ({ ...p, name: e.target.value }))} required /></label>
+                </div>
+                <label className="field"><span>Description</span><textarea rows={2} value={groupForm.description} onChange={(e) => setGroupForm((p) => ({ ...p, description: e.target.value }))} /></label>
+                <button className="btn btn-primary" type="submit" style={{ marginTop: "0.5rem" }}>Tao nhom</button>
+              </form>
+            </section>
+
+            <section className="panel">
+              <h2>3) Tao Test Case</h2>
               <form onSubmit={createCase}>
                 <div className="row">
-                  <label className="field"><span>Project</span><select value={testCaseForm.projectId} onChange={(e) => setTestCaseForm((p) => ({ ...p, projectId: e.target.value }))} required><option value="">Chon</option>{projects.map((project) => <option key={project._id} value={project._id}>{project.name}</option>)}</select></label>
+                  <label className="field"><span>Project</span><select value={testCaseForm.projectId} onChange={(e) => setTestCaseForm((p) => ({ ...p, projectId: e.target.value, groupId: "" }))} required><option value="">Chon</option>{projects.map((project) => <option key={project._id} value={project._id}>{project.name}</option>)}</select></label>
+                  <label className="field"><span>Group</span><select value={testCaseForm.groupId} onChange={(e) => setTestCaseForm((p) => ({ ...p, groupId: e.target.value }))} required><option value="">Chon</option>{filteredGroups.map((group) => <option key={group._id} value={group._id}>{group.name}</option>)}</select></label>
                   <label className="field"><span>Case key</span><input value={testCaseForm.caseKey} onChange={(e) => setTestCaseForm((p) => ({ ...p, caseKey: e.target.value }))} required /></label>
                 </div>
                 <label className="field"><span>Title</span><input value={testCaseForm.title} onChange={(e) => setTestCaseForm((p) => ({ ...p, title: e.target.value }))} required /></label>
                 <label className="field"><span>Description</span><textarea rows={2} value={testCaseForm.description} onChange={(e) => setTestCaseForm((p) => ({ ...p, description: e.target.value }))} /></label>
-                <div className="row">
-                  <label className="field"><span>Step action</span><input value={testCaseForm.action} onChange={(e) => setTestCaseForm((p) => ({ ...p, action: e.target.value }))} required /></label>
-                  <label className="field"><span>Expected</span><input value={testCaseForm.expected} onChange={(e) => setTestCaseForm((p) => ({ ...p, expected: e.target.value }))} required /></label>
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                  {testCaseForm.steps.map((step, index) => (
+                    <div key={index} className="row" style={{ alignItems: "end" }}>
+                      <label className="field"><span>Step {index + 1} action</span><input value={step.action} onChange={(e) => updateTestCaseStep(index, "action", e.target.value)} required /></label>
+                      <div style={{ display: "flex", gap: "0.35rem", paddingBottom: "0.1rem" }}>
+                        <button type="button" className="btn btn-primary" onClick={addTestCaseStep}>+</button>
+                        {testCaseForm.steps.length > 1 && (
+                          <button type="button" className="btn btn-alt" onClick={() => removeTestCaseStep(index)}>-</button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
                 </div>
+                <button type="button" className="btn btn-alt" onClick={addTestCaseStep} style={{ marginTop: "0.25rem" }}>
+                  Thêm bước
+                </button>
+                <label className="field"><span>Expected</span><input value={testCaseForm.expected} onChange={(e) => setTestCaseForm((p) => ({ ...p, expected: e.target.value }))} required /></label>
                 <button className="btn btn-primary" type="submit" style={{ marginTop: "0.5rem" }}>Tao test case</button>
               </form>
             </section>

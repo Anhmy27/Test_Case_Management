@@ -17,6 +17,12 @@ const testCaseSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    group: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'TestCaseGroup',
+      required: true,
+      index: true,
+    },
     caseKey: {
       type: String,
       required: true,
