@@ -27,7 +27,7 @@ const runResultSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['untested', 'pass', 'fail', 'blocked'],
+      enum: ['untested', 'skip', 'pass', 'fail', 'blocked'],
       default: 'untested',
       index: true,
     },
@@ -42,6 +42,22 @@ const runResultSchema = new mongoose.Schema(
   },
   {
     _id: true,
+  }
+);
+
+const userSnapshotSchema = new mongoose.Schema(
+  {
+    _id: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true,
+    },
+    name: String,
+    email: String,
+    role: String,
+  },
+  {
+    _id: false,
+    strict: false,
   }
 );
 
@@ -87,6 +103,14 @@ const testRunSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
       required: true,
+    },
+    ownerSnapshot: {
+      type: userSnapshotSchema,
+      default: null,
+    },
+    assigneeSnapshot: {
+      type: [userSnapshotSchema],
+      default: [],
     },
     endedBy: {
       type: mongoose.Schema.Types.ObjectId,

@@ -2,12 +2,16 @@ const express = require('express');
 const {
   createProject,
   listProjects,
+  updateProject,
+  deleteProject,
   createVersion,
   listVersions,
   createTestCaseGroup,
   listTestCaseGroups,
   createTestCase,
   listTestCases,
+  updateTestCase,
+  deleteTestCase,
   createTestPlan,
   listTestPlans,
   assignTestPlanItems,
@@ -30,6 +34,8 @@ router.use(authenticate);
 
 router.get('/projects', listProjects);
 router.post('/projects', authorize('admin'), createProject);
+router.put('/projects/:projectId', authorize('admin'), updateProject);
+router.delete('/projects/:projectId', authorize('admin'), deleteProject);
 
 router.get('/versions', listVersions);
 router.post('/versions', authorize('admin'), createVersion);
@@ -39,6 +45,8 @@ router.post('/test-case-groups', authorize('admin'), createTestCaseGroup);
 
 router.get('/test-cases', listTestCases);
 router.post('/test-cases', authorize('admin'), createTestCase);
+router.put('/test-cases/:testCaseId', authorize('admin'), updateTestCase);
+router.delete('/test-cases/:testCaseId', authorize('admin'), deleteTestCase);
 
 router.get('/test-plans', listTestPlans);
 router.post('/test-plans', authorize('admin'), createTestPlan);

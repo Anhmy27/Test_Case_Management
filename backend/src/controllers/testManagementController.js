@@ -5,6 +5,7 @@ const TestCase = require('../models/TestCase');
 const TestCaseGroup = require('../models/TestCaseGroup');
 const TestPlan = require('../models/TestPlan');
 const TestRun = require('../models/TestRun');
+const User = require('../models/User');
 const { asyncHandler } = require('../utils/asyncHandler');
 const { httpError } = require('../utils/httpError');
 
@@ -17,9 +18,25 @@ const toObjectId = (id, fieldName) => {
 };
 
 const isPlanAssignedToUser = (testPlan, userId) => {
-  const ownerMatch = testPlan.owner && String(testPlan.owner) === userId;
+  const getUserId = (value) => {
+    if (!value) {
+      return '';
+    }
+
+    if (typeof value === 'string') {
+      return value;
+    }
+
+    if (typeof value === 'object' && value !== null) {
+      return String(value._id || value.id || '');
+    }
+
+    return String(value);
+  };
+
+  const ownerMatch = getUserId(testPlan.owner) === userId;
   const assigneeMatch = Array.isArray(testPlan.assignees)
-    && testPlan.assignees.some((assignee) => String(assignee) === userId);
+    && testPlan.assignees.some((assignee) => getUserId(assignee) === userId);
   return ownerMatch || assigneeMatch;
 };
 
@@ -37,6 +54,49 @@ const createProject = asyncHandler(async (req, res) => {
   });
 
   res.status(201).json({ project });
+});
+
+const updateProject = asyncHandler(async (req, res) => {
+  const { projectId } = req.params;
+  const { name, code, description, status } = req.body;
+
+  const project = await Project.findById(toObjectId(projectId, 'projectId'));
+  if (!project) {
+    throw httpError(404, 'Project not found');
+  }
+
+  if (name) project.name = name;
+  if (code) project.code = code;
+  if (description !== undefined) project.description = description || '';
+  if (status && ['active', 'archived'].includes(status)) project.status = status;
+
+  await project.save();
+
+  res.json({ project });
+});
+
+const deleteProject = asyncHandler(async (req, res) => {
+  const { projectId } = req.params;
+  const objectId = toObjectId(projectId, 'projectId');
+
+  const [versionCount, groupCount, caseCount, planCount, runCount] = await Promise.all([
+    Version.countDocuments({ project: objectId }),
+    TestCaseGroup.countDocuments({ project: objectId }),
+    TestCase.countDocuments({ project: objectId }),
+    TestPlan.countDocuments({ project: objectId }),
+    TestRun.countDocuments({ project: objectId }),
+  ]);
+
+  if (versionCount || groupCount || caseCount || planCount || runCount) {
+    throw httpError(409, 'Project has related records and cannot be deleted');
+  }
+
+  const deleted = await Project.findByIdAndDelete(objectId);
+  if (!deleted) {
+    throw httpError(404, 'Project not found');
+  }
+
+  res.status(204).send();
 });
 
 const listProjects = asyncHandler(async (req, res) => {
@@ -168,6 +228,85 @@ const createTestCase = asyncHandler(async (req, res) => {
   res.status(201).json({ testCase });
 });
 
+const updateTestCase = asyncHandler(async (req, res) => {
+  const { testCaseId } = req.params;
+  const {
+    projectId,
+    groupId,
+    caseKey,
+    title,
+    description,
+    steps,
+    priority,
+    severity,
+    type,
+    status,
+  } = req.body;
+
+  const testCase = await TestCase.findById(toObjectId(testCaseId, 'testCaseId'));
+  if (!testCase) {
+    throw httpError(404, 'Test case not found');
+  }
+
+  const nextProjectId = projectId ? toObjectId(projectId, 'projectId') : testCase.project;
+  const nextGroupId = groupId ? toObjectId(groupId, 'groupId') : testCase.group;
+
+  const group = await TestCaseGroup.findById(nextGroupId).lean();
+  if (!group || String(group.project) !== String(nextProjectId)) {
+    throw httpError(404, 'Test case group not found in selected project');
+  }
+
+  if (projectId) testCase.project = nextProjectId;
+  if (groupId) testCase.group = nextGroupId;
+  if (caseKey) testCase.caseKey = caseKey;
+  if (title) testCase.title = title;
+  if (description !== undefined) testCase.description = description || '';
+  if (priority) testCase.priority = priority;
+  if (severity) testCase.severity = severity;
+  if (type) testCase.type = type;
+  if (status && ['active', 'deprecated'].includes(status)) testCase.status = status;
+
+  if (Array.isArray(steps)) {
+    testCase.steps = steps
+      .filter((step) => step && step.action && step.expected)
+      .map((step, index) => ({
+        order: index + 1,
+        action: String(step.action),
+        expected: String(step.expected),
+      }));
+  }
+
+  await testCase.save();
+
+  const updated = await TestCase.findById(testCase._id)
+    .populate('project', 'name code')
+    .populate('group', 'name description')
+    .lean();
+
+  res.json({ testCase: updated });
+});
+
+const deleteTestCase = asyncHandler(async (req, res) => {
+  const { testCaseId } = req.params;
+  const objectId = toObjectId(testCaseId, 'testCaseId');
+
+  const [planCount, runCount] = await Promise.all([
+    TestPlan.countDocuments({ 'items.testCase': objectId }),
+    TestRun.countDocuments({ 'results.testCase': objectId }),
+  ]);
+
+  if (planCount || runCount) {
+    throw httpError(409, 'Test case is referenced by plans or runs and cannot be deleted');
+  }
+
+  const deleted = await TestCase.findByIdAndDelete(objectId);
+  if (!deleted) {
+    throw httpError(404, 'Test case not found');
+  }
+
+  res.status(204).send();
+});
+
 const listTestCases = asyncHandler(async (req, res) => {
   const { projectId } = req.query;
   const query = {};
@@ -258,10 +397,10 @@ const listTestPlans = asyncHandler(async (req, res) => {
 
 const assignTestPlanItems = asyncHandler(async (req, res) => {
   const { testPlanId } = req.params;
-  const { ownerId, assigneeIds } = req.body;
+  const { assigneeIds } = req.body;
 
-  if (!ownerId && !Array.isArray(assigneeIds)) {
-    throw httpError(400, 'ownerId or assigneeIds[] is required');
+  if (!Array.isArray(assigneeIds) || assigneeIds.length === 0) {
+    throw httpError(400, 'assigneeIds[] is required');
   }
 
   const testPlan = await TestPlan.findById(toObjectId(testPlanId, 'testPlanId'));
@@ -269,13 +408,9 @@ const assignTestPlanItems = asyncHandler(async (req, res) => {
     throw httpError(404, 'Test plan not found');
   }
 
-  if (ownerId !== undefined) {
-    testPlan.owner = ownerId ? toObjectId(ownerId, 'ownerId') : undefined;
-  }
+  testPlan.owner = toObjectId(req.user.id, 'ownerId');
 
-  if (Array.isArray(assigneeIds)) {
-    testPlan.assignees = assigneeIds.map((id, index) => toObjectId(id, `assigneeIds[${index}]`));
-  }
+  testPlan.assignees = assigneeIds.map((id, index) => toObjectId(id, `assigneeIds[${index}]`));
 
   await testPlan.save();
 
@@ -294,7 +429,10 @@ const startTestRun = asyncHandler(async (req, res) => {
     throw httpError(400, 'testPlanId and name are required');
   }
 
-  const testPlan = await TestPlan.findById(toObjectId(testPlanId, 'testPlanId')).lean();
+  const testPlan = await TestPlan.findById(toObjectId(testPlanId, 'testPlanId'))
+    .populate('owner', 'name email role')
+    .populate('assignees', 'name email role')
+    .lean();
   if (!testPlan) {
     throw httpError(404, 'Test plan not found');
   }
@@ -313,6 +451,24 @@ const startTestRun = asyncHandler(async (req, res) => {
     note: '',
   }));
 
+  const ownerSnapshot = testPlan.owner
+    ? {
+        _id: testPlan.owner._id,
+        name: testPlan.owner.name,
+        email: testPlan.owner.email,
+        role: testPlan.owner.role,
+      }
+    : null;
+
+  const assigneeSnapshot = Array.isArray(testPlan.assignees)
+    ? testPlan.assignees.map((user) => ({
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+      }))
+    : [];
+
   const testRun = await TestRun.create({
     name,
     project: testPlan.project,
@@ -321,6 +477,8 @@ const startTestRun = asyncHandler(async (req, res) => {
     status: 'running',
     startedAt: new Date(),
     startedBy: req.user.id,
+    ownerSnapshot,
+    assigneeSnapshot,
     results,
   });
 
@@ -394,8 +552,8 @@ const updateRunResult = asyncHandler(async (req, res) => {
   const { runId, resultId } = req.params;
   const { status, note } = req.body;
 
-  if (!['pass', 'fail', 'blocked'].includes(status)) {
-    throw httpError(400, 'status must be one of pass/fail/blocked');
+  if (!['pass', 'fail', 'blocked', 'skip'].includes(status)) {
+    throw httpError(400, 'status must be one of pass/fail/blocked/skip');
   }
 
   const testRun = await TestRun.findById(toObjectId(runId, 'runId'));
@@ -507,7 +665,7 @@ const getDashboard = asyncHandler(async (req, res) => {
             $filter: {
               input: '$results',
               as: 'r',
-              cond: { $eq: ['$$r.status', 'untested'] },
+              cond: { $in: ['$$r.status', ['untested', 'skip']] },
             },
           },
         },
@@ -545,7 +703,175 @@ const getDashboard = asyncHandler(async (req, res) => {
     ? Number(((summary.executed / summary.totalCases) * 100).toFixed(2))
     : 0;
 
-  res.json({ summary, runs });
+  const runningTestRuns = await TestRun.find({ ...match, status: 'running' })
+    .sort({ startedAt: -1 })
+    .populate('startedBy', 'name email role')
+    .populate('testPlan', 'name')
+    .lean();
+
+  const delayedTestPlans = await TestPlan.find(match.project ? { project: match.project } : {})
+    .populate('project', 'name code')
+    .populate('version', 'name')
+    .populate('owner', 'name email role')
+    .populate('assignees', 'name email role')
+    .lean();
+
+  const plansWithRuns = await TestRun.find({ ...match })
+    .select('testPlan')
+    .lean();
+  const startedPlanIds = new Set(plansWithRuns.map((run) => String(run.testPlan)));
+
+  const delayedPlans = delayedTestPlans
+    .filter((plan) => (Array.isArray(plan.assignees) && plan.assignees.length > 0) || plan.owner)
+    .filter((plan) => !startedPlanIds.has(String(plan._id)))
+    .slice(0, 8)
+    .map((plan) => ({
+      _id: String(plan._id),
+      name: plan.name,
+      project: plan.project,
+      version: plan.version,
+      owner: plan.owner,
+      assignees: plan.assignees,
+      createdAt: plan.createdAt,
+    }));
+
+  const failedCases = await TestRun.aggregate([
+    { $match: match },
+    { $unwind: '$results' },
+    { $match: { 'results.status': 'fail' } },
+    {
+      $group: {
+        _id: '$results.testCase',
+        failCount: { $sum: 1 },
+        lastRunAt: { $max: '$startedAt' },
+        lastTesterId: { $last: '$results.tester' },
+      },
+    },
+    { $sort: { failCount: -1, lastRunAt: -1 } },
+    { $limit: 8 },
+  ]);
+
+  const failedCaseIds = failedCases.map((item) => item._id);
+  const failedCaseDocs = await TestCase.find({ _id: { $in: failedCaseIds } })
+    .select('caseKey title priority')
+    .lean();
+
+  const failedCaseMap = new Map(failedCaseDocs.map((item) => [String(item._id), item]));
+  const mostFailedTestCases = failedCases.map((item) => {
+    const testCase = failedCaseMap.get(String(item._id));
+    return {
+      testCaseId: String(item._id),
+      caseKey: testCase?.caseKey || '',
+      title: testCase?.title || 'Unknown test case',
+      priority: testCase?.priority || 'medium',
+      failCount: item.failCount,
+    };
+  });
+
+  const testerActivityAgg = await TestRun.aggregate([
+    { $match: match },
+    { $unwind: '$results' },
+    {
+      $group: {
+        _id: '$results.tester',
+        totalTests: { $sum: { $cond: [{ $ifNull: ['$results.tester', false] }, 1, 0] } },
+        passCount: {
+          $sum: { $cond: [{ $eq: ['$results.status', 'pass'] }, 1, 0] },
+        },
+        failCount: {
+          $sum: { $cond: [{ $eq: ['$results.status', 'fail'] }, 1, 0] },
+        },
+        blockedCount: {
+          $sum: { $cond: [{ $eq: ['$results.status', 'blocked'] }, 1, 0] },
+        },
+      },
+    },
+    { $match: { _id: { $ne: null } } },
+    { $sort: { totalTests: -1 } },
+    { $limit: 8 },
+  ]);
+
+  const testerIds = testerActivityAgg.map((item) => item._id);
+  const testerDocs = await User.find({ _id: { $in: testerIds } })
+    .select('name email role')
+    .lean();
+
+  const testerMap = new Map(testerDocs.map((item) => [String(item._id), item]));
+  const testerActivity = testerActivityAgg.map((item) => {
+    const tester = testerMap.get(String(item._id));
+    return {
+      testerId: String(item._id),
+      name: tester?.name || 'Unknown',
+      email: tester?.email || '',
+      totalTests: item.totalTests,
+      passCount: item.passCount,
+      failCount: item.failCount,
+      blockedCount: item.blockedCount,
+    };
+  });
+
+  const projectDocs = await Project.find(match.project ? { _id: match.project } : {})
+    .lean();
+
+  const projectOverview = await Promise.all(
+    projectDocs.map(async (project) => {
+      const latestVersion = await Version.findOne({ project: project._id }).sort({ createdAt: -1 }).lean();
+      const projectRuns = await TestRun.aggregate([
+        { $match: { project: project._id } },
+        {
+          $project: {
+            total: { $size: '$results' },
+            passCount: {
+              $size: {
+                $filter: {
+                  input: '$results',
+                  as: 'r',
+                  cond: { $eq: ['$$r.status', 'pass'] },
+                },
+              },
+            },
+            failCount: {
+              $size: {
+                $filter: {
+                  input: '$results',
+                  as: 'r',
+                  cond: { $eq: ['$$r.status', 'fail'] },
+                },
+              },
+            },
+          },
+        },
+      ]);
+
+      const totalTests = projectRuns.reduce((acc, run) => acc + run.total, 0);
+      const passCount = projectRuns.reduce((acc, run) => acc + run.passCount, 0);
+      const failCount = projectRuns.reduce((acc, run) => acc + run.failCount, 0);
+      const executed = passCount + failCount;
+      const passRate = executed > 0 ? Number(((passCount / executed) * 100).toFixed(2)) : 0;
+      const progress = totalTests > 0 ? Number(((executed / totalTests) * 100).toFixed(2)) : 0;
+
+      return {
+        _id: String(project._id),
+        name: project.name,
+        code: project.code,
+        latestVersion: latestVersion ? latestVersion.name : 'N/A',
+        passCount,
+        failCount,
+        passRate,
+        progress,
+      };
+    })
+  );
+
+  res.json({
+    summary,
+    runs,
+    runningTestRuns,
+    delayedTestPlans: delayedPlans,
+    mostFailedTestCases,
+    testerActivity,
+    projectOverview,
+  });
 });
 
 // Dashboard API endpoints
@@ -660,7 +986,7 @@ const getVersionDashboard = asyncHandler(async (req, res) => {
                 $filter: {
                   input: '$results',
                   as: 'r',
-                  cond: { $eq: ['$$r.status', 'untested'] },
+                  cond: { $in: ['$$r.status', ['untested', 'skip']] },
                 },
               },
             },
@@ -720,7 +1046,7 @@ const getTestPlanStats = asyncHandler(async (req, res) => {
       if (latestRun) {
         const total = latestRun.results.length;
         const passCount = latestRun.results.filter(r => r.status === 'pass').length;
-        const executed = latestRun.results.filter(r => r.status !== 'untested').length;
+        const executed = latestRun.results.filter(r => !['untested', 'skip'].includes(r.status)).length;
         
         progress = total > 0 ? Number(((executed / total) * 100).toFixed(2)) : 0;
         passRate = executed > 0 ? Number(((passCount / executed) * 100).toFixed(2)) : 0;
@@ -766,7 +1092,7 @@ const getTestPlanDetail = asyncHandler(async (req, res) => {
     const passCount = run.results.filter(r => r.status === 'pass').length;
     const failCount = run.results.filter(r => r.status === 'fail').length;
     const blockedCount = run.results.filter(r => r.status === 'blocked').length;
-    const notRunCount = run.results.filter(r => r.status === 'untested').length;
+    const notRunCount = run.results.filter(r => ['untested', 'skip'].includes(r.status)).length;
 
     return {
       runId: String(run._id),
@@ -793,7 +1119,7 @@ const getTestPlanDetail = asyncHandler(async (req, res) => {
     summary.totalTests = latestRun.results.length;
     summary.passCount = latestRun.results.filter(r => r.status === 'pass').length;
     summary.failCount = latestRun.results.filter(r => r.status === 'fail').length;
-    summary.notRunCount = latestRun.results.filter(r => r.status === 'untested').length;
+    summary.notRunCount = latestRun.results.filter(r => ['untested', 'skip'].includes(r.status)).length;
     const executed = summary.passCount + summary.failCount + latestRun.results.filter(r => r.status === 'blocked').length;
     summary.passRate = executed > 0 ? Number(((summary.passCount / executed) * 100).toFixed(2)) : 0;
     summary.progress = summary.totalTests > 0 ? Number(((executed / summary.totalTests) * 100).toFixed(2)) : 0;
@@ -863,7 +1189,7 @@ const getTestPlanDetail = asyncHandler(async (req, res) => {
     } else if (failCount >= 2 && currentStatus !== 'fail') {
       // Flaky: failed at least twice but not currently failing
       insights.flakyTests.push(testCaseDetail);
-    } else if (currentStatus === 'untested') {
+    } else if (['untested', 'skip'].includes(currentStatus)) {
       insights.notRun.push(testCaseDetail);
     }
   }
@@ -884,12 +1210,16 @@ const getTestPlanDetail = asyncHandler(async (req, res) => {
 
 module.exports = {
   createProject,
+  updateProject,
+  deleteProject,
   listProjects,
   createVersion,
   listVersions,
   createTestCaseGroup,
   listTestCaseGroups,
   createTestCase,
+  updateTestCase,
+  deleteTestCase,
   listTestCases,
   createTestPlan,
   listTestPlans,
