@@ -1,0 +1,183 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f8f5ee;
+  --foreground: #1f2933;
+  --surface: #fffdf8;
+  --surface-2: #f0eadf;
+  --line: #d8cdb6;
+  --accent: #0f766e;
+  --accent-2: #be123c;
+  --muted: #52606d;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-heading);
+  --font-mono: var(--font-mono);
+}
+
+body {
+  background:
+    radial-gradient(circle at 10% 0%, #efe6d6 0%, transparent 36%),
+    radial-gradient(circle at 90% 100%, #d4efe9 0%, transparent 32%),
+    var(--background);
+  color: var(--foreground);
+  font-family: var(--font-heading), "Segoe UI", sans-serif;
+}
+
+input,
+textarea,
+select,
+button {
+  font: inherit;
+}
+
+.shell {
+  width: min(1240px, calc(100% - 2rem));
+  margin: 1.2rem auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  box-shadow: 0 24px 50px rgba(80, 60, 30, 0.08);
+  overflow: hidden;
+}
+
+.hero {
+  padding: 1.2rem 1.4rem;
+  border-bottom: 1px solid var(--line);
+  background:
+    linear-gradient(112deg, #f4eddc 0%, #f8f4e8 50%, #e4f5ef 100%);
+}
+
+.hero h1 {
+  font-size: clamp(1.25rem, 1rem + 1vw, 2rem);
+  line-height: 1.1;
+  font-weight: 700;
+}
+
+.layout-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  padding: 1rem;
+}
+
+.panel {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  padding: 0.9rem;
+}
+
+.panel h2 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  margin-bottom: 0.6rem;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.55rem;
+  margin-bottom: 0.55rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.field span {
+  font-size: 0.79rem;
+  color: var(--muted);
+}
+
+.field input,
+.field textarea,
+.field select {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 0.52rem 0.6rem;
+  background: white;
+}
+
+.btn {
+  border: 1px solid transparent;
+  border-radius: 9px;
+  padding: 0.5rem 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: #f8fafc;
+}
+
+.btn-alt {
+  background: #fff;
+  color: var(--foreground);
+  border-color: var(--line);
+}
+
+.btn-warn {
+  background: var(--accent-2);
+  color: #fff1f2;
+}
+
+.tag {
+  font-size: 0.74rem;
+  padding: 0.16rem 0.44rem;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.list {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.item {
+  padding: 0.6rem;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.item:last-child {
+  border-bottom: none;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 0.55rem;
+}
+
+.metric {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0.6rem;
+  background: #fffcf5;
+}
+
+.metric b {
+  display: block;
+  font-size: 1.2rem;
+}
+
+.status-pass { color: #0f766e; }
+.status-fail { color: #be123c; }
+.status-blocked { color: #854d0e; }
+
+@media (min-width: 980px) {
+  .layout-grid {
+    grid-template-columns: 1.15fr 1fr;
+  }
+}
