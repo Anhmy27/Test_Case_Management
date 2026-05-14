@@ -17,6 +17,10 @@ const {
   updateRunResult,
   endTestRun,
   getDashboard,
+  getProjectDashboard,
+  getVersionDashboard,
+  getTestPlanStats,
+  getTestPlanDetail,
 } = require('../controllers/testManagementController');
 const { authenticate, authorize } = require('../middlewares/authMiddleware');
 
@@ -48,5 +52,11 @@ router.get('/test-runs/:runId/my-items', getMyRunItems);
 router.patch('/test-runs/:runId/results/:resultId', updateRunResult);
 
 router.get('/dashboard', getDashboard);
+
+// Dashboard routes
+router.get('/dashboard/projects', getProjectDashboard);
+router.get('/dashboard/versions', getVersionDashboard);
+router.get('/dashboard/test-plans', getTestPlanStats);
+router.get('/dashboard/test-plans/:testPlanId', getTestPlanDetail);
 
 module.exports = router;

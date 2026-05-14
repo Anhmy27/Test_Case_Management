@@ -548,6 +548,340 @@ const getDashboard = asyncHandler(async (req, res) => {
   res.json({ summary, runs });
 });
 
+// Dashboard API endpoints
+const getProjectDashboard = asyncHandler(async (req, res) => {
+  const projects = await Project.find({ status: 'active' }).lean();
+  
+  const projectStats = await Promise.all(
+    projects.map(async (project) => {
+      const latestVersion = await Version.findOne({ project: project._id })
+        .sort({ createdAt: -1 })
+        .lean();
+      
+      const runs = await TestRun.aggregate([
+        { $match: { project: project._id } },
+        {
+          $project: {
+            total: { $size: '$results' },
+            passCount: {
+              $size: {
+                $filter: {
+                  input: '$results',
+                  as: 'r',
+                  cond: { $eq: ['$$r.status', 'pass'] },
+                },
+              },
+            },
+            failCount: {
+              $size: {
+                $filter: {
+                  input: '$results',
+                  as: 'r',
+                  cond: { $eq: ['$$r.status', 'fail'] },
+                },
+              },
+            },
+            updatedAt: 1,
+          },
+        },
+      ]);
+
+      const totalTests = runs.reduce((acc, run) => acc + run.total, 0);
+      const passCount = runs.reduce((acc, run) => acc + run.passCount, 0);
+      const failCount = runs.reduce((acc, run) => acc + run.failCount, 0);
+      const executed = passCount + failCount;
+      const passRate = executed > 0 ? Number(((passCount / executed) * 100).toFixed(2)) : 0;
+      
+      const lastUpdated = runs.length > 0 
+        ? runs.reduce((latest, run) => 
+            run.updatedAt && (!latest || new Date(run.updatedAt) > new Date(latest)) 
+              ? run.updatedAt 
+              : latest, null)
+        : project.updatedAt;
+
+      return {
+        _id: String(project._id),
+        name: project.name,
+        code: project.code,
+        latestVersion: latestVersion ? latestVersion.name : 'N/A',
+        passRate,
+        totalTests,
+        failCount,
+        lastUpdated,
+      };
+    })
+  );
+
+  res.json({ projects: projectStats });
+});
+
+const getVersionDashboard = asyncHandler(async (req, res) => {
+  const { projectId } = req.query;
+  
+  if (!projectId) {
+    throw httpError(400, 'projectId is required');
+  }
+
+  const versions = await Version.find({ project: toObjectId(projectId, 'projectId') })
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const versionStats = await Promise.all(
+    versions.map(async (version) => {
+      const testPlans = await TestPlan.find({ version: version._id }).lean();
+      const totalTestPlans = testPlans.length;
+      
+      const testPlanIds = testPlans.map(tp => tp._id);
+      const runs = await TestRun.aggregate([
+        { $match: { version: version._id } },
+        {
+          $project: {
+            total: { $size: '$results' },
+            passCount: {
+              $size: {
+                $filter: {
+                  input: '$results',
+                  as: 'r',
+                  cond: { $eq: ['$$r.status', 'pass'] },
+                },
+              },
+            },
+            failCount: {
+              $size: {
+                $filter: {
+                  input: '$results',
+                  as: 'r',
+                  cond: { $eq: ['$$r.status', 'fail'] },
+                },
+              },
+            },
+            notRunCount: {
+              $size: {
+                $filter: {
+                  input: '$results',
+                  as: 'r',
+                  cond: { $eq: ['$$r.status', 'untested'] },
+                },
+              },
+            },
+          },
+        },
+      ]);
+
+      const totalTests = runs.reduce((acc, run) => acc + run.total, 0);
+      const passCount = runs.reduce((acc, run) => acc + run.passCount, 0);
+      const failCount = runs.reduce((acc, run) => acc + run.failCount, 0);
+      const notRunCount = runs.reduce((acc, run) => acc + run.notRunCount, 0);
+      const executed = passCount + failCount;
+      const passRate = executed > 0 ? Number(((passCount / executed) * 100).toFixed(2)) : 0;
+      const progress = totalTests > 0 ? Number((((totalTests - notRunCount) / totalTests) * 100).toFixed(2)) : 0;
+
+      return {
+        _id: String(version._id),
+        name: version.name,
+        project: String(version.project),
+        totalTestPlans,
+        totalTests,
+        passCount,
+        failCount,
+        notRunCount,
+        progress,
+        passRate,
+      };
+    })
+  );
+
+  res.json({ versions: versionStats });
+});
+
+const getTestPlanStats = asyncHandler(async (req, res) => {
+  const { versionId } = req.query;
+  
+  if (!versionId) {
+    throw httpError(400, 'versionId is required');
+  }
+
+  const testPlans = await TestPlan.find({ version: toObjectId(versionId, 'versionId') })
+    .populate('owner', 'name email role')
+    .populate('assignees', 'name email role')
+    .lean();
+
+  const testPlanStats = await Promise.all(
+    testPlans.map(async (testPlan) => {
+      const runs = await TestRun.find({ testPlan: testPlan._id })
+        .sort({ createdAt: -1 })
+        .lean();
+
+      const latestRun = runs[0];
+      let progress = 0;
+      let passRate = 0;
+      let lastRunTime;
+
+      if (latestRun) {
+        const total = latestRun.results.length;
+        const passCount = latestRun.results.filter(r => r.status === 'pass').length;
+        const executed = latestRun.results.filter(r => r.status !== 'untested').length;
+        
+        progress = total > 0 ? Number(((executed / total) * 100).toFixed(2)) : 0;
+        passRate = executed > 0 ? Number(((passCount / executed) * 100).toFixed(2)) : 0;
+        lastRunTime = latestRun.startedAt;
+      }
+
+      return {
+        _id: String(testPlan._id),
+        name: testPlan.name,
+        owner: testPlan.owner,
+        assignees: testPlan.assignees,
+        progress,
+        passRate,
+        lastRunTime,
+        status: latestRun ? latestRun.status : 'not_started',
+      };
+    })
+  );
+
+  res.json({ testPlans: testPlanStats });
+});
+
+const getTestPlanDetail = asyncHandler(async (req, res) => {
+  const { testPlanId } = req.params;
+  
+  const testPlan = await TestPlan.findById(toObjectId(testPlanId, 'testPlanId'))
+    .populate('project', 'name code')
+    .populate('version', 'name')
+    .lean();
+
+  if (!testPlan) {
+    throw httpError(404, 'Test plan not found');
+  }
+
+  const runs = await TestRun.find({ testPlan: testPlan._id })
+    .sort({ createdAt: 1 })
+    .populate('startedBy', 'name email')
+    .populate('endedBy', 'name email')
+    .populate('results.tester', 'name email')
+    .lean();
+
+  const runHistory = runs.map(run => {
+    const passCount = run.results.filter(r => r.status === 'pass').length;
+    const failCount = run.results.filter(r => r.status === 'fail').length;
+    const blockedCount = run.results.filter(r => r.status === 'blocked').length;
+    const notRunCount = run.results.filter(r => r.status === 'untested').length;
+
+    return {
+      runId: String(run._id),
+      runName: run.name,
+      passCount,
+      failCount,
+      blockedCount,
+      notRunCount,
+      executedAt: run.startedAt,
+    };
+  });
+
+  const latestRun = runs[runs.length - 1];
+  let summary = {
+    totalTests: 0,
+    passCount: 0,
+    failCount: 0,
+    notRunCount: 0,
+    passRate: 0,
+    progress: 0,
+  };
+
+  if (latestRun) {
+    summary.totalTests = latestRun.results.length;
+    summary.passCount = latestRun.results.filter(r => r.status === 'pass').length;
+    summary.failCount = latestRun.results.filter(r => r.status === 'fail').length;
+    summary.notRunCount = latestRun.results.filter(r => r.status === 'untested').length;
+    const executed = summary.passCount + summary.failCount + latestRun.results.filter(r => r.status === 'blocked').length;
+    summary.passRate = executed > 0 ? Number(((summary.passCount / executed) * 100).toFixed(2)) : 0;
+    summary.progress = summary.totalTests > 0 ? Number(((executed / summary.totalTests) * 100).toFixed(2)) : 0;
+  }
+
+  // Build execution history for each test case
+  const testCaseExecutions = {};
+  
+  runs.forEach(run => {
+    run.results.forEach(result => {
+      const testCaseId = String(result.testCase);
+      if (!testCaseExecutions[testCaseId]) {
+        testCaseExecutions[testCaseId] = [];
+      }
+      testCaseExecutions[testCaseId].push(result.status);
+    });
+  });
+
+  // Categorize test cases into insights
+  const insights = {
+    stillFailing: [],
+    failedThenPassed: [],
+    flakyTests: [],
+    notRun: [],
+  };
+
+  const testCases = await TestPlan.findById(testPlan._id)
+    .populate('items.testCase', 'caseKey title priority')
+    .populate('items.owner', 'name email')
+    .populate('items.assignees', 'name email')
+    .lean();
+
+  const testCaseDetails = [];
+
+  for (const item of testCases.items || []) {
+    const testCase = item.testCase;
+    if (!testCase) continue;
+
+    const testCaseId = String(testCase._id);
+    const history = testCaseExecutions[testCaseId] || [];
+    const currentStatus = history.length > 0 ? history[history.length - 1] : 'untested';
+    const failCount = history.filter(s => s === 'fail').length;
+
+    const testCaseDetail = {
+      testCaseId,
+      caseKey: testCase.caseKey,
+      title: testCase.title,
+      priority: testCase.priority || 'medium',
+      currentStatus,
+      failCount,
+      executionHistory: history,
+      lastTester: latestRun?.results.find(r => String(r.testCase) === testCaseId)?.tester,
+      lastRunTime: latestRun?.startedAt,
+    };
+
+    testCaseDetails.push(testCaseDetail);
+
+    // Categorize into insights
+    if (currentStatus === 'fail') {
+      insights.stillFailing.push(testCaseDetail);
+    } else if (currentStatus === 'pass' && failCount > 0) {
+      // Check if it failed then passed (pattern: fail...pass)
+      const hasFailThenPass = history.some((s, i) => s === 'fail' && i < history.length - 1 && history.slice(i + 1).includes('pass'));
+      if (hasFailThenPass) {
+        insights.failedThenPassed.push(testCaseDetail);
+      }
+    } else if (failCount >= 2 && currentStatus !== 'fail') {
+      // Flaky: failed at least twice but not currently failing
+      insights.flakyTests.push(testCaseDetail);
+    } else if (currentStatus === 'untested') {
+      insights.notRun.push(testCaseDetail);
+    }
+  }
+
+  const response = {
+    testPlanId: String(testPlan._id),
+    testPlanName: testPlan.name,
+    version: testPlan.version.name,
+    project: testPlan.project.name,
+    summary,
+    runHistory,
+    insights,
+    testCases: testCaseDetails,
+  };
+
+  res.json(response);
+});
+
 module.exports = {
   createProject,
   listProjects,
@@ -566,4 +900,8 @@ module.exports = {
   updateRunResult,
   endTestRun,
   getDashboard,
+  getProjectDashboard,
+  getVersionDashboard,
+  getTestPlanStats,
+  getTestPlanDetail,
 };

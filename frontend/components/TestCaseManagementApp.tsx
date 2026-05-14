@@ -4,6 +4,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiRequest, getId, userName } from "@/lib/api";
+import QADashboard from "./dashboard/QADashboard";
 
 type RecordAny = Record<string, any>;
 type TestCaseStepForm = { action: string };
@@ -797,33 +798,7 @@ export default function TestCaseManagementApp() {
         )}
 
         {selectedTab === "dashboard" && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-            <section className="panel">
-              <h2>9) Dashboard (filter + thong ke)</h2>
-              <div className="metric-grid">
-                <div className="metric"><span>Total runs</span><b>{dashboard?.summary?.totalRuns || 0}</b></div>
-                <div className="metric"><span>Running runs</span><b>{dashboard?.summary?.runningRuns || 0}</b></div>
-                <div className="metric"><span>Total cases</span><b>{dashboard?.summary?.totalCases || 0}</b></div>
-                <div className="metric"><span>Executed</span><b>{dashboard?.summary?.executed || 0}</b></div>
-                <div className="metric"><span>Pass</span><b className="status-pass">{dashboard?.summary?.pass || 0}</b></div>
-                <div className="metric"><span>Fail</span><b className="status-fail">{dashboard?.summary?.fail || 0}</b></div>
-                <div className="metric"><span>Blocked</span><b className="status-blocked">{dashboard?.summary?.blocked || 0}</b></div>
-                <div className="metric"><span>Completion</span><b>{dashboard?.summary?.completionRate || 0}%</b></div>
-                <div className="metric"><span>Pass rate</span><b>{dashboard?.summary?.passRate || 0}%</b></div>
-              </div>
-            </section>
-
-            <section className="panel">
-              <h2>Van ban loc</h2>
-              <div className="list">
-                <div className="item"><b>Projects</b><span>{projects.length}</span></div>
-                <div className="item"><b>Versions</b><span>{versions.length}</span></div>
-                <div className="item"><b>Test Cases</b><span>{testCases.length}</span></div>
-                <div className="item"><b>Test Plans</b><span>{plans.length}</span></div>
-                <div className="item"><b>Test Runs</b><span>{runs.length}</span></div>
-              </div>
-            </section>
-          </div>
+          <QADashboard />
         )}
       </section>
     </main>
