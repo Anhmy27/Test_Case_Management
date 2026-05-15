@@ -10,7 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { apiRequest, getId, userName } from "@/lib/api";
+import { apiRequest, getId } from "@/lib/api";
 import RoleWorkspace from "./RoleWorkspace";
 
 type RecordAny = Record<string, any>;
@@ -74,6 +74,7 @@ export default function TestCaseManagementApp() {
     description: "",
     projectId: "",
     versionId: "",
+    selectedGroupIds: [] as string[],
     caseIds: [] as string[],
   });
   const [runForm, setRunForm] = useState({ testPlanId: "", name: "" });
@@ -95,6 +96,7 @@ export default function TestCaseManagementApp() {
   const [selectedRunId, setSelectedRunId] = useState<string>("");
   const [myItems, setMyItems] = useState<RecordAny[]>([]);
   const lastAlertRef = useRef<string>("");
+  const lastTabRef = useRef<string>(activeTab);
 
   const isAdmin = currentUser?.role === "admin";
   const selectedRun = useMemo(
@@ -119,12 +121,36 @@ export default function TestCaseManagementApp() {
     [currentUser?._id, isAdmin],
   );
 
-  const availableTabs = isAdmin
-    ? ["overview", "admin", "execution", "dashboard"]
-    : ["overview", "execution", "dashboard"];
-  const selectedTab = availableTabs.includes(activeTab)
-    ? activeTab
-    : availableTabs[0];
+  const resetWorkspaceDrafts = useCallback(() => {
+    setEditingProjectId("");
+    setProjectForm({ name: "", code: "", description: "" });
+    setVersionForm({ projectId: "", name: "", releaseDate: "" });
+    setGroupForm({ projectId: "", name: "", description: "" });
+    setEditingTestCaseId("");
+    setTestCaseForm({
+      projectId: "",
+      groupId: "",
+      caseKey: "",
+      title: "",
+      description: "",
+      expected: "",
+      steps: [{ action: "" }],
+    });
+    setPlanForm({
+      name: "",
+      description: "",
+      projectId: "",
+      versionId: "",
+      selectedGroupIds: [],
+      caseIds: [],
+    });
+    setRunForm({ testPlanId: "", name: "" });
+    setNewUserForm({ name: "", email: "", password: "", role: "employee" });
+    setSelectedPlanId("");
+    setAssignDraft({ ownerId: "", assigneeIds: [] });
+    setSelectedRunId("");
+    setMyItems([]);
+  }, []);
 
   const filteredVersions = useMemo(() => {
     if (!selectedProjectId) {
@@ -211,9 +237,14 @@ export default function TestCaseManagementApp() {
     }
 
     apiRequest<{ user: RecordAny }>("/api/auth/me", token)
-      .then(async (resp) => {
+      .then((resp) => {
         setCurrentUser(resp.user);
-        await refreshAll(token, resp.user.role, selectedProjectId);
+        return resp.user.role;
+      })
+      .then((role) => {
+        queueMicrotask(() => {
+          void refreshAll(token, role, selectedProjectId);
+        });
       })
       .catch(() => {
         window.localStorage.removeItem("tcm_token");
@@ -226,7 +257,9 @@ export default function TestCaseManagementApp() {
       return;
     }
 
-    refreshAll(token, currentUser?.role, selectedProjectId);
+    queueMicrotask(() => {
+      void refreshAll(token, currentUser?.role, selectedProjectId);
+    });
   }, [selectedProjectId, token, currentUser?.role, refreshAll]);
 
   useEffect(() => {
@@ -234,25 +267,44 @@ export default function TestCaseManagementApp() {
       return;
     }
 
-    setVersionForm((prev) => ({
-      ...prev,
-      projectId: selectedProjectId,
-    }));
-    setGroupForm((prev) => ({
-      ...prev,
-      projectId: selectedProjectId,
-    }));
-    setPlanForm((prev) => ({
-      ...prev,
-      projectId: selectedProjectId,
-      versionId: "",
-    }));
-    setTestCaseForm((prev) => ({
-      ...prev,
-      projectId: selectedProjectId,
-      groupId: "",
-    }));
+    queueMicrotask(() => {
+      setVersionForm((prev) => ({
+        ...prev,
+        projectId: selectedProjectId,
+      }));
+      setGroupForm((prev) => ({
+        ...prev,
+        projectId: selectedProjectId,
+      }));
+      setPlanForm((prev) => ({
+        ...prev,
+        projectId: selectedProjectId,
+        versionId: "",
+        selectedGroupIds: [],
+        caseIds: [],
+      }));
+      setTestCaseForm((prev) => ({
+        ...prev,
+        projectId: selectedProjectId,
+        groupId: "",
+      }));
+    });
   }, [selectedProjectId]);
+
+  useEffect(() => {
+    if (!token || !currentUser) {
+      return;
+    }
+
+    if (lastTabRef.current === activeTab) {
+      return;
+    }
+
+    lastTabRef.current = activeTab;
+    queueMicrotask(() => {
+      void refreshAll(token, currentUser?.role, selectedProjectId);
+    });
+  }, [activeTab, token, currentUser, refreshAll, selectedProjectId]);
 
   useEffect(() => {
     if (!message || message === lastAlertRef.current) {
@@ -556,6 +608,7 @@ export default function TestCaseManagementApp() {
         description: "",
         projectId: planForm.projectId,
         versionId: planForm.versionId,
+        selectedGroupIds: [],
         caseIds: [],
       });
       setMessage("Da tao test plan");
@@ -582,10 +635,14 @@ export default function TestCaseManagementApp() {
   async function startRun(event: FormEvent) {
     event.preventDefault();
     await withAction(async () => {
-      await apiRequest("/api/test-runs", token, {
+      const response = await apiRequest<{ testRun: RecordAny }>("/api/test-runs", token, {
         method: "POST",
         body: JSON.stringify(runForm),
       });
+      if (response.testRun?._id) {
+        await loadMyItems(String(response.testRun._id));
+        setActiveTab("execution");
+      }
       setRunForm({ testPlanId: "", name: "" });
       setMessage("Da start test run");
     });
@@ -730,6 +787,7 @@ export default function TestCaseManagementApp() {
     filteredVersions,
     filteredCases,
     filteredGroups,
+    resetWorkspaceDrafts,
     message,
     setMessage,
   };

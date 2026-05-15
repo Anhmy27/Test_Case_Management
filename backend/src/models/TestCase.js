@@ -77,6 +77,6 @@ const testCaseSchema = new mongoose.Schema(
   }
 );
 
-testCaseSchema.index({ project: 1, caseKey: 1 }, { unique: true });
+testCaseSchema.index({ project: 1, group: 1, caseKey: 1 }, { unique: true });
 
 module.exports = mongoose.model('TestCase', testCaseSchema);

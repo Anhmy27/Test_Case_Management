@@ -18,6 +18,7 @@ const adminNav = [
   { key: "versions", label: "Versions" },
   { key: "test-plans", label: "Test Plans" },
   { key: "test-runs", label: "Test Runs" },
+  { key: "execution", label: "Execution" },
   { key: "users", label: "Users" },
 ] as const;
 
@@ -165,6 +166,7 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
     filteredVersions,
     filteredCases,
     filteredGroups,
+    resetWorkspaceDrafts,
     message,
     setMessage,
   } = workspace;
@@ -232,6 +234,7 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
     : runs.filter(
         (run: RecordAny) => getId(run.testPlan?.project) === selectedProjectId,
       );
+  const adminRuns = isAdmin ? runs : scopedRuns;
   const navItems = isAdmin
     ? isGlobalScope
       ? adminNav.filter((item) =>
@@ -246,12 +249,81 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
     navItems.find((item) => item.key === visibleTab)?.label || "Workspace";
   const normalizedSearch = searchTerm.trim().toLowerCase();
 
+  useEffect(() => {
+    setSelectedItemId("");
+    setNotes({});
+    setSearchTerm("");
+  }, [visibleTab]);
+
   const totalProjects = projects.length;
   const totalPlans = plans.length;
   const totalCases = testCases.length;
   const totalUsers = users.length;
   const runningRuns = runs.filter((run: RecordAny) => run.status === "running");
   const runningRunsCount = runningRuns.length;
+  const planProjectGroups = planForm.projectId
+    ? groups.filter(
+        (group: RecordAny) => getId(group.project) === planForm.projectId,
+      )
+    : [];
+  const planProjectCases = planForm.projectId
+    ? testCases.filter(
+        (testCase: RecordAny) => getId(testCase.project) === planForm.projectId,
+      )
+    : [];
+  const selectedPlanGroupIds = new Set(planForm.selectedGroupIds || []);
+  const selectedPlanCaseIds = new Set(planForm.caseIds || []);
+  const selectedPlanGroups = planProjectGroups.filter((group: RecordAny) =>
+    selectedPlanGroupIds.has(String(group._id)),
+  );
+  const selectedPlanCasesByGroup = selectedPlanGroups.map((group: RecordAny) => {
+    const groupId = String(group._id);
+    return {
+      group,
+      cases: planProjectCases.filter(
+        (testCase: RecordAny) => String(getId(testCase.group)) === groupId,
+      ),
+    };
+  });
+
+  function togglePlanGroup(groupId: string) {
+    setPlanForm((prev: any) => {
+      const nextGroupIds = prev.selectedGroupIds.includes(groupId)
+        ? prev.selectedGroupIds.filter((id: string) => id !== groupId)
+        : [...prev.selectedGroupIds, groupId];
+      const nextGroupSet = new Set(nextGroupIds);
+      const nextCaseIds = prev.caseIds.filter((caseId: string) => {
+        const linkedCase = testCases.find(
+          (testCase: RecordAny) => String(testCase._id) === caseId,
+        );
+
+        return linkedCase && nextGroupSet.has(String(getId(linkedCase.group)));
+      });
+
+      return {
+        ...prev,
+        selectedGroupIds: nextGroupIds,
+        caseIds: nextCaseIds,
+      };
+    });
+  }
+
+  function togglePlanCase(groupId: string, caseId: string) {
+    setPlanForm((prev: any) => {
+      const nextGroupIds = prev.selectedGroupIds.includes(groupId)
+        ? prev.selectedGroupIds
+        : [...prev.selectedGroupIds, groupId];
+      const nextCaseIds = prev.caseIds.includes(caseId)
+        ? prev.caseIds.filter((id: string) => id !== caseId)
+        : [...prev.caseIds, caseId];
+
+      return {
+        ...prev,
+        selectedGroupIds: nextGroupIds,
+        caseIds: nextCaseIds,
+      };
+    });
+  }
 
   useEffect(() => {
     if (!isAdmin) {
@@ -259,7 +331,7 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
     }
 
     const allowedTabs = isGlobalScope
-      ? ["dashboard", "projects", "users"]
+      ? ["dashboard", "projects", "execution", "users"]
       : [
           "dashboard",
           "groups",
@@ -267,6 +339,7 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
           "versions",
           "test-plans",
           "test-runs",
+          "execution",
           "users",
         ];
 
@@ -354,7 +427,10 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
                   ? "workspace-nav__item is-active"
                   : "workspace-nav__item"
               }
-              onClick={() => setActiveTab(item.key as any)}
+              onClick={() => {
+                resetWorkspaceDrafts();
+                setActiveTab(item.key as any);
+              }}
             >
               {item.label}
             </button>
@@ -1178,6 +1254,8 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
                           ...prev,
                           projectId: e.target.value,
                           versionId: "",
+                          selectedGroupIds: [],
+                          caseIds: [],
                         }))
                       }
                       required
@@ -1243,27 +1321,107 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
                   />
                 </label>
                 <label>
-                  <span>Cases</span>
-                  <select
-                    multiple
-                    value={planForm.caseIds}
-                    onChange={(e) =>
-                      setPlanForm((prev: any) => ({
-                        ...prev,
-                        caseIds: Array.from(e.target.selectedOptions).map(
-                          (option) => option.value,
-                        ),
-                      }))
-                    }
-                    size={8}
-                  >
-                    {scopedCases.map((item: RecordAny) => (
-                      <option key={item._id} value={item._id}>
-                        {item.caseKey} - {item.title}
-                      </option>
-                    ))}
-                  </select>
+                  <span>Groups</span>
+                  <div className="workspace-checklist">
+                    {planProjectGroups.length === 0 ? (
+                      <div className="workspace-checklist__empty">
+                        Chon project truoc de lay danh sach group.
+                      </div>
+                    ) : (
+                      planProjectGroups.map((group: RecordAny) => {
+                        const groupId = String(group._id);
+                        const checked = selectedPlanGroupIds.has(groupId);
+                        const groupCaseCount = planProjectCases.filter(
+                          (testCase: RecordAny) =>
+                            String(getId(testCase.group)) === groupId,
+                        ).length;
+
+                        return (
+                          <label
+                            key={groupId}
+                            className={`workspace-checklist__item${checked ? " is-checked" : ""}`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => togglePlanGroup(groupId)}
+                            />
+                            <span>
+                              <strong>{group.name}</strong>
+                              <small>{groupCaseCount} test cases</small>
+                            </span>
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
                 </label>
+                <div className="workspace-checklist__panel">
+                  <div className="workspace-checklist__panel-header">
+                    <div>
+                      <span>Test cases</span>
+                      <p>
+                        Chon nhieu test case tu cac group khac nhau bang checkbox.
+                      </p>
+                    </div>
+                    <strong>{planForm.caseIds.length} selected</strong>
+                  </div>
+                  {selectedPlanGroups.length === 0 ? (
+                    <div className="workspace-checklist__empty">
+                      Chon it nhat 1 group de hien test case.
+                    </div>
+                  ) : (
+                    selectedPlanCasesByGroup.map(({ group, cases }: RecordAny) => {
+                      const groupId = String(group._id);
+
+                      return (
+                        <div key={groupId} className="workspace-checklist__group">
+                          <div className="workspace-checklist__group-header">
+                            <strong>{group.name}</strong>
+                            <span>{cases.length} cases</span>
+                          </div>
+                          <div className="workspace-checklist__case-list">
+                            {cases.length === 0 ? (
+                              <div className="workspace-checklist__empty workspace-checklist__empty--inline">
+                                Group nay chua co test case.
+                              </div>
+                            ) : (
+                              cases.map((testCase: RecordAny) => {
+                                const caseId = String(testCase._id);
+                                const checked = selectedPlanCaseIds.has(caseId);
+
+                                return (
+                                  <label
+                                    key={caseId}
+                                    className={`workspace-checklist__case${checked ? " is-checked" : ""}`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={() =>
+                                        togglePlanCase(groupId, caseId)
+                                      }
+                                    />
+                                    <span>
+                                      <strong>
+                                        {testCase.caseKey} - {testCase.title}
+                                      </strong>
+                                      {testCase.description ? (
+                                        <small>{testCase.description}</small>
+                                      ) : (
+                                        <small>Khong co mo ta</small>
+                                      )}
+                                    </span>
+                                  </label>
+                                );
+                              })
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
                 <button className="workspace-primary" type="submit">
                   Create test plan
                 </button>
@@ -1402,8 +1560,8 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
               subtitle="Start / completed runs"
             >
               <DataTable
-                columns={["Run", "Plan", "Started by", "Status"]}
-                rows={scopedRuns
+                columns={["Run", "Plan", "Started by", "Status", "Action"]}
+                rows={adminRuns
                   .filter((run: RecordAny) =>
                     matchesSearch(
                       run.name,
@@ -1425,6 +1583,23 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
                         }
                       >
                         {run.status}
+                      </div>
+                      <div>
+                        <button
+                          type="button"
+                          className="workspace-secondary"
+                          disabled={run.status === "running"}
+                          onClick={async () => {
+                            if (run.status === "running") {
+                              return;
+                            }
+                            setSelectedRunId(run._id);
+                            await loadMyItems(run._id);
+                            setActiveTab("execution");
+                          }}
+                        >
+                          View
+                        </button>
                       </div>
                     </>
                   ))}
@@ -1622,7 +1797,15 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
               <DataTable
                 columns={["Run", "Plan", "Status", "Started By", "Action"]}
                 rows={scopedRuns
-                  .filter((run: RecordAny) => run.status !== "running")
+                  .filter((run: RecordAny) => run.status === "completed")
+                  .filter((run: RecordAny) => {
+                    const userId = String(currentUser?._id || "");
+                    if (!userId) {
+                      return false;
+                    }
+
+                    return String(run.startedBy?._id || run.startedBy || "") === userId;
+                  })
                   .filter((run: RecordAny) =>
                     matchesSearch(
                       run.name,
