@@ -74,6 +74,7 @@ export default function TestCaseManagementApp() {
     description: "",
     projectId: "",
     versionId: "",
+    executionMode: 'manual',
     selectedGroupIds: [] as string[],
     caseIds: [] as string[],
   });
@@ -141,6 +142,7 @@ export default function TestCaseManagementApp() {
       description: "",
       projectId: "",
       versionId: "",
+      executionMode: 'manual',
       selectedGroupIds: [],
       caseIds: [],
     });
@@ -608,6 +610,7 @@ export default function TestCaseManagementApp() {
         description: "",
         projectId: planForm.projectId,
         versionId: planForm.versionId,
+        executionMode: 'manual',
         selectedGroupIds: [],
         caseIds: [],
       });

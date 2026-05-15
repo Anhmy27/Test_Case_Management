@@ -324,7 +324,7 @@ const listTestCases = asyncHandler(async (req, res) => {
 });
 
 const createTestPlan = asyncHandler(async (req, res) => {
-  const { name, description, projectId, versionId, caseIds } = req.body;
+  const { name, description, projectId, versionId, caseIds, executionMode } = req.body;
 
   if (!name || !projectId || !versionId || !Array.isArray(caseIds) || caseIds.length === 0) {
     throw httpError(400, 'name, projectId, versionId and caseIds[] are required');
@@ -361,6 +361,7 @@ const createTestPlan = asyncHandler(async (req, res) => {
     project: project._id,
     version: version._id,
     createdBy: req.user.id,
+    executionMode: executionMode === 'automation' ? 'automation' : 'manual',
     items: validCaseIds,
   });
 
@@ -485,6 +486,67 @@ const startTestRun = asyncHandler(async (req, res) => {
   res.status(201).json({ testRun });
 });
 
+const applyAutomationResults = asyncHandler(async (req, res) => {
+  const { runId } = req.params;
+  const { results } = req.body; // [{ planItemId, status, note }]
+
+  if (!Array.isArray(results) || results.length === 0) {
+    throw httpError(400, 'results[] is required');
+  }
+
+  const testRun = await TestRun.findById(toObjectId(runId, 'runId'));
+  if (!testRun) {
+    throw httpError(404, 'Test run not found');
+  }
+
+  // Prevent manual updates for automation runs
+  const parentPlan = await TestPlan.findById(testRun.testPlan).lean();
+  if (parentPlan && parentPlan.executionMode === 'automation') {
+    throw httpError(403, 'Manual updates are not allowed for automation test runs');
+  }
+
+  const testPlan = await TestPlan.findById(testRun.testPlan).lean();
+  if (!testPlan) {
+    throw httpError(404, 'Test plan not found');
+  }
+
+  if (testPlan.executionMode !== 'automation') {
+    throw httpError(400, 'Test plan is not automation execution mode');
+  }
+
+  // Permission: allow if caller is admin or provides automation secret
+  const secret = req.headers['x-automation-secret'];
+  const allowedBySecret = process.env.AUTOMATION_SECRET && secret === process.env.AUTOMATION_SECRET;
+  const isAdmin = req.user && req.user.role === 'admin';
+  if (!isAdmin && !allowedBySecret) {
+    throw httpError(403, 'Not authorized to submit automation results');
+  }
+
+  // update results by planItemId
+  for (const item of results) {
+    const { planItemId, status, note } = item;
+    if (!planItemId || !['pass', 'fail', 'blocked', 'skip'].includes(status)) {
+      continue;
+    }
+
+    const match = testRun.results.find((r) => String(r.planItemId) === String(planItemId));
+    if (!match) continue;
+
+    match.status = status;
+    match.note = note || '';
+    match.executedAt = new Date();
+    match.tester = isAdmin ? req.user.id : null;
+  }
+
+  testRun.status = 'completed';
+  testRun.endedAt = new Date();
+  testRun.endedBy = isAdmin ? req.user.id : null;
+
+  await testRun.save();
+
+  res.json({ testRun });
+});
+
 const listTestRuns = asyncHandler(async (req, res) => {
   const { projectId, versionId, status } = req.query;
   const query = {};
@@ -505,7 +567,7 @@ const listTestRuns = asyncHandler(async (req, res) => {
     .sort({ createdAt: -1 })
     .populate('project', 'name code')
     .populate('version', 'name')
-    .populate('testPlan', 'name')
+    .populate('testPlan', 'name executionMode')
     .populate('startedBy', 'name email role')
     .populate('endedBy', 'name email role')
     .lean();
@@ -605,6 +667,12 @@ const endTestRun = asyncHandler(async (req, res) => {
 
   if (testRun.status === 'completed') {
     throw httpError(409, 'Test run already completed');
+  }
+
+  // block manual ending for automation runs
+  const parentPlan = await TestPlan.findById(testRun.testPlan).lean();
+  if (parentPlan && parentPlan.executionMode === 'automation') {
+    throw httpError(403, 'Automation runs cannot be ended manually');
   }
 
   testRun.status = 'completed';
@@ -1228,6 +1296,7 @@ module.exports = {
   listTestRuns,
   getMyRunItems,
   updateRunResult,
+  applyAutomationResults,
   endTestRun,
   getDashboard,
   getProjectDashboard,

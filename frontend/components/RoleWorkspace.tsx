@@ -195,6 +195,9 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
   const hasRunningSelection = Boolean(
     selectedRun && selectedRun.status === "running",
   );
+  const isAutomationRun = Boolean(
+    selectedRun && selectedRun.testPlan && String(selectedRun.testPlan.executionMode) === 'automation',
+  );
 
   const dashboardData = dashboard || {};
   const dashboardSummary = dashboardData.summary || {};
@@ -1448,6 +1451,21 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
                     ))}
                   </select>
                 </label>
+                <label>
+                  <span>Execution Mode</span>
+                  <select
+                    value={planForm.executionMode || 'manual'}
+                    onChange={(e) =>
+                      setPlanForm((prev: any) => ({
+                        ...prev,
+                        executionMode: e.target.value,
+                      }))
+                    }
+                  >
+                    <option value="manual">Manual</option>
+                    <option value="automation">Automation</option>
+                  </select>
+                </label>
                 <div className="workspace-form__grid workspace-form__grid--two">
                   <label>
                     <span>Assignees</span>
@@ -2017,12 +2035,14 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
                 }
                 onClick={() =>
                   selectedItemId &&
+                  !isAutomationRun &&
                   updateResult(
                     selectedItemId,
                     "pass",
                     notes[selectedItemId] || "",
                   )
                 }
+                disabled={isAutomationRun}
               >
                 Pass
               </button>
@@ -2035,12 +2055,14 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
                 }
                 onClick={() =>
                   selectedItemId &&
+                  !isAutomationRun &&
                   updateResult(
                     selectedItemId,
                     "fail",
                     notes[selectedItemId] || "",
                   )
                 }
+                disabled={isAutomationRun}
               >
                 Fail
               </button>
@@ -2053,12 +2075,14 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
                 }
                 onClick={() =>
                   selectedItemId &&
+                  !isAutomationRun &&
                   updateResult(
                     selectedItemId,
                     "blocked",
                     notes[selectedItemId] || "",
                   )
                 }
+                disabled={isAutomationRun}
               >
                 Blocked
               </button>
@@ -2071,18 +2095,20 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
                 }
                 onClick={() =>
                   selectedItemId &&
+                  !isAutomationRun &&
                   updateResult(
                     selectedItemId,
                     "skip",
                     notes[selectedItemId] || "",
                   )
                 }
+                disabled={isAutomationRun}
               >
                 Skip
               </button>
             </div>
 
-            {hasRunningSelection && canEndRun(selectedRun) && (
+            {hasRunningSelection && canEndRun(selectedRun) && !isAutomationRun && (
               <div className="workspace-inline-actions workspace-inline-actions--right">
                 <button
                   type="button"

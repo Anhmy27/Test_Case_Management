@@ -66,6 +66,12 @@ const testPlanSchema = new mongoose.Schema(
         ref: 'User',
       },
     ],
+    executionMode: {
+      type: String,
+      enum: ['manual', 'automation'],
+      default: 'manual',
+      index: true,
+    },
     items: {
       type: [planItemSchema],
       default: [],
