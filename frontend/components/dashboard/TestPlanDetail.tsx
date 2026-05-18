@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   LineChart,
   Line,
@@ -10,10 +10,7 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-  BarChart,
-  Bar,
 } from "recharts";
-import ProgressBar from "./ProgressBar";
 import StatusBadge from "./StatusBadge";
 import ExecutionHistory from "./ExecutionHistory";
 import type { TestPlanDetail, TestCaseInsight } from "@/lib/tcmTypes";
@@ -33,6 +30,56 @@ interface TestPlanDetailProps {
   onBack: () => void;
 }
 
+const InsightSection: React.FC<{
+  title: string;
+  cases: TestCaseInsight[];
+  color: string;
+}> = ({ title, cases, color }) => (
+  <div className="bg-white rounded-lg shadow">
+    <div className="p-4 border-b" style={{ backgroundColor: color }}>
+      <h3 className="text-lg font-semibold text-white">{title}</h3>
+      <p className="text-sm text-white opacity-90">
+        {cases.length} test cases
+      </p>
+    </div>
+    {cases.length === 0 ? (
+      <div className="p-6 text-center text-gray-500">
+        No test cases in this category
+      </div>
+    ) : (
+      <div className="divide-y max-h-96 overflow-y-auto">
+        {cases.map((testCase) => (
+          <div key={testCase.testCaseId} className="p-4 hover:bg-gray-50">
+            <div className="flex justify-between items-start">
+              <div className="flex-1">
+                <p className="font-medium text-gray-900">
+                  {testCase.caseKey}: {testCase.title}
+                </p>
+                <div className="flex items-center space-x-3 mt-2 text-sm text-gray-600">
+                  <span>Priority: {testCase.priority}</span>
+                  <span>Fails: {testCase.failCount}</span>
+                </div>
+                <div className="mt-2">
+                  <ExecutionHistory history={testCase.executionHistory} />
+                </div>
+              </div>
+              <div className="ml-4">
+                <StatusBadge status={testCase.currentStatus} />
+              </div>
+            </div>
+            {testCase.lastTester && (
+              <div className="mt-2 text-xs text-gray-500">
+                Last tested by: {testCase.lastTester.name} at{" "}
+                {new Date(testCase.lastRunTime!).toLocaleString()}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+);
+
 const TestPlanDetail: React.FC<TestPlanDetailProps> = ({
   testPlanId,
   projectName,
@@ -40,16 +87,11 @@ const TestPlanDetail: React.FC<TestPlanDetailProps> = ({
   onBack,
 }) => {
   const [data, setData] = useState<TestPlanDetail | null>(null);
-  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<
     "overview" | "stillFailing" | "failedThenPassed" | "flakyTests" | "notRun"
   >("overview");
 
-  useEffect(() => {
-    fetchTestPlanDetail();
-  }, [testPlanId]);
-
-  const fetchTestPlanDetail = async () => {
+  const fetchTestPlanDetail = useCallback(async () => {
     try {
       const token = getAuthToken();
       const response = await fetch(
@@ -68,29 +110,20 @@ const TestPlanDetail: React.FC<TestPlanDetailProps> = ({
       }
     } catch (error) {
       console.error("Error fetching test plan detail:", error);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [testPlanId]);
 
-  const getPassRateColor = (passRate: number) => {
-    if (passRate >= 90) return "#22c55e";
-    if (passRate >= 80) return "#eab308";
-    return "#ef4444";
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">Loading test plan details...</div>
-      </div>
-    );
-  }
+  useEffect(() => {
+    (async () => {
+      await fetchTestPlanDetail();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [testPlanId]);
 
   if (!data) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-gray-500">No data available</div>
+        <div className="text-gray-500">Loading test plan details...</div>
       </div>
     );
   }
@@ -102,56 +135,6 @@ const TestPlanDetail: React.FC<TestPlanDetailProps> = ({
     blocked: run.blockedCount,
     notRun: run.notRunCount,
   }));
-
-  const InsightSection: React.FC<{
-    title: string;
-    cases: TestCaseInsight[];
-    color: string;
-  }> = ({ title, cases, color }) => (
-    <div className="bg-white rounded-lg shadow">
-      <div className="p-4 border-b" style={{ backgroundColor: color }}>
-        <h3 className="text-lg font-semibold text-white">{title}</h3>
-        <p className="text-sm text-white opacity-90">
-          {cases.length} test cases
-        </p>
-      </div>
-      {cases.length === 0 ? (
-        <div className="p-6 text-center text-gray-500">
-          No test cases in this category
-        </div>
-      ) : (
-        <div className="divide-y max-h-96 overflow-y-auto">
-          {cases.map((testCase) => (
-            <div key={testCase.testCaseId} className="p-4 hover:bg-gray-50">
-              <div className="flex justify-between items-start">
-                <div className="flex-1">
-                  <p className="font-medium text-gray-900">
-                    {testCase.caseKey}: {testCase.title}
-                  </p>
-                  <div className="flex items-center space-x-3 mt-2 text-sm text-gray-600">
-                    <span>Priority: {testCase.priority}</span>
-                    <span>Fails: {testCase.failCount}</span>
-                  </div>
-                  <div className="mt-2">
-                    <ExecutionHistory history={testCase.executionHistory} />
-                  </div>
-                </div>
-                <div className="ml-4">
-                  <StatusBadge status={testCase.currentStatus} />
-                </div>
-              </div>
-              {testCase.lastTester && (
-                <div className="mt-2 text-xs text-gray-500">
-                  Last tested by: {testCase.lastTester.name} at{" "}
-                  {new Date(testCase.lastRunTime!).toLocaleString()}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
 
   return (
     <div className="space-y-6">
@@ -269,34 +252,34 @@ const TestPlanDetail: React.FC<TestPlanDetailProps> = ({
           <nav className="flex space-x-8 px-6" aria-label="Tabs">
             {[
               {
-                key: "overview",
+                key: "overview" as const,
                 label: "Overview",
                 count: data.testCases.length,
               },
               {
-                key: "stillFailing",
+                key: "stillFailing" as const,
                 label: "Still Failing",
                 count: data.insights.stillFailing.length,
               },
               {
-                key: "failedThenPassed",
+                key: "failedThenPassed" as const,
                 label: "Failed Then Passed",
                 count: data.insights.failedThenPassed.length,
               },
               {
-                key: "flakyTests",
+                key: "flakyTests" as const,
                 label: "Flaky Tests",
                 count: data.insights.flakyTests.length,
               },
               {
-                key: "notRun",
+                key: "notRun" as const,
                 label: "Not Run",
                 count: data.insights.notRun.length,
               },
             ].map((tab) => (
               <button
                 key={tab.key}
-                onClick={() => setActiveTab(tab.key as any)}
+                onClick={() => setActiveTab(tab.key)}
                 className={`${
                   activeTab === tab.key
                     ? "border-blue-500 text-blue-600"

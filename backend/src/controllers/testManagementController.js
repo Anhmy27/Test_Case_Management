@@ -46,6 +46,12 @@ const createProject = asyncHandler(async (req, res) => {
     throw httpError(400, 'name and code are required');
   }
 
+  // Check if project code already exists
+  const existingProject = await Project.findOne({ code: code.toUpperCase() }).lean();
+  if (existingProject) {
+    throw httpError(409, `Project code "${code}" already exists`);
+  }
+
   const project = await Project.create({
     name,
     code,
@@ -63,6 +69,14 @@ const updateProject = asyncHandler(async (req, res) => {
   const project = await Project.findById(toObjectId(projectId, 'projectId'));
   if (!project) {
     throw httpError(404, 'Project not found');
+  }
+
+  // If updating code, check for duplicates
+  if (code && code.toUpperCase() !== project.code) {
+    const existingProject = await Project.findOne({ code: code.toUpperCase() }).lean();
+    if (existingProject) {
+      throw httpError(409, `Project code "${code}" already exists`);
+    }
   }
 
   if (name) project.name = name;
@@ -115,6 +129,15 @@ const createVersion = asyncHandler(async (req, res) => {
     throw httpError(404, 'Project not found');
   }
 
+  // Check for duplicate version name in same project
+  const existingVersion = await Version.findOne({ 
+    project: project._id, 
+    name: name 
+  }).lean();
+  if (existingVersion) {
+    throw httpError(409, `Version "${name}" already exists in this project`);
+  }
+
   const version = await Version.create({
     project: project._id,
     name,
@@ -147,6 +170,15 @@ const createTestCaseGroup = asyncHandler(async (req, res) => {
   const project = await Project.findById(toObjectId(projectId, 'projectId')).lean();
   if (!project) {
     throw httpError(404, 'Project not found');
+  }
+
+  // Check for duplicate group name in same project
+  const existingGroup = await TestCaseGroup.findOne({ 
+    project: project._id, 
+    name: name 
+  }).lean();
+  if (existingGroup) {
+    throw httpError(409, `Test case group "${name}" already exists in this project`);
   }
 
   const group = await TestCaseGroup.create({
@@ -202,6 +234,16 @@ const createTestCase = asyncHandler(async (req, res) => {
     throw httpError(404, 'Test case group not found in selected project');
   }
 
+  // Check for duplicate caseKey in same group
+  const existingCase = await TestCase.findOne({ 
+    project: project._id, 
+    group: group._id, 
+    caseKey: caseKey.toUpperCase() 
+  }).lean();
+  if (existingCase) {
+    throw httpError(409, `Test case key "${caseKey}" already exists in this group`);
+  }
+
   const normalizedSteps = Array.isArray(steps)
     ? steps
         .filter((step) => step && step.action && step.expected)
@@ -250,10 +292,24 @@ const updateTestCase = asyncHandler(async (req, res) => {
 
   const nextProjectId = projectId ? toObjectId(projectId, 'projectId') : testCase.project;
   const nextGroupId = groupId ? toObjectId(groupId, 'groupId') : testCase.group;
+  const nextCaseKey = caseKey || testCase.caseKey;
 
   const group = await TestCaseGroup.findById(nextGroupId).lean();
   if (!group || String(group.project) !== String(nextProjectId)) {
     throw httpError(404, 'Test case group not found in selected project');
+  }
+
+  // Check for duplicate if caseKey or group is being changed
+  if (caseKey || groupId) {
+    const existingCase = await TestCase.findOne({ 
+      project: nextProjectId,
+      group: nextGroupId,
+      caseKey: nextCaseKey.toUpperCase(),
+      _id: { $ne: testCase._id } // Exclude current case
+    }).lean();
+    if (existingCase) {
+      throw httpError(409, `Test case key "${nextCaseKey}" already exists in this group`);
+    }
   }
 
   if (projectId) testCase.project = nextProjectId;
@@ -338,6 +394,16 @@ const createTestPlan = asyncHandler(async (req, res) => {
   const version = await Version.findById(toObjectId(versionId, 'versionId')).lean();
   if (!version || String(version.project) !== String(project._id)) {
     throw httpError(404, 'Version not found in selected project');
+  }
+
+  // Check for duplicate plan name in same version
+  const existingPlan = await TestPlan.findOne({ 
+    project: project._id, 
+    version: version._id, 
+    name: name 
+  }).lean();
+  if (existingPlan) {
+    throw httpError(409, `Test plan "${name}" already exists in this version`);
   }
 
   const validCaseIds = caseIds.map((id, index) => ({
@@ -465,6 +531,15 @@ const startTestRun = asyncHandler(async (req, res) => {
 
   if (req.user.role !== 'admin' && !isPlanAssignedToUser(testPlan, req.user.id)) {
     throw httpError(403, 'You are not assigned to this test plan');
+  }
+
+  // Check if a run with the same name already exists for this test plan
+  const existingRun = await TestRun.findOne({
+    testPlan: testPlan._id,
+    name: name.trim(),
+  }).lean();
+  if (existingRun) {
+    throw httpError(409, `A test run with name "${name}" already exists for this test plan`);
   }
 
   const results = testPlan.items.map((item) => ({
