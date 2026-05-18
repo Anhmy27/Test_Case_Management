@@ -25,12 +25,13 @@ const {
   getVersionDashboard,
   getTestPlanStats,
   getTestPlanDetail,
+  applyAutomationResults,
 } = require('../controllers/testManagementController');
 const { authenticate, authorize } = require('../middlewares/authMiddleware');
 
 const router = express.Router();
 // Allow automation systems to POST results using a secret header without normal auth
-router.post('/test-runs/:runId/automation-results', require('../controllers/testManagementController').applyAutomationResults);
+router.post('/test-runs/:runId/automation-results', applyAutomationResults);
 
 router.use(authenticate);
 
@@ -60,7 +61,6 @@ router.patch('/test-runs/:runId/end', authorize('admin', 'employee'), endTestRun
 
 router.get('/test-runs/:runId/my-items', getMyRunItems);
 router.patch('/test-runs/:runId/results/:resultId', updateRunResult);
-router.post('/test-runs/:runId/automation-results', authorize('admin', 'employee'), applyAutomationResults);
 
 router.get('/dashboard', getDashboard);
 
