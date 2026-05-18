@@ -424,6 +424,31 @@ const assignTestPlanItems = asyncHandler(async (req, res) => {
   res.json({ testPlan: populated });
 });
 
+const updateTestPlan = asyncHandler(async (req, res) => {
+  const { testPlanId } = req.params;
+  const { executionMode } = req.body;
+
+  if (!executionMode || !['manual', 'automation'].includes(executionMode)) {
+    throw httpError(400, 'executionMode must be "manual" or "automation"');
+  }
+
+  const testPlan = await TestPlan.findById(toObjectId(testPlanId, 'testPlanId'));
+  if (!testPlan) {
+    throw httpError(404, 'Test plan not found');
+  }
+
+  testPlan.executionMode = executionMode;
+  await testPlan.save();
+
+  const populated = await TestPlan.findById(testPlan._id)
+    .populate('owner', 'name email role')
+    .populate('assignees', 'name email role')
+    .populate('items.testCase', 'caseKey title')
+    .lean();
+
+  res.json({ testPlan: populated });
+});
+
 const startTestRun = asyncHandler(async (req, res) => {
   const { testPlanId, name } = req.body;
   if (!testPlanId || !name) {
@@ -483,7 +508,12 @@ const startTestRun = asyncHandler(async (req, res) => {
     results,
   });
 
-  res.status(201).json({ testRun });
+  // Populate testPlan with executionMode for the response
+  const populatedTestRun = await TestRun.findById(testRun._id)
+    .populate('testPlan', 'name executionMode')
+    .lean();
+
+  res.status(201).json({ testRun: populatedTestRun });
 });
 
 const applyAutomationResults = asyncHandler(async (req, res) => {
@@ -1292,6 +1322,7 @@ module.exports = {
   createTestPlan,
   listTestPlans,
   assignTestPlanItems,
+  updateTestPlan,
   startTestRun,
   listTestRuns,
   getMyRunItems,

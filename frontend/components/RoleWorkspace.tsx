@@ -150,6 +150,11 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
     assignDraft,
     setAssignDraft,
     saveAssignments,
+    editingPlanId,
+    setEditingPlanId,
+    editingExecutionMode,
+    setEditingExecutionMode,
+    updatePlanExecutionMode,
     createProject,
     createVersion,
     createGroup,
@@ -1513,27 +1518,82 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
             </SectionCard>
 
             <SectionCard title="Test Plan List">
-              <DataTable
-                columns={["Plan", "Project", "Version", "Owner"]}
-                rows={scopedPlans
-                  .filter((plan: RecordAny) =>
-                    matchesSearch(
-                      plan.name,
-                      plan.project?.name,
-                      plan.version?.name,
-                      userName(plan.owner),
-                    ),
-                  )
-                  .map((plan: RecordAny) => (
-                    <>
-                      <div>{plan.name}</div>
-                      <div>{plan.project?.name || "-"}</div>
-                      <div>{plan.version?.name || "-"}</div>
-                      <div>{userName(plan.owner)}</div>
-                    </>
-                  ))}
-                emptyText="No plans"
-              />
+              {editingPlanId ? (
+                <div className="workspace-form">
+                  <label>
+                    <span>Execution Mode</span>
+                    <select
+                      value={editingExecutionMode}
+                      onChange={(e) => setEditingExecutionMode(e.target.value)}
+                    >
+                      <option value="manual">Manual</option>
+                      <option value="automation">Automation</option>
+                    </select>
+                  </label>
+                  <div className="workspace-inline-actions">
+                    <button
+                      type="button"
+                      className="workspace-primary"
+                      onClick={() => {
+                        if (editingExecutionMode) {
+                          updatePlanExecutionMode(editingPlanId, editingExecutionMode);
+                        }
+                      }}
+                    >
+                      Save
+                    </button>
+                    <button
+                      type="button"
+                      className="workspace-secondary"
+                      onClick={() => {
+                        setEditingPlanId("");
+                        setEditingExecutionMode("");
+                      }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <DataTable
+                  columns={["Plan", "Project", "Version", "Owner", "Mode", "Action"]}
+                  rows={scopedPlans
+                    .filter((plan: RecordAny) =>
+                      matchesSearch(
+                        plan.name,
+                        plan.project?.name,
+                        plan.version?.name,
+                        userName(plan.owner),
+                      ),
+                    )
+                    .map((plan: RecordAny) => (
+                      <>
+                        <div>{plan.name}</div>
+                        <div>{plan.project?.name || "-"}</div>
+                        <div>{plan.version?.name || "-"}</div>
+                        <div>{userName(plan.owner)}</div>
+                        <div>
+                          <span className="workspace-pill">
+                            {plan.executionMode || 'manual'}
+                          </span>
+                        </div>
+                        <div>
+                          <button
+                            type="button"
+                            className="workspace-secondary"
+                            onClick={() => {
+                              setEditingPlanId(plan._id);
+                              setEditingExecutionMode(plan.executionMode || 'manual');
+                            }}
+                          >
+                            Update
+                          </button>
+                        </div>
+                      </>
+                    ))}
+                  emptyText="No plans"
+                />
+              )}
             </SectionCard>
           </div>
         )}

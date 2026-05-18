@@ -15,6 +15,7 @@ const {
   createTestPlan,
   listTestPlans,
   assignTestPlanItems,
+  updateTestPlan,
   startTestRun,
   listTestRuns,
   getMyRunItems,
@@ -54,6 +55,7 @@ router.delete('/test-cases/:testCaseId', authorize('admin'), deleteTestCase);
 router.get('/test-plans', listTestPlans);
 router.post('/test-plans', authorize('admin'), createTestPlan);
 router.put('/test-plans/:testPlanId/assign', authorize('admin'), assignTestPlanItems);
+router.put('/test-plans/:testPlanId', authorize('admin'), updateTestPlan);
 
 router.get('/test-runs', listTestRuns);
 router.post('/test-runs', authorize('admin', 'employee'), startTestRun);

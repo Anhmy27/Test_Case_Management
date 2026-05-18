@@ -96,6 +96,8 @@ export default function TestCaseManagementApp() {
   });
   const [selectedRunId, setSelectedRunId] = useState<string>("");
   const [myItems, setMyItems] = useState<RecordAny[]>([]);
+  const [editingPlanId, setEditingPlanId] = useState<string>("");
+  const [editingExecutionMode, setEditingExecutionMode] = useState<string>("");
   const lastAlertRef = useRef<string>("");
   const lastTabRef = useRef<string>(activeTab);
 
@@ -150,6 +152,8 @@ export default function TestCaseManagementApp() {
     setNewUserForm({ name: "", email: "", password: "", role: "employee" });
     setSelectedPlanId("");
     setAssignDraft({ ownerId: "", assigneeIds: [] });
+    setEditingPlanId("");
+    setEditingExecutionMode("");
     setSelectedRunId("");
     setMyItems([]);
   }, []);
@@ -635,6 +639,19 @@ export default function TestCaseManagementApp() {
     });
   }
 
+  async function updatePlanExecutionMode(planId: string, executionMode: string) {
+    await withAction(async () => {
+      await apiRequest(`/api/test-plans/${planId}`, token, {
+        method: "PUT",
+        body: JSON.stringify({ executionMode }),
+      });
+
+      setMessage("Da cap nhat execution mode cho test plan");
+      setEditingPlanId("");
+      setEditingExecutionMode("");
+    });
+  }
+
   async function startRun(event: FormEvent) {
     event.preventDefault();
     await withAction(async () => {
@@ -774,6 +791,11 @@ export default function TestCaseManagementApp() {
     assignDraft,
     setAssignDraft,
     saveAssignments,
+    editingPlanId,
+    setEditingPlanId,
+    editingExecutionMode,
+    setEditingExecutionMode,
+    updatePlanExecutionMode,
     createVersion,
     createGroup,
     createPlan,
