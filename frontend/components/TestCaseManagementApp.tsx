@@ -610,7 +610,7 @@ export default function TestCaseManagementApp() {
         description: "",
         projectId: planForm.projectId,
         versionId: planForm.versionId,
-        executionMode: 'manual',
+        executionMode: "manual",
         selectedGroupIds: [],
         caseIds: [],
       });
@@ -678,7 +678,7 @@ export default function TestCaseManagementApp() {
 
   async function updateResult(
     resultId: string,
-    status: "pass" | "fail" | "blocked",
+    status: "pass" | "fail" | "blocked" | "skip",
     note: string,
   ) {
     if (!selectedRunId) {

@@ -39,6 +39,7 @@ export interface TestPlanItemRecord {
 export interface TestPlanRecord {
   _id: string;
   name: string;
+  executionMode?: "manual" | "automation";
   items?: TestPlanItemRecord[];
 }
 
@@ -46,6 +47,15 @@ export interface TestRunRecord {
   _id: string;
   name: string;
   status: string;
+  startedBy?: UserRecord | string;
+  endedBy?: UserRecord | string;
+  testPlan?:
+    | string
+    | {
+        _id: string;
+        name?: string;
+        executionMode?: "manual" | "automation";
+      };
 }
 
 export interface DashboardSummary {

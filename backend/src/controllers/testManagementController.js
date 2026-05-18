@@ -563,6 +563,10 @@ const listTestRuns = asyncHandler(async (req, res) => {
     query.status = status;
   }
 
+  if (req.user.role !== 'admin') {
+    query.startedBy = toObjectId(req.user.id, 'userId');
+  }
+
   const testRuns = await TestRun.find(query)
     .sort({ createdAt: -1 })
     .populate('project', 'name code')
@@ -632,13 +636,10 @@ const updateRunResult = asyncHandler(async (req, res) => {
     throw httpError(404, 'Run result not found');
   }
 
-  const isAdmin = req.user.role === 'admin';
-  const isOwner = result.owner && String(result.owner) === req.user.id;
-  const isAssignee = Array.isArray(result.assignees)
-    && result.assignees.some((userId) => String(userId) === req.user.id);
+  const isStarter = String(testRun.startedBy) === req.user.id;
 
-  if (!isAdmin && !isOwner && !isAssignee) {
-    throw httpError(403, 'You are not assigned for this test case');
+  if (!isStarter) {
+    throw httpError(403, 'You do not have permission to update this test run');
   }
 
   result.status = status;
@@ -658,10 +659,9 @@ const endTestRun = asyncHandler(async (req, res) => {
     throw httpError(404, 'Test run not found');
   }
 
-  const isAdmin = req.user.role === 'admin';
   const isStarter = String(testRun.startedBy) === req.user.id;
 
-  if (!isAdmin && !isStarter) {
+  if (!isStarter) {
     throw httpError(403, 'You do not have permission to end this test run');
   }
 

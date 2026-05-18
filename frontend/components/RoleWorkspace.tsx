@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { getId, userName } from "@/lib/api";
+import ManualRunExecutionPanel from "./execution/ManualRunExecutionPanel";
+import AutomationRunExecutionPanel from "./execution/AutomationRunExecutionPanel";
 
 type RecordAny = Record<string, any>;
 
@@ -192,11 +194,18 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
   const selectedItem = myItems.find(
     (item: RecordAny) => item._id === selectedItemId,
   );
-  const hasRunningSelection = Boolean(
-    selectedRun && selectedRun.status === "running",
-  );
+  const currentUserId = String(currentUser?._id || "");
   const isAutomationRun = Boolean(
-    selectedRun && selectedRun.testPlan && String(selectedRun.testPlan.executionMode) === 'automation',
+    selectedRun && selectedRun.testPlan && String(selectedRun.testPlan.executionMode) === "automation",
+  );
+  const selectedRunStartedByCurrentUser =
+    String(selectedRun?.startedBy?._id || selectedRun?.startedBy || "") ===
+    currentUserId;
+  const canEditSelectedRun = Boolean(
+    selectedRun &&
+      selectedRun.status === "running" &&
+      selectedRunStartedByCurrentUser &&
+      !isAutomationRun,
   );
 
   const dashboardData = dashboard || {};
@@ -237,6 +246,10 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
     : runs.filter(
         (run: RecordAny) => getId(run.testPlan?.project) === selectedProjectId,
       );
+  const myScopedRuns = scopedRuns.filter(
+    (run: RecordAny) =>
+      String(run.startedBy?._id || run.startedBy || "") === currentUserId,
+  );
   const adminRuns = isAdmin ? runs : scopedRuns;
   const navItems = isAdmin
     ? isGlobalScope
@@ -1298,6 +1311,21 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
                   </label>
                 </div>
                 <label>
+                  <span>Execution Mode</span>
+                  <select
+                    value={planForm.executionMode || "manual"}
+                    onChange={(e) =>
+                      setPlanForm((prev: any) => ({
+                        ...prev,
+                        executionMode: e.target.value,
+                      }))
+                    }
+                  >
+                    <option value="manual">Manual</option>
+                    <option value="automation">Automation</option>
+                  </select>
+                </label>
+                <label>
                   <span>Name</span>
                   <input
                     value={planForm.name}
@@ -1451,21 +1479,6 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
                     ))}
                   </select>
                 </label>
-                <label>
-                  <span>Execution Mode</span>
-                  <select
-                    value={planForm.executionMode || 'manual'}
-                    onChange={(e) =>
-                      setPlanForm((prev: any) => ({
-                        ...prev,
-                        executionMode: e.target.value,
-                      }))
-                    }
-                  >
-                    <option value="manual">Manual</option>
-                    <option value="automation">Automation</option>
-                  </select>
-                </label>
                 <div className="workspace-form__grid workspace-form__grid--two">
                   <label>
                     <span>Assignees</span>
@@ -1606,17 +1619,13 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
                         <button
                           type="button"
                           className="workspace-secondary"
-                          disabled={run.status === "running"}
                           onClick={async () => {
-                            if (run.status === "running") {
-                              return;
-                            }
                             setSelectedRunId(run._id);
                             await loadMyItems(run._id);
                             setActiveTab("execution");
                           }}
                         >
-                          View
+                          {run.status === "running" && String(run.startedBy?._id || run.startedBy || "") === currentUserId ? "Open" : "View"}
                         </button>
                       </div>
                     </>
@@ -1778,7 +1787,7 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
             <SectionCard title="Running Tests" subtitle="Run dang chay cua ban">
               <DataTable
                 columns={["Run", "Plan", "Status", "Action"]}
-                rows={scopedRuns
+                rows={myScopedRuns
                   .filter((run: RecordAny) => run.status === "running")
                   .filter((run: RecordAny) =>
                     matchesSearch(run.name, run.testPlan?.name, run.status),
@@ -1814,16 +1823,8 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
             <SectionCard title="History" subtitle="Lich su execution">
               <DataTable
                 columns={["Run", "Plan", "Status", "Started By", "Action"]}
-                rows={scopedRuns
+                rows={myScopedRuns
                   .filter((run: RecordAny) => run.status === "completed")
-                  .filter((run: RecordAny) => {
-                    const userId = String(currentUser?._id || "");
-                    if (!userId) {
-                      return false;
-                    }
-
-                    return String(run.startedBy?._id || run.startedBy || "") === userId;
-                  })
                   .filter((run: RecordAny) =>
                     matchesSearch(
                       run.name,
@@ -1909,224 +1910,36 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
               </SectionCard>
             </div>
 
-            <div className="execution-grid">
-              <section className="execution-list">
-                <div className="workspace-card workspace-card--flush">
-                  <div className="workspace-card__header">
-                    <div>
-                      <h2>Test Cases</h2>
-                      <p>Chon testcase dang execute</p>
-                    </div>
-                  </div>
-                  <div className="execution-list__items">
-                    {myItems.map((item: RecordAny) => {
-                      const active = item._id === selectedItemId;
-                      return (
-                        <button
-                          key={item._id}
-                          type="button"
-                          className={
-                            active
-                              ? "execution-item is-active"
-                              : "execution-item"
-                          }
-                          onClick={() => setSelectedItemId(item._id)}
-                        >
-                          <span className="execution-item__status">
-                            {item.status}
-                          </span>
-                          <strong>
-                            {item.testCase?.caseKey || "TC"} -{" "}
-                            {item.testCase?.title || "Untitled"}
-                          </strong>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </section>
-
-              <section className="execution-detail">
-                <div className="workspace-card workspace-card--flush">
-                  <div className="workspace-card__header">
-                    <div>
-                      <h2>Case Detail</h2>
-                      <p>Title, steps, expected, actual result</p>
-                    </div>
-                  </div>
-
-                  {!selectedItem ? (
-                    <div className="workspace-empty">
-                      Chon mot testcase ben trai
-                    </div>
-                  ) : (
-                    <div className="execution-detail__body">
-                      <div className="execution-meta">
-                        <div className="execution-meta__head">
-                          <h3>{selectedItem.testCase?.title}</h3>
-                          <span
-                            className={`workspace-pill status-${selectedItem.status}`}
-                          >
-                            {selectedItem.status}
-                          </span>
-                        </div>
-                        <p>
-                          {selectedItem.testCase?.description ||
-                            "No description"}
-                        </p>
-                      </div>
-                      <div className="execution-block">
-                        <strong>Steps</strong>
-                        <ol>
-                          {(selectedItem.testCase?.steps || []).map(
-                            (step: RecordAny, index: number) => (
-                              <li key={index}>{step.action || step}</li>
-                            ),
-                          )}
-                        </ol>
-                      </div>
-                      <div className="execution-block">
-                        <strong>Expected result</strong>
-                        <p>{selectedItem.testCase?.expected || "N/A"}</p>
-                      </div>
-                      <div className="workspace-form">
-                        <label>
-                          <span>Actual result</span>
-                          <textarea
-                            rows={4}
-                            value={
-                              notes[selectedItem._id] ?? selectedItem.note ?? ""
-                            }
-                            onChange={(e) =>
-                              setNotes((prev) => ({
-                                ...prev,
-                                [selectedItem._id]: e.target.value,
-                              }))
-                            }
-                          />
-                        </label>
-                        <label>
-                          <span>Notes</span>
-                          <textarea
-                            rows={3}
-                            value={notes[`${selectedItem._id}:notes`] ?? ""}
-                            onChange={(e) =>
-                              setNotes((prev) => ({
-                                ...prev,
-                                [`${selectedItem._id}:notes`]: e.target.value,
-                              }))
-                            }
-                          />
-                        </label>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </section>
-            </div>
-
-            <div className="execution-actions">
-              <button
-                type="button"
-                className={
-                  selectedItem?.status === "pass"
-                    ? "workspace-primary is-selected"
-                    : "workspace-primary"
-                }
-                onClick={() =>
-                  selectedItemId &&
-                  !isAutomationRun &&
-                  updateResult(
-                    selectedItemId,
-                    "pass",
-                    notes[selectedItemId] || "",
-                  )
-                }
-                disabled={isAutomationRun}
-              >
-                Pass
-              </button>
-              <button
-                type="button"
-                className={
-                  selectedItem?.status === "fail"
-                    ? "workspace-danger is-selected"
-                    : "workspace-danger"
-                }
-                onClick={() =>
-                  selectedItemId &&
-                  !isAutomationRun &&
-                  updateResult(
-                    selectedItemId,
-                    "fail",
-                    notes[selectedItemId] || "",
-                  )
-                }
-                disabled={isAutomationRun}
-              >
-                Fail
-              </button>
-              <button
-                type="button"
-                className={
-                  selectedItem?.status === "blocked"
-                    ? "workspace-secondary is-selected"
-                    : "workspace-secondary"
-                }
-                onClick={() =>
-                  selectedItemId &&
-                  !isAutomationRun &&
-                  updateResult(
-                    selectedItemId,
-                    "blocked",
-                    notes[selectedItemId] || "",
-                  )
-                }
-                disabled={isAutomationRun}
-              >
-                Blocked
-              </button>
-              <button
-                type="button"
-                className={
-                  selectedItem?.status === "skip"
-                    ? "workspace-secondary is-selected"
-                    : "workspace-secondary"
-                }
-                onClick={() =>
-                  selectedItemId &&
-                  !isAutomationRun &&
-                  updateResult(
-                    selectedItemId,
-                    "skip",
-                    notes[selectedItemId] || "",
-                  )
-                }
-                disabled={isAutomationRun}
-              >
-                Skip
-              </button>
-            </div>
-
-            {hasRunningSelection && canEndRun(selectedRun) && !isAutomationRun && (
-              <div className="workspace-inline-actions workspace-inline-actions--right">
-                <button
-                  type="button"
-                  className="workspace-danger"
-                  onClick={() => endRun(selectedRun._id)}
-                >
-                  End current run
-                </button>
+            {selectedRun ? (
+              selectedRun.testPlan && String(selectedRun.testPlan.executionMode) === "automation" ? (
+                <AutomationRunExecutionPanel
+                  selectedRun={selectedRun}
+                  myItems={myItems}
+                  selectedItemId={selectedItemId}
+                  setSelectedItemId={setSelectedItemId}
+                  selectedItem={selectedItem}
+                  notes={notes}
+                  setNotes={setNotes}
+                />
+              ) : (
+                <ManualRunExecutionPanel
+                  selectedRun={selectedRun}
+                  myItems={myItems}
+                  selectedItemId={selectedItemId}
+                  setSelectedItemId={setSelectedItemId}
+                  selectedItem={selectedItem}
+                  notes={notes}
+                  setNotes={setNotes}
+                  onUpdateResult={updateResult}
+                  onEndRun={() => endRun(selectedRun._id)}
+                  canEditRun={canEditSelectedRun}
+                />
+              )
+            ) : (
+              <div className="workspace-note">
+                Chon hoac start mot test run de bat dau execution.
               </div>
             )}
-
-            <div className="workspace-note">
-              <strong>Pass</strong> = case chạy đúng như mong đợi.{" "}
-              <strong>Fail</strong> = case lỗi so với expected.{" "}
-              <strong>Blocked</strong> = bị kẹt do thiếu dữ liệu, môi trường
-              hoặc phụ thuộc. <strong>Skip</strong> = tạm bỏ qua, chưa chạy ở
-              lượt này.
-            </div>
           </div>
         )}
       </main>
