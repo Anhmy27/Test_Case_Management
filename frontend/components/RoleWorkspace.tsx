@@ -1144,6 +1144,41 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
                   </select>
                 </label>
                 <label>
+                  <span>Severity</span>
+                  <select
+                    value={testCaseForm.severity || "major"}
+                    onChange={(e) =>
+                      setTestCaseForm((prev: any) => ({
+                        ...prev,
+                        severity: e.target.value,
+                      }))
+                    }
+                  >
+                    <option value="minor">minor</option>
+                    <option value="major">major</option>
+                    <option value="critical">critical</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Type</span>
+                  <select
+                    value={testCaseForm.type || "functional"}
+                    onChange={(e) =>
+                      setTestCaseForm((prev: any) => ({
+                        ...prev,
+                        type: e.target.value,
+                      }))
+                    }
+                  >
+                    <option value="functional">functional</option>
+                    <option value="api">api</option>
+                    <option value="ui">ui</option>
+                    <option value="regression">regression</option>
+                    <option value="security">security</option>
+                    <option value="other">other</option>
+                  </select>
+                </label>
+                <label>
                   <span>Description</span>
                   <textarea
                     rows={3}
