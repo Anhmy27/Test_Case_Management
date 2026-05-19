@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const XLSX = require('xlsx');
 const Project = require('../models/Project');
 const Version = require('../models/Version');
 const TestCase = require('../models/TestCase');
@@ -1037,6 +1038,198 @@ const updateTestCase = asyncHandler(async (req, res) => {
   res.json({ testCase: populated });
 });
 
+const importTestCases = asyncHandler(async (req, res) => {
+  if (!req.file) {
+    throw httpError(400, 'File is required');
+  }
+
+  const { projectId } = req.body;
+  if (!projectId) {
+    throw httpError(400, 'projectId is required');
+  }
+
+  const project = await ensureProjectExists(projectId);
+
+  try {
+    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(sheet);
+
+    if (!Array.isArray(rows) || rows.length === 0) {
+      throw httpError(400, 'Excel sheet is empty or invalid');
+    }
+
+    const created = [];
+    const errors = [];
+
+    for (let i = 0; i < rows.length; i++) {
+      try {
+        const row = rows[i];
+        const rowGroupKey = String(row['Group Key'] || '').trim();
+        const rowGroupName = String(row['Group Name'] || row['Group'] || '').trim();
+        const caseKey = String(row['Case Key'] || '').trim();
+        const title = String(row['Title'] || '').trim();
+        const description = String(row['Description'] || '').trim();
+        const priority = String(row['Priority'] || 'medium').trim().toLowerCase();
+        const severity = String(row['Severity'] || 'major').trim().toLowerCase();
+        const type = String(row['Type'] || 'functional').trim().toLowerCase();
+
+        if (!rowGroupKey && !rowGroupName) {
+          errors.push({
+            row: i + 2,
+            error: 'Group Key or Group Name is required',
+          });
+          continue;
+        }
+
+        if (!caseKey || !title) {
+          errors.push({
+            row: i + 2,
+            error: 'Case Key and Title are required',
+          });
+          continue;
+        }
+
+        const groupQuery = {
+          project: project._id,
+          deletedAt: null,
+          isLatest: true,
+        };
+
+        if (rowGroupKey) {
+          groupQuery.key = normalizeKey(rowGroupKey);
+        } else {
+          groupQuery.name = normalizeName(rowGroupName);
+        }
+
+        const group = await TestCaseGroup.findOne(groupQuery).lean();
+        if (!group) {
+          errors.push({
+            row: i + 2,
+            error: `Test case group '${rowGroupKey || rowGroupName}' not found in selected project`,
+          });
+          continue;
+        }
+
+        const expectedResult = String(row['Expected Result'] || '').trim();
+        if (!expectedResult) {
+          errors.push({
+            row: i + 2,
+            error: 'Expected Result is required',
+          });
+          continue;
+        }
+
+        // detect dynamic step action columns like "Step 1 Action", "Step 6 Action", etc.
+        const stepPattern = /^Step\s*(\d+)\s*Action$/i;
+        const detectedSteps = Object.keys(row)
+          .map((key) => {
+            const m = String(key).match(stepPattern);
+            if (!m) return null;
+            const idx = parseInt(m[1], 10);
+            return { key, idx };
+          })
+          .filter(Boolean)
+          .sort((a, b) => a.idx - b.idx);
+
+        const steps = [];
+        for (const s of detectedSteps) {
+          const action = String(row[s.key] || '').trim();
+          if (action) {
+            steps.push({ order: s.idx, action, expected: expectedResult });
+          }
+        }
+
+        if (steps.length === 0) {
+          errors.push({ row: i + 2, error: 'At least one step action is required' });
+          continue;
+        }
+
+        const normalizedKey = normalizeKey(caseKey);
+        const normalizedName = normalizeName(title);
+
+        const duplicate = await TestCase.findOne({
+          project: project._id,
+          group: group._id,
+          deletedAt: null,
+          isLatest: true,
+          $or: [{ key: normalizedKey }, { name: normalizedName }],
+        }).lean();
+        if (duplicate) {
+          errors.push({
+            row: i + 2,
+            error: `Test case '${normalizedKey}' already exists in group '${group.name}'`,
+          });
+          continue;
+        }
+
+        // validation for priority/severity/type may be strict based on flag
+        const strict = String(req.body.strict || '').toLowerCase() === 'true';
+
+        if (strict) {
+          if (!['low', 'medium', 'high', 'critical'].includes(priority)) {
+            errors.push({ row: i + 2, error: `Invalid priority '${priority}'` });
+            continue;
+          }
+          if (!['minor', 'major', 'critical'].includes(severity)) {
+            errors.push({ row: i + 2, error: `Invalid severity '${severity}'` });
+            continue;
+          }
+          if (!['functional', 'api', 'ui', 'regression', 'security', 'other'].includes(type)) {
+            errors.push({ row: i + 2, error: `Invalid type '${type}'` });
+            continue;
+          }
+        }
+
+        const testCase = await TestCase.create({
+          entityId: createEntityId(),
+          versionNumber: 1,
+          isLatest: true,
+          deletedAt: null,
+          project: project._id,
+          group: group._id,
+          key: normalizedKey,
+          name: normalizedName,
+          caseKey: normalizedKey,
+          title: normalizedName,
+          description,
+          steps,
+          priority: ['low', 'medium', 'high', 'critical'].includes(priority)
+            ? priority
+            : 'medium',
+          severity: ['minor', 'major', 'critical'].includes(severity)
+            ? severity
+            : 'major',
+          type: ['functional', 'api', 'ui', 'regression', 'security', 'other'].includes(type)
+            ? type
+            : 'functional',
+          status: 'active',
+          createdBy: req.user.id,
+        });
+
+        created.push({
+          _id: testCase._id,
+          caseKey: testCase.caseKey,
+          title: testCase.title,
+        });
+      } catch (rowErr) {
+        errors.push({
+          row: i + 2,
+          error: String(rowErr?.message || 'Unknown error'),
+        });
+      }
+    }
+
+    res.json({
+      message: `Imported ${created.length} test cases`,
+      created,
+      errors,
+      total: rows.length,
+    });
+  } catch (err) {
+    throw httpError(400, `Excel parsing error: ${err.message}`);
+  }
+});
 const deleteTestCase = asyncHandler(async (req, res) => {
   await softDeleteVersionSeries(TestCase, req.params.testCaseId);
   res.status(204).send();
@@ -1322,6 +1515,7 @@ module.exports = {
   createTestCase,
   listTestCases,
   listTestCaseDetails,
+  importTestCases,
   getTestCase,
   getTestCaseVersions,
   updateTestCase,

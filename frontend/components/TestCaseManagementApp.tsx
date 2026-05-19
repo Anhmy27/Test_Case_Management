@@ -11,6 +11,7 @@ import {
   useState,
 } from "react";
 import { apiRequest, getId } from "@/lib/api";
+import * as XLSX from "xlsx";
 import RoleWorkspace from "./RoleWorkspace";
 
 type RecordAny = Record<string, any>;
@@ -399,7 +400,7 @@ export default function TestCaseManagementApp() {
     }
   }
 
-  async function withAction(action: () => Promise<void>) {
+  const withAction = useCallback(async (action: () => Promise<void>) => {
     try {
       setMessage("");
       await action();
@@ -409,7 +410,7 @@ export default function TestCaseManagementApp() {
     } catch (error: any) {
       setMessage(error.message || "Action failed");
     }
-  }
+  }, [currentUser?.role, refreshAll, selectedProjectId, token]);
 
   function startProjectEdit(project: RecordAny) {
     setEditingProjectId(String(project._id));
@@ -749,6 +750,115 @@ export default function TestCaseManagementApp() {
     [token],
   );
 
+  const handleDownloadTestCaseTemplate = useCallback(() => {
+    const workbook = XLSX.utils.book_new();
+    const headers = [
+      "Group Key",
+      "Group Name",
+      "Case Key",
+      "Title",
+      "Priority",
+      "Severity",
+      "Type",
+      "Description",
+      "Step 1 Action",
+      "Step 2 Action",
+      "Step 3 Action",
+      "Step 4 Action",
+      "Step 5 Action",
+      "Expected Result",
+    ];
+
+    const templateRows = [
+      {
+        "Group Key": "AUTH",
+        "Group Name": "Authentication",
+        "Case Key": "LOGIN_001",
+        Title: "Login with valid credentials",
+        Priority: "high",
+        Severity: "major",
+        Type: "functional",
+        Description: "User can log in with a valid email and password.",
+        "Step 1 Action": "Open login page",
+        "Step 2 Action": "Enter valid email and password",
+        "Step 3 Action": "Click Login",
+        "Step 4 Action": "",
+        "Step 5 Action": "",
+        "Expected Result": "User is redirected to dashboard",
+      },
+    ];
+
+    const sheet = XLSX.utils.json_to_sheet(templateRows, { header: headers });
+    XLSX.utils.book_append_sheet(workbook, sheet, "TestCases");
+
+    const data = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+    const blob = new Blob([data], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "test-case-template.xlsx";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  }, []);
+
+  const handleImportTestCases = useCallback(
+    async (file: File) => {
+      if (!selectedProjectId) {
+        throw new Error("Hay chon project scope truoc khi import");
+      }
+
+      await withAction(async () => {
+        const formData = new FormData();
+        formData.append("projectId", selectedProjectId);
+        formData.append("file", file);
+        // enable strict validation for priority/severity/type
+        formData.append("strict", "true");
+
+        const response = await apiRequest<{
+          message: string;
+          created: RecordAny[];
+          errors: RecordAny[];
+          total: number;
+        }>("/api/test-cases/import", token, {
+          method: "POST",
+          body: formData,
+        });
+
+        const importedCount = response.created?.length || 0;
+        const errorCount = response.errors?.length || 0;
+        setMessage(
+          `${response.message || `Imported ${importedCount} test cases`}${errorCount ? `, ${errorCount} row(s) failed` : ""}`,
+        );
+
+        // if there are errors, generate an Excel file with details for the user to download
+        if (Array.isArray(response.errors) && response.errors.length > 0) {
+          try {
+            const errWb = XLSX.utils.book_new();
+            const errRows = response.errors.map((e: any) => ({ Row: e.row, Error: e.error }));
+            const errSheet = XLSX.utils.json_to_sheet(errRows, { header: ['Row', 'Error'] });
+            XLSX.utils.book_append_sheet(errWb, errSheet, 'ImportErrors');
+            const errData = XLSX.write(errWb, { bookType: 'xlsx', type: 'array' });
+            const errBlob = new Blob([errData], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            const errUrl = window.URL.createObjectURL(errBlob);
+            const a = document.createElement('a');
+            a.href = errUrl;
+            a.download = 'import-errors.xlsx';
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(errUrl);
+          } catch (e) {
+            // ignore error in error reporting
+          }
+        }
+      });
+    },
+    [selectedProjectId, token, withAction],
+  );
   async function updateResult(
     resultId: string,
     status: "pass" | "fail" | "blocked" | "skip",
@@ -861,6 +971,8 @@ export default function TestCaseManagementApp() {
     myItems,
     loadMyItems,
     loadTestCaseDetails,
+    downloadTestCaseTemplate: handleDownloadTestCaseTemplate,
+    importTestCases: handleImportTestCases,
     selectedRun,
     canEndRun,
     endRun,
@@ -944,3 +1056,12 @@ export default function TestCaseManagementApp() {
 
   return <RoleWorkspace workspace={workspace} />;
 }
+
+
+
+
+
+
+
+
+

@@ -1,4 +1,5 @@
 const express = require('express');
+const multer = require('multer');
 const {
   createProject,
   listProjects,
@@ -22,6 +23,7 @@ const {
   createTestCase,
   listTestCases,
   listTestCaseDetails,
+  importTestCases,
   getTestCase,
   getTestCaseVersions,
   updateTestCase,
@@ -52,6 +54,7 @@ const {
 const { authenticate, authorize } = require('../middlewares/authMiddleware');
 
 const router = express.Router();
+const upload = multer({ storage: multer.memoryStorage() });
 // Allow automation systems to POST results using a secret header without normal auth
 router.post('/test-runs/:runId/automation-results', applyAutomationResults);
 
@@ -81,6 +84,7 @@ router.patch('/test-case-groups/:groupId/restore', authorize('admin'), restoreTe
 
 router.get('/test-cases', listTestCases);
 router.get('/test-cases/detail', listTestCaseDetails);
+router.post('/test-cases/import', authorize('admin'), upload.single('file'), importTestCases);
 router.get('/test-cases/:testCaseId', getTestCase);
 router.get('/test-cases/:testCaseId/versions', getTestCaseVersions);
 router.post('/test-cases', authorize('admin'), createTestCase);
@@ -113,3 +117,4 @@ router.get('/dashboard/test-plans', getTestPlanStats);
 router.get('/dashboard/test-plans/:testPlanId', getTestPlanDetail);
 
 module.exports = router;
+

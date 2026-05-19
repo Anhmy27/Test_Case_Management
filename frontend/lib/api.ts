@@ -5,15 +5,17 @@ export async function apiRequest<T>(
   token?: string,
   options?: RequestInit
 ): Promise<T> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
+  const headers: Record<string, string> = {};
 
   if (options?.headers) {
     const optionHeaders = new Headers(options.headers);
     optionHeaders.forEach((value, key) => {
       headers[key] = value;
     });
+  }
+
+  if (!(options?.body instanceof FormData) && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
   }
 
   if (token) {
@@ -25,10 +27,22 @@ export async function apiRequest<T>(
     headers,
   });
 
-  const data = await response.json();
+  // Safely handle empty responses (204 No Content or empty body)
+  const text = await response.text();
+  let data: any = null;
+
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch (err) {
+      // If response is not JSON, preserve raw text
+      data = text;
+    }
+  }
 
   if (!response.ok) {
-    throw new Error(data.message || 'Request failed');
+    const message = (data && data.message) || String(text || 'Request failed');
+    throw new Error(message);
   }
 
   return data as T;
@@ -66,3 +80,5 @@ export function userName(value: unknown): string {
 
   return 'Unknown';
 }
+
+

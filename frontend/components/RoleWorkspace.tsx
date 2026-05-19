@@ -2,7 +2,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/set-state-in-effect */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { getId, userName } from "@/lib/api";
 import ManualRunExecutionPanel from "./execution/ManualRunExecutionPanel";
@@ -38,24 +38,26 @@ function SectionCard({
   title,
   subtitle,
   children,
+  actions,
 }: {
   title: string;
   subtitle?: string;
   children: ReactNode;
+  actions?: ReactNode;
 }) {
   return (
     <section className="workspace-card">
-      <div className="workspace-card__header">
+      <div className="workspace-card__header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem" }}>
         <div>
           <h2>{title}</h2>
           {subtitle && <p>{subtitle}</p>}
         </div>
+        {actions && <div className="workspace-inline-actions">{actions}</div>}
       </div>
       {children}
     </section>
   );
 }
-
 function DataTable({
   columns,
   rows,
@@ -166,6 +168,8 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
     myItems,
     loadMyItems,
     loadTestCaseDetails,
+    downloadTestCaseTemplate,
+    importTestCases,
     selectedRun,
     endRun,
     updateResult,
@@ -177,6 +181,7 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
   const [selectedItemId, setSelectedItemId] = useState<string>("");
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const importInputRef = useRef<HTMLInputElement | null>(null);
   const [detailGroupId, setDetailGroupId] = useState<string>("");
   const [detailRows, setDetailRows] = useState<RecordAny[]>([]);
   const [detailLoading, setDetailLoading] = useState<boolean>(false);
@@ -1015,8 +1020,43 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
             <SectionCard
               title={editingTestCaseId ? "Edit Test Case" : "Test Cases"}
               subtitle="Quan ly test case trong panel rieng"
-            >
-              <form className="workspace-form" onSubmit={saveTestCase}>
+              actions={
+                <>
+                  <button
+                    type="button"
+                    className="workspace-secondary"
+                    onClick={downloadTestCaseTemplate}
+                  >
+                    Download Excel Template
+                  </button>
+                  <button
+                    type="button"
+                    className="workspace-primary"
+                    onClick={() => importInputRef.current?.click()}
+                    disabled={!selectedProjectId}
+                  >
+                    Import Excel
+                  </button>
+                  <input
+                    ref={importInputRef}
+                    type="file"
+                    accept=".xlsx,.xls"
+                    style={{ display: "none" }}
+                    onChange={async (event) => {
+                      const input = event.currentTarget as HTMLInputElement;
+                      const file = input.files?.[0];
+                      if (!file) {
+                        return;
+                      }
+
+                      await importTestCases(file);
+                      // clear the input value by mutating the element directly
+                      input.value = "";
+                    }}
+                  />
+                </>
+              }
+            >              <form className="workspace-form" onSubmit={saveTestCase}>
                 <div className="workspace-form__grid workspace-form__grid--three">
                   <label>
                     <span>Project</span>
@@ -2147,3 +2187,8 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
     </div>
   );
 }
+
+
+
+
+
