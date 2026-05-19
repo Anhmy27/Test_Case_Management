@@ -543,7 +543,7 @@ const listVersions = asyncHandler(async (req, res) => {
   }
 
   if (search) {
-    filters.push(buildSearchMatch(search, ['name', 'notes', 'status']));
+    filters.push(buildSearchMatch(search, ['name', 'notes']));
   }
 
   const match = filters.length === 0 ? {} : filters.length === 1 ? filters[0] : { $and: filters };
@@ -564,7 +564,7 @@ const getVersion = asyncHandler(async (req, res) => {
 
 const updateVersion = asyncHandler(async (req, res) => {
   const { versionId } = req.params;
-  const { name, releaseDate, notes, status } = req.body;
+  const { name, releaseDate, notes } = req.body;
 
   const version = await Version.findById(toObjectId(versionId, 'versionId'));
   if (!version) {
@@ -578,7 +578,6 @@ const updateVersion = asyncHandler(async (req, res) => {
   if (name) version.name = normalizeName(name);
   if (releaseDate !== undefined) version.releaseDate = releaseDate || null;
   if (notes !== undefined) version.notes = notes || '';
-  if (status && ['planned', 'active', 'closed'].includes(status)) version.status = status;
 
   const duplicate = await Version.findOne({
     _id: { $ne: version._id },

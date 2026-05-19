@@ -21,12 +21,6 @@ const versionSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
-    status: {
-      type: String,
-      enum: ['planned', 'active', 'closed'],
-      default: 'planned',
-      index: true,
-    },
     deletedAt: {
       type: Date,
       default: null,
