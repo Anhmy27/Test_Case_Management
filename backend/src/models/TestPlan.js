@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { applyVersioning } = require('../utils/versioning');
 
 const planItemSchema = new mongoose.Schema(
   {
@@ -29,10 +30,18 @@ const planItemSchema = new mongoose.Schema(
 
 const testPlanSchema = new mongoose.Schema(
   {
+    key: {
+      type: String,
+      required: true,
+      trim: true,
+      uppercase: true,
+      index: true,
+    },
     name: {
       type: String,
       required: true,
       trim: true,
+      index: true,
     },
     description: {
       type: String,
@@ -82,6 +91,11 @@ const testPlanSchema = new mongoose.Schema(
   }
 );
 
-testPlanSchema.index({ project: 1, version: 1, name: 1 }, { unique: true });
+applyVersioning(testPlanSchema, {
+  scopeIndexes: [
+    { fields: { project: 1, version: 1, key: 1 } },
+    { fields: { project: 1, version: 1, name: 1 } },
+  ],
+});
 
 module.exports = mongoose.model('TestPlan', testPlanSchema);

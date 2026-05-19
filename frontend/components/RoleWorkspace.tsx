@@ -1,5 +1,7 @@
 "use client";
 
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/set-state-in-effect */
+
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { getId, userName } from "@/lib/api";
@@ -155,27 +157,19 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
     editingExecutionMode,
     setEditingExecutionMode,
     updatePlanExecutionMode,
-    createProject,
     createVersion,
     createGroup,
-    createCase,
     createPlan,
     createUser,
-    selectedRunId,
     setSelectedRunId,
     myItems,
     loadMyItems,
     selectedRun,
-    canEndRun,
     endRun,
     updateResult,
     startRun,
-    filteredVersions,
-    filteredCases,
-    filteredGroups,
     resetWorkspaceDrafts,
     message,
-    setMessage,
   } = workspace;
 
   const [selectedItemId, setSelectedItemId] = useState<string>("");
@@ -235,11 +229,6 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
     ? groups
     : groups.filter(
         (group: RecordAny) => getId(group.project) === selectedProjectId,
-      );
-  const scopedCases = isGlobalScope
-    ? testCases
-    : testCases.filter(
-        (testCase: RecordAny) => getId(testCase.project) === selectedProjectId,
       );
   const scopedPlans = isGlobalScope
     ? plans
@@ -526,7 +515,7 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
                     <MiniStat label="Test Plans" value={totalPlans} />
                     <MiniStat label="Test Cases" value={totalCases} />
                     <MiniStat label="Running Runs" value={runningRunsCount} />
-                    <MiniStat label="Team" value={totalUsers} />
+                    <MiniStat label="Users" value={totalUsers} />
                   </div>
                 </SectionCard>
 

@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { applyVersioning } = require('../utils/versioning');
 
 const stepSchema = new mongoose.Schema(
   {
@@ -23,16 +24,31 @@ const testCaseSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    key: {
+      type: String,
+      required: true,
+      trim: true,
+      uppercase: true,
+      index: true,
+    },
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+      index: true,
+    },
     caseKey: {
       type: String,
       required: true,
       trim: true,
       uppercase: true,
+      index: true,
     },
     title: {
       type: String,
       required: true,
       trim: true,
+      index: true,
     },
     description: {
       type: String,
@@ -77,6 +93,11 @@ const testCaseSchema = new mongoose.Schema(
   }
 );
 
-testCaseSchema.index({ project: 1, group: 1, caseKey: 1 }, { unique: true });
+applyVersioning(testCaseSchema, {
+  scopeIndexes: [
+    { fields: { project: 1, group: 1, key: 1 } },
+    { fields: { project: 1, group: 1, name: 1 } },
+  ],
+});
 
 module.exports = mongoose.model('TestCase', testCaseSchema);

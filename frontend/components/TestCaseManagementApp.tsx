@@ -188,50 +188,69 @@ export default function TestCaseManagementApp() {
 
   const refreshAll = useCallback(
     async (currentToken: string, role?: string, projectId?: string) => {
-      const projectQuery = projectId ? `?projectId=${projectId}` : "";
-      const projectResp = await apiRequest<{ projects: RecordAny[] }>(
-        "/api/projects",
-        currentToken,
-      );
-      const versionResp = await apiRequest<{ versions: RecordAny[] }>(
-        `/api/versions${projectQuery}`,
-        currentToken,
-      );
-      const groupResp = await apiRequest<{ groups: RecordAny[] }>(
-        `/api/test-case-groups${projectQuery}`,
-        currentToken,
-      );
-      const caseResp = await apiRequest<{ testCases: RecordAny[] }>(
-        `/api/test-cases${projectQuery}`,
-        currentToken,
-      );
-      const planResp = await apiRequest<{ testPlans: RecordAny[] }>(
-        `/api/test-plans${projectQuery}`,
-        currentToken,
-      );
-      const runResp = await apiRequest<{ testRuns: RecordAny[] }>(
-        `/api/test-runs${projectQuery}`,
-        currentToken,
-      );
-      const dashboardResp = await apiRequest<RecordAny>(
-        `/api/dashboard${projectQuery}`,
-        currentToken,
-      );
-
-      setProjects(projectResp.projects || []);
-      setVersions(versionResp.versions || []);
-      setGroups(groupResp.groups || []);
-      setTestCases(caseResp.testCases || []);
-      setPlans(planResp.testPlans || []);
-      setRuns(runResp.testRuns || []);
-      setDashboard(dashboardResp);
-
-      if ((role || currentUser?.role) === "admin") {
-        const userResp = await apiRequest<{ users: RecordAny[] }>(
-          "/api/users",
+      try {
+        const projectQuery = projectId ? `?projectId=${projectId}` : "";
+        const projectResp = await apiRequest<{ projects: RecordAny[] }>(
+          "/api/projects",
           currentToken,
         );
-        setUsers(userResp.users || []);
+        const versionResp = await apiRequest<{ versions: RecordAny[] }>(
+          `/api/versions${projectQuery}`,
+          currentToken,
+        );
+        const groupResp = await apiRequest<{ groups: RecordAny[] }>(
+          `/api/test-case-groups${projectQuery}`,
+          currentToken,
+        );
+        const caseResp = await apiRequest<{ testCases: RecordAny[] }>(
+          `/api/test-cases${projectQuery}`,
+          currentToken,
+        );
+        const planResp = await apiRequest<{ testPlans: RecordAny[] }>(
+          `/api/test-plans${projectQuery}`,
+          currentToken,
+        );
+        const runResp = await apiRequest<{ testRuns: RecordAny[] }>(
+          `/api/test-runs${projectQuery}`,
+          currentToken,
+        );
+        const dashboardResp = await apiRequest<RecordAny>(
+          `/api/dashboard${projectQuery}`,
+          currentToken,
+        );
+
+        setProjects(projectResp.projects || []);
+        setVersions(versionResp.versions || []);
+        setGroups(groupResp.groups || []);
+        setTestCases(caseResp.testCases || []);
+        setPlans(planResp.testPlans || []);
+        setRuns(runResp.testRuns || []);
+        setDashboard(dashboardResp);
+
+        if ((role || currentUser?.role) === "admin") {
+          const userResp = await apiRequest<{ users: RecordAny[] }>(
+            "/api/users",
+            currentToken,
+          );
+          setUsers(userResp.users || []);
+        }
+      } catch (error: any) {
+        const messageText = String(error?.message || "");
+        const authFailure =
+          messageText.includes("User is not available") ||
+          messageText.includes("Missing or invalid authorization token") ||
+          messageText.includes("Token is expired or invalid") ||
+          messageText.includes("Not authenticated");
+
+        if (authFailure) {
+          window.localStorage.removeItem("tcm_token");
+          setToken("");
+          setCurrentUser(null);
+          setMessage("Phien dang nhap da het han. Vui long dang nhap lai.");
+          return;
+        }
+
+        setMessage(error?.message || "Khong tai duoc du lieu");
       }
     },
     [currentUser?.role],

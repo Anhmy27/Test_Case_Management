@@ -27,6 +27,11 @@ const versionSchema = new mongoose.Schema(
       default: 'planned',
       index: true,
     },
+    deletedAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -38,6 +43,9 @@ const versionSchema = new mongoose.Schema(
   }
 );
 
-versionSchema.index({ project: 1, name: 1 }, { unique: true });
+versionSchema.index({ project: 1, name: 1 }, {
+  unique: true,
+  partialFilterExpression: { deletedAt: null },
+});
 
 module.exports = mongoose.model('Version', versionSchema);

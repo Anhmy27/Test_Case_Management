@@ -521,7 +521,11 @@ const startTestRun = asyncHandler(async (req, res) => {
     throw httpError(400, 'testPlanId and name are required');
   }
 
-  const testPlan = await TestPlan.findById(toObjectId(testPlanId, 'testPlanId'))
+  const testPlan = await TestPlan.findOne({
+    _id: toObjectId(testPlanId, 'testPlanId'),
+    deletedAt: null,
+    $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+  })
     .populate('owner', 'name email role')
     .populate('assignees', 'name email role')
     .lean();
@@ -882,7 +886,9 @@ const getDashboard = asyncHandler(async (req, res) => {
     .populate('testPlan', 'name')
     .lean();
 
-  const delayedTestPlans = await TestPlan.find(match.project ? { project: match.project } : {})
+  const delayedTestPlans = await TestPlan.find(match.project
+    ? { project: match.project, deletedAt: null, $or: [{ isLatest: true }, { isLatest: { $exists: false } }] }
+    : { deletedAt: null, $or: [{ isLatest: true }, { isLatest: { $exists: false } }] })
     .populate('project', 'name code')
     .populate('version', 'name')
     .populate('owner', 'name email role')
@@ -983,12 +989,12 @@ const getDashboard = asyncHandler(async (req, res) => {
     };
   });
 
-  const projectDocs = await Project.find(match.project ? { _id: match.project } : {})
+  const projectDocs = await Project.find(match.project ? { _id: match.project, deletedAt: null } : { deletedAt: null })
     .lean();
 
   const projectOverview = await Promise.all(
     projectDocs.map(async (project) => {
-      const latestVersion = await Version.findOne({ project: project._id }).sort({ createdAt: -1 }).lean();
+      const latestVersion = await Version.findOne({ project: project._id, deletedAt: null }).sort({ createdAt: -1 }).lean();
       const projectRuns = await TestRun.aggregate([
         { $match: { project: project._id } },
         {
@@ -1049,11 +1055,11 @@ const getDashboard = asyncHandler(async (req, res) => {
 
 // Dashboard API endpoints
 const getProjectDashboard = asyncHandler(async (req, res) => {
-  const projects = await Project.find({ status: 'active' }).lean();
+  const projects = await Project.find({ status: 'active', deletedAt: null }).lean();
   
   const projectStats = await Promise.all(
     projects.map(async (project) => {
-      const latestVersion = await Version.findOne({ project: project._id })
+      const latestVersion = await Version.findOne({ project: project._id, deletedAt: null })
         .sort({ createdAt: -1 })
         .lean();
       
@@ -1121,7 +1127,7 @@ const getVersionDashboard = asyncHandler(async (req, res) => {
     throw httpError(400, 'projectId is required');
   }
 
-  const versions = await Version.find({ project: toObjectId(projectId, 'projectId') })
+  const versions = await Version.find({ project: toObjectId(projectId, 'projectId'), deletedAt: null })
     .sort({ createdAt: -1 })
     .lean();
 
@@ -1200,7 +1206,11 @@ const getTestPlanStats = asyncHandler(async (req, res) => {
     throw httpError(400, 'versionId is required');
   }
 
-  const testPlans = await TestPlan.find({ version: toObjectId(versionId, 'versionId') })
+  const testPlans = await TestPlan.find({
+    version: toObjectId(versionId, 'versionId'),
+    deletedAt: null,
+    $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+  })
     .populate('owner', 'name email role')
     .populate('assignees', 'name email role')
     .lean();

@@ -24,6 +24,11 @@ const projectSchema = new mongoose.Schema(
       default: 'active',
       index: true,
     },
+    deletedAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -35,6 +40,14 @@ const projectSchema = new mongoose.Schema(
   }
 );
 
-projectSchema.index({ code: 1 }, { unique: true });
+projectSchema.index({ code: 1 }, {
+  unique: true,
+  partialFilterExpression: { deletedAt: null },
+});
+
+projectSchema.index({ name: 1 }, {
+  unique: true,
+  partialFilterExpression: { deletedAt: null },
+});
 
 module.exports = mongoose.model('Project', projectSchema);

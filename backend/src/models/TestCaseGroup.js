@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { applyVersioning } = require('../utils/versioning');
 
 const testCaseGroupSchema = new mongoose.Schema(
   {
@@ -8,10 +9,18 @@ const testCaseGroupSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    key: {
+      type: String,
+      required: true,
+      trim: true,
+      uppercase: true,
+      index: true,
+    },
     name: {
       type: String,
       required: true,
       trim: true,
+      index: true,
     },
     description: {
       type: String,
@@ -29,6 +38,11 @@ const testCaseGroupSchema = new mongoose.Schema(
   }
 );
 
-testCaseGroupSchema.index({ project: 1, name: 1 }, { unique: true });
+applyVersioning(testCaseGroupSchema, {
+  scopeIndexes: [
+    { fields: { project: 1, key: 1 } },
+    { fields: { project: 1, name: 1 } },
+  ],
+});
 
 module.exports = mongoose.model('TestCaseGroup', testCaseGroupSchema);
