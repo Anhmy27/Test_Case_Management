@@ -4,6 +4,7 @@ const Version = require('../models/Version');
 const TestCase = require('../models/TestCase');
 const TestCaseGroup = require('../models/TestCaseGroup');
 const TestPlan = require('../models/TestPlan');
+const TestRun = require('../models/TestRun');
 const { asyncHandler } = require('../utils/asyncHandler');
 const { httpError } = require('../utils/httpError');
 const {
@@ -836,6 +837,113 @@ const listTestCases = asyncHandler(async (req, res) => {
   res.json({ testCases, pagination });
 });
 
+const listTestCaseDetails = asyncHandler(async (req, res) => {
+  const { projectId, groupId, search } = req.query;
+
+  if (!projectId) {
+    throw httpError(400, 'projectId is required');
+  }
+
+  const projectObjectId = toObjectId(projectId, 'projectId');
+  await ensureProjectExists(projectId);
+
+  const filters = [
+    { project: projectObjectId },
+    activeLatestFilter(),
+  ];
+
+  if (groupId) {
+    filters.push({ group: toObjectId(groupId, 'groupId') });
+  }
+
+  if (search) {
+    filters.push(buildSearchMatch(search, ['key', 'name', 'caseKey', 'title', 'description']));
+  }
+
+  const match = filters.length === 1 ? filters[0] : { $and: filters };
+
+  const testCases = await TestCase.find(match)
+    .sort({ createdAt: -1 })
+    .populate('group', 'name key deletedAt')
+    .lean();
+
+  if (testCases.length === 0) {
+    res.json({ testCases: [] });
+    return;
+  }
+
+  const entityIds = testCases
+    .map((testCase) => testCase.entityId)
+    .filter(Boolean);
+
+  const allCaseVersions = await TestCase.find({
+    project: projectObjectId,
+    entityId: { $in: entityIds },
+  })
+    .select('_id entityId')
+    .lean();
+
+  const versionIdToEntityId = new Map(
+    allCaseVersions.map((row) => [objectIdString(row._id), objectIdString(row.entityId)]),
+  );
+  const versionIds = allCaseVersions.map((row) => row._id);
+
+  let recentByEntity = new Map();
+  if (versionIds.length > 0) {
+    const historyRows = await TestRun.aggregate([
+      {
+        $match: {
+          project: projectObjectId,
+        },
+      },
+      {
+        $unwind: '$results',
+      },
+      {
+        $match: {
+          'results.status': { $in: ['pass', 'fail', 'blocked', 'skip'] },
+          'results.testCase': { $in: versionIds },
+        },
+      },
+      {
+        $sort: {
+          'results.executedAt': -1,
+          updatedAt: -1,
+          startedAt: -1,
+        },
+      },
+      {
+        $project: {
+          testCase: '$results.testCase',
+          status: '$results.status',
+        },
+      },
+    ]);
+
+    recentByEntity = historyRows.reduce((acc, row) => {
+      const entityId = versionIdToEntityId.get(objectIdString(row.testCase));
+      if (!entityId) {
+        return acc;
+      }
+
+      const existing = acc.get(entityId) || [];
+      if (existing.length < 3) {
+        existing.push(row.status);
+        acc.set(entityId, existing);
+      }
+
+      return acc;
+    }, new Map());
+  }
+
+  const detailRows = testCases.map((testCase) => ({
+    ...testCase,
+    recentStatuses: recentByEntity.get(objectIdString(testCase.entityId)) || [],
+  }));
+
+  res.json({ testCases: detailRows });
+});
+
 const getTestCase = asyncHandler(async (req, res) => {
   const { testCaseId } = req.params;
   const testCase = await TestCase.findById(toObjectId(testCaseId, 'testCaseId'))
@@ -1213,6 +1321,7 @@ module.exports = {
   restoreTestCaseGroup,
   createTestCase,
   listTestCases,
+  listTestCaseDetails,
   getTestCase,
   getTestCaseVersions,
   updateTestCase,

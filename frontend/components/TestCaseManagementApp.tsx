@@ -64,6 +64,7 @@ export default function TestCaseManagementApp() {
     groupId: "",
     caseKey: "",
     title: "",
+    priority: "medium",
     description: "",
     expected: "",
     steps: [{ action: "" }] as TestCaseStepForm[],
@@ -135,6 +136,7 @@ export default function TestCaseManagementApp() {
       groupId: "",
       caseKey: "",
       title: "",
+      priority: "medium",
       description: "",
       expected: "",
       steps: [{ action: "" }],
@@ -482,6 +484,7 @@ export default function TestCaseManagementApp() {
       groupId: getId(testCase.group),
       caseKey: testCase.caseKey || "",
       title: testCase.title || "",
+      priority: testCase.priority || "medium",
       description: testCase.description || "",
       expected: testCase.expected || "",
       steps:
@@ -501,6 +504,7 @@ export default function TestCaseManagementApp() {
       groupId: "",
       caseKey: "",
       title: "",
+      priority: "medium",
       description: "",
       expected: "",
       steps: [{ action: "" }],
@@ -537,6 +541,7 @@ export default function TestCaseManagementApp() {
           groupId: testCaseForm.groupId,
           caseKey: testCaseForm.caseKey,
           title: testCaseForm.title,
+          priority: testCaseForm.priority,
           description: testCaseForm.description,
           steps,
         }),
@@ -546,6 +551,7 @@ export default function TestCaseManagementApp() {
         groupId: "",
         caseKey: "",
         title: "",
+        priority: "medium",
         description: "",
         expected: "",
         steps: [{ action: "" }],
@@ -712,6 +718,37 @@ export default function TestCaseManagementApp() {
     }
   }
 
+  const loadTestCaseDetails = useCallback(
+    async ({
+      projectId,
+      groupId,
+      search,
+    }: {
+      projectId: string;
+      groupId?: string;
+      search?: string;
+    }) => {
+      const params = new URLSearchParams();
+      params.set("projectId", projectId);
+
+      if (groupId) {
+        params.set("groupId", groupId);
+      }
+
+      if (search?.trim()) {
+        params.set("search", search.trim());
+      }
+
+      const response = await apiRequest<{ testCases: RecordAny[] }>(
+        `/api/test-cases/detail?${params.toString()}`,
+        token,
+      );
+
+      return response.testCases || [];
+    },
+    [token],
+  );
+
   async function updateResult(
     resultId: string,
     status: "pass" | "fail" | "blocked" | "skip",
@@ -823,6 +860,7 @@ export default function TestCaseManagementApp() {
     setSelectedRunId,
     myItems,
     loadMyItems,
+    loadTestCaseDetails,
     selectedRun,
     canEndRun,
     endRun,

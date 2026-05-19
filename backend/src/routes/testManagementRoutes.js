@@ -21,6 +21,7 @@ const {
   restoreTestCaseGroup,
   createTestCase,
   listTestCases,
+  listTestCaseDetails,
   getTestCase,
   getTestCaseVersions,
   updateTestCase,
@@ -79,6 +80,7 @@ router.delete('/test-case-groups/:groupId', authorize('admin'), deleteTestCaseGr
 router.patch('/test-case-groups/:groupId/restore', authorize('admin'), restoreTestCaseGroup);
 
 router.get('/test-cases', listTestCases);
+router.get('/test-cases/detail', listTestCaseDetails);
 router.get('/test-cases/:testCaseId', getTestCase);
 router.get('/test-cases/:testCaseId/versions', getTestCaseVersions);
 router.post('/test-cases', authorize('admin'), createTestCase);

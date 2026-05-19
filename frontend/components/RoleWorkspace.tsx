@@ -19,6 +19,7 @@ const adminNav = [
   { key: "projects", label: "Projects" },
   { key: "groups", label: "Groups" },
   { key: "test-cases", label: "Test Cases" },
+  { key: "test-cases-detail", label: "Test Cases Detail" },
   { key: "versions", label: "Versions" },
   { key: "test-plans", label: "Test Plans" },
   { key: "test-runs", label: "Test Runs" },
@@ -164,6 +165,7 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
     setSelectedRunId,
     myItems,
     loadMyItems,
+    loadTestCaseDetails,
     selectedRun,
     endRun,
     updateResult,
@@ -175,6 +177,9 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
   const [selectedItemId, setSelectedItemId] = useState<string>("");
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const [detailGroupId, setDetailGroupId] = useState<string>("");
+  const [detailRows, setDetailRows] = useState<RecordAny[]>([]);
+  const [detailLoading, setDetailLoading] = useState<boolean>(false);
 
   useEffect(() => {
     if (!myItems.length) {
@@ -263,7 +268,44 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
     setSelectedItemId("");
     setNotes({});
     setSearchTerm("");
+    setDetailGroupId("");
   }, [visibleTab]);
+
+  useEffect(() => {
+    if (!isAdmin || visibleTab !== "test-cases-detail") {
+      return;
+    }
+
+    if (!selectedProjectId) {
+      setDetailRows([]);
+      return;
+    }
+
+    const loadRows = async () => {
+      try {
+        setDetailLoading(true);
+        const rows = await loadTestCaseDetails({
+          projectId: selectedProjectId,
+          groupId: detailGroupId,
+          search: searchTerm,
+        });
+        setDetailRows(rows || []);
+      } catch {
+        setDetailRows([]);
+      } finally {
+        setDetailLoading(false);
+      }
+    };
+
+    void loadRows();
+  }, [
+    isAdmin,
+    visibleTab,
+    selectedProjectId,
+    detailGroupId,
+    searchTerm,
+    loadTestCaseDetails,
+  ]);
 
   const totalProjects = projects.length;
   const totalPlans = plans.length;
@@ -346,6 +388,7 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
           "dashboard",
           "groups",
           "test-cases",
+          "test-cases-detail",
           "versions",
           "test-plans",
           "test-runs",
@@ -1044,6 +1087,23 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
                   />
                 </label>
                 <label>
+                  <span>Priority</span>
+                  <select
+                    value={testCaseForm.priority || "medium"}
+                    onChange={(e) =>
+                      setTestCaseForm((prev: any) => ({
+                        ...prev,
+                        priority: e.target.value,
+                      }))
+                    }
+                  >
+                    <option value="low">low</option>
+                    <option value="medium">medium</option>
+                    <option value="high">high</option>
+                    <option value="critical">critical</option>
+                  </select>
+                </label>
+                <label>
                   <span>Description</span>
                   <textarea
                     rows={3}
@@ -1162,6 +1222,98 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
                 emptyText="No test cases"
               />
             </SectionCard>
+          </div>
+        )}
+
+        {isAdmin && visibleTab === "test-cases-detail" && (
+          <div className="workspace-stack">
+            {!selectedProjectId ? (
+              <div className="workspace-banner">
+                Hay chon project trong Project scope de xem Test Cases Detail.
+              </div>
+            ) : (
+              <>
+                <SectionCard
+                  title="Test Cases Detail"
+                  subtitle="Loc theo group va xem 3 status pass/fail/blocked/skip gan nhat"
+                >
+                  <div className="workspace-form__grid workspace-form__grid--two">
+                    <label>
+                      <span>Group filter</span>
+                      <select
+                        value={detailGroupId}
+                        onChange={(e) => setDetailGroupId(e.target.value)}
+                      >
+                        <option value="">All groups</option>
+                        {scopedGroups.map((group: RecordAny) => (
+                          <option key={group._id} value={group._id}>
+                            {group.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                </SectionCard>
+
+                <SectionCard title="Test Case List">
+                  {detailLoading ? (
+                    <div className="workspace-table__empty">Loading...</div>
+                  ) : (
+                    <DataTable
+                      columns={[
+                        "Case",
+                        "Group",
+                        "Priority",
+                        "Recent 1",
+                        "Recent 2",
+                        "Recent 3",
+                      ]}
+                      rows={detailRows
+                        .filter((testCase: RecordAny) =>
+                          matchesSearch(
+                            testCase.caseKey,
+                            testCase.title,
+                            testCase.group?.name,
+                            testCase.priority,
+                            ...(testCase.recentStatuses || []),
+                          ),
+                        )
+                        .map((testCase: RecordAny) => {
+                          const statuses = Array.isArray(testCase.recentStatuses)
+                            ? testCase.recentStatuses
+                            : [];
+
+                          const statusCell = (status?: string) => (
+                            <span
+                              className={
+                                status
+                                  ? `workspace-pill status-${status}`
+                                  : "workspace-pill"
+                              }
+                            >
+                              {status || "-"}
+                            </span>
+                          );
+
+                          return (
+                            <>
+                              <div>
+                                {testCase.caseKey || testCase.key} - {testCase.title || testCase.name}
+                              </div>
+                              <div>{testCase.group?.name || "-"}</div>
+                              <div>{testCase.priority || "-"}</div>
+                              <div>{statusCell(statuses[0])}</div>
+                              <div>{statusCell(statuses[1])}</div>
+                              <div>{statusCell(statuses[2])}</div>
+                            </>
+                          );
+                        })}
+                      emptyText="No test cases in this project"
+                    />
+                  )}
+                </SectionCard>
+              </>
+            )}
           </div>
         )}
 
