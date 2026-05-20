@@ -102,7 +102,12 @@ export default function TestCaseManagementApp() {
   const [myItems, setMyItems] = useState<RecordAny[]>([]);
   const [editingPlanId, setEditingPlanId] = useState<string>("");
   const [editingExecutionMode, setEditingExecutionMode] = useState<string>("");
-  const lastAlertRef = useRef<string>("");
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string;
+    description: string;
+    confirmLabel: string;
+    onConfirm: () => Promise<void>;
+  } | null>(null);
   const lastTabRef = useRef<string>(activeTab);
 
   const isAdmin = currentUser?.role === "admin";
@@ -339,15 +344,79 @@ export default function TestCaseManagementApp() {
   }, [activeTab, token, currentUser, refreshAll, selectedProjectId]);
 
   useEffect(() => {
-    if (!message || message === lastAlertRef.current) {
+    if (!message) {
       return;
     }
 
-    lastAlertRef.current = message;
-    if (typeof window !== "undefined") {
-      window.alert(message);
-    }
+    const timeoutId = window.setTimeout(() => {
+      setMessage("");
+    }, 5000);
+
+    return () => window.clearTimeout(timeoutId);
   }, [message]);
+
+  const toastKind = useMemo(() => {
+    if (!message) {
+      return "success" as const;
+    }
+
+    const lowerMessage = message.toLowerCase();
+    const isError =
+      lowerMessage.includes("error") ||
+      lowerMessage.includes("failed") ||
+      lowerMessage.includes("khong") ||
+      lowerMessage.includes("chua") ||
+      lowerMessage.includes("required") ||
+      lowerMessage.includes("invalid") ||
+      lowerMessage.includes("not found") ||
+      lowerMessage.includes("no ") ||
+      lowerMessage.includes("ban chua");
+
+    return isError ? "error" : "success";
+  }, [message]);
+
+  const toastNode = message ? (
+    <div className={`tcm-toast tcm-toast--${toastKind}`}>
+      <span>{message}</span>
+      <button
+        type="button"
+        className="tcm-toast__close"
+        onClick={() => setMessage("")}
+        aria-label="Close notification"
+      >
+        ×
+      </button>
+    </div>
+  ) : null;
+
+  const confirmDialogNode = confirmDialog ? (
+    <div className="tcm-confirm-overlay" role="presentation">
+      <div className="tcm-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="tcm-confirm-title">
+        <h3 id="tcm-confirm-title">{confirmDialog.title}</h3>
+        <p>{confirmDialog.description}</p>
+        <div className="workspace-inline-actions workspace-inline-actions--right">
+          <button
+            type="button"
+            className="workspace-secondary"
+            onClick={() => setConfirmDialog(null)}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="workspace-danger"
+            onClick={async () => {
+              const activeConfirm = confirmDialog;
+              setConfirmDialog(null);
+              await activeConfirm.onConfirm();
+            }}
+          >
+            {confirmDialog.confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   const selectPlanForAssignment = useCallback(
     (planId: string) => {
@@ -577,34 +646,42 @@ export default function TestCaseManagementApp() {
   }
 
   async function deleteProject(projectId: string) {
-    if (!window.confirm("Xoa project nay?")) {
-      return;
-    }
-
-    await withAction(async () => {
-      await apiRequest(`/api/projects/${projectId}`, token, {
-        method: "DELETE",
-      });
-      if (editingProjectId === projectId) {
-        cancelProjectEdit();
-      }
-      setMessage("Da xoa project");
+    setMessage("Confirming delete project...");
+    setConfirmDialog({
+      title: "Xoa project nay?",
+      description: "Thao tac nay khong the hoan tac.",
+      confirmLabel: "Xoa",
+      onConfirm: async () => {
+        await withAction(async () => {
+          await apiRequest(`/api/projects/${projectId}`, token, {
+            method: "DELETE",
+          });
+          if (editingProjectId === projectId) {
+            cancelProjectEdit();
+          }
+          setMessage("Da xoa project");
+        });
+      },
     });
   }
 
   async function deleteTestCase(testCaseId: string) {
-    if (!window.confirm("Xoa test case nay?")) {
-      return;
-    }
-
-    await withAction(async () => {
-      await apiRequest(`/api/test-cases/${testCaseId}`, token, {
-        method: "DELETE",
-      });
-      if (editingTestCaseId === testCaseId) {
-        cancelTestCaseEdit();
-      }
-      setMessage("Da xoa test case");
+    setMessage("Confirming delete test case...");
+    setConfirmDialog({
+      title: "Xoa test case nay?",
+      description: "Thao tac nay khong the hoan tac.",
+      confirmLabel: "Xoa",
+      onConfirm: async () => {
+        await withAction(async () => {
+          await apiRequest(`/api/test-cases/${testCaseId}`, token, {
+            method: "DELETE",
+          });
+          if (editingTestCaseId === testCaseId) {
+            cancelTestCaseEdit();
+          }
+          setMessage("Da xoa test case");
+        });
+      },
     });
   }
 
@@ -723,9 +800,6 @@ export default function TestCaseManagementApp() {
         token,
       );
       setMyItems(response.results || []);
-      if (!isAdmin && (!response.results || response.results.length === 0)) {
-        setMessage("Ban chua duoc assign testcase nao trong run nay");
-      }
     } catch (error: any) {
       setMessage(error.message || "Khong tai duoc danh sach case");
     }
@@ -863,7 +937,7 @@ export default function TestCaseManagementApp() {
             a.click();
             a.remove();
             window.URL.revokeObjectURL(errUrl);
-          } catch (e) {
+          } catch {
             // ignore error in error reporting
           }
         }
@@ -890,7 +964,6 @@ export default function TestCaseManagementApp() {
         },
       );
       await loadMyItems(selectedRunId);
-      setMessage("Da cap nhat ket qua test");
     });
   }
 
@@ -1005,6 +1078,8 @@ export default function TestCaseManagementApp() {
   if (!token || !currentUser) {
     return (
       <main className="shell auth-shell">
+        {toastNode}
+        {confirmDialogNode}
         <div className="hero">
           <h1>Test Case Management</h1>
           <p>Workspace QA theo role cho admin va employee.</p>
@@ -1060,13 +1135,18 @@ export default function TestCaseManagementApp() {
               </button>
             </div>
           </form>
-          {message && <p style={{ marginTop: "0.6rem" }}>{message}</p>}
         </section>
       </main>
     );
   }
 
-  return <RoleWorkspace workspace={workspace} />;
+  return (
+    <>
+      {toastNode}
+      {confirmDialogNode}
+      <RoleWorkspace workspace={workspace} />
+    </>
+  );
 }
 
 
