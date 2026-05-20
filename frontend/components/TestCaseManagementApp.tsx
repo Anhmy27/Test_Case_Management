@@ -10,6 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useRouter } from "next/navigation";
 import { apiRequest, getId } from "@/lib/api";
 import * as XLSX from "xlsx";
 import RoleWorkspace from "./RoleWorkspace";
@@ -24,13 +25,7 @@ export default function TestCaseManagementApp() {
     }
     return window.localStorage.getItem("tcm_token") || "";
   });
-  const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [activeTab, setActiveTab] = useState<string>("overview");
-  const [authForm, setAuthForm] = useState({
-    name: "",
-    email: "",
-    password: "",
-  });
   const [currentUser, setCurrentUser] = useState<RecordAny | null>(null);
   const [message, setMessage] = useState<string>("");
 
@@ -109,6 +104,7 @@ export default function TestCaseManagementApp() {
     onConfirm: () => Promise<void>;
   } | null>(null);
   const lastTabRef = useRef<string>(activeTab);
+  const router = useRouter();
 
   const isAdmin = currentUser?.role === "admin";
   const selectedRun = useMemo(
@@ -438,40 +434,7 @@ export default function TestCaseManagementApp() {
     [plans],
   );
 
-  async function handleAuthSubmit(event: FormEvent) {
-    event.preventDefault();
-    setMessage("");
-
-    try {
-      const endpoint =
-        authMode === "login" ? "/api/auth/login" : "/api/auth/register";
-      const body =
-        authMode === "login"
-          ? { email: authForm.email, password: authForm.password }
-          : {
-              name: authForm.name,
-              email: authForm.email,
-              password: authForm.password,
-            };
-
-      const response = await apiRequest<{ token: string; user: RecordAny }>(
-        endpoint,
-        undefined,
-        {
-          method: "POST",
-          body: JSON.stringify(body),
-        },
-      );
-
-      setToken(response.token);
-      setCurrentUser(response.user);
-      window.localStorage.setItem("tcm_token", response.token);
-      await refreshAll(response.token, response.user.role);
-      setMessage(`Xin chao ${response.user.name}. Dang nhap thanh cong.`);
-    } catch (error: any) {
-      setMessage(error.message || "Auth failed");
-    }
-  }
+  
 
   const withAction = useCallback(async (action: () => Promise<void>) => {
     try {
@@ -1071,74 +1034,13 @@ export default function TestCaseManagementApp() {
     setMessage,
   };
 
-  function toggleAuthMode() {
-    setAuthMode((prev) => (prev === "login" ? "register" : "login"));
-  }
-
-  if (!token || !currentUser) {
-    return (
-      <main className="shell auth-shell">
-        {toastNode}
-        {confirmDialogNode}
-        <div className="hero">
-          <h1>Test Case Management</h1>
-          <p>Workspace QA theo role cho admin va employee.</p>
-        </div>
-        <section className="panel auth-panel">
-          <h2>{authMode === "login" ? "Dang nhap" : "Dang ky"}</h2>
-          <form onSubmit={handleAuthSubmit}>
-            {authMode === "register" && (
-              <div className="field" style={{ marginBottom: "0.5rem" }}>
-                <span>Ho ten</span>
-                <input
-                  value={authForm.name}
-                  onChange={(e) =>
-                    setAuthForm((prev) => ({ ...prev, name: e.target.value }))
-                  }
-                  required
-                />
-              </div>
-            )}
-            <div className="field" style={{ marginBottom: "0.5rem" }}>
-              <span>Email</span>
-              <input
-                type="email"
-                value={authForm.email}
-                onChange={(e) =>
-                  setAuthForm((prev) => ({ ...prev, email: e.target.value }))
-                }
-                required
-              />
-            </div>
-            <div className="field" style={{ marginBottom: "0.5rem" }}>
-              <span>Password</span>
-              <input
-                type="password"
-                value={authForm.password}
-                onChange={(e) =>
-                  setAuthForm((prev) => ({ ...prev, password: e.target.value }))
-                }
-                required
-                minLength={6}
-              />
-            </div>
-            <div style={{ display: "flex", gap: "0.5rem" }}>
-              <button type="submit" className="btn btn-primary">
-                {authMode === "login" ? "Dang nhap" : "Dang ky"}
-              </button>
-              <button
-                type="button"
-                className="btn btn-alt"
-                onClick={toggleAuthMode}
-              >
-                Chuyen sang {authMode === "login" ? "Dang ky" : "Dang nhap"}
-              </button>
-            </div>
-          </form>
-        </section>
-      </main>
-    );
-  }
+  useEffect(() => {
+    if (!token) {
+      try {
+        router.replace("/");
+      } catch {}
+    }
+  }, [token, router]);
 
   return (
     <>
