@@ -109,7 +109,7 @@ The project includes a `docker-compose.yml` for easy MongoDB setup.
    docker-compose up -d
    ```
 
-3. MongoDB will be available at `mongodb://admin:admin123@localhost:27017/`
+3. MongoDB will be available at `mongodb://admin:admin123@localhost:27018/`
 
 To stop MongoDB:
 ```bash
@@ -136,22 +136,21 @@ docker-compose down -v
 3. Create a `.env` file in the `backend/` directory:
    ```
    PORT=5000
-   MONGODB_URI=mongodb://localhost:27017/test-case-management
-   JWT_SECRET=your-secret-key-here
-   NODE_ENV=development
-   ```
-
-4. Create a `.env` file in the `backend/` directory:
-   ```
-   PORT=5000
-   MONGODB_URI=mongodb://localhost:27017/test-case-management
-   JWT_SECRET=your-secret-key-here
-   NODE_ENV=development
+   MONGO_URI=mongodb://admin:admin123@localhost:27018/Test_Case_Management
+   JWT_SECRET=super-secret-change-me
+   JWT_EXPIRES_IN=7d
+   CORS_ORIGIN=http://localhost:3000
    ADMIN_EMAIL=admin@example.com
-   ADMIN_PASSWORD=admin123
+   ADMIN_PASSWORD=12345678
+   ADMIN_NAME=Admin Root
    ```
+   
+   **Notes:**
+   - `MONGO_URI`: Connection string for MongoDB. For Docker: `mongodb://admin:admin123@mongodb:27017/Test_Case_Management`, for localhost: `mongodb://admin:admin123@localhost:27018/Test_Case_Management`
+   - `ADMIN_EMAIL` and `ADMIN_PASSWORD`: Used to automatically seed an admin account on first startup
+   - `JWT_EXPIRES_IN`: Token expiration time (default: 7 days)
 
-5. Start the backend server:
+4. Start the backend server:
    ```bash
    npm start
    ```
@@ -315,7 +314,7 @@ localStorage.removeItem('tcm_token');
 
 ### MongoDB Connection Error
 - Verify MongoDB is running
-- Check `MONGODB_URI` in backend `.env` file
+- Check `MONGO_URI` in backend `.env` file
 - Ensure correct connection string format
 
 ### Frontend not loading
