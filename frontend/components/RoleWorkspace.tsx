@@ -580,18 +580,31 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
                     <DataTable
                       columns={["Run", "Project", "Tester", "Status"]}
                       rows={runningRuns
-                        .filter((run: RecordAny) =>
+                        .map((run: RecordAny) => {
+                          // try multiple places for project id: testPlan.project, run.project, or nested id
+                          const rawProject = run.testPlan?.project ?? run.project ?? null;
+                          const pid = getId(rawProject) || (typeof rawProject === 'string' ? rawProject : '');
+
+                          const proj = projects.find((p: RecordAny) => {
+                            const pId = String((p && (p._id ?? p.id)) || "");
+                            return pId === pid || String(getId(p)) === pid;
+                          });
+
+                          const projectName = proj?.name || (pid ? pid : "-");
+                          return { run, projectName };
+                        })
+                        .filter(({ run, projectName }: { run: RecordAny; projectName: string }) =>
                           matchesSearch(
                             run.name,
                             run.testPlan?.name,
-                            run.testPlan?.project?.name,
+                            projectName,
                             userName(run.startedBy),
                           ),
                         )
-                        .map((run: RecordAny) => (
+                        .map(({ run, projectName }: { run: RecordAny; projectName: string }) => (
                           <>
                             <div>{run.name || run.testPlan?.name}</div>
-                            <div>{run.testPlan?.project?.name || "-"}</div>
+                            <div>{projectName}</div>
                             <div>{userName(run.startedBy)}</div>
                             <div className="workspace-pill workspace-pill--success">
                               Running
@@ -1457,15 +1470,19 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
               <DataTable
                 columns={["Version", "Project"]}
                 rows={versions
-                  .filter((version: RecordAny) =>
-                    matchesSearch(version.name, version.project?.name),
+                  .map((version: RecordAny) => {
+                    const pid = getId(version.project);
+                    const proj = projects.find((p: RecordAny) => String(p._id) === pid);
+                    const projectName = proj?.name || pid || "-";
+                    return { version, projectName };
+                  })
+                  .filter(({ version, projectName }: { version: RecordAny; projectName: string }) =>
+                    matchesSearch(version.name, projectName),
                   )
-                  .map((version: RecordAny) => (
+                  .map(({ version, projectName }: { version: RecordAny; projectName: string }) => (
                     <>
                       <div>{version.name}</div>
-                      <div>
-                        {version.project?.name || version.project || "-"}
-                      </div>
+                      <div>{projectName}</div>
                     </>
                   ))}
                 emptyText="No versions"
