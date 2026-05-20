@@ -97,7 +97,29 @@ Test_Case_Management/
 
 ### Prerequisites
 - Node.js 18+ and npm 9+
-- MongoDB (local instance or connection string)
+- Docker and Docker Compose (for MongoDB setup) OR MongoDB (local instance)
+
+### MongoDB Setup (Using Docker)
+
+The project includes a `docker-compose.yml` for easy MongoDB setup.
+
+1. Ensure Docker and Docker Compose are installed
+2. From the project root directory, start MongoDB:
+   ```bash
+   docker-compose up -d
+   ```
+
+3. MongoDB will be available at `mongodb://admin:admin123@localhost:27017/`
+
+To stop MongoDB:
+```bash
+docker-compose down
+```
+
+To remove all data and volumes:
+```bash
+docker-compose down -v
+```
 
 ### Backend Setup
 
@@ -119,9 +141,14 @@ Test_Case_Management/
    NODE_ENV=development
    ```
 
-4. Seed the default admin user (optional):
-   ```bash
-   npm run seed
+4. Create a `.env` file in the `backend/` directory:
+   ```
+   PORT=5000
+   MONGODB_URI=mongodb://localhost:27017/test-case-management
+   JWT_SECRET=your-secret-key-here
+   NODE_ENV=development
+   ADMIN_EMAIL=admin@example.com
+   ADMIN_PASSWORD=admin123
    ```
 
 5. Start the backend server:
@@ -172,9 +199,8 @@ npm run dev
 Then open your browser and navigate to `http://localhost:3000`
 
 ### Login
-- **Admin Account** (default after seeding):
-  - Email: `admin@example.com`
-  - Password: `admin123`
+- **Admin Account**: Use the credentials set in `backend/.env` via `ADMIN_EMAIL` and `ADMIN_PASSWORD`
+  - Example: `admin@example.com` / `admin123`
 - **Employee Account**: Can be created by admin from the Users tab
 
 ## Key Workflows

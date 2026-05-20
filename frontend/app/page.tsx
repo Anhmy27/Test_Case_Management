@@ -10,18 +10,12 @@ export default function Home() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [checking, setChecking] = useState<boolean>(() => {
-    if (typeof window === "undefined") return true;
-    return Boolean(window.localStorage.getItem("tcm_token"));
-  });
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    // If token exists and is valid, go to app
     const token = typeof window !== "undefined" ? window.localStorage.getItem("tcm_token") || "" : "";
-    if (!token) {
-      return;
-    }
+    
+    if (!token) return;
 
     (async () => {
       try {
@@ -29,7 +23,6 @@ export default function Home() {
         router.push("/Home");
       } catch {
         window.localStorage.removeItem("tcm_token");
-        setChecking(false);
       }
     })();
   }, [router]);
@@ -59,8 +52,6 @@ export default function Home() {
       setMessage(msg);
     }
   }
-
-  if (checking) return null;
 
   return (
     <main className="shell auth-shell">
