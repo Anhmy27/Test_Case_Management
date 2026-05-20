@@ -10,7 +10,7 @@ services:
     environment:
       MONGO_INITDB_ROOT_USERNAME: admin
       MONGO_INITDB_ROOT_PASSWORD: admin123
-      MONGO_INITDB_DATABASE: test-case-management
+      MONGO_INITDB_DATABASE: Test_Case_Management
     volumes:
       - mongodb_data:/data/db
       - mongodb_config:/data/configdb
