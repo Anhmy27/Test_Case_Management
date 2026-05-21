@@ -65,19 +65,19 @@ export default function Home() {
         <form onSubmit={handleSubmit}>
           {mode === "register" && (
             <div className="field" style={{ marginBottom: "0.5rem" }}>
-              <span>Ho ten</span>
-              <input value={name} onChange={(e) => setName(e.target.value)} required />
+              <label htmlFor="name">Ho ten</label>
+              <input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
             </div>
           )}
 
           <div className="field" style={{ marginBottom: "0.5rem" }}>
-            <span>Email</span>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            <label htmlFor="email">Email</label>
+            <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
           </div>
 
           <div className="field" style={{ marginBottom: "0.5rem" }}>
-            <span>Password</span>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
+            <label htmlFor="password">Password</label>
+            <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
           </div>
 
           <div style={{ display: "flex", gap: "0.5rem" }}>

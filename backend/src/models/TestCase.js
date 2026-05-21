@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const { applyVersioning } = require('../utils/versioning');
+const automationStepSchema = require('./AutomationStep');
 
 const stepSchema = new mongoose.Schema(
   {
@@ -58,6 +59,26 @@ const testCaseSchema = new mongoose.Schema(
     steps: {
       type: [stepSchema],
       default: [],
+    },
+    automation: {
+      enabled: {
+        type: Boolean,
+        default: false,
+      },
+      runner: {
+        type: String,
+        enum: ['playwright'],
+        default: 'playwright',
+      },
+      baseUrl: {
+        type: String,
+        default: '',
+        trim: true,
+      },
+      steps: {
+        type: [automationStepSchema],
+        default: [],
+      },
     },
     priority: {
       type: String,

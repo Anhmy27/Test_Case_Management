@@ -136,6 +136,8 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
     setGroupForm,
     testCaseForm,
     setTestCaseForm,
+    automationForm,
+    setAutomationForm,
     editingTestCaseId,
     startTestCaseEdit,
     cancelTestCaseEdit,
@@ -144,6 +146,9 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
     addTestCaseStep,
     updateTestCaseStep,
     removeTestCaseStep,
+    addAutomationStep,
+    updateAutomationStep,
+    removeAutomationStep,
     planForm,
     setPlanForm,
     runForm,
@@ -245,6 +250,11 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
     : plans.filter(
         (plan: RecordAny) => getId(plan.project) === selectedProjectId,
       );
+  const selectedRunPlan = scopedPlans.find(
+    (plan: RecordAny) => String(plan._id) === String(runForm.testPlanId),
+  );
+  const selectedRunPlanIsAutomation =
+    String(selectedRunPlan?.executionMode || "manual") === "automation";
   const scopedRuns = isGlobalScope
     ? runs
     : runs.filter(
@@ -1249,6 +1259,141 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
                     }
                     required
                   />
+                  <div className="workspace-banner">
+                    Manual steps stay for human-readable QA flow. Turn on automation below to store Playwright steps for the same test case.
+                  </div>
+                  <div className="workspace-form__grid workspace-form__grid--two">
+                    <label>
+                      <span>Automation enabled</span>
+                      <select
+                        value={automationForm.enabled ? "true" : "false"}
+                        onChange={(e) =>
+                          setAutomationForm((prev: any) => ({
+                            ...prev,
+                            enabled: e.target.value === "true",
+                          }))
+                        }
+                      >
+                        <option value="false">No</option>
+                        <option value="true">Yes</option>
+                      </select>
+                    </label>
+                    <label>
+                      <span>Base URL</span>
+                      <input
+                        value={automationForm.baseUrl}
+                        onChange={(e) =>
+                          setAutomationForm((prev: any) => ({
+                            ...prev,
+                            baseUrl: e.target.value,
+                          }))
+                        }
+                        placeholder="https://app.example.com"
+                      />
+                    </label>
+                  </div>
+                  <div className="workspace-steps">
+                    <div className="workspace-steps__header">
+                      <span>Playwright steps</span>
+                      <button
+                        type="button"
+                        className="workspace-secondary"
+                        onClick={addAutomationStep}
+                      >
+                        Add automation step
+                      </button>
+                    </div>
+                    {automationForm.steps.map((step: RecordAny, index: number) => (
+                      <div key={index} className="workspace-automation-step">
+                        <div className="workspace-form__grid workspace-form__grid--three">
+                          <label>
+                            <span>Action</span>
+                            <select
+                              value={step.action}
+                              onChange={(e) =>
+                                updateAutomationStep(index, "action", e.target.value)
+                              }
+                            >
+                              <option value="goto">goto</option>
+                              <option value="click">click</option>
+                              <option value="type">type</option>
+                              <option value="select">select</option>
+                              <option value="waitFor">waitFor</option>
+                              <option value="assertText">assertText</option>
+                              <option value="assertVisible">assertVisible</option>
+                            </select>
+                          </label>
+                          <label>
+                            <span>Target type</span>
+                            <select
+                              value={step.targetType}
+                              onChange={(e) =>
+                                updateAutomationStep(index, "targetType", e.target.value)
+                              }
+                            >
+                              <option value="css">css</option>
+                              <option value="text">text</option>
+                              <option value="label">label</option>
+                              <option value="testid">testid</option>
+                              <option value="url">url</option>
+                            </select>
+                          </label>
+                          <label>
+                            <span>Timeout ms</span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={step.timeoutMs}
+                              onChange={(e) =>
+                                updateAutomationStep(index, "timeoutMs", e.target.value)
+                              }
+                            />
+                          </label>
+                        </div>
+                        <div className="workspace-form__grid workspace-form__grid--three">
+                          <label>
+                            <span>Target</span>
+                            <input
+                              value={step.target}
+                              onChange={(e) =>
+                                updateAutomationStep(index, "target", e.target.value)
+                              }
+                              placeholder="#login-button / Username / submit-btn"
+                            />
+                          </label>
+                          <label>
+                            <span>Value</span>
+                            <input
+                              value={step.value}
+                              onChange={(e) =>
+                                updateAutomationStep(index, "value", e.target.value)
+                              }
+                              placeholder="Text to type, option value, path..."
+                            />
+                          </label>
+                          <label>
+                            <span>Expected</span>
+                            <input
+                              value={step.expected}
+                              onChange={(e) =>
+                                updateAutomationStep(index, "expected", e.target.value)
+                              }
+                              placeholder="Text to assert"
+                            />
+                          </label>
+                        </div>
+                        <div className="workspace-inline-actions workspace-inline-actions--right">
+                          <button
+                            type="button"
+                            className="workspace-secondary"
+                            onClick={() => removeAutomationStep(index)}
+                          >
+                            Remove automation step
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </label>
                 <div className="workspace-inline-actions">
                   <button className="workspace-primary" type="submit">
@@ -1873,6 +2018,24 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
                     />
                   </label>
                 </div>
+                <label>
+                  <span>Automation base URL</span>
+                  <input
+                    value={runForm.baseUrl || ""}
+                    onChange={(e) =>
+                      setRunForm((prev: any) => ({
+                        ...prev,
+                        baseUrl: e.target.value,
+                      }))
+                    }
+                    placeholder="https://app.example.com"
+                  />
+                </label>
+                {selectedRunPlanIsAutomation && (
+                  <div className="workspace-banner">
+                    Automation plan đã được chọn. Khi bạn start run, Playwright sẽ chạy ngay với base URL này.
+                  </div>
+                )}
                 <button className="workspace-primary" type="submit">
                   Start test run
                 </button>
@@ -2196,6 +2359,24 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
                       />
                     </label>
                   </div>
+                  <label>
+                    <span>Automation base URL</span>
+                    <input
+                      value={runForm.baseUrl || ""}
+                      onChange={(e) =>
+                        setRunForm((prev: any) => ({
+                          ...prev,
+                          baseUrl: e.target.value,
+                        }))
+                      }
+                      placeholder="https://app.example.com"
+                    />
+                  </label>
+                  {selectedRunPlanIsAutomation && (
+                    <div className="workspace-banner">
+                      Playwright sẽ chạy ngay khi bạn start run cho plan automation này.
+                    </div>
+                  )}
                   <button className="workspace-primary" type="submit">
                     Start run
                   </button>

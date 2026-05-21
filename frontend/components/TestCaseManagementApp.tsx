@@ -17,6 +17,14 @@ import RoleWorkspace from "./RoleWorkspace";
 
 type RecordAny = Record<string, any>;
 type TestCaseStepForm = { action: string };
+type AutomationStepForm = {
+  action: string;
+  targetType: string;
+  target: string;
+  value: string;
+  expected: string;
+  timeoutMs: string;
+};
 
 export default function TestCaseManagementApp() {
   const [token, setToken] = useState<string>(() => {
@@ -67,6 +75,20 @@ export default function TestCaseManagementApp() {
     expected: "",
     steps: [{ action: "" }] as TestCaseStepForm[],
   });
+  const [automationForm, setAutomationForm] = useState({
+    enabled: false,
+    baseUrl: "",
+    steps: [
+      {
+        action: "goto",
+        targetType: "url",
+        target: "",
+        value: "/",
+        expected: "",
+        timeoutMs: "15000",
+      },
+    ] as AutomationStepForm[],
+  });
   const [editingTestCaseId, setEditingTestCaseId] = useState<string>("");
   const [planForm, setPlanForm] = useState({
     name: "",
@@ -77,7 +99,7 @@ export default function TestCaseManagementApp() {
     selectedGroupIds: [] as string[],
     caseIds: [] as string[],
   });
-  const [runForm, setRunForm] = useState({ testPlanId: "", name: "" });
+  const [runForm, setRunForm] = useState({ testPlanId: "", name: "", baseUrl: "" });
   const [newUserForm, setNewUserForm] = useState({
     name: "",
     email: "",
@@ -147,6 +169,20 @@ export default function TestCaseManagementApp() {
       expected: "",
       steps: [{ action: "" }],
     });
+    setAutomationForm({
+      enabled: false,
+      baseUrl: "",
+      steps: [
+        {
+          action: "goto",
+          targetType: "url",
+          target: "",
+          value: "/",
+          expected: "",
+          timeoutMs: "15000",
+        },
+      ],
+    });
     setPlanForm({
       name: "",
       description: "",
@@ -156,7 +192,7 @@ export default function TestCaseManagementApp() {
       selectedGroupIds: [],
       caseIds: [],
     });
-    setRunForm({ testPlanId: "", name: "" });
+    setRunForm({ testPlanId: "", name: "", baseUrl: "" });
     setNewUserForm({ name: "", email: "", password: "", role: "employee" });
     setSelectedPlanId("");
     setAssignDraft({ ownerId: "", assigneeIds: [] });
@@ -516,6 +552,26 @@ export default function TestCaseManagementApp() {
 
   function startTestCaseEdit(testCase: RecordAny) {
     setEditingTestCaseId(String(testCase._id));
+    const automationSteps = Array.isArray(testCase.automation?.steps)
+      ? testCase.automation.steps.map((step: RecordAny) => ({
+          action: step.action || "goto",
+          targetType: step.targetType || "css",
+          target: step.target || "",
+          value: step.value || "",
+          expected: step.expected || "",
+          timeoutMs: String(step.timeoutMs || 15000),
+        }))
+      : [
+          {
+            action: "goto",
+            targetType: "url",
+            target: "",
+            value: "/",
+            expected: "",
+            timeoutMs: "15000",
+          },
+        ];
+
     setTestCaseForm({
       projectId: getId(testCase.project),
       groupId: getId(testCase.group),
@@ -533,6 +589,11 @@ export default function TestCaseManagementApp() {
             }))
           : [{ action: "" }],
     });
+    setAutomationForm({
+      enabled: Boolean(testCase.automation?.enabled),
+      baseUrl: testCase.automation?.baseUrl || "",
+      steps: automationSteps,
+    });
     setActiveTab("test-cases");
   }
 
@@ -549,6 +610,20 @@ export default function TestCaseManagementApp() {
       description: "",
       expected: "",
       steps: [{ action: "" }],
+    });
+    setAutomationForm({
+      enabled: false,
+      baseUrl: "",
+      steps: [
+        {
+          action: "goto",
+          targetType: "url",
+          target: "",
+          value: "/",
+          expected: "",
+          timeoutMs: "15000",
+        },
+      ],
     });
   }
 
@@ -570,6 +645,22 @@ export default function TestCaseManagementApp() {
         throw new Error("Hay chon nhom test case");
       }
 
+      const automationSteps = automationForm.steps
+        .filter((step) => step.action.trim())
+        .map((step, index) => ({
+          order: index + 1,
+          action: step.action,
+          targetType: step.targetType,
+          target: step.target,
+          value: step.value,
+          expected: step.expected,
+          timeoutMs: Number(step.timeoutMs || 15000),
+        }));
+
+      if (automationForm.enabled && automationSteps.length === 0) {
+        throw new Error("Hay nhap it nhat 1 automation step");
+      }
+
       const endpoint = editingTestCaseId
         ? `/api/test-cases/${editingTestCaseId}`
         : "/api/test-cases";
@@ -587,6 +678,12 @@ export default function TestCaseManagementApp() {
           type: testCaseForm.type,
           description: testCaseForm.description,
           steps,
+          automation: {
+            enabled: automationForm.enabled,
+            baseUrl: automationForm.baseUrl,
+            runner: "playwright",
+            steps: automationSteps,
+          },
         }),
       });
       setTestCaseForm({
@@ -600,6 +697,20 @@ export default function TestCaseManagementApp() {
         description: "",
         expected: "",
         steps: [{ action: "" }],
+      });
+      setAutomationForm({
+        enabled: false,
+        baseUrl: "",
+        steps: [
+          {
+            action: "goto",
+            targetType: "url",
+            target: "",
+            value: "/",
+            expected: "",
+            timeoutMs: "15000",
+          },
+        ],
       });
       setEditingTestCaseId("");
       setMessage(
@@ -680,6 +791,57 @@ export default function TestCaseManagementApp() {
     });
   }
 
+  function addAutomationStep() {
+    setAutomationForm((prev) => ({
+      ...prev,
+      steps: [
+        ...prev.steps,
+        {
+          action: "click",
+          targetType: "css",
+          target: "",
+          value: "",
+          expected: "",
+          timeoutMs: "15000",
+        },
+      ],
+    }));
+  }
+
+  function updateAutomationStep(
+    index: number,
+    field: keyof AutomationStepForm,
+    value: string,
+  ) {
+    setAutomationForm((prev) => ({
+      ...prev,
+      steps: prev.steps.map((step, stepIndex) =>
+        stepIndex === index ? { ...step, [field]: value } : step,
+      ),
+    }));
+  }
+
+  function removeAutomationStep(index: number) {
+    setAutomationForm((prev) => {
+      const nextSteps = prev.steps.filter((_, stepIndex) => stepIndex !== index);
+      return {
+        ...prev,
+        steps: nextSteps.length > 0
+          ? nextSteps
+          : [
+              {
+                action: "goto",
+                targetType: "url",
+                target: "",
+                value: "/",
+                expected: "",
+                timeoutMs: "15000",
+              },
+            ],
+      };
+    });
+  }
+
   async function createPlan(event: FormEvent) {
     event.preventDefault();
     await withAction(async () => {
@@ -733,7 +895,10 @@ export default function TestCaseManagementApp() {
   async function startRun(event: FormEvent) {
     event.preventDefault();
     await withAction(async () => {
-      const response = await apiRequest<{ testRun: RecordAny }>("/api/test-runs", token, {
+      const response = await apiRequest<{
+        testRun: RecordAny;
+        automationSummary?: RecordAny;
+      }>("/api/test-runs", token, {
         method: "POST",
         body: JSON.stringify(runForm),
       });
@@ -741,8 +906,14 @@ export default function TestCaseManagementApp() {
         await loadMyItems(String(response.testRun._id));
         setActiveTab("execution");
       }
-      setRunForm({ testPlanId: "", name: "" });
-      setMessage("Da start test run");
+      setRunForm({ testPlanId: "", name: "", baseUrl: "" });
+      if (response.automationSummary) {
+        setMessage(
+          `Da start automation run: pass ${response.automationSummary.pass || 0}, fail ${response.automationSummary.fail || 0}, blocked ${response.automationSummary.blocked || 0}`,
+        );
+      } else {
+        setMessage("Da start test run");
+      }
     });
   }
 
@@ -986,6 +1157,8 @@ export default function TestCaseManagementApp() {
     setGroupForm,
     testCaseForm,
     setTestCaseForm,
+    automationForm,
+    setAutomationForm,
     editingTestCaseId,
     startTestCaseEdit,
     cancelTestCaseEdit,
@@ -994,6 +1167,9 @@ export default function TestCaseManagementApp() {
     addTestCaseStep,
     updateTestCaseStep,
     removeTestCaseStep,
+    addAutomationStep,
+    updateAutomationStep,
+    removeAutomationStep,
     planForm,
     setPlanForm,
     runForm,

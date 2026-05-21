@@ -31,6 +31,24 @@ const toObjectId = (id, fieldName) => {
 
 const objectIdString = (value) => String(value || '');
 
+const normalizeAutomationSteps = (steps) => {
+  if (!Array.isArray(steps)) {
+    return [];
+  }
+
+  return steps
+    .filter((step) => step && step.action)
+    .map((step, index) => ({
+      order: index + 1,
+      action: String(step.action || 'goto').trim(),
+      targetType: String(step.targetType || 'css').trim(),
+      target: String(step.target || '').trim(),
+      value: String(step.value || '').trim(),
+      expected: String(step.expected || '').trim(),
+      timeoutMs: Number(step.timeoutMs || 15000),
+    }));
+};
+
 const applyPopulate = (query, populate = []) => {
   for (const entry of populate) {
     query.populate(entry);
@@ -755,7 +773,7 @@ const restoreTestCaseGroup = asyncHandler(async (req, res) => {
 
 // Test case CRUD
 const createTestCase = asyncHandler(async (req, res) => {
-  const { projectId, groupId, caseKey, key, title, name, description, steps, priority, severity, type } = req.body;
+  const { projectId, groupId, caseKey, key, title, name, description, steps, automation, priority, severity, type } = req.body;
 
   if (!projectId || !groupId || !caseKey || !title) {
     throw httpError(400, 'projectId, groupId, caseKey and title are required');
@@ -765,6 +783,23 @@ const createTestCase = asyncHandler(async (req, res) => {
   const group = await ensureGroupExists(groupId, project._id);
   const normalizedKey = normalizeKey(key || caseKey);
   const normalizedName = normalizeName(name || title);
+  const normalizedAutomation = automation
+    ? {
+        enabled: Boolean(automation.enabled),
+        runner: 'playwright',
+        baseUrl: String(automation.baseUrl || '').trim(),
+        steps: normalizeAutomationSteps(automation.steps),
+      }
+    : {
+        enabled: false,
+        runner: 'playwright',
+        baseUrl: '',
+        steps: [],
+      };
+
+  if (normalizedAutomation.enabled && normalizedAutomation.steps.length === 0) {
+    throw httpError(400, 'automation.steps[] are required when automation is enabled');
+  }
 
   const duplicate = await TestCase.findOne({
     project: project._id,
@@ -801,6 +836,7 @@ const createTestCase = asyncHandler(async (req, res) => {
     priority: priority || 'medium',
     severity: severity || 'major',
     type: type || 'functional',
+    automation: normalizedAutomation,
     createdBy: req.user.id,
   });
 
@@ -975,6 +1011,7 @@ const updateTestCase = asyncHandler(async (req, res) => {
     name,
     description,
     steps,
+    automation,
     priority,
     severity,
     type,
@@ -1013,6 +1050,24 @@ const updateTestCase = asyncHandler(async (req, res) => {
           }))
       : current.steps;
 
+    const nextAutomation = automation
+      ? {
+          enabled: Boolean(automation.enabled),
+          runner: 'playwright',
+          baseUrl: String(automation.baseUrl || '').trim(),
+          steps: normalizeAutomationSteps(automation.steps),
+        }
+      : current.automation || {
+          enabled: false,
+          runner: 'playwright',
+          baseUrl: '',
+          steps: [],
+        };
+
+    if (nextAutomation.enabled && nextAutomation.steps.length === 0) {
+      throw httpError(400, 'automation.steps[] are required when automation is enabled');
+    }
+
     return {
       project: nextProjectId,
       group: nextGroupId,
@@ -1026,6 +1081,7 @@ const updateTestCase = asyncHandler(async (req, res) => {
       severity: severity || current.severity,
       type: type || current.type,
       status: status && ['active', 'deprecated'].includes(status) ? status : current.status,
+      automation: nextAutomation,
       createdBy: current.createdBy,
     };
   });

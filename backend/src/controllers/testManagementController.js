@@ -6,6 +6,7 @@ const TestCaseGroup = require('../models/TestCaseGroup');
 const TestPlan = require('../models/TestPlan');
 const TestRun = require('../models/TestRun');
 const User = require('../models/User');
+const { executeAutomationRun } = require('../services/playwrightAutomationService');
 const { asyncHandler } = require('../utils/asyncHandler');
 const { httpError } = require('../utils/httpError');
 
@@ -516,7 +517,7 @@ const updateTestPlan = asyncHandler(async (req, res) => {
 });
 
 const startTestRun = asyncHandler(async (req, res) => {
-  const { testPlanId, name } = req.body;
+  const { testPlanId, name, baseUrl } = req.body;
   if (!testPlanId || !name) {
     throw httpError(400, 'testPlanId and name are required');
   }
@@ -591,6 +592,24 @@ const startTestRun = asyncHandler(async (req, res) => {
   const populatedTestRun = await TestRun.findById(testRun._id)
     .populate('testPlan', 'name executionMode')
     .lean();
+
+  if (testPlan.executionMode === 'automation') {
+    const automationResult = await executeAutomationRun({
+      testRunId: testRun._id,
+      baseUrl: baseUrl || '',
+      executedBy: req.user.id,
+    });
+
+    const populatedAutomationRun = await TestRun.findById(automationResult.testRun._id)
+      .populate('testPlan', 'name executionMode')
+      .lean();
+
+    return res.status(201).json({
+      testRun: populatedAutomationRun,
+      automationSummary: automationResult.summary,
+      automationReport: automationResult.report,
+    });
+  }
 
   res.status(201).json({ testRun: populatedTestRun });
 });
