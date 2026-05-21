@@ -1,263 +1,96 @@
 # Test Case Management System (TCM)
 
-A comprehensive web-based test case management platform designed to streamline QA processes, manage test cases, organize test plans, and track test execution across multiple projects.
+A concise guide to run the TCM app locally (backend + frontend) and the bundled MongoDB from Docker Compose.
 
-## Overview
+**Quick summary**
+- Backend: runs on port `5000` (http://localhost:5000)
+- Frontend: runs on port `3000` (http://localhost:3000)
+- MongoDB (via Docker Compose): container listens on `27017`, exposed to host as `27018` (`27018:27017`)
 
-TCM is a full-stack application that enables QA teams and administrators to:
-- Organize test cases into projects, groups, and versions
-- Create and manage test plans with manual/automation execution modes
-- Track test runs and execution status in real-time
-- Generate dashboards with project health metrics and progress tracking
-- Manage user roles (Admin and Employee) with role-based access control
+## Prerequisites
+- Node.js 18+ and npm
+- Docker & Docker Compose (optional but recommended for MongoDB)
 
-## Features
+## Starter (recommended)
+1. From project root, start MongoDB with Docker Compose:
 
-### Core Features
-- **Project Management**: Create and organize projects with multiple versions
-- **Test Case Organization**: Structure test cases into groups with detailed steps and expected results
-- **Test Planning**: Compose test plans from test case groups, assign to testers
-- **Test Execution**: Support for manual and automation test runs with result tracking
-- **Dashboard & Analytics**: 
-  - Admin dashboard with portfolio overview and project health metrics
-  - Project-specific dashboards with pass/fail rates and progress tracking
-  - Active runs monitoring with tester activity
-- **User Management**: Role-based access control (Admin/Employee)
-- **Search & Filter**: Global search across projects, test cases, runs, and users
+   docker compose up -d
 
-### Admin Features
-- Manage projects, versions, test case groups, and test cases
-- Create and assign test plans to users
-- Monitor all test runs and execution progress
-- User account management
+2. Start backend:
 
-### Employee Features
-- View assigned test plans
-- Execute manual test runs
-- Track personal test history
-- View project-specific dashboards when scoped
-
-## Tech Stack
-
-### Frontend
-- **Next.js** 15.x with App Router
-- **React** 19.x with TypeScript
-- **CSS** (custom styling with workspace theme)
-- **Libraries**: XLSX for template import/export, Fetch API for HTTP requests
-
-### Backend
-- **Node.js** with Express.js
-- **MongoDB** for data persistence
-- **JWT** for authentication
-- **Middleware**: Error handling, authentication, CORS support
-
-### Development Environment
-- Node.js 18+
-- npm 9+
-- MongoDB (local or remote)
-
-## Project Structure
-
-```
-Test_Case_Management/
-├── backend/                          # Express.js API server
-│   ├── src/
-│   │   ├── app.js                   # Express app setup
-│   │   ├── seedAdmin.js             # Initial admin user seeding
-│   │   ├── config/db.js             # MongoDB connection
-│   │   ├── controllers/             # Business logic
-│   │   ├── models/                  # MongoDB schemas
-│   │   ├── routes/                  # API endpoints
-│   │   ├── middlewares/             # Auth, error handling
-│   │   └── utils/                   # Helper functions
-│   ├── package.json
-│   └── index.js                     # Server entry point
-│
-├── frontend/                         # Next.js client application
-│   ├── app/
-│   │   ├── page.tsx                 # Login/Register (root)
-│   │   ├── Home/page.tsx            # Main app shell
-│   │   └── layout.tsx               # Global layout
-│   ├── components/
-│   │   ├── TestCaseManagementApp.tsx # Main app component
-│   │   ├── RoleWorkspace.tsx        # Workspace UI & tabs
-│   │   ├── dashboard/               # Dashboard components
-│   │   └── execution/               # Test execution panels
-│   ├── lib/
-│   │   ├── api.ts                   # API client utilities
-│   │   └── tcmTypes.ts              # TypeScript types
-│   ├── package.json
-│   ├── tsconfig.json
-│   └── next.config.ts
-│
-└── README.md                         # This file
-```
-
-## Installation & Setup
-
-### Prerequisites
-- Node.js 18+ and npm 9+
-- Docker and Docker Compose (for MongoDB setup) OR MongoDB (local instance)
-
-### MongoDB Setup (Using Docker)
-
-The project includes a `docker-compose.yml` for easy MongoDB setup.
-
-1. Ensure Docker and Docker Compose are installed
-2. From the project root directory, start MongoDB:
-   ```bash
-   docker-compose up -d
-   ```
-
-3. MongoDB will be available at `mongodb://admin:admin123@localhost:27018/`
-
-To stop MongoDB:
-```bash
-docker-compose down
-```
-
-To remove all data and volumes:
-```bash
-docker-compose down -v
-```
-
-### Backend Setup
-
-1. Navigate to the backend directory:
-   ```bash
    cd backend
-   ```
-
-2. Install dependencies:
-   ```bash
    npm install
-   ```
-
-3. Create a `.env` file in the `backend/` directory:
-   ```
-   PORT=5000
-   MONGO_URI=mongodb://admin:admin123@localhost:27018/Test_Case_Management
-   JWT_SECRET=super-secret-change-me
-   JWT_EXPIRES_IN=7d
-   CORS_ORIGIN=http://localhost:3000
-   ADMIN_EMAIL=admin@example.com
-   ADMIN_PASSWORD=12345678
-   ADMIN_NAME=Admin Root
-   ```
-   
-   **Notes:**
-   - `MONGO_URI`: Connection string for MongoDB. For Docker: `mongodb://admin:admin123@mongodb:27017/Test_Case_Management`, for localhost: `mongodb://admin:admin123@localhost:27018/Test_Case_Management`
-   - `ADMIN_EMAIL` and `ADMIN_PASSWORD`: Used to automatically seed an admin account on first startup
-   - `JWT_EXPIRES_IN`: Token expiration time (default: 7 days)
-
-4. Start the backend server:
-   ```bash
+   copy or create a `.env` file (see example below)
    npm start
-   ```
-   The API will be available at `http://localhost:5000`
 
-### Frontend Setup
+3. Start frontend:
 
-1. Navigate to the frontend directory:
-   ```bash
    cd frontend
-   ```
-
-2. Install dependencies:
-   ```bash
    npm install
-   ```
-
-3. Create a `.env.local` file in the `frontend/` directory:
-   ```
-   NEXT_PUBLIC_API_BASE=http://localhost:5000
-   ```
-
-4. Start the development server:
-   ```bash
    npm run dev
-   ```
-   The application will be available at `http://localhost:3000`
 
-## Running the Application
+Open the frontend at http://localhost:3000
 
-### Development Mode
+## Important MongoDB connection notes
+- The compose service maps host port `27018` to container port `27017` (`27018:27017`).
+- Inside the Docker network the MongoDB server listens on `27017` and is reachable by the service name `mongodb`.
+- The admin/root user is created in the `admin` database by the image init scripts. When connecting with credentials, you must specify the authentication database (authSource).
 
-**Terminal 1 - Backend:**
-```bash
+Examples for `MONGO_URI` in backend/.env:
+- From host (app running on host, connecting to Docker-exposed port):
+  mongodb://admin:admin123@localhost:27018/Test_Case_Management?authSource=admin
+- From inside Docker (when the app runs as another service in same compose):
+  mongodb://admin:admin123@mongodb:27017/Test_Case_Management?authSource=admin
+
+If you omit `?authSource=admin`, the driver will try to authenticate against the `Test_Case_Management` database and authentication will fail.
+
+## Example backend `.env` (backend/.env)
+
+MONGO_URI=mongodb://admin:admin123@localhost:27018/Test_Case_Management?authSource=admin
+PORT=5000
+JWT_SECRET=super-secret-change-me
+JWT_EXPIRES_IN=7d
+CORS_ORIGIN=http://localhost:3000
+
+# Optional admin seeding (used by seedAdmin.js on first run)
+ADMIN_NAME=Admin Root
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=12345678
+
+## Start backend
 cd backend
+npm install
 npm start
-```
 
-**Terminal 2 - Frontend:**
-```bash
+The backend will log a successful MongoDB connection and start the Express server (port 5000 by default).
+
+## Start frontend
 cd frontend
+npm install
 npm run dev
-```
 
-Then open your browser and navigate to `http://localhost:3000`
+## Docker compose healthcheck detail
+The `healthcheck` for the MongoDB service runs inside the container, so it must target `localhost:27017` (container port). The host mapping `27018` is irrelevant to the healthcheck because that mapping exists on the host side only.
 
-### Login
-- **Admin Account**: Use the credentials set in `backend/.env` via `ADMIN_EMAIL` and `ADMIN_PASSWORD`
-  - Example: `admin@example.com` / `admin123`
-- **Employee Account**: Can be created by admin from the Users tab
+## Useful Docker commands
+- Start services: `docker compose up -d`
+- Stop: `docker compose down`
+- Remove volumes/data: `docker compose down -v`
+- View logs: `docker compose logs -f mongodb`
 
-## Key Workflows
+## API (high level)
+The backend exposes REST endpoints under `/api`. Key endpoints include:
+- Auth: `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me`
+- Projects: `GET /api/projects`, `POST /api/projects`, `PUT /api/projects/:id`, `DELETE /api/projects/:id`
+- Test cases: `GET /api/test-cases`, `POST /api/test-cases`, `GET /api/test-cases/:id`
+- Test plans & runs: `GET /api/test-plans`, `POST /api/test-plans`, `POST /api/test-runs`
 
-### 1. Creating a Project & Test Cases
-1. Login as Admin
-2. Navigate to Projects tab
-3. Create a new project
-4. Create versions under the project
-5. Create test case groups
-6. Add test cases to groups with steps and expected results
+## Troubleshooting
+- "Authentication failed" when connecting to MongoDB: ensure `authSource=admin` is present and Docker compose is running.
+- Backend can't reach Mongo: confirm `docker compose up` and `docker compose ps` show the mongodb service healthy.
+- Seeded admin not created: verify `ADMIN_*` vars in backend/.env and check server logs on startup.
 
-### 2. Planning & Executing Tests
-1. Create a test plan from Test Plans tab
-2. Select project, version, and test case groups
-3. Choose execution mode (Manual/Automation)
-4. Assign testers to the plan
-5. Testers execute tests from their "Running Tests" tab
-6. Results are tracked in test runs
-
-### 3. Monitoring Progress
-1. Admin views Dashboard for portfolio overview
-2. Select a project to see project-specific metrics
-3. Monitor active runs in real-time
-4. View project health with pass/fail rates
-
-## API Endpoints
-
-### Authentication
-- `POST /api/auth/register` - User registration
-- `POST /api/auth/login` - User login
-- `GET /api/auth/me` - Get current user (requires token)
-
-### Projects
-- `GET /api/projects` - List all projects
-- `POST /api/projects` - Create project
-- `PUT /api/projects/:id` - Update project
-- `DELETE /api/projects/:id` - Delete project
-
-### Test Cases
-- `GET /api/test-cases` - List test cases
-- `POST /api/test-cases` - Create test case
-- `PUT /api/test-cases/:id` - Update test case
-- `DELETE /api/test-cases/:id` - Delete test case
-
-### Test Plans & Runs
-- `GET /api/test-plans` - List test plans
-- `POST /api/test-plans` - Create test plan
-- `GET /api/test-runs` - List test runs
-- `POST /api/test-runs` - Start test run
-- `PUT /api/test-runs/:id` - Update run results
-- `PUT /api/test-runs/:id/end` - End test run
-
-### Dashboard
-- `GET /api/dashboard` - Get dashboard metrics and data
-
-### Users
-- `GET /api/users` - List all users (admin only)
+If you'd like, I can also update `backend/.env.example` and add a short `CONTRIBUTING.md` with quick run steps.
 - `POST /api/users` - Create new user (admin only)
 
 ## User Roles
