@@ -11,6 +11,10 @@ type Props = {
   versionForm: { projectId: string; name: string; releaseDate: string };
   setVersionForm: Dispatch<SetStateAction<{ projectId: string; name: string; releaseDate: string }>>;
   createVersion: (event: React.FormEvent) => Promise<void>;
+  editingVersionId: string;
+  startVersionEdit: (version: RecordAny) => void;
+  cancelVersionEdit: () => void;
+  deleteVersion: (versionId: string) => Promise<void>;
   scopedProjects: RecordAny[];
   versions: RecordAny[];
   projects: RecordAny[];
@@ -18,7 +22,22 @@ type Props = {
   getId: (value: unknown) => string;
 };
 
-export default function AdminVersionsScreen({ versionForm, setVersionForm, createVersion, scopedProjects, versions, projects, matchesSearch, getId }: Props) {
+export default function AdminVersionsScreen({
+  versionForm,
+  setVersionForm,
+  createVersion,
+  editingVersionId,
+  startVersionEdit,
+  cancelVersionEdit,
+  deleteVersion,
+  scopedProjects,
+  versions,
+  projects,
+  matchesSearch,
+  getId,
+}: Props) {
+  const isEditing = Boolean(editingVersionId);
+
   return (
     <div className="workspace-stack">
       <SectionCard title="Versions" subtitle="Tao version trong workspace rieng">
@@ -28,19 +47,42 @@ export default function AdminVersionsScreen({ versionForm, setVersionForm, creat
             <label><span>Name</span><input value={versionForm.name} onChange={(e) => setVersionForm((prev) => ({ ...prev, name: e.target.value }))} required /></label>
             <label><span>Release date</span><input type="date" value={versionForm.releaseDate} onChange={(e) => setVersionForm((prev) => ({ ...prev, releaseDate: e.target.value }))} /></label>
           </div>
-          <button className="workspace-primary" type="submit">Create version</button>
+          <div className="workspace-inline-actions">
+            <button className="workspace-primary" type="submit">{isEditing ? "Update version" : "Create version"}</button>
+            {isEditing && <button type="button" className="workspace-secondary" onClick={cancelVersionEdit}>Cancel</button>}
+          </div>
         </form>
       </SectionCard>
 
       <SectionCard title="Version List">
         <DataTable
-          columns={["Version", "Project"]}
-          rows={versions.map((version: RecordAny) => {
-            const pid = getId(version.project);
-            const proj = projects.find((p: RecordAny) => String(p._id) === pid);
-            const projectName = proj?.name || pid || "-";
-            return { version, projectName };
-          }).filter(({ version, projectName }: { version: RecordAny; projectName: string }) => matchesSearch(version.name, projectName)).map(({ version, projectName }: { version: RecordAny; projectName: string }) => <><div>{version.name}</div><div>{projectName}</div></>)}
+          columns={["Version", "Project", "Actions"]}
+          rows={versions
+            .map((version: RecordAny) => {
+              const pid = getId(version.project);
+              const proj = projects.find((p: RecordAny) => String(p._id) === pid);
+              const projectName = proj?.name || pid || "-";
+
+              return { version, projectName };
+            })
+            .filter(
+              ({ version, projectName }: { version: RecordAny; projectName: string }) =>
+                matchesSearch(version.name, projectName),
+            )
+            .map(({ version, projectName }: { version: RecordAny; projectName: string }) => (
+              <>
+                <div>{version.name}</div>
+                <div>{projectName}</div>
+                <div className="workspace-inline-actions">
+                  <button type="button" className="workspace-secondary" onClick={() => startVersionEdit(version)}>
+                    Edit
+                  </button>
+                  <button type="button" className="workspace-danger" onClick={() => void deleteVersion(version._id)}>
+                    Delete
+                  </button>
+                </div>
+              </>
+            ))}
           emptyText="No versions"
         />
       </SectionCard>

@@ -67,6 +67,10 @@ type AdminGroupsScreenProps = {
   groupForm: { projectId: string; name: string; description: string };
   setGroupForm: Dispatch<SetStateAction<{ projectId: string; name: string; description: string }>>;
   createGroup: (event: React.FormEvent) => Promise<void>;
+  editingGroupId: string;
+  startGroupEdit: (group: RecordAny) => void;
+  cancelGroupEdit: () => void;
+  deleteGroup: (groupId: string) => Promise<void>;
   scopedProjects: RecordAny[];
   groups: RecordAny[];
   matchesSearch: (...values: Array<string | number | undefined | null>) => boolean;
@@ -76,10 +80,16 @@ export default function AdminGroupsScreen({
   groupForm,
   setGroupForm,
   createGroup,
+  editingGroupId,
+  startGroupEdit,
+  cancelGroupEdit,
+  deleteGroup,
   scopedProjects,
   groups,
   matchesSearch,
 }: AdminGroupsScreenProps) {
+  const isEditing = Boolean(editingGroupId);
+
   return (
     <div className="workspace-stack">
       <SectionCard title="Test Case Groups" subtitle="Tao nhom test case trong section rieng">
@@ -132,15 +142,22 @@ export default function AdminGroupsScreen({
               }
             />
           </label>
-          <button className="workspace-primary" type="submit">
-            Create group
-          </button>
+          <div className="workspace-inline-actions">
+            <button className="workspace-primary" type="submit">
+              {isEditing ? "Update group" : "Create group"}
+            </button>
+            {isEditing && (
+              <button type="button" className="workspace-secondary" onClick={cancelGroupEdit}>
+                Cancel
+              </button>
+            )}
+          </div>
         </form>
       </SectionCard>
 
       <SectionCard title="Group List" subtitle="Nhom theo project">
         <DataTable
-          columns={["Group", "Project", "Description"]}
+          columns={["Group", "Project", "Description", "Actions"]}
           rows={groups
             .filter((group: RecordAny) =>
               matchesSearch(group.name, group.project?.name, group.description),
@@ -150,6 +167,14 @@ export default function AdminGroupsScreen({
                 <div>{group.name}</div>
                 <div>{group.project?.name || "-"}</div>
                 <div>{group.description || "-"}</div>
+                <div className="workspace-inline-actions">
+                  <button type="button" className="workspace-secondary" onClick={() => startGroupEdit(group)}>
+                    Edit
+                  </button>
+                  <button type="button" className="workspace-danger" onClick={() => void deleteGroup(group._id)}>
+                    Delete
+                  </button>
+                </div>
               </>
             ))}
           emptyText="No groups"

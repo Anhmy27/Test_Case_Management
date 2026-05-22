@@ -121,6 +121,8 @@ export default function TestCaseManagementApp() {
     name: "",
     description: "",
   });
+  const [editingVersionId, setEditingVersionId] = useState<string>("");
+  const [editingGroupId, setEditingGroupId] = useState<string>("");
   const [testCaseForm, setTestCaseForm] = useState({
     projectId: "",
     groupId: "",
@@ -164,6 +166,7 @@ export default function TestCaseManagementApp() {
     password: "",
     role: "employee",
   });
+  const [editingUserId, setEditingUserId] = useState<string>("");
 
   const [selectedPlanId, setSelectedPlanId] = useState<string>("");
   const [assignDraft, setAssignDraft] = useState<{
@@ -333,6 +336,8 @@ export default function TestCaseManagementApp() {
     setProjectForm({ name: "", code: "", description: "" });
     setVersionForm({ projectId: "", name: "", releaseDate: "" });
     setGroupForm({ projectId: "", name: "", description: "" });
+    setEditingVersionId("");
+    setEditingGroupId("");
     setEditingTestCaseId("");
     setTestCaseForm({
       projectId: "",
@@ -371,6 +376,7 @@ export default function TestCaseManagementApp() {
     });
     setRunForm({ testPlanId: "", name: "", baseUrl: "" });
     setNewUserForm({ name: "", email: "", password: "", role: "employee" });
+    setEditingUserId("");
     setSelectedPlanId("");
     setAssignDraft({ ownerId: "", assigneeIds: [] });
     setEditingPlanId("");
@@ -807,8 +813,11 @@ export default function TestCaseManagementApp() {
   async function createVersion(event: FormEvent) {
     event.preventDefault();
     await withAction(async () => {
-      await apiRequest("/api/versions", token, {
-        method: "POST",
+      const endpoint = editingVersionId ? `/api/versions/${editingVersionId}` : "/api/versions";
+      const method = editingVersionId ? "PUT" : "POST";
+
+      await apiRequest(endpoint, token, {
+        method,
         body: JSON.stringify(versionForm),
       });
       setVersionForm({
@@ -816,15 +825,54 @@ export default function TestCaseManagementApp() {
         name: "",
         releaseDate: "",
       });
-      setMessage("Da tao version");
+      setEditingVersionId("");
+      setMessage(editingVersionId ? "Da cap nhat version" : "Da tao version");
+    });
+  }
+
+  function startVersionEdit(version: RecordAny) {
+    setEditingVersionId(String(version._id));
+    setVersionForm({
+      projectId: getId(version.project),
+      name: version.name || "",
+      releaseDate: version.releaseDate ? String(version.releaseDate).slice(0, 10) : "",
+    });
+    setActiveTab("versions");
+  }
+
+  function cancelVersionEdit() {
+    setEditingVersionId("");
+    setVersionForm({ projectId: "", name: "", releaseDate: "" });
+  }
+
+  async function deleteVersion(versionId: string) {
+    setMessage("Confirming delete version...");
+    setConfirmDialog({
+      title: "Xoa version nay?",
+      description: "Thao tac nay khong the hoan tac.",
+      confirmLabel: "Xoa",
+      onConfirm: async () => {
+        await withAction(async () => {
+          await apiRequest(`/api/versions/${versionId}`, token, {
+            method: "DELETE",
+          });
+          if (editingVersionId === versionId) {
+            cancelVersionEdit();
+          }
+          setMessage("Da xoa version");
+        });
+      },
     });
   }
 
   async function createGroup(event: FormEvent) {
     event.preventDefault();
     await withAction(async () => {
-      await apiRequest("/api/test-case-groups", token, {
-        method: "POST",
+      const endpoint = editingGroupId ? `/api/test-case-groups/${editingGroupId}` : "/api/test-case-groups";
+      const method = editingGroupId ? "PUT" : "POST";
+
+      await apiRequest(endpoint, token, {
+        method,
         body: JSON.stringify(groupForm),
       });
       setGroupForm({
@@ -832,7 +880,43 @@ export default function TestCaseManagementApp() {
         name: "",
         description: "",
       });
-      setMessage("Da tao nhom test case");
+      setEditingGroupId("");
+      setMessage(editingGroupId ? "Da cap nhat nhom test case" : "Da tao nhom test case");
+    });
+  }
+
+  function startGroupEdit(group: RecordAny) {
+    setEditingGroupId(String(group._id));
+    setGroupForm({
+      projectId: getId(group.project),
+      name: group.name || "",
+      description: group.description || "",
+    });
+    setActiveTab("groups");
+  }
+
+  function cancelGroupEdit() {
+    setEditingGroupId("");
+    setGroupForm({ projectId: "", name: "", description: "" });
+  }
+
+  async function deleteGroup(groupId: string) {
+    setMessage("Confirming delete group...");
+    setConfirmDialog({
+      title: "Xoa nhom test case nay?",
+      description: "Thao tac nay khong the hoan tac.",
+      confirmLabel: "Xoa",
+      onConfirm: async () => {
+        await withAction(async () => {
+          await apiRequest(`/api/test-case-groups/${groupId}`, token, {
+            method: "DELETE",
+          });
+          if (editingGroupId === groupId) {
+            cancelGroupEdit();
+          }
+          setMessage("Da xoa nhom test case");
+        });
+      },
     });
   }
 
@@ -1438,12 +1522,65 @@ export default function TestCaseManagementApp() {
   async function createUser(event: FormEvent) {
     event.preventDefault();
     await withAction(async () => {
-      await apiRequest("/api/users", token, {
-        method: "POST",
-        body: JSON.stringify(newUserForm),
+      const payload = {
+        name: newUserForm.name,
+        email: newUserForm.email,
+        role: newUserForm.role,
+        ...(newUserForm.password.trim() ? { password: newUserForm.password } : {}),
+      };
+
+      if (!editingUserId && !newUserForm.password.trim()) {
+        throw new Error("Hay nhap password");
+      }
+
+      const endpoint = editingUserId ? `/api/users/${editingUserId}` : "/api/users";
+      const method = editingUserId ? "PUT" : "POST";
+
+      await apiRequest(endpoint, token, {
+        method,
+        body: JSON.stringify(payload),
       });
       setNewUserForm({ name: "", email: "", password: "", role: "employee" });
-      setMessage("Admin da tao user moi");
+      setEditingUserId("");
+      setMessage(editingUserId ? "Admin da cap nhat user" : "Admin da tao user moi");
+    });
+  }
+
+  function startUserEdit(user: RecordAny) {
+    setEditingUserId(String(user._id));
+    setNewUserForm({
+      name: user.name || "",
+      email: user.email || "",
+      password: "",
+      role: user.role === "admin" ? "admin" : "employee",
+    });
+    setActiveTab("users");
+  }
+
+  function cancelUserEdit() {
+    setEditingUserId("");
+    setNewUserForm({ name: "", email: "", password: "", role: "employee" });
+  }
+
+  async function deleteUser(userId: string) {
+    setMessage("Confirming delete user...");
+    setConfirmDialog({
+      title: "Xoa user nay?",
+      description: "Thao tac nay khong the hoan tac.",
+      confirmLabel: "Xoa",
+      onConfirm: async () => {
+        await withAction(async () => {
+          await apiRequest(`/api/users/${userId}`, token, {
+            method: "DELETE",
+          });
+
+          if (editingUserId === userId) {
+            cancelUserEdit();
+          }
+
+          setMessage("Da xoa user");
+        });
+      },
     });
   }
 
@@ -1489,8 +1626,16 @@ export default function TestCaseManagementApp() {
     deleteProject,
     versionForm,
     setVersionForm,
+    editingVersionId,
+    startVersionEdit,
+    cancelVersionEdit,
+    deleteVersion,
     groupForm,
     setGroupForm,
+    editingGroupId,
+    startGroupEdit,
+    cancelGroupEdit,
+    deleteGroup,
     testCaseForm,
     setTestCaseForm,
     automationForm,
@@ -1526,6 +1671,10 @@ export default function TestCaseManagementApp() {
     createGroup,
     createPlan,
     createUser,
+    editingUserId,
+    startUserEdit,
+    cancelUserEdit,
+    deleteUser,
     selectedRunId,
     setSelectedRunId,
     detailGroupId,

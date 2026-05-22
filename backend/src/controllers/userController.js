@@ -42,7 +42,70 @@ const createUserByAdmin = asyncHandler(async (req, res) => {
   });
 });
 
+const updateUserByAdmin = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { name, email, password, role } = req.body;
+
+  const user = await User.findById(id);
+  if (!user) {
+    throw httpError(404, 'User not found');
+  }
+
+  if (typeof name === 'string' && name.trim()) {
+    user.name = name.trim();
+  }
+
+  if (typeof email === 'string' && email.trim()) {
+    const nextEmail = email.trim().toLowerCase();
+    if (nextEmail !== user.email) {
+      const existingUser = await User.findOne({ email: nextEmail, _id: { $ne: user._id } }).lean();
+      if (existingUser) {
+        throw httpError(409, 'Email is already in use');
+      }
+      user.email = nextEmail;
+    }
+  }
+
+  if (typeof role === 'string' && role.trim()) {
+    user.role = role === 'admin' ? 'admin' : 'employee';
+  }
+
+  if (typeof password === 'string' && password.trim()) {
+    user.passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+  }
+
+  await user.save();
+
+  res.json({
+    user: {
+      id: String(user._id),
+      name: user.name,
+      email: user.email,
+      role: user.role,
+    },
+  });
+});
+
+const deleteUserByAdmin = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  if (String(req.user.id) === String(id)) {
+    throw httpError(400, 'You cannot delete your own account');
+  }
+
+  const user = await User.findById(id);
+  if (!user) {
+    throw httpError(404, 'User not found');
+  }
+
+  await User.deleteOne({ _id: id });
+
+  res.json({ message: 'User deleted' });
+});
+
 module.exports = {
   listUsers,
   createUserByAdmin,
+  updateUserByAdmin,
+  deleteUserByAdmin,
 };

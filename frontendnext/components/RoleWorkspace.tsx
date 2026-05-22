@@ -5,15 +5,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { getId, userName } from "@/lib/api";
-import ManualRunExecutionPanel from "./execution/ManualRunExecutionPanel";
-import AutomationRunExecutionPanel from "./execution/AutomationRunExecutionPanel";
 import AdminDashboardScreen from "./workspaceScreens/AdminDashboardScreen";
 import AdminProjectsScreen from "./workspaceScreens/AdminProjectsScreen";
 import AdminGroupsScreen from "./workspaceScreens/AdminGroupsScreen";
 import AdminTestCasesScreen from "./workspaceScreens/AdminTestCasesScreen";
 import AdminTestCasesDetailScreen from "./workspaceScreens/AdminTestCasesDetailScreen";
 import AdminVersionsScreen from "./workspaceScreens/AdminVersionsScreen";
-import AdminTestPlansScreen from "./workspaceScreens/AdminTestPlansScreen";
+import AdminTestPlansScreen from "@/components/workspaceScreens/AdminTestPlansScreen";
 import AdminTestRunsScreen from "./workspaceScreens/AdminTestRunsScreen";
 import AdminUsersScreen from "./workspaceScreens/AdminUsersScreen";
 import EmployeeMyTestPlansScreen from "./workspaceScreens/EmployeeMyTestPlansScreen";
@@ -48,69 +46,6 @@ const employeeNav = [
   { key: "execution", label: "Run Test" },
 ] as const;
 
-function SectionCard({
-  title,
-  subtitle,
-  children,
-  actions,
-}: {
-  title: string;
-  subtitle?: string;
-  children: ReactNode;
-  actions?: ReactNode;
-}) {
-  return (
-    <section className="workspace-card">
-      <div className="workspace-card__header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem" }}>
-        <div>
-          <h2>{title}</h2>
-          {subtitle && <p>{subtitle}</p>}
-        </div>
-        {actions && <div className="workspace-inline-actions">{actions}</div>}
-      </div>
-      {children}
-    </section>
-  );
-}
-function DataTable({
-  columns,
-  rows,
-  emptyText,
-}: {
-  columns: string[];
-  rows: ReactNode[];
-  emptyText: string;
-}) {
-  const columnStyle = {
-    gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))`,
-  };
-
-  return (
-    <div className="workspace-table">
-      <div className="workspace-table__head" style={columnStyle}>
-        {columns.map((column) => (
-          <div key={column}>{column}</div>
-        ))}
-      </div>
-      {rows.length === 0 ? (
-        <div className="workspace-table__empty">{emptyText}</div>
-      ) : (
-        <div className="workspace-table__body">
-          {rows.map((row, index) => (
-            <div
-              key={index}
-              className="workspace-table__row"
-              style={columnStyle}
-            >
-              {row}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceProps) {
   const {
     currentUser,
@@ -137,8 +72,16 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
     deleteProject,
     versionForm,
     setVersionForm,
+    editingVersionId,
+    startVersionEdit,
+    cancelVersionEdit,
+    deleteVersion,
     groupForm,
     setGroupForm,
+    editingGroupId,
+    startGroupEdit,
+    cancelGroupEdit,
+    deleteGroup,
     testCaseForm,
     setTestCaseForm,
     automationForm,
@@ -160,6 +103,9 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
     setRunForm,
     newUserForm,
     setNewUserForm,
+    editingUserId,
+    startUserEdit,
+    cancelUserEdit,
     selectedPlanId,
     selectPlanForAssignment,
     assignDraft,
@@ -174,6 +120,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
     createGroup,
     createPlan,
     createUser,
+    deleteUser,
     setSelectedRunId,
     myItems,
     loadMyItems,
@@ -606,6 +553,10 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
           <AdminGroupsScreen
             groupForm={groupForm}
             setGroupForm={setGroupForm}
+            editingGroupId={editingGroupId}
+            startGroupEdit={startGroupEdit}
+            cancelGroupEdit={cancelGroupEdit}
+            deleteGroup={deleteGroup}
             createGroup={createGroup}
             scopedProjects={scopedProjects}
             groups={groups}
@@ -657,6 +608,10 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
           <AdminVersionsScreen
             versionForm={versionForm}
             setVersionForm={setVersionForm}
+            editingVersionId={editingVersionId}
+            startVersionEdit={startVersionEdit}
+            cancelVersionEdit={cancelVersionEdit}
+            deleteVersion={deleteVersion}
             createVersion={createVersion}
             scopedProjects={scopedProjects}
             versions={versions}
@@ -721,9 +676,14 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
           <AdminUsersScreen
             newUserForm={newUserForm}
             setNewUserForm={setNewUserForm}
+            editingUserId={editingUserId}
+            startUserEdit={startUserEdit}
+            cancelUserEdit={cancelUserEdit}
             createUser={createUser}
+            deleteUser={deleteUser}
             users={users}
             matchesSearch={matchesSearch}
+            currentUserId={currentUserId}
           />
         )}
 

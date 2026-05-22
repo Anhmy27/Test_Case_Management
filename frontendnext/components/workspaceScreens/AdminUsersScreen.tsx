@@ -11,11 +11,29 @@ type Props = {
   newUserForm: { name: string; email: string; password: string; role: string };
   setNewUserForm: Dispatch<SetStateAction<{ name: string; email: string; password: string; role: string }>>;
   createUser: (event: React.FormEvent) => Promise<void>;
+  editingUserId: string;
+  startUserEdit: (user: RecordAny) => void;
+  cancelUserEdit: () => void;
+  deleteUser: (userId: string) => Promise<void>;
   users: RecordAny[];
   matchesSearch: (...values: Array<string | number | undefined | null>) => boolean;
+  currentUserId: string;
 };
 
-export default function AdminUsersScreen({ newUserForm, setNewUserForm, createUser, users, matchesSearch }: Props) {
+export default function AdminUsersScreen({
+  newUserForm,
+  setNewUserForm,
+  createUser,
+  editingUserId,
+  startUserEdit,
+  cancelUserEdit,
+  deleteUser,
+  users,
+  matchesSearch,
+  currentUserId,
+}: Props) {
+  const isEditing = Boolean(editingUserId);
+
   return (
     <div className="workspace-stack">
       <SectionCard title="Users" subtitle="Quan ly user, role va assign">
@@ -25,15 +43,44 @@ export default function AdminUsersScreen({ newUserForm, setNewUserForm, createUs
             <label><span>Email</span><input type="email" value={newUserForm.email} onChange={(e) => setNewUserForm((prev) => ({ ...prev, email: e.target.value }))} required /></label>
           </div>
           <div className="workspace-form__grid workspace-form__grid--two">
-            <label><span>Password</span><input type="password" value={newUserForm.password} onChange={(e) => setNewUserForm((prev) => ({ ...prev, password: e.target.value }))} required /></label>
+            <label><span>Password</span><input type="password" value={newUserForm.password} onChange={(e) => setNewUserForm((prev) => ({ ...prev, password: e.target.value }))} required={!isEditing} placeholder={isEditing ? "Leave blank to keep current password" : undefined} /></label>
             <label><span>Role</span><select value={newUserForm.role} onChange={(e) => setNewUserForm((prev) => ({ ...prev, role: e.target.value }))}><option value="employee">employee</option><option value="admin">admin</option></select></label>
           </div>
-          <button className="workspace-primary" type="submit">Create user</button>
+          <div className="workspace-inline-actions">
+            <button className="workspace-primary" type="submit">{isEditing ? "Update user" : "Create user"}</button>
+            {isEditing && <button type="button" className="workspace-secondary" onClick={cancelUserEdit}>Cancel</button>}
+          </div>
         </form>
       </SectionCard>
 
       <SectionCard title="User List">
-        <DataTable columns={["User", "Email", "Role"]} rows={users.filter((user: RecordAny) => matchesSearch(user.name, user.email, user.role)).map((user: RecordAny) => <><div>{user.name}</div><div>{user.email}</div><div>{user.role}</div></>)} emptyText="No users" />
+        <DataTable
+          columns={["User", "Email", "Role", "Actions"]}
+          rows={users
+            .filter((user: RecordAny) => matchesSearch(user.name, user.email, user.role))
+            .map((user: RecordAny) => (
+              <>
+                <div>{user.name}</div>
+                <div>{user.email}</div>
+                <div>{user.role}</div>
+                <div className="workspace-inline-actions">
+                  <button type="button" className="workspace-secondary" onClick={() => startUserEdit(user)}>
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    className="workspace-danger"
+                    onClick={() => void deleteUser(user._id)}
+                    disabled={String(user._id) === currentUserId}
+                    title={String(user._id) === currentUserId ? "You cannot delete your own account" : undefined}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </>
+            ))}
+          emptyText="No users"
+        />
       </SectionCard>
     </div>
   );
