@@ -1321,6 +1321,15 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
                               <option value="waitFor">waitFor</option>
                               <option value="assertText">assertText</option>
                               <option value="assertVisible">assertVisible</option>
+                              <option value="assertUrl">assertUrl</option>
+                              <option value="assertTitle">assertTitle</option>
+                              <option value="assertHidden">assertHidden</option>
+                              <option value="assertEnabled">assertEnabled</option>
+                              <option value="assertChecked">assertChecked</option>
+                              <option value="hover">hover</option>
+                              <option value="press">press</option>
+                              <option value="upload">upload</option>
+                              <option value="dragTo">dragTo</option>
                             </select>
                           </label>
                           <label>
@@ -1332,6 +1341,8 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
                               }
                             >
                               <option value="css">css</option>
+                              <option value="id">id</option>
+                              <option value="placeholder">placeholder</option>
                               <option value="text">text</option>
                               <option value="label">label</option>
                               <option value="testid">testid</option>
@@ -1358,7 +1369,7 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
                               onChange={(e) =>
                                 updateAutomationStep(index, "target", e.target.value)
                               }
-                              placeholder="#login-button / Username / submit-btn"
+                              placeholder="#login-button / email / Username / submit-btn"
                             />
                           </label>
                           <label>
@@ -1368,7 +1379,7 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
                               onChange={(e) =>
                                 updateAutomationStep(index, "value", e.target.value)
                               }
-                              placeholder="Text to type, option value, path..."
+                              placeholder="Text to type, option value, path, key combo, file path, drop target..."
                             />
                           </label>
                           <label>
@@ -1378,7 +1389,7 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
                               onChange={(e) =>
                                 updateAutomationStep(index, "expected", e.target.value)
                               }
-                              placeholder="Text to assert"
+                              placeholder="Text, title or URL fragment to assert"
                             />
                           </label>
                         </div>

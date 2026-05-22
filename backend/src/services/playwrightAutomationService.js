@@ -4,15 +4,42 @@ try {
 } catch {
   chromium = null;
 }
+const path = require('path');
 const TestCase = require('../models/TestCase');
 const TestPlan = require('../models/TestPlan');
 const TestRun = require('../models/TestRun');
 const { httpError } = require('../utils/httpError');
 
-const ALLOWED_ACTIONS = new Set(['goto', 'click', 'type', 'select', 'waitfor', 'asserttext', 'assertvisible']);
+const ALLOWED_ACTIONS = new Set([
+  'goto',
+  'click',
+  'type',
+  'select',
+  'waitfor',
+  'asserttext',
+  'assertvisible',
+  'asserturl',
+  'asserttitle',
+  'asserthidden',
+  'assertenabled',
+  'assertchecked',
+  'hover',
+  'press',
+  'upload',
+  'dragto',
+]);
 const DEFAULT_TIMEOUT = 15000;
 
 const toString = (value) => String(value || '').trim();
+
+const escapeAttributeValue = (value) => String(value || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+
+const parseFilePaths = (value) =>
+  String(value || '')
+    .split(/[\n,]+/)
+    .map((entry) => toString(entry))
+    .filter(Boolean)
+    .map((filePath) => (path.isAbsolute(filePath) ? filePath : path.resolve(filePath)));
 
 const joinUrl = (baseUrl, pathOrUrl) => {
   const value = toString(pathOrUrl);
@@ -37,6 +64,10 @@ const resolveLocator = (page, step) => {
   const target = toString(step.target);
 
   switch (targetType) {
+    case 'id':
+      return page.locator(`[id="${escapeAttributeValue(target)}"]`);
+    case 'placeholder':
+      return page.getByPlaceholder(target);
     case 'text':
       return page.getByText(target, { exact: false });
     case 'label':
@@ -146,6 +177,19 @@ const capturePageDiagnostics = async (page) => {
   return diagnostics.join('\n');
 };
 
+const assertWithDiagnostics = async (page, checkFn, successMessage, errorMessage) => {
+  try {
+    await checkFn();
+    return successMessage;
+  } catch (error) {
+    const diagnostics = await capturePageDiagnostics(page);
+    throw new Error([
+      error?.message || errorMessage,
+      diagnostics,
+    ].join('\n'));
+  }
+};
+
 const executeStep = async (page, step, baseUrl) => {
   const action = toString(step.action).toLowerCase();
   if (!ALLOWED_ACTIONS.has(action)) {
@@ -208,6 +252,52 @@ const executeStep = async (page, step, baseUrl) => {
     return `select ${target} = ${value}`;
   }
 
+  if (action === 'hover') {
+    await locator.hover({ timeout: timeoutMs });
+    return `hover ${target}`;
+  }
+
+  if (action === 'press') {
+    const keyCombination = value || target;
+
+    if (!keyCombination) {
+      throw new Error('press step requires a key combination in value or target');
+    }
+
+    if (target) {
+      await locator.press(keyCombination, { timeout: timeoutMs });
+      return `press ${target} -> ${keyCombination}`;
+    }
+
+    await page.keyboard.press(keyCombination);
+    return `press page -> ${keyCombination}`;
+  }
+
+  if (action === 'upload') {
+    const filePaths = parseFilePaths(value || target);
+
+    if (filePaths.length === 0) {
+      throw new Error('upload step requires at least one file path in value or target');
+    }
+
+    await locator.setInputFiles(filePaths, { timeout: timeoutMs });
+    return `upload ${target || '(file input)'} = ${filePaths.join(', ')}`;
+  }
+
+  if (action === 'dragto') {
+    const destinationSelector = value;
+
+    if (!target || !destinationSelector) {
+      throw new Error('dragTo step requires source target and destination selector in value');
+    }
+
+    const source = resolveLocator(page, step).first();
+    const destination = page.locator(destinationSelector).first();
+
+    await source.dragTo(destination, { timeout: timeoutMs });
+    return `dragTo ${target} -> ${destinationSelector}`;
+  }
+
   if (action === 'waitfor') {
     if (target) {
       await locator.waitFor({ state: 'visible', timeout: timeoutMs });
@@ -222,6 +312,93 @@ const executeStep = async (page, step, baseUrl) => {
     await locator.waitFor({ state: 'visible', timeout: timeoutMs });
 
     return `assertVisible ${target}`;
+  }
+
+  if (action === 'asserthidden') {
+    await locator.waitFor({ state: 'hidden', timeout: timeoutMs });
+
+    return `assertHidden ${target}`;
+  }
+
+  if (action === 'assertenabled') {
+    await locator.waitFor({ state: 'visible', timeout: timeoutMs });
+
+    return assertWithDiagnostics(
+      page,
+      async () => {
+        const enabled = await locator.isEnabled();
+        if (!enabled) {
+          throw new Error(`Expected element to be enabled: ${target}`);
+        }
+      },
+      `assertEnabled ${target}`,
+      `Expected element to be enabled: ${target}`,
+    );
+  }
+
+  if (action === 'assertchecked') {
+    await locator.waitFor({ state: 'visible', timeout: timeoutMs });
+
+    return assertWithDiagnostics(
+      page,
+      async () => {
+        const checked = await locator.isChecked();
+        if (!checked) {
+          throw new Error(`Expected element to be checked: ${target}`);
+        }
+      },
+      `assertChecked ${target}`,
+      `Expected element to be checked: ${target}`,
+    );
+  }
+
+  if (action === 'asserturl') {
+    const normalizedExpected = expected || value || target;
+
+    if (!normalizedExpected) {
+      throw new Error('assertUrl step requires expected url text');
+    }
+
+    return assertWithDiagnostics(
+      page,
+      async () => {
+        await page.waitForURL((currentUrl) => String(currentUrl.href).includes(normalizedExpected), {
+          timeout: timeoutMs,
+        });
+
+        if (!String(page.url()).includes(normalizedExpected)) {
+          throw new Error(`Expected page url to include "${normalizedExpected}" but got "${page.url()}"`);
+        }
+      },
+      `assertUrl contains ${normalizedExpected}`,
+      `Expected page url to include "${normalizedExpected}"`,
+    );
+  }
+
+  if (action === 'asserttitle') {
+    const normalizedExpected = expected || value || target;
+
+    if (!normalizedExpected) {
+      throw new Error('assertTitle step requires expected title text');
+    }
+
+    return assertWithDiagnostics(
+      page,
+      async () => {
+        await page.waitForFunction(
+          (needle) => String(document.title || '').includes(String(needle || '')),
+          normalizedExpected,
+          { timeout: timeoutMs },
+        );
+
+        const title = await page.title();
+        if (!String(title).includes(normalizedExpected)) {
+          throw new Error(`Expected page title to include "${normalizedExpected}" but got "${title}"`);
+        }
+      },
+      `assertTitle contains ${normalizedExpected}`,
+      `Expected page title to include "${normalizedExpected}"`,
+    );
   }
 
   if (action === 'asserttext') {
@@ -328,7 +505,8 @@ const executeAutomationRun = async ({ testRunId, baseUrl = '', executedBy }) => 
       const automation = testCase?.automation || {};
       const caseSteps = Array.isArray(automation.steps) ? automation.steps : [];
       const caseBaseUrl = baseUrl || automation.baseUrl || '';
-      const page = await browser.newPage();
+      const context = await browser.newContext({ ignoreHTTPSErrors: true });
+      const page = await context.newPage();
       const logLines = [];
       let finalStatus = 'blocked';
       let finalNote = 'Automation spec is missing';
@@ -367,6 +545,7 @@ const executeAutomationRun = async ({ testRunId, baseUrl = '', executedBy }) => 
         logLines.push(error?.message || 'Unknown error');
       } finally {
         await page.close().catch(() => {});
+        await context.close().catch(() => {});
       }
 
       result.status = finalStatus;
