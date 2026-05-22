@@ -78,6 +78,7 @@ export default function TestCaseManagementApp() {
   const [automationForm, setAutomationForm] = useState({
     enabled: false,
     baseUrl: "",
+    userKey: "",
     steps: [
       {
         action: "goto",
@@ -172,6 +173,7 @@ export default function TestCaseManagementApp() {
     setAutomationForm({
       enabled: false,
       baseUrl: "",
+      userKey: "",
       steps: [
         {
           action: "goto",
@@ -592,6 +594,7 @@ export default function TestCaseManagementApp() {
     setAutomationForm({
       enabled: Boolean(testCase.automation?.enabled),
       baseUrl: testCase.automation?.baseUrl || "",
+      userKey: testCase.automation?.userKey || "",
       steps: automationSteps,
     });
     setActiveTab("test-cases");
@@ -614,6 +617,7 @@ export default function TestCaseManagementApp() {
     setAutomationForm({
       enabled: false,
       baseUrl: "",
+      userKey: "",
       steps: [
         {
           action: "goto",
@@ -680,6 +684,7 @@ export default function TestCaseManagementApp() {
           steps,
           automation: {
             enabled: automationForm.enabled,
+            userKey: automationForm.userKey,
             baseUrl: automationForm.baseUrl,
             runner: "playwright",
             steps: automationSteps,
@@ -701,6 +706,7 @@ export default function TestCaseManagementApp() {
       setAutomationForm({
         enabled: false,
         baseUrl: "",
+        userKey: "",
         steps: [
           {
             action: "goto",

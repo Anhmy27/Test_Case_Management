@@ -589,38 +589,14 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
                   >
                     <DataTable
                       columns={["Run", "Project", "Tester", "Status"]}
-                      rows={runningRuns
-                        .map((run: RecordAny) => {
-                          // try multiple places for project id: testPlan.project, run.project, or nested id
-                          const rawProject = run.testPlan?.project ?? run.project ?? null;
-                          const pid = getId(rawProject) || (typeof rawProject === 'string' ? rawProject : '');
-
-                          const proj = projects.find((p: RecordAny) => {
-                            const pId = String((p && (p._id ?? p.id)) || "");
-                            return pId === pid || String(getId(p)) === pid;
-                          });
-
-                          const projectName = proj?.name || (pid ? pid : "-");
-                          return { run, projectName };
-                        })
-                        .filter(({ run, projectName }: { run: RecordAny; projectName: string }) =>
-                          matchesSearch(
-                            run.name,
-                            run.testPlan?.name,
-                            projectName,
-                            userName(run.startedBy),
-                          ),
-                        )
-                        .map(({ run, projectName }: { run: RecordAny; projectName: string }) => (
-                          <>
-                            <div>{run.name || run.testPlan?.name}</div>
-                            <div>{projectName}</div>
-                            <div>{userName(run.startedBy)}</div>
-                            <div className="workspace-pill workspace-pill--success">
-                              Running
-                            </div>
-                          </>
-                        ))}
+                      rows={runningRuns.map((run: RecordAny) => (
+                        <>
+                          <div>{run.name || run.testPlan?.name || "Untitled"}</div>
+                          <div>{run.project?.name || "-"}</div>
+                          <div>{userName(run.startedBy)}</div>
+                          <div>{run.status || "-"}</div>
+                        </>
+                      ))}
                       emptyText="No running test runs"
                     />
                   </SectionCard>
@@ -1289,6 +1265,21 @@ export default function RoleWorkspace({ workspace }: WorkspaceProps) {
                           }))
                         }
                         placeholder="https://app.example.com"
+                      />
+                    </label>
+                  </div>
+                  <div className="workspace-form__grid workspace-form__grid--two">
+                    <label>
+                      <span>User (email/username)</span>
+                      <input
+                        value={automationForm.userKey}
+                        onChange={(e) =>
+                          setAutomationForm((prev: any) => ({
+                            ...prev,
+                            userKey: e.target.value,
+                          }))
+                        }
+                        placeholder="tester@company.com"
                       />
                     </label>
                   </div>

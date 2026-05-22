@@ -1,0 +1,35 @@
+{
+  "cookies": [
+    {
+      "name": "NEXT_LOCALE",
+      "value": "en",
+      "domain": "192.168.142.21",
+      "path": "/",
+      "expires": 1810980154.693738,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "edr_token",
+      "value": "eyJhbGciOiJFUzUxMiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJ3YXp1aCIsImF1ZCI6IkVEUiBBUEkgUkVTVCIsIm5iZiI6MTc3OTQ0NDE1NiwiZXhwIjoxNzc5NDU4NTU2LCJzdWIiOiJhZHVjcyIsImp0aSI6IjdiOGQyZTY1LTkxMTItNGE2Yi05OTA4LWNlMzMyNWI5N2YzNSIsInJ1bl9hcyI6ZmFsc2UsInJiYWNfcm9sZXMiOlsxNTldLCJyYmFjX21vZGUiOiJ3aGl0ZSJ9.AWpy_1ZHKzt-s3cuEFPCaWDCqHWYwSrV63-LrpEoXuYbNWe76p-O_SjdqMZcLN6Cu_TY9LRyzGkQeFiIWFsfpvgJAdYcBMNhFAOCZIQbQ9v6hMcUVlXz9p6yy4fS0qbrKjLmKA2qSIQWTq8NU2f4JZo4q4MT2-sFROPoKzZ1w0E159Gc",
+      "domain": "192.168.142.21",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "edr_user_id",
+      "value": "aducs",
+      "domain": "192.168.142.21",
+      "path": "/",
+      "expires": -1,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": []
+}

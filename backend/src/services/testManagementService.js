@@ -788,12 +788,14 @@ const createTestCase = asyncHandler(async (req, res) => {
         enabled: Boolean(automation.enabled),
         runner: 'playwright',
         baseUrl: String(automation.baseUrl || '').trim(),
+        userKey: String(automation.userKey || '').trim(),
         steps: normalizeAutomationSteps(automation.steps),
       }
     : {
         enabled: false,
         runner: 'playwright',
         baseUrl: '',
+        userKey: '',
         steps: [],
       };
 
@@ -1018,6 +1020,11 @@ const updateTestCase = asyncHandler(async (req, res) => {
     status,
   } = req.body;
 
+  const currentCase = await TestCase.findById(toObjectId(testCaseId, 'testCaseId')).lean();
+  if (!currentCase) {
+    throw httpError(404, 'Test case not found');
+  }
+
   const updated = await updateVersionedDocument(TestCase, testCaseId, async (current) => {
     const nextProjectId = projectId ? toObjectId(projectId, 'projectId') : current.project;
     const nextGroupId = groupId ? toObjectId(groupId, 'groupId') : current.group;
@@ -1055,12 +1062,14 @@ const updateTestCase = asyncHandler(async (req, res) => {
           enabled: Boolean(automation.enabled),
           runner: 'playwright',
           baseUrl: String(automation.baseUrl || '').trim(),
+          userKey: String(automation.userKey || '').trim(),
           steps: normalizeAutomationSteps(automation.steps),
         }
       : current.automation || {
           enabled: false,
           runner: 'playwright',
           baseUrl: '',
+          userKey: '',
           steps: [],
         };
 
@@ -1085,6 +1094,16 @@ const updateTestCase = asyncHandler(async (req, res) => {
       createdBy: current.createdBy,
     };
   });
+
+  await TestPlan.updateMany(
+    {
+      deletedAt: null,
+      $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+      'items.testCase': currentCase._id,
+    },
+    { $set: { 'items.$[item].testCase': updated._id } },
+    { arrayFilters: [{ 'item.testCase': currentCase._id }] },
+  );
 
   const populated = await TestCase.findById(updated._id)
     .populate('project', 'name code deletedAt')

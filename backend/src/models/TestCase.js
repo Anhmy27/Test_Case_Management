@@ -65,6 +65,16 @@ const testCaseSchema = new mongoose.Schema(
         type: Boolean,
         default: false,
       },
+      webId: {
+        type: String,
+        default: '',
+        trim: true,
+      },
+      userKey: {
+        type: String,
+        default: '',
+        trim: true,
+      },
       runner: {
         type: String,
         enum: ['playwright'],
