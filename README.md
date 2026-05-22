@@ -4,7 +4,8 @@ A concise guide to run the TCM app locally (backend + frontend) and the bundled 
 
 **Quick summary**
 - Backend: runs on port `5000` (http://localhost:5000)
-- Frontend: runs on port `3000` (http://localhost:3000)
+- Frontend (primary): `frontendnext` runs on port `3000` (http://localhost:3000)
+- Legacy frontend: a `frontend/` folder remains for reference but `frontendnext/` is the active codebase.
 - MongoDB (via Docker Compose): container listens on `27017`, exposed to host as `27018` (`27018:27017`)
 
 ## Prerequisites
@@ -14,22 +15,30 @@ A concise guide to run the TCM app locally (backend + frontend) and the bundled 
 ## Starter (recommended)
 1. From project root, start MongoDB with Docker Compose:
 
-   docker compose up -d
+```bash
+docker compose up -d
+```
 
 2. Start backend:
 
-   cd backend
-   npm install
-   copy or create a `.env` file (see example below)
-   npm start
+```bash
+cd backend
+npm install
+# copy or create a .env file (see example below)
+npm start
+```
 
-3. Start frontend:
+3. Start frontend (recommended: `frontendnext`):
 
-   cd frontend
-   npm install
-   npm run dev
+```bash
+cd frontendnext
+npm install
+npm run dev
+```
 
-Open the frontend at http://localhost:3000
+Notes:
+- The repository contains two frontend folders: `frontend/` (legacy) and `frontendnext/` (active). Use `frontendnext` for development.
+- Open the app at http://localhost:3000 after the frontend starts.
 
 ## Important MongoDB connection notes
 - The compose service maps host port `27018` to container port `27017` (`27018:27017`).
@@ -58,16 +67,32 @@ ADMIN_EMAIL=admin@example.com
 ADMIN_PASSWORD=12345678
 
 ## Start backend
+
+```bash
 cd backend
 npm install
 npm start
+```
 
 The backend will log a successful MongoDB connection and start the Express server (port 5000 by default).
 
 ## Start frontend
+
+Recommended (active frontend):
+
+```bash
+cd frontendnext
+npm install
+npm run dev
+```
+
+Legacy frontend (for reference only):
+
+```bash
 cd frontend
 npm install
 npm run dev
+```
 
 ## Docker compose healthcheck detail
 The `healthcheck` for the MongoDB service runs inside the container, so it must target `localhost:27017` (container port). The host mapping `27018` is irrelevant to the healthcheck because that mapping exists on the host side only.
@@ -106,10 +131,11 @@ If you'd like, I can also update `backend/.env.example` and add a short `CONTRIB
 - Cannot create or delete projects/test cases
 - Limited to personal test run history
 
-## Token Management
+## Token & Client State
 
-Authentication uses JWT tokens stored in `localStorage`:
+Authentication uses JWT tokens stored in `localStorage` and the app stores a few client keys to preserve UI state across reloads:
 - **Token Key**: `tcm_token`
+- **Selected project Key**: `tcm_selected_project_id` (the currently scoped project id; used to restore project scope after reload)
 - **Token Storage**: Browser's `localStorage`
 - **Token Verification**: Tokens are verified on app load and API requests
 - **Auto-logout**: Token expiration triggers automatic redirect to login
@@ -117,7 +143,7 @@ Authentication uses JWT tokens stored in `localStorage`:
 ## Development Notes
 
 ### Code Standards
-- Frontend: TypeScript with strict null checks
+- Frontend: TypeScript with strict null checks (primarily in `frontendnext`)
 - Backend: JavaScript with JSDoc comments
 - Styling: CSS with BEM naming convention
 - Components: Functional React components with hooks
@@ -155,11 +181,33 @@ localStorage.removeItem('tcm_token');
 - Delete `.next` folder and `npm run dev` again
 - Check console for TypeScript errors
 
+### Dev-mode RSC / HMR issues
+In development (Next/Turbopack HMR) you may see frequent server requests and occasional RSC payload fetch failures. If you observe navigation/fallback loops during rapid UI changes, try:
+
+- Run a production build to verify behavior without HMR:
+
+```bash
+cd frontendnext
+npm run build
+npm start
+```
+
+- The app includes mitigations to reduce duplicate API requests, but dev-mode churn can still produce noisy logs.
+
+### Developer tips & debugging hooks
+- The frontend now exposes a short list of helpful globals for debugging in the browser console:
+   - `window.__tcm_refreshController` — the current `AbortController` used by the global refresh flow; calling `window.__tcm_refreshController?.abort()` cancels an in-flight refresh.
+   - `localStorage` keys: `tcm_token`, `tcm_selected_project_id`.
+
+- Tab navigation inside the app is handled client-side (history.pushState) to avoid unnecessary server navigations that used to cause remount loops.
+
+- Debug Playwright scripts were removed from the repo; Playwright dependency remains in `devDependencies` for test/automation usage.
+
 ## Support
 
 For issues or questions, contact your development team or refer to project documentation.
 
 ---
 
-**Version**: 1.0.0  
-**Last Updated**: May 2026
+**Version**: 1.0.1  
+**Last Updated**: May 22, 2026
