@@ -570,11 +570,10 @@ export default function TestCaseManagementApp() {
       })
       .then((role) => {
         console.log('[TCMA] auth.me resolved, scheduling refreshAll', { role, projectId: selectedProjectIdRef.current });
-        // only perform the initial auth refresh once across potential dev double-mounts
+        // only perform the initial auth refresh once per token across potential dev double-mounts
         try {
-          if (typeof window !== 'undefined' && !(window as any).__tcm_initialRefreshDone) {
-            // mark as done and run refresh
-            (window as any).__tcm_initialRefreshDone = true;
+          if (typeof window !== 'undefined' && (window as any).__tcm_initialRefreshToken !== token) {
+            (window as any).__tcm_initialRefreshToken = token;
             queueMicrotask(() => {
               void refreshAll(token, role, selectedProjectIdRef.current);
             });
@@ -1587,6 +1586,10 @@ export default function TestCaseManagementApp() {
   function logout() {
     window.localStorage.removeItem("tcm_token");
     window.localStorage.removeItem("tcm_selected_project_id");
+    if (typeof window !== "undefined") {
+      (window as any).__tcm_initialRefreshToken = "";
+      (window as any).__tcm_initialRefreshDone = false;
+    }
     setToken("");
     setCurrentUser(null);
     setActiveTab("overview");

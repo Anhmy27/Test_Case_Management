@@ -704,7 +704,22 @@ const listTestRuns = asyncHandler(async (req, res) => {
     .populate('endedBy', 'name email role')
     .lean();
 
-  res.json({ testRuns });
+  const testRunsWithProgress = testRuns.map((testRun) => {
+    const results = Array.isArray(testRun.results) ? testRun.results : [];
+    const total = results.length;
+    const executed = results.filter((result) => !['untested', 'skip'].includes(result.status)).length;
+    const passCount = results.filter((result) => result.status === 'pass').length;
+
+    return {
+      ...testRun,
+      progress: total > 0 ? Number(((executed / total) * 100).toFixed(2)) : 0,
+      passRate: executed > 0 ? Number(((passCount / executed) * 100).toFixed(2)) : 0,
+      totalResults: total,
+      executedResults: executed,
+    };
+  });
+
+  res.json({ testRuns: testRunsWithProgress });
 });
 
 const getMyRunItems = asyncHandler(async (req, res) => {

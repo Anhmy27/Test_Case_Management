@@ -293,7 +293,7 @@ const VersionDashboard: React.FC<VersionDashboardProps> = ({
                           <p className="text-2xl font-bold text-gray-900">
                             {testPlan.progress.toFixed(1)}%
                           </p>
-                          <p className="text-xs text-gray-600">Progress</p>
+                          <p className="text-xs text-gray-600">Latest run progress</p>
                         </div>
                         <div className="text-center">
                           <p className="text-2xl font-bold text-green-600">

@@ -12,12 +12,16 @@ export async function apiRequest<T>(
 ): Promise<T> {
   const method = (options && options.method) ? String(options.method).toUpperCase() : 'GET';
   const isGetNoBody = method === 'GET' && options?.body == null;
+  const isVolatileGet = isGetNoBody && (
+    path.startsWith('/api/test-runs') ||
+    path.startsWith('/api/dashboard')
+  );
 
   // build a stable key including authorization to avoid leaking other users' cache
   const authKey = token ? `|${token}` : '';
   const cacheKey = `${method}:${path}${authKey}`;
 
-  if (isGetNoBody) {
+  if (isGetNoBody && !isVolatileGet) {
     // return recent cached response
     const cached = _cache.get(cacheKey);
     if (cached && Date.now() - cached.ts < _CACHE_TTL_MS) {
@@ -80,7 +84,7 @@ export async function apiRequest<T>(
     }
 
     // cache GET responses briefly
-    if (isGetNoBody) {
+    if (isGetNoBody && !isVolatileGet) {
       try {
         _cache.set(cacheKey, { ts: Date.now(), data });
       } catch {}
@@ -88,12 +92,12 @@ export async function apiRequest<T>(
 
     return data as T;
   }).finally(() => {
-    if (isGetNoBody) {
+    if (isGetNoBody && !isVolatileGet) {
       _inflight.delete(cacheKey);
     }
   });
 
-  if (isGetNoBody) {
+  if (isGetNoBody && !isVolatileGet) {
     _inflight.set(cacheKey, fetchPromise as Promise<unknown>);
   }
 
