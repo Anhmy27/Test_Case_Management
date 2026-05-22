@@ -1,0 +1,790 @@
+"use client";
+
+/* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/set-state-in-effect */
+
+import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
+import { getId, userName } from "@/lib/api";
+import ManualRunExecutionPanel from "./execution/ManualRunExecutionPanel";
+import AutomationRunExecutionPanel from "./execution/AutomationRunExecutionPanel";
+import AdminDashboardScreen from "./workspaceScreens/AdminDashboardScreen";
+import AdminProjectsScreen from "./workspaceScreens/AdminProjectsScreen";
+import AdminGroupsScreen from "./workspaceScreens/AdminGroupsScreen";
+import AdminTestCasesScreen from "./workspaceScreens/AdminTestCasesScreen";
+import AdminTestCasesDetailScreen from "./workspaceScreens/AdminTestCasesDetailScreen";
+import AdminVersionsScreen from "./workspaceScreens/AdminVersionsScreen";
+import AdminTestPlansScreen from "./workspaceScreens/AdminTestPlansScreen";
+import AdminTestRunsScreen from "./workspaceScreens/AdminTestRunsScreen";
+import AdminUsersScreen from "./workspaceScreens/AdminUsersScreen";
+import EmployeeMyTestPlansScreen from "./workspaceScreens/EmployeeMyTestPlansScreen";
+import EmployeeRunningTestsScreen from "./workspaceScreens/EmployeeRunningTestsScreen";
+import EmployeeHistoryScreen from "./workspaceScreens/EmployeeHistoryScreen";
+import ExecutionScreen from "./workspaceScreens/ExecutionScreen";
+
+type RecordAny = Record<string, any>;
+
+type WorkspaceProps = {
+  workspace: Record<string, any>;
+  overrideContent?: ReactNode;
+};
+
+const adminNav = [
+  { key: "dashboard", label: "Dashboard" },
+  { key: "projects", label: "Projects" },
+  { key: "groups", label: "Groups" },
+  { key: "test-cases", label: "Test Cases" },
+  { key: "test-cases-detail", label: "Test Cases Detail" },
+  { key: "versions", label: "Versions" },
+  { key: "test-plans", label: "Test Plans" },
+  { key: "test-runs", label: "Test Runs" },
+  { key: "execution", label: "Execution" },
+  { key: "users", label: "Users" },
+] as const;
+
+const employeeNav = [
+  { key: "my-test-plans", label: "My Test Plans" },
+  { key: "running-tests", label: "Running Tests" },
+  { key: "history", label: "History" },
+  { key: "execution", label: "Run Test" },
+] as const;
+
+function SectionCard({
+  title,
+  subtitle,
+  children,
+  actions,
+}: {
+  title: string;
+  subtitle?: string;
+  children: ReactNode;
+  actions?: ReactNode;
+}) {
+  return (
+    <section className="workspace-card">
+      <div className="workspace-card__header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem" }}>
+        <div>
+          <h2>{title}</h2>
+          {subtitle && <p>{subtitle}</p>}
+        </div>
+        {actions && <div className="workspace-inline-actions">{actions}</div>}
+      </div>
+      {children}
+    </section>
+  );
+}
+function DataTable({
+  columns,
+  rows,
+  emptyText,
+}: {
+  columns: string[];
+  rows: ReactNode[];
+  emptyText: string;
+}) {
+  const columnStyle = {
+    gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))`,
+  };
+
+  return (
+    <div className="workspace-table">
+      <div className="workspace-table__head" style={columnStyle}>
+        {columns.map((column) => (
+          <div key={column}>{column}</div>
+        ))}
+      </div>
+      {rows.length === 0 ? (
+        <div className="workspace-table__empty">{emptyText}</div>
+      ) : (
+        <div className="workspace-table__body">
+          {rows.map((row, index) => (
+            <div
+              key={index}
+              className="workspace-table__row"
+              style={columnStyle}
+            >
+              {row}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceProps) {
+  const {
+    currentUser,
+    isAdmin,
+    activeTab,
+    setActiveTab,
+    logout,
+    dashboard,
+    projects,
+    versions,
+    groups,
+    testCases,
+    plans,
+    runs,
+    users,
+    selectedProjectId,
+    setSelectedProjectId,
+    projectForm,
+    setProjectForm,
+    editingProjectId,
+    startProjectEdit,
+    cancelProjectEdit,
+    saveProject,
+    deleteProject,
+    versionForm,
+    setVersionForm,
+    groupForm,
+    setGroupForm,
+    testCaseForm,
+    setTestCaseForm,
+    automationForm,
+    setAutomationForm,
+    editingTestCaseId,
+    startTestCaseEdit,
+    cancelTestCaseEdit,
+    saveTestCase,
+    deleteTestCase,
+    addTestCaseStep,
+    updateTestCaseStep,
+    removeTestCaseStep,
+    addAutomationStep,
+    updateAutomationStep,
+    removeAutomationStep,
+    planForm,
+    setPlanForm,
+    runForm,
+    setRunForm,
+    newUserForm,
+    setNewUserForm,
+    selectedPlanId,
+    selectPlanForAssignment,
+    assignDraft,
+    setAssignDraft,
+    saveAssignments,
+    editingPlanId,
+    setEditingPlanId,
+    editingExecutionMode,
+    setEditingExecutionMode,
+    updatePlanExecutionMode,
+    createVersion,
+    createGroup,
+    createPlan,
+    createUser,
+    setSelectedRunId,
+    myItems,
+    loadMyItems,
+    loadTestCaseDetails,
+    downloadTestCaseTemplate,
+    importTestCases,
+    selectedRun,
+    endRun,
+    updateResult,
+    startRun,
+    resetWorkspaceDrafts,
+    message,
+  } = workspace;
+
+  const [selectedItemId, setSelectedItemId] = useState<string>("");
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [searchTerm, setSearchTerm] = useState<string>("");
+  const importInputRef = useRef<HTMLInputElement | null>(null);
+  const [detailGroupId, setDetailGroupId] = useState<string>("");
+  const [detailRows, setDetailRows] = useState<RecordAny[]>([]);
+  const [detailLoading, setDetailLoading] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!myItems.length) {
+      setSelectedItemId("");
+      return;
+    }
+
+    if (
+      !selectedItemId ||
+      !myItems.some((item: RecordAny) => item._id === selectedItemId)
+    ) {
+      setSelectedItemId(myItems[0]._id);
+    }
+  }, [myItems, selectedItemId]);
+
+  const selectedItem = myItems.find(
+    (item: RecordAny) => item._id === selectedItemId,
+  );
+  const currentUserId = String(currentUser?._id || "");
+  const isAutomationRun = Boolean(
+    selectedRun && selectedRun.testPlan && String(selectedRun.testPlan.executionMode) === "automation",
+  );
+  const selectedRunStartedByCurrentUser =
+    String(selectedRun?.startedBy?._id || selectedRun?.startedBy || "") ===
+    currentUserId;
+  const canEditSelectedRun = Boolean(
+    selectedRun &&
+      selectedRun.status === "running" &&
+      selectedRunStartedByCurrentUser &&
+      !isAutomationRun,
+  );
+
+  const dashboardData = dashboard || {};
+  const dashboardSummary = dashboardData.summary || {};
+  const projectOverview = dashboardData.projectOverview || [];
+  const selectedProject = projects.find(
+    (project: RecordAny) => project._id === selectedProjectId,
+  );
+  const scopeLabel = selectedProject ? selectedProject.name : "All projects";
+  const isGlobalScope = !selectedProjectId;
+  const scopedProjects = isGlobalScope
+    ? projects
+    : selectedProject
+      ? [selectedProject]
+      : [];
+  const scopedVersions = isGlobalScope
+    ? versions
+    : versions.filter(
+        (version: RecordAny) => getId(version.project) === selectedProjectId,
+      );
+  const scopedGroups = isGlobalScope
+    ? groups
+    : groups.filter(
+        (group: RecordAny) => getId(group.project) === selectedProjectId,
+      );
+  const scopedPlans = isGlobalScope
+    ? plans
+    : plans.filter(
+        (plan: RecordAny) => getId(plan.project) === selectedProjectId,
+      );
+  const selectedRunPlan = scopedPlans.find(
+    (plan: RecordAny) => String(plan._id) === String(runForm.testPlanId),
+  );
+  const selectedRunPlanIsAutomation =
+    String(selectedRunPlan?.executionMode || "manual") === "automation";
+  const scopedRuns = isGlobalScope
+    ? runs
+    : runs.filter(
+        (run: RecordAny) => getId(run.testPlan?.project) === selectedProjectId,
+      );
+  const myScopedRuns = scopedRuns.filter(
+    (run: RecordAny) =>
+      String(run.startedBy?._id || run.startedBy || "") === currentUserId,
+  );
+  const adminRuns = isAdmin ? runs : scopedRuns;
+  const navItems = isAdmin
+    ? isGlobalScope
+      ? adminNav.filter((item) =>
+          ["dashboard", "projects", "users"].includes(item.key),
+        )
+      : adminNav.filter((item) => item.key !== "projects")
+    : employeeNav;
+  const visibleTab = navItems.some((item) => item.key === activeTab)
+    ? activeTab
+    : navItems[0].key;
+  const activeTabLabel =
+    navItems.find((item) => item.key === visibleTab)?.label || "Workspace";
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+
+  useEffect(() => {
+    setSelectedItemId("");
+    setNotes({});
+    setSearchTerm("");
+    setDetailGroupId("");
+  }, [visibleTab]);
+
+  useEffect(() => {
+    if (!isAdmin || visibleTab !== "test-cases-detail") {
+      return;
+    }
+
+    if (!selectedProjectId) {
+      setDetailRows([]);
+      return;
+    }
+
+    const loadRows = async () => {
+      try {
+        setDetailLoading(true);
+        const rows = await loadTestCaseDetails({
+          projectId: selectedProjectId,
+          groupId: detailGroupId,
+          search: searchTerm,
+        });
+        setDetailRows(rows || []);
+      } catch {
+        setDetailRows([]);
+      } finally {
+        setDetailLoading(false);
+      }
+    };
+
+    void loadRows();
+  }, [
+    isAdmin,
+    visibleTab,
+    selectedProjectId,
+    detailGroupId,
+    searchTerm,
+    loadTestCaseDetails,
+  ]);
+
+  const totalProjects = projects.length;
+  const totalPlans = plans.length;
+  const totalCases = testCases.length;
+  const totalUsers = users.length;
+  const runningRuns = runs.filter((run: RecordAny) => run.status === "running");
+  const runningRunsCount = runningRuns.length;
+  const planProjectGroups = planForm.projectId
+    ? groups.filter(
+        (group: RecordAny) => getId(group.project) === planForm.projectId,
+      )
+    : [];
+  const planProjectCases = planForm.projectId
+    ? testCases.filter(
+        (testCase: RecordAny) => getId(testCase.project) === planForm.projectId,
+      )
+    : [];
+  const selectedPlanGroupIds = new Set(planForm.selectedGroupIds || []);
+  const selectedPlanCaseIds = new Set(planForm.caseIds || []);
+  const selectedPlanGroups = planProjectGroups.filter((group: RecordAny) =>
+    selectedPlanGroupIds.has(String(group._id)),
+  );
+  const selectedPlanCasesByGroup = selectedPlanGroups.map((group: RecordAny) => {
+    const groupId = String(group._id);
+    return {
+      group,
+      cases: planProjectCases.filter(
+        (testCase: RecordAny) => String(getId(testCase.group)) === groupId,
+      ),
+    };
+  });
+
+  function togglePlanGroup(groupId: string) {
+    setPlanForm((prev: any) => {
+      const nextGroupIds = prev.selectedGroupIds.includes(groupId)
+        ? prev.selectedGroupIds.filter((id: string) => id !== groupId)
+        : [...prev.selectedGroupIds, groupId];
+      const nextGroupSet = new Set(nextGroupIds);
+      const nextCaseIds = prev.caseIds.filter((caseId: string) => {
+        const linkedCase = testCases.find(
+          (testCase: RecordAny) => String(testCase._id) === caseId,
+        );
+
+        return linkedCase && nextGroupSet.has(String(getId(linkedCase.group)));
+      });
+
+      return {
+        ...prev,
+        selectedGroupIds: nextGroupIds,
+        caseIds: nextCaseIds,
+      };
+    });
+  }
+
+  function togglePlanCase(groupId: string, caseId: string) {
+    setPlanForm((prev: any) => {
+      const nextGroupIds = prev.selectedGroupIds.includes(groupId)
+        ? prev.selectedGroupIds
+        : [...prev.selectedGroupIds, groupId];
+      const nextCaseIds = prev.caseIds.includes(caseId)
+        ? prev.caseIds.filter((id: string) => id !== caseId)
+        : [...prev.caseIds, caseId];
+
+      return {
+        ...prev,
+        selectedGroupIds: nextGroupIds,
+        caseIds: nextCaseIds,
+      };
+    });
+  }
+
+  useEffect(() => {
+    if (!isAdmin) {
+      return;
+    }
+
+    const allowedTabs = isGlobalScope
+      ? ["dashboard", "projects", "execution", "users"]
+      : [
+          "dashboard",
+          "groups",
+          "test-cases",
+          "test-cases-detail",
+          "versions",
+          "test-plans",
+          "test-runs",
+          "execution",
+          "users",
+        ];
+
+    if (!allowedTabs.includes(activeTab)) {
+      setActiveTab("dashboard");
+    }
+  }, [isAdmin, isGlobalScope, activeTab, setActiveTab]);
+
+  useEffect(() => {
+    selectPlanForAssignment("");
+    setRunForm((prev: any) => ({
+      ...prev,
+      testPlanId: "",
+    }));
+
+    if (!selectedProjectId) {
+      return;
+    }
+
+    setPlanForm((prev: any) => ({
+      ...prev,
+      projectId: selectedProjectId,
+      versionId: "",
+      caseIds: [],
+    }));
+  }, [selectedProjectId, selectPlanForAssignment, setPlanForm, setRunForm]);
+
+  const matchesSearch = (
+    ...values: Array<string | number | undefined | null>
+  ) => {
+    if (!normalizedSearch) {
+      return true;
+    }
+
+    return values.some((value) =>
+      String(value || "")
+        .toLowerCase()
+        .includes(normalizedSearch),
+    );
+  };
+
+  return (
+    <div className="workspace-shell">
+      <aside className="workspace-sidebar">
+        <div className="workspace-brand">
+          <div className="workspace-brand__pill">TCM</div>
+          <div>
+            <strong>QA Workspace</strong>
+            <p>{isAdmin ? "Admin role" : "Employee role"}</p>
+          </div>
+        </div>
+
+        <div className="workspace-user">
+          <div>
+            <strong>{currentUser?.name}</strong>
+            <p>{currentUser?.email}</p>
+          </div>
+          <span className="workspace-chip">{currentUser?.role}</span>
+        </div>
+
+        <div className="workspace-filter">
+          <label>
+            <span>Project scope</span>
+            <select
+              value={selectedProjectId}
+              onChange={(e) => setSelectedProjectId(e.target.value)}
+            >
+              <option value="">All projects</option>
+              {projects.map((project: RecordAny) => (
+                <option key={project._id} value={project._id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <nav className="workspace-nav">
+          {navItems.map((item) => (
+            <button
+              key={item.key}
+              type="button"
+              className={
+                visibleTab === item.key
+                  ? "workspace-nav__item is-active"
+                  : "workspace-nav__item"
+              }
+              onClick={() => {
+                resetWorkspaceDrafts();
+                setActiveTab(item.key as any);
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </nav>
+
+        <div className="workspace-sidebar__footer">
+          <button
+            type="button"
+            className="workspace-secondary"
+            onClick={logout}
+          >
+            Dang xuat
+          </button>
+        </div>
+      </aside>
+
+      <main className="workspace-main">
+        <section className="workspace-hero">
+          <div className="workspace-hero__copy">
+            <div className="workspace-hero__eyebrow">
+              {isAdmin ? "Admin workspace" : "Employee workspace"}
+            </div>
+            <h1>{activeTabLabel}</h1>
+            <p>
+              Scope: <strong>{scopeLabel}</strong>
+              {normalizedSearch ? (
+                <>
+                  {" "}
+                  · Search: <strong>{searchTerm}</strong>
+                </>
+              ) : null}
+            </p>
+          </div>
+          <div className="workspace-hero__chips">
+            <span className="workspace-chip workspace-chip--soft">
+              {projects.length} projects
+            </span>
+            <span className="workspace-chip workspace-chip--soft">
+              {plans.length} plans
+            </span>
+            <span className="workspace-chip workspace-chip--soft">
+              {runs.length} runs
+            </span>
+          </div>
+        </section>
+
+        {message && <div className="workspace-banner">{message}</div>}
+
+        <div className="workspace-toolbar">
+          <label>
+            <span>Search</span>
+            <input
+              type="search"
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              placeholder="Search by name, code, key..."
+            />
+          </label>
+        </div>
+
+        {overrideContent ? (
+          overrideContent
+        ) : (
+          <>
+
+        {isAdmin && visibleTab === "dashboard" && (
+          <AdminDashboardScreen
+            isGlobalScope={isGlobalScope}
+            totalProjects={totalProjects}
+            totalPlans={totalPlans}
+            totalCases={totalCases}
+            runningRunsCount={runningRunsCount}
+            totalUsers={totalUsers}
+            dashboardSummary={dashboardSummary}
+            dashboardData={dashboardData}
+            projectOverview={projectOverview}
+            projects={projects}
+            matchesSearch={matchesSearch}
+            userName={userName}
+            getId={getId}
+          />
+        )}
+
+        {isAdmin && visibleTab === "projects" && (
+          <AdminProjectsScreen
+            editingProjectId={editingProjectId}
+            projectForm={projectForm}
+            setProjectForm={setProjectForm}
+            saveProject={saveProject}
+            cancelProjectEdit={cancelProjectEdit}
+            projects={projects}
+            matchesSearch={matchesSearch}
+            startProjectEdit={startProjectEdit}
+            deleteProject={deleteProject}
+          />
+        )}
+
+        {isAdmin && visibleTab === "groups" && (
+          <AdminGroupsScreen
+            groupForm={groupForm}
+            setGroupForm={setGroupForm}
+            createGroup={createGroup}
+            scopedProjects={scopedProjects}
+            groups={groups}
+            matchesSearch={matchesSearch}
+          />
+        )}
+
+        {isAdmin && visibleTab === "test-cases" && (
+          <AdminTestCasesScreen
+            editingTestCaseId={editingTestCaseId}
+            testCaseForm={testCaseForm}
+            setTestCaseForm={setTestCaseForm}
+            automationForm={automationForm}
+            setAutomationForm={setAutomationForm}
+            addTestCaseStep={addTestCaseStep}
+            updateTestCaseStep={updateTestCaseStep}
+            removeTestCaseStep={removeTestCaseStep}
+            addAutomationStep={addAutomationStep}
+            updateAutomationStep={updateAutomationStep}
+            removeAutomationStep={removeAutomationStep}
+            saveTestCase={saveTestCase}
+            cancelTestCaseEdit={cancelTestCaseEdit}
+            testCases={testCases}
+            matchesSearch={matchesSearch}
+            startTestCaseEdit={startTestCaseEdit}
+            deleteTestCase={deleteTestCase}
+            scopedProjects={scopedProjects}
+            scopedGroups={scopedGroups}
+            selectedProjectId={selectedProjectId}
+            downloadTestCaseTemplate={downloadTestCaseTemplate}
+            importTestCases={importTestCases}
+            importInputRef={importInputRef}
+          />
+        )}
+
+        {isAdmin && visibleTab === "test-cases-detail" && (
+          <AdminTestCasesDetailScreen
+            selectedProjectId={selectedProjectId}
+            detailGroupId={detailGroupId}
+            setDetailGroupId={setDetailGroupId}
+            scopedGroups={scopedGroups}
+            detailLoading={detailLoading}
+            detailRows={detailRows}
+            matchesSearch={matchesSearch}
+          />
+        )}
+
+        {isAdmin && visibleTab === "versions" && (
+          <AdminVersionsScreen
+            versionForm={versionForm}
+            setVersionForm={setVersionForm}
+            createVersion={createVersion}
+            scopedProjects={scopedProjects}
+            versions={versions}
+            projects={projects}
+            matchesSearch={matchesSearch}
+            getId={getId}
+          />
+        )}
+
+        {isAdmin && visibleTab === "test-plans" && (
+          <AdminTestPlansScreen
+            planForm={planForm}
+            setPlanForm={setPlanForm}
+            createPlan={createPlan}
+            scopedProjects={scopedProjects}
+            scopedVersions={scopedVersions}
+            planProjectGroups={planProjectGroups}
+            planProjectCases={planProjectCases}
+            selectedPlanGroupIds={selectedPlanGroupIds}
+            selectedPlanCaseIds={selectedPlanCaseIds}
+            selectedPlanGroups={selectedPlanGroups}
+            selectedPlanCasesByGroup={selectedPlanCasesByGroup}
+            togglePlanGroup={togglePlanGroup}
+            togglePlanCase={togglePlanCase}
+            users={users}
+            currentUser={currentUser}
+            selectedPlanId={selectedPlanId}
+            selectPlanForAssignment={selectPlanForAssignment}
+            assignDraft={assignDraft}
+            setAssignDraft={setAssignDraft}
+            saveAssignments={saveAssignments}
+            scopedPlans={scopedPlans}
+            editingPlanId={editingPlanId}
+            editingExecutionMode={editingExecutionMode}
+            setEditingPlanId={setEditingPlanId}
+            setEditingExecutionMode={setEditingExecutionMode}
+            updatePlanExecutionMode={updatePlanExecutionMode}
+            userName={userName}
+            getId={getId}
+            matchesSearch={matchesSearch}
+          />
+        )}
+
+        {isAdmin && visibleTab === "test-runs" && (
+          <AdminTestRunsScreen
+            runForm={runForm}
+            setRunForm={setRunForm}
+            startRun={startRun}
+            scopedPlans={scopedPlans}
+            selectedRunPlanIsAutomation={selectedRunPlanIsAutomation}
+            adminRuns={adminRuns}
+            matchesSearch={matchesSearch}
+            userName={userName}
+            currentUserId={currentUserId}
+            setSelectedRunId={setSelectedRunId}
+            loadMyItems={loadMyItems}
+            setActiveTab={setActiveTab}
+          />
+        )}
+
+        {isAdmin && visibleTab === "users" && (
+          <AdminUsersScreen
+            newUserForm={newUserForm}
+            setNewUserForm={setNewUserForm}
+            createUser={createUser}
+            users={users}
+            matchesSearch={matchesSearch}
+          />
+        )}
+
+        {!isAdmin && visibleTab === "my-test-plans" && (
+          <EmployeeMyTestPlansScreen
+            scopedPlans={scopedPlans}
+            matchesSearch={matchesSearch}
+            setRunForm={setRunForm}
+            setActiveTab={setActiveTab}
+          />
+        )}
+
+        {!isAdmin && visibleTab === "running-tests" && (
+          <EmployeeRunningTestsScreen
+            myScopedRuns={myScopedRuns}
+            matchesSearch={matchesSearch}
+            setSelectedRunId={setSelectedRunId}
+            loadMyItems={loadMyItems}
+            setActiveTab={setActiveTab}
+            userName={userName}
+          />
+        )}
+
+        {!isAdmin && visibleTab === "history" && (
+          <EmployeeHistoryScreen
+            myScopedRuns={myScopedRuns}
+            matchesSearch={matchesSearch}
+            setSelectedRunId={setSelectedRunId}
+            loadMyItems={loadMyItems}
+            setActiveTab={setActiveTab}
+            userName={userName}
+          />
+        )}
+
+        {visibleTab === "execution" && (
+          <ExecutionScreen
+            runForm={runForm}
+            setRunForm={setRunForm}
+            startRun={startRun}
+            scopedPlans={scopedPlans}
+            selectedRunPlanIsAutomation={selectedRunPlanIsAutomation}
+            selectedRun={selectedRun}
+            myItems={myItems}
+            selectedItemId={selectedItemId}
+            setSelectedItemId={setSelectedItemId}
+            selectedItem={selectedItem}
+            notes={notes}
+            setNotes={setNotes}
+            updateResult={updateResult}
+            endRun={endRun}
+            canEditSelectedRun={canEditSelectedRun}
+          />
+        )}
+          </>
+        )}
+      </main>
+    </div>
+  );
+}
+
+
+
+
+
