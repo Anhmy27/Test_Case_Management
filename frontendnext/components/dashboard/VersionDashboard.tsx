@@ -41,6 +41,7 @@ const VersionDashboard: React.FC<VersionDashboardProps> = ({
       const response = await fetch(
         `http://localhost:5000/api/dashboard/test-plans?versionId=${versionId}`,
         {
+          cache: "no-store",
           headers: token
             ? {
                 Authorization: `Bearer ${token}`,
@@ -65,6 +66,7 @@ const VersionDashboard: React.FC<VersionDashboardProps> = ({
       const response = await fetch(
         `http://localhost:5000/api/dashboard/versions?projectId=${projectId}`,
         {
+          cache: "no-store",
           headers: token
             ? {
                 Authorization: `Bearer ${token}`,

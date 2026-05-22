@@ -17,6 +17,8 @@ type Props = {
 };
 
 export default function AdminTestCasesDetailScreen({ selectedProjectId, detailGroupId, setDetailGroupId, scopedGroups, detailLoading, detailRows, matchesSearch }: Props) {
+  const safeDetailRows = Array.isArray(detailRows) ? detailRows : [];
+
   return (
     <div className="workspace-stack">
       {!selectedProjectId ? (
@@ -41,7 +43,7 @@ export default function AdminTestCasesDetailScreen({ selectedProjectId, detailGr
             ) : (
               <DataTable
                 columns={["Case", "Group", "Priority", "Recent 1", "Recent 2", "Recent 3"]}
-                rows={detailRows.filter((testCase: RecordAny) => matchesSearch(testCase.caseKey, testCase.title, testCase.group?.name, testCase.priority, ...(testCase.recentStatuses || []))).map((testCase: RecordAny) => {
+                rows={safeDetailRows.filter((testCase: RecordAny) => matchesSearch(testCase.caseKey, testCase.title, testCase.group?.name, testCase.priority, ...(testCase.recentStatuses || []))).map((testCase: RecordAny) => {
                   const statuses = Array.isArray(testCase.recentStatuses) ? testCase.recentStatuses : [];
                   const statusCell = (status?: string) => <span className={status ? `workspace-pill status-${status}` : "workspace-pill"}>{status || "-"}</span>;
                   return (

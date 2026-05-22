@@ -97,6 +97,7 @@ const TestPlanDetail: React.FC<TestPlanDetailProps> = ({
       const response = await fetch(
         `http://localhost:5000/api/dashboard/test-plans/${testPlanId}`,
         {
+          cache: "no-store",
           headers: token
             ? {
                 Authorization: `Bearer ${token}`,

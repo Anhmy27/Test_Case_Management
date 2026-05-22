@@ -2,19 +2,11 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import {
-  FormEvent,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { apiRequest, getId, userName } from "@/lib/api";
 import * as XLSX from "xlsx";
 import RoleWorkspace from "./RoleWorkspace";
-import type { ReactNode } from "react";
 
 type RecordAny = Record<string, any>;
 type TestCaseStepForm = { action: string };
@@ -26,30 +18,6 @@ type AutomationStepForm = {
   expected: string;
   timeoutMs: string;
 };
-type TestCaseManagementAppProps = {
-  screenRenderer?: (workspace: RecordAny) => ReactNode;
-};
-
-const adminTabs = new Set([
-  "dashboard",
-  "projects",
-  "groups",
-  "test-cases",
-  "test-cases-detail",
-  "versions",
-  "test-plans",
-  "test-runs",
-  "execution",
-  "users",
-]);
-
-const employeeTabs = new Set([
-  "my-test-plans",
-  "running-tests",
-  "history",
-  "execution",
-]);
-
 const adminNav = [
   { key: "dashboard", label: "Dashboard" },
   { key: "projects", label: "Projects" },
@@ -94,12 +62,12 @@ function getDefaultTab(role?: string) {
   return role === "admin" ? "dashboard" : "my-test-plans";
 }
 
-function isAllowedTab(tab: string, role?: string) {
-  if (!tab) {
-    return false;
+function getInitialSelectedProjectId() {
+  if (typeof window === "undefined") {
+    return "";
   }
 
-  return role === "admin" ? adminTabs.has(tab) : employeeTabs.has(tab);
+  return window.localStorage.getItem("tcm_selected_project_id") || "";
 }
 
 function resolveWorkspacePath(role?: string, tab?: string) {
@@ -108,8 +76,8 @@ function resolveWorkspacePath(role?: string, tab?: string) {
   return `/workspace/${safeRole}/${safeTab}`;
 }
 
-export default function TestCaseManagementApp({ screenRenderer }: TestCaseManagementAppProps) {
-  const pathname = usePathname();
+export default function TestCaseManagementApp() {
+  const [isMounted, setIsMounted] = useState(false);
   const [token, setToken] = useState<string>(() => {
     if (typeof window === "undefined") {
       return "";
@@ -135,7 +103,7 @@ export default function TestCaseManagementApp({ screenRenderer }: TestCaseManage
   const [plans, setPlans] = useState<RecordAny[]>([]);
   const [runs, setRuns] = useState<RecordAny[]>([]);
   const [dashboard, setDashboard] = useState<RecordAny | null>(null);
-  const [selectedProjectId, setSelectedProjectId] = useState<string>("");
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(getInitialSelectedProjectId);
 
   const [projectForm, setProjectForm] = useState({
     name: "",
@@ -209,6 +177,9 @@ export default function TestCaseManagementApp({ screenRenderer }: TestCaseManage
   const [myItems, setMyItems] = useState<RecordAny[]>([]);
   const [editingPlanId, setEditingPlanId] = useState<string>("");
   const [editingExecutionMode, setEditingExecutionMode] = useState<string>("");
+  const [detailGroupId, setDetailGroupId] = useState<string>("");
+  const [detailRows, setDetailRows] = useState<RecordAny[]>([]);
+  const [detailLoading, setDetailLoading] = useState<boolean>(false);
   const [confirmDialog, setConfirmDialog] = useState<{
     title: string;
     description: string;
@@ -221,14 +192,17 @@ export default function TestCaseManagementApp({ screenRenderer }: TestCaseManage
 
   const setActiveTab = useCallback(
     (nextTab: string) => {
+      console.log('[TCMA] setActiveTab called ->', nextTab);
       setActiveTabState(nextTab);
 
-      const nextPath = resolveWorkspacePath(currentUser?.role, nextTab);
-      if (pathname !== nextPath) {
-        router.push(nextPath);
+      if (typeof window !== 'undefined') {
+        const nextPath = resolveWorkspacePath(currentUser?.role, nextTab);
+        if (window.location.pathname !== nextPath) {
+          window.history.pushState({}, "", nextPath);
+        }
       }
     },
-    [currentUser, pathname, router],
+    [currentUser],
   );
 
   const isAdmin = currentUser?.role === "admin";
@@ -433,60 +407,150 @@ export default function TestCaseManagementApp({ screenRenderer }: TestCaseManage
     );
   }, [groups, testCaseForm.projectId]);
 
-  const refreshAll = useCallback(
-    async (currentToken: string, role?: string, projectId?: string) => {
+  const isRefreshingRef = useRef(false);
+  const pendingRefreshNeededRef = useRef(false);
+  const refreshControllerRef = useRef<AbortController | null>(null);
+  const tokenRef = useRef<string>(token);
+  const currentUserRef = useRef<RecordAny | null>(currentUser);
+
+  // use a ref-backed implementation so the function identity stays stable
+  const refreshAllRef = useRef<((currentToken: string, role?: string, projectId?: string) => Promise<void>) | null>(null);
+
+  useEffect(() => {
+    refreshAllRef.current = async (currentToken: string, role?: string, projectId?: string) => {
+      if (isRefreshingRef.current) {
+        pendingRefreshNeededRef.current = true;
+        return;
+      }
+
+      // cancel any previous controller and create a new one for this run
+      try {
+        if (refreshControllerRef.current) {
+          try {
+            refreshControllerRef.current.abort();
+          } catch {}
+        }
+      } catch {}
+
+      const controller = new AbortController();
+      refreshControllerRef.current = controller;
+      try {
+        // expose to window so navigation handler can abort it if needed
+        if (typeof window !== 'undefined') (window as any).__tcm_refreshController = controller;
+      } catch {}
+
+      isRefreshingRef.current = true;
+
       try {
         const projectQuery = projectId ? `?projectId=${projectId}` : "";
+        const opts = { signal: controller.signal } as RequestInit;
+
+        // helper to run tasks with limited concurrency
+        const runWithConcurrency = async <T,>(tasks: Array<() => Promise<T>>, limit = 2) => {
+          const results: T[] = [];
+          let i = 0;
+
+          const workers: Promise<void>[] = [];
+
+          const runOne = async () => {
+            while (true) {
+              const idx = i++;
+              if (idx >= tasks.length) return;
+              const res = await tasks[idx]();
+              results[idx] = res;
+            }
+          };
+
+          for (let w = 0; w < Math.min(limit, tasks.length); w++) {
+            workers.push(runOne());
+          }
+
+          await Promise.all(workers);
+          return results;
+        };
+
         const projectResp = await apiRequest<{ projects: RecordAny[] }>(
           "/api/projects",
           currentToken,
-        );
-        const versionResp = await apiRequest<{ versions: RecordAny[] }>(
-          `/api/versions${projectQuery}`,
-          currentToken,
-        );
-        const groupResp = await apiRequest<{ groups: RecordAny[] }>(
-          `/api/test-case-groups${projectQuery}`,
-          currentToken,
-        );
-        const caseResp = await apiRequest<{ testCases: RecordAny[] }>(
-          `/api/test-cases${projectQuery}`,
-          currentToken,
-        );
-        const planResp = await apiRequest<{ testPlans: RecordAny[] }>(
-          `/api/test-plans${projectQuery}`,
-          currentToken,
-        );
-        const runResp = await apiRequest<{ testRuns: RecordAny[] }>(
-          `/api/test-runs${projectQuery}`,
-          currentToken,
-        );
-        const dashboardResp = await apiRequest<RecordAny>(
-          `/api/dashboard${projectQuery}`,
-          currentToken,
+          opts,
         );
 
+        // group remaining heavier endpoints and run with limited concurrency
+        const taskFns: Array<() => Promise<any>> = [
+          () => apiRequest<{ versions: RecordAny[] }>(`/api/versions${projectQuery}`, currentToken, opts),
+          () => apiRequest<{ groups: RecordAny[] }>(`/api/test-case-groups${projectQuery}`, currentToken, opts),
+          () => apiRequest<{ testCases: RecordAny[] }>(`/api/test-cases${projectQuery}`, currentToken, opts),
+          () => apiRequest<{ testPlans: RecordAny[] }>(`/api/test-plans${projectQuery}`, currentToken, opts),
+          () => apiRequest<{ testRuns: RecordAny[] }>(`/api/test-runs${projectQuery}`, currentToken, opts),
+          () => apiRequest<RecordAny>(`/api/dashboard${projectQuery}`, currentToken, opts),
+        ];
+
+        const [versionResp, groupResp, caseResp, planResp, runResp, dashboardResp] = await runWithConcurrency(taskFns, 2);
+
         setProjects(projectResp.projects || []);
-        setVersions(versionResp.versions || []);
-        setGroups(groupResp.groups || []);
-        setTestCases(caseResp.testCases || []);
-        setPlans(planResp.testPlans || []);
-        setRuns(runResp.testRuns || []);
-        setDashboard(dashboardResp);
+        setVersions((versionResp && versionResp.versions) || []);
+        setGroups((groupResp && groupResp.groups) || []);
+        setTestCases((caseResp && caseResp.testCases) || []);
+        setPlans((planResp && planResp.testPlans) || []);
+        setRuns((runResp && runResp.testRuns) || []);
+        setDashboard(dashboardResp || null);
 
         if ((role || currentUser?.role) === "admin") {
           const userResp = await apiRequest<{ users: RecordAny[] }>(
             "/api/users",
             currentToken,
+            opts,
           );
           setUsers(userResp.users || []);
         }
       } catch (error: any) {
-        setMessage(error?.message || "Khong tai duoc du lieu");
+        // ignore abort errors as they're expected when cancelling
+        const isAbort = error && (error.name === 'AbortError' || String(error).toLowerCase().includes('abort'));
+        if (!isAbort) {
+          setMessage(error?.message || "Khong tai duoc du lieu");
+        }
+      } finally {
+        isRefreshingRef.current = false;
+        // clear controller if it's the one we created
+        if (refreshControllerRef.current === controller) {
+          refreshControllerRef.current = null;
+          try {
+            if (typeof window !== 'undefined') (window as any).__tcm_refreshController = null;
+          } catch {}
+        }
+
+        if (pendingRefreshNeededRef.current) {
+          pendingRefreshNeededRef.current = false;
+          queueMicrotask(() => {
+            if (refreshAllRef.current) {
+              void refreshAllRef.current(tokenRef.current, currentUserRef.current?.role, selectedProjectIdRef.current);
+            }
+          });
+        }
       }
-    },
-    [currentUser],
-  );
+    };
+  }, [currentUser]);
+
+  useEffect(() => {
+    tokenRef.current = token;
+  }, [token]);
+
+  useEffect(() => {
+    currentUserRef.current = currentUser;
+  }, [currentUser]);
+
+  const refreshAll = useCallback((currentToken: string, role?: string, projectId?: string) => {
+    if (!refreshAllRef.current) return Promise.resolve();
+    try {
+      if (typeof window !== 'undefined' && (window as any).__tcm_navigationPending) {
+        // navigation is in progress — mark that we need a refresh afterwards and skip now
+        pendingRefreshNeededRef.current = true;
+        return Promise.resolve();
+      }
+    } catch {}
+
+    return refreshAllRef.current(currentToken, role, projectId);
+  }, []);
 
   useEffect(() => {
     if (!token) {
@@ -499,9 +563,23 @@ export default function TestCaseManagementApp({ screenRenderer }: TestCaseManage
         return resp.user.role;
       })
       .then((role) => {
-        queueMicrotask(() => {
-          void refreshAll(token, role, selectedProjectIdRef.current);
-        });
+        console.log('[TCMA] auth.me resolved, scheduling refreshAll', { role, projectId: selectedProjectIdRef.current });
+        // only perform the initial auth refresh once across potential dev double-mounts
+        try {
+          if (typeof window !== 'undefined' && !(window as any).__tcm_initialRefreshDone) {
+            // mark as done and run refresh
+            (window as any).__tcm_initialRefreshDone = true;
+            queueMicrotask(() => {
+              void refreshAll(token, role, selectedProjectIdRef.current);
+            });
+          } else {
+            console.log('[TCMA] initial refresh already done, skipping duplicate');
+          }
+        } catch {
+          queueMicrotask(() => {
+            void refreshAll(token, role, selectedProjectIdRef.current);
+          });
+        }
       })
       .catch(() => {
         window.localStorage.removeItem("tcm_token");
@@ -510,14 +588,16 @@ export default function TestCaseManagementApp({ screenRenderer }: TestCaseManage
   }, [token, refreshAll]);
 
   useEffect(() => {
-    if (!token) {
-      return;
-    }
+    const handlePopState = () => {
+      const { tab: tabFromPath } = getWorkspaceRoute(window.location.pathname);
+      if (tabFromPath) {
+        setActiveTabState(tabFromPath);
+      }
+    };
 
-    queueMicrotask(() => {
-      void refreshAll(token, currentUser?.role, selectedProjectId);
-    });
-  }, [selectedProjectId, token, currentUser, refreshAll]);
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
 
   useEffect(() => {
     if (!selectedProjectId) {
@@ -553,37 +633,16 @@ export default function TestCaseManagementApp({ screenRenderer }: TestCaseManage
   }, [selectedProjectId]);
 
   useEffect(() => {
-    if (!pathname) {
+    if (typeof window === "undefined") {
       return;
     }
 
-    const { tab: tabFromPath } = getWorkspaceRoute(pathname);
-
-    if (tabFromPath && tabFromPath !== activeTab) {
-      queueMicrotask(() => {
-        setActiveTabState(tabFromPath);
-      });
+    if (selectedProjectId) {
+      window.localStorage.setItem("tcm_selected_project_id", selectedProjectId);
+    } else {
+      window.localStorage.removeItem("tcm_selected_project_id");
     }
-  }, [activeTab, pathname]);
-
-  useEffect(() => {
-    if (!currentUser || !pathname) {
-      return;
-    }
-
-    const routeFromPath = getWorkspaceRoute(pathname);
-    const tabFromPath = routeFromPath.tab;
-    const defaultTab = getDefaultTab(currentUser.role);
-    const targetTab = isAllowedTab(tabFromPath, currentUser.role)
-      ? tabFromPath
-      : defaultTab;
-
-    if (activeTab !== targetTab) {
-      queueMicrotask(() => {
-        setActiveTabState(targetTab);
-      });
-    }
-  }, [activeTab, currentUser, pathname]);
+  }, [selectedProjectId]);
 
   useEffect(() => {
     if (!token || !currentUser) {
@@ -595,9 +654,11 @@ export default function TestCaseManagementApp({ screenRenderer }: TestCaseManage
     }
 
     lastTabRef.current = activeTab;
-    queueMicrotask(() => {
-      void refreshAll(token, currentUser?.role, selectedProjectId);
-    });
+    try {
+      void refreshAll(token, currentUser?.role, selectedProjectIdRef.current);
+    } catch {
+      void refreshAll(token, currentUser?.role, selectedProjectIdRef.current);
+    }
   }, [activeTab, token, currentUser, refreshAll, selectedProjectId]);
 
   useEffect(() => {
@@ -1195,6 +1256,54 @@ export default function TestCaseManagementApp({ screenRenderer }: TestCaseManage
     [token],
   );
 
+  useEffect(() => {
+    if (!isAdmin || visibleTab !== "test-cases-detail") {
+      return;
+    }
+
+    if (!selectedProjectId) {
+      queueMicrotask(() => {
+        setDetailRows([]);
+        setDetailLoading(false);
+      });
+      return;
+    }
+
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) {
+        return;
+      }
+
+      setDetailLoading(true);
+
+      void loadTestCaseDetails({
+        projectId: selectedProjectId,
+        groupId: detailGroupId,
+        search: undefined,
+      })
+        .then((rows) => {
+          if (!cancelled) {
+            setDetailRows(rows || []);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setDetailRows([]);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setDetailLoading(false);
+          }
+        });
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [detailGroupId, isAdmin, loadTestCaseDetails, selectedProjectId, visibleTab]);
+
   const handleDownloadTestCaseTemplate = useCallback(() => {
     const workbook = XLSX.utils.book_new();
     const headers = [
@@ -1340,6 +1449,7 @@ export default function TestCaseManagementApp({ screenRenderer }: TestCaseManage
 
   function logout() {
     window.localStorage.removeItem("tcm_token");
+    window.localStorage.removeItem("tcm_selected_project_id");
     setToken("");
     setCurrentUser(null);
     setActiveTab("overview");
@@ -1418,6 +1528,10 @@ export default function TestCaseManagementApp({ screenRenderer }: TestCaseManage
     createUser,
     selectedRunId,
     setSelectedRunId,
+    detailGroupId,
+    setDetailGroupId,
+    detailRows,
+    detailLoading,
     myItems,
     loadMyItems,
     loadTestCaseDetails,
@@ -1474,6 +1588,12 @@ export default function TestCaseManagementApp({ screenRenderer }: TestCaseManage
   };
 
   useEffect(() => {
+    queueMicrotask(() => {
+      setIsMounted(true);
+    });
+  }, []);
+
+  useEffect(() => {
     if (!token) {
       try {
         router.replace("/");
@@ -1481,11 +1601,15 @@ export default function TestCaseManagementApp({ screenRenderer }: TestCaseManage
     }
   }, [token, router]);
 
+  if (!isMounted) {
+    return null;
+  }
+
   return (
     <>
       {toastNode}
       {confirmDialogNode}
-      <RoleWorkspace workspace={workspace} overrideContent={screenRenderer ? screenRenderer(workspace) : null} />
+      <RoleWorkspace workspace={workspace} />
     </>
   );
 }

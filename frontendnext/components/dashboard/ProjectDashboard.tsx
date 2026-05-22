@@ -29,6 +29,7 @@ const ProjectDashboard: React.FC<ProjectDashboardProps> = ({
       const response = await fetch(
         "http://localhost:5000/api/dashboard/projects",
         {
+          cache: "no-store",
           headers: token
             ? {
                 Authorization: `Bearer ${token}`,
