@@ -4,14 +4,12 @@ Test Case Management System is a full-stack test management app with:
 
 - an Express + MongoDB backend
 - an active Next.js frontend in `frontendnext/`
-- a legacy frontend in `frontend/` kept for reference only
 - Playwright-based automation execution for automation test plans
 
 ## Repository Layout
 
 - `backend/` - REST API, authentication, test management, automation runner
 - `frontendnext/` - active Next.js UI for admin and employee workspaces
-- `frontend/` - legacy frontend, not the primary app
 - `docker-compose.yml` - local MongoDB container only
 
 ## Requirements
@@ -58,7 +56,9 @@ npm start
 
 ### 3) Configure the frontend
 
-The active frontend lives in `frontendnext/`.
+The frontend lives in `frontendnext/`.
+
+There is no legacy `frontend/` app in the current repository anymore.
 
 Optional environment variable:
 
@@ -89,7 +89,7 @@ The backend starts from [backend/index.js](backend/index.js) and connects to Mon
 
 ## Frontend Overview
 
-The active UI is a Next.js App Router workspace in `frontendnext/`.
+The UI is a Next.js App Router workspace in `frontendnext/`.
 
 Key points:
 
@@ -289,5 +289,6 @@ docker compose down -v
 
 ## Notes
 
-- `frontendnext/` is the active frontend. The `frontend/` folder is legacy.
+- `frontendnext/` is the active frontend.
+- There is no separate legacy `frontend/` app in the current repository.
 - `docker-compose.yml` only starts MongoDB; the backend and frontend are started separately.
