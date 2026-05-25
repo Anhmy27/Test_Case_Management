@@ -26,9 +26,12 @@ export default function AdminTestCasesDetailScreen({ selectedProjectId, detailGr
       ) : (
         <>
           <SectionCard title="Test Cases Detail" subtitle="Loc theo group va xem 3 status pass/fail/blocked/skip gan nhat">
-            <div className="workspace-form__grid workspace-form__grid--two">
-              <label>
+            <div className="workspace-filterbar">
+              <div className="workspace-filterbar__label">
                 <span>Group filter</span>
+                <p>Chon group de rut gon danh sach test case.</p>
+              </div>
+              <label className="workspace-filterbar__control">
                 <select value={detailGroupId} onChange={(e) => setDetailGroupId(e.target.value)}>
                   <option value="">All groups</option>
                   {scopedGroups.map((group: RecordAny) => <option key={group._id} value={group._id}>{group.name}</option>)}
