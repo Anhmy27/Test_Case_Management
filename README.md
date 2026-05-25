@@ -1,72 +1,54 @@
-# Test Case Management System (TCM)
+# Test Case Management System
 
-A concise guide to run the TCM app locally (backend + frontend) and the bundled MongoDB from Docker Compose.
+Test Case Management System is a full-stack test management app with:
 
-**Quick summary**
-- Backend: runs on port `5000` (http://localhost:5000)
-- Frontend (primary): `frontendnext` runs on port `3000` (http://localhost:3000)
-- Legacy frontend: a `frontend/` folder remains for reference but `frontendnext/` is the active codebase.
-- MongoDB (via Docker Compose): container listens on `27017`, exposed to host as `27018` (`27018:27017`)
+- an Express + MongoDB backend
+- an active Next.js frontend in `frontendnext/`
+- a legacy frontend in `frontend/` kept for reference only
+- Playwright-based automation execution for automation test plans
 
-## Prerequisites
-- Node.js 18+ and npm
-- Docker & Docker Compose (optional but recommended for MongoDB)
+## Repository Layout
 
-## Starter (recommended)
-1. From project root, start MongoDB with Docker Compose:
+- `backend/` - REST API, authentication, test management, automation runner
+- `frontendnext/` - active Next.js UI for admin and employee workspaces
+- `frontend/` - legacy frontend, not the primary app
+- `docker-compose.yml` - local MongoDB container only
+
+## Requirements
+
+- Node.js 18+
+- npm
+- Docker and Docker Compose
+
+## Quick Start
+
+### 1) Start MongoDB
+
+From the project root:
 
 ```bash
 docker compose up -d
 ```
 
-2. Start backend:
+MongoDB runs in Docker on container port `27017` and is exposed to the host on `27018`.
 
-```bash
-cd backend
-npm install
-# copy or create a .env file (see example below)
-npm start
-```
+### 2) Configure the backend
 
-3. Start frontend (recommended: `frontendnext`):
+Create `backend/.env` with values similar to:
 
-```bash
-cd frontendnext
-npm install
-npm run dev
-```
-
-Notes:
-- The repository contains two frontend folders: `frontend/` (legacy) and `frontendnext/` (active). Use `frontendnext` for development.
-- Open the app at http://localhost:3000 after the frontend starts.
-
-## Important MongoDB connection notes
-- The compose service maps host port `27018` to container port `27017` (`27018:27017`).
-- Inside the Docker network the MongoDB server listens on `27017` and is reachable by the service name `mongodb`.
-- The admin/root user is created in the `admin` database by the image init scripts. When connecting with credentials, you must specify the authentication database (authSource).
-
-Examples for `MONGO_URI` in backend/.env:
-- From host (app running on host, connecting to Docker-exposed port):
-  mongodb://admin:admin123@localhost:27018/Test_Case_Management?authSource=admin
-- From inside Docker (when the app runs as another service in same compose):
-  mongodb://admin:admin123@mongodb:27017/Test_Case_Management?authSource=admin
-
-If you omit `?authSource=admin`, the driver will try to authenticate against the `Test_Case_Management` database and authentication will fail.
-
-## Example backend `.env` (backend/.env)
-
-MONGO_URI=mongodb://admin:admin123@localhost:27018/Test_Case_Management?authSource=admin
+```env
 PORT=5000
+MONGO_URI=mongodb://admin:admin123@localhost:27018/Test_Case_Management?authSource=admin
 JWT_SECRET=super-secret-change-me
 JWT_EXPIRES_IN=7d
 CORS_ORIGIN=http://localhost:3000
 
-# Optional admin seeding (used by seedAdmin.js on first run)
 ADMIN_NAME=Admin Root
 ADMIN_EMAIL=admin@example.com
 ADMIN_PASSWORD=12345678
+```
 
-## Start backend
+Then start the backend:
 
 ```bash
 cd backend
@@ -74,11 +56,17 @@ npm install
 npm start
 ```
 
-The backend will log a successful MongoDB connection and start the Express server (port 5000 by default).
+### 3) Configure the frontend
 
-## Start frontend
+The active frontend lives in `frontendnext/`.
 
-Recommended (active frontend):
+Optional environment variable:
+
+```env
+NEXT_PUBLIC_API_BASE=http://localhost:5000
+```
+
+Start the frontend:
 
 ```bash
 cd frontendnext
@@ -86,241 +74,144 @@ npm install
 npm run dev
 ```
 
-Legacy frontend (for reference only):
+Open the app at `http://localhost:3000`.
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
+## Backend Overview
 
-## Docker compose healthcheck detail
-The `healthcheck` for the MongoDB service runs inside the container, so it must target `localhost:27017` (container port). The host mapping `27018` is irrelevant to the healthcheck because that mapping exists on the host side only.
+The backend exposes REST endpoints under `/api` and includes:
 
-## Useful Docker commands
-- Start services: `docker compose up -d`
-- Stop: `docker compose down`
-- Remove volumes/data: `docker compose down -v`
-- View logs: `docker compose logs -f mongodb`
+- JWT authentication
+- project, version, group, test case, test plan, and test run management
+- admin user seeding on first startup
+- Playwright automation execution for automation-mode test plans
 
-## API (high level)
-The backend exposes REST endpoints under `/api`. Key endpoints include:
-- Auth: `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/me`
-- Projects: `GET /api/projects`, `POST /api/projects`, `PUT /api/projects/:id`, `DELETE /api/projects/:id`
-- Test cases: `GET /api/test-cases`, `POST /api/test-cases`, `GET /api/test-cases/:id`
-- Test plans & runs: `GET /api/test-plans`, `POST /api/test-plans`, `POST /api/test-runs`
+The backend starts from [backend/index.js](backend/index.js) and connects to MongoDB before starting Express.
 
-## Hướng Dẫn Auto Test
+## Frontend Overview
 
-Phần auto test của hệ thống lưu các bước kiểm thử ngay trong từng test case và chạy bằng Playwright (thư viện tự động hóa trình duyệt). Mục tiêu là để người dùng dựng step trong giao diện thật dễ đọc, sau đó chạy chúng như thao tác trình duyệt thực tế.
+The active UI is a Next.js App Router workspace in `frontendnext/`.
 
-### 1. Auto test nằm ở đâu
-- Mở một test case trong màn hình Test Cases.
-- Bật automation (chế độ tự động) cho test case đó.
-- Nhập base URL (URL gốc) nếu ứng dụng đang test dùng đường dẫn tương đối.
-- Thêm một hoặc nhiều automation step (bước tự động).
-- Lưu test case.
-- Tạo hoặc chạy test run từ một test plan đang ở automation mode.
+Key points:
 
-### 2. Cấu trúc của một step
-Mỗi step có các trường sau:
-- Action: hành động mà trình duyệt cần thực hiện.
-- Target type: cách Playwright (thư viện tự động hóa trình duyệt) tìm phần tử hoặc mục tiêu trên trang.
-- Target: selector chính, text của label, hoặc text dùng để định vị.
-- Value: dữ liệu bổ sung mà một số action sẽ dùng.
-- Expected: text, title, hoặc một đoạn URL dùng cho các bước assert (bước kiểm tra).
-- Timeout ms: số mili giây chờ tối đa trước khi báo lỗi.
+- admin and employee workspaces are routed under `/workspace/admin/*` and `/workspace/employee/*`
+- the workspace shell is centralized in `TestCaseManagementApp`
+- admin screens handle CRUD and planning
+- employee screens handle assigned plans, running tests, and execution
 
-### 3. Các action đang hỗ trợ
-- `goto`: mở một trang hoặc một đường dẫn.
-- `click`: bấm vào một phần tử.
-- `type`: nhập text vào ô input.
-- `select`: chọn một option trong thẻ select.
-- `waitFor`: chờ phần tử hiện ra, hoặc chờ hết thời gian nếu không có target.
-- `assertText`: kiểm tra text hiển thị có xuất hiện trên trang.
-- `assertVisible`: kiểm tra phần tử đang hiển thị.
-- `assertUrl`: kiểm tra URL có chứa một đoạn mong đợi.
-- `assertTitle`: kiểm tra title của trang có chứa một đoạn mong đợi.
-- `assertHidden`: kiểm tra phần tử đã ẩn.
-- `assertEnabled`: kiểm tra phần tử đang bật/tương tác được.
-- `assertChecked`: kiểm tra checkbox hoặc switch đang được chọn.
-- `hover`: rê chuột lên phần tử.
-- `press`: gửi một tổ hợp phím.
-- `upload`: tải lên một hoặc nhiều file vào file input.
-- `dragTo`: kéo một phần tử sang một phần tử khác.
-
-### 4. Các target type đang hỗ trợ
-- `css`: selector CSS thông thường. Ví dụ: `#email`, `.btn-primary`, `input[name="email"]`.
-- `id`: dạng rút gọn cho id của phần tử. Ví dụ target: `email`.
-- `placeholder`: tìm theo placeholder text.
-- `text`: tìm theo text hiển thị.
-- `label`: tìm control theo label của nó.
-- `testid`: tìm theo `data-testid`.
-- `url`: dùng cho các step liên quan đến URL.
-
-### 5. Cách điền từng trường
-- Với `goto`, nhập path hoặc URL vào Value hoặc Target. Ví dụ: Value = `/login`.
-- Với `click`, `type`, `select`, `hover`, `assertVisible`, `assertHidden`, `assertEnabled`, `assertChecked`, nhập selector của phần tử vào Target.
-- Với `type`, nhập nội dung cần gõ vào Value.
-- Với `select`, nhập value của option vào Value.
-- Với `press`, nhập key combination (tổ hợp phím) vào Value, hoặc vào Target nếu bạn muốn.
-- Với `upload`, nhập đường dẫn file vào Value. Có thể nhập nhiều file, ngăn cách bằng dấu phẩy hoặc xuống dòng.
-- Với `dragTo`, nhập source locator (định vị phần tử kéo đi) vào Target và destination locator (định vị phần tử thả tới) vào Value.
-- Với `assertText`, `assertUrl`, và `assertTitle`, nhập phần nội dung mong đợi vào Expected. Nếu muốn nhập nhanh, có thể dùng Value.
-
-### 6. Mẫu sử dụng khuyến nghị
-
-#### Luồng đăng nhập
-1. `goto` với Value là `/login`
-2. `type` ô username với Value là `admin@example.com`
-3. `type` ô password với Value là `your-password`
-4. `click` nút submit
-5. `assertUrl` với Expected là `/dashboard`
-
-#### Luồng kiểm tra validate form
-1. `goto` trang form
-2. `click` nút submit khi chưa nhập gì
-3. `assertText` với Expected là nội dung lỗi validate
-4. `assertVisible` cho phần tử hiển thị lỗi
-
-#### Luồng upload file
-1. `goto` trang upload
-2. `upload` vào selector của file input
-3. Điền Value bằng đường dẫn file trên máy, ví dụ `C:\\files\\sample.pdf`
-4. Dùng `assertText` hoặc `assertVisible` để kiểm tra kết quả upload
-
-#### Luồng drag and drop
-1. Dùng `dragTo` khi trang cần kéo thẻ, mục, hoặc widget từ phần tử này sang phần tử khác.
-2. Target là phần tử nguồn.
-3. Value là selector của phần tử đích.
-
-### 7. Ví dụ selector thường dùng
-- Input có id: chọn Target type là `id`, Target là `email`.
-- Input có label: chọn Target type là `label`, Target là `Infrastructure Identifier`.
-- Input dùng CSS selector: chọn Target type là `css`, Target là `#email`.
-- Input có placeholder: chọn Target type là `placeholder`, Target là `Enter username`.
-- Button theo text: chọn Target type là `text`, Target là `Login`.
-
-### 8. Cách dùng tốt nhất
-- Ưu tiên `id`, `label`, hoặc `testid` khi có thể. Đây là các locator ổn định hơn so với CSS chain dài.
-- Dùng `css` khi không có id hoặc label ổn định.
-- Mỗi step nên chỉ làm một hành động rõ ràng.
-- Sau các action làm đổi trạng thái trang, nên thêm một bước assert (bước kiểm tra) để lỗi dễ đọc hơn.
-- Chỉ tăng timeout khi trang chậm hoặc đang upload file.
-- Dùng `baseUrl` cho các đường dẫn tương đối để test case dễ mang sang môi trường khác.
-
-### 9. Xử lý lỗi thường gặp
-- Nếu step báo không tìm thấy selector, hãy kiểm tra lại target type trước.
-- Nếu upload file lỗi, hãy নিশ্চিত bảo target là file input thật hoặc label có liên kết với file input.
-- Nếu drag and drop không chạy, hãy kiểm tra source và destination có đang hiển thị và kéo-thả được hay không.
-- Nếu điều hướng bị lỗi chứng chỉ (certificate error), runner hiện đã bỏ qua lỗi HTTPS certificate trong Playwright context.
-- Nếu assert quá chặt, hãy dùng một đoạn fragment (đoạn con) thay vì so khớp toàn bộ text hoặc title.
-
-### 10. Quy trình viết step khuyến nghị
-1. Xây luồng với số step ít nhất nhưng vẫn mô tả đúng nghiệp vụ.
-2. Thêm một bước assert sau mỗi điểm thay đổi trạng thái quan trọng.
-3. Ưu tiên locator ổn định trước.
-4. Lưu test case.
-5. Chạy test từ test plan rồi tinh chỉnh selector hoặc timeout nếu có step bị flaky (lúc đúng lúc sai).
-
-## Troubleshooting
-- "Authentication failed" when connecting to MongoDB: ensure `authSource=admin` is present and Docker compose is running.
-- Backend can't reach Mongo: confirm `docker compose up` and `docker compose ps` show the mongodb service healthy.
-- Seeded admin not created: verify `ADMIN_*` vars in backend/.env and check server logs on startup.
-
-If you'd like, I can also update `backend/.env.example` and add a short `CONTRIBUTING.md` with quick run steps.
-- `POST /api/users` - Create new user (admin only)
-
-## User Roles
+## Roles
 
 ### Admin
-- Full access to all features
-- Can manage projects, test cases, users, and all test plans
-- Views portfolio-wide dashboards and analytics
+
+- manage projects, versions, groups, test cases, test plans, users, and test runs
+- create manual or automation test plans
+- assign plan owners and assignees
+- view dashboards and execution history
 
 ### Employee
-- Can view and execute assigned test plans
-- Can view project-specific dashboards when scoped
-- Cannot create or delete projects/test cases
-- Limited to personal test run history
 
-## Token & Client State
+- view assigned test plans
+- run assigned plans
+- execute manual or automation runs that are assigned to them
+- view personal running tests and history
 
-Authentication uses JWT tokens stored in `localStorage` and the app stores a few client keys to preserve UI state across reloads:
-- **Token Key**: `tcm_token`
-- **Selected project Key**: `tcm_selected_project_id` (the currently scoped project id; used to restore project scope after reload)
-- **Token Storage**: Browser's `localStorage`
-- **Token Verification**: Tokens are verified on app load and API requests
-- **Auto-logout**: Token expiration triggers automatic redirect to login
+## Automation Test Plans
 
-## Development Notes
+Automation test cases store step definitions directly inside the test case record and are executed by Playwright when the parent test plan is set to `automation`.
 
-### Code Standards
-- Frontend: TypeScript with strict null checks (primarily in `frontendnext`)
-- Backend: JavaScript with JSDoc comments
-- Styling: CSS with BEM naming convention
-- Components: Functional React components with hooks
+Supported automation actions currently include:
 
-### Common Tasks
+- `goto`
+- `click`
+- `type`
+- `select`
+- `waitFor`
+- `assertText`
+- `assertVisible`
+- `assertUrl`
+- `assertTitle`
+- `assertHidden`
+- `assertEnabled`
+- `assertChecked`
+- `hover`
+- `press`
+- `upload`
+- `dragTo`
 
-**Clear User Session:**
-```javascript
-localStorage.removeItem('tcm_token');
-// Then refresh the page or navigate to login
-```
+Supported target types include:
 
-**Import Test Cases Template:**
-- Use the "Download Template" button in Test Cases tab
-- Fill in the XLSX file with test case data
-- Use "Import Test Cases" to bulk upload
+- `css`
+- `id`
+- `placeholder`
+- `text`
+- `label`
+- `testid`
+- `url`
 
-## Troubleshooting
+### Session reuse for automation
 
-### "Connection Refused" on API calls
-- Ensure backend is running on `http://localhost:5000`
-- Check `NEXT_PUBLIC_API_BASE` environment variable in frontend
+The automation runner reuses Playwright storage state files stored under `backend/.sessions/`.
 
-### "User is not available" error
-- Token may be expired; log out and log in again
-- Check backend logs for authentication issues
+- `webKey` is derived from the target site or base URL
+- `userKey` selects the session profile for that site
+- if a session exists, Playwright opens the site with the saved login state
+- if no session exists, the run starts from a fresh context
 
-### MongoDB Connection Error
-- Verify MongoDB is running
-- Check `MONGO_URI` in backend `.env` file
-- Ensure correct connection string format
+This lets automation runs access logged-in pages without typing username and password every time.
 
-### Frontend not loading
-- Clear browser cache (Ctrl+Shift+Delete)
-- Delete `.next` folder and `npm run dev` again
-- Check console for TypeScript errors
+## Local Storage Keys
 
-### Dev-mode RSC / HMR issues
-In development (Next/Turbopack HMR) you may see frequent server requests and occasional RSC payload fetch failures. If you observe navigation/fallback loops during rapid UI changes, try:
+The frontend stores a few client-side keys in `localStorage`:
 
-- Run a production build to verify behavior without HMR:
+- `tcm_token` - JWT token
+- `tcm_selected_project_id` - selected project scope
+
+## API Highlights
+
+Common backend routes include:
+
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `GET /api/auth/me`
+- `GET /api/projects`
+- `GET /api/test-cases`
+- `GET /api/test-plans`
+- `GET /api/test-runs`
+- `POST /api/test-runs`
+
+## Useful Commands
+
+### Backend
 
 ```bash
-cd frontendnext
-npm run build
+cd backend
+npm install
 npm start
 ```
 
-- The app includes mitigations to reduce duplicate API requests, but dev-mode churn can still produce noisy logs.
+### Frontend
 
-### Developer tips & debugging hooks
-- The frontend now exposes a short list of helpful globals for debugging in the browser console:
-   - `window.__tcm_refreshController` — the current `AbortController` used by the global refresh flow; calling `window.__tcm_refreshController?.abort()` cancels an in-flight refresh.
-   - `localStorage` keys: `tcm_token`, `tcm_selected_project_id`.
+```bash
+cd frontendnext
+npm install
+npm run dev
+```
 
-- Tab navigation inside the app is handled client-side (history.pushState) to avoid unnecessary server navigations that used to cause remount loops.
+### Docker
 
-- Debug Playwright scripts were removed from the repo; Playwright dependency remains in `devDependencies` for test/automation usage.
+```bash
+docker compose up -d
+docker compose down
+docker compose down -v
+```
 
-## Support
+## Troubleshooting
 
-For issues or questions, contact your development team or refer to project documentation.
+- If MongoDB authentication fails, make sure `authSource=admin` is present in `MONGO_URI`.
+- If the backend cannot connect to MongoDB, confirm the Docker container is healthy on port `27018`.
+- If automation runs are blocked with a Playwright message, reinstall backend dependencies and make sure Playwright browsers are available.
+- If the UI points to the wrong backend, set `NEXT_PUBLIC_API_BASE` in the frontend environment.
 
----
+## Notes
 
-**Version**: 1.0.1  
-**Last Updated**: May 22, 2026
+- `frontendnext/` is the active frontend. The `frontend/` folder is legacy.
+- `docker-compose.yml` only starts MongoDB; the backend and frontend are started separately.
