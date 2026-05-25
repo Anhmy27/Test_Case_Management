@@ -167,16 +167,92 @@ The frontend stores a few client-side keys in `localStorage`:
 
 ## API Highlights
 
-Common backend routes include:
+The backend mounts routes as:
+
+- `/api/auth`
+- `/api/users`
+- `/api`
+
+### Auth
 
 - `POST /api/auth/register`
 - `POST /api/auth/login`
 - `GET /api/auth/me`
+
+### Users
+
+- `GET /api/users` - admin only
+- `POST /api/users` - admin only
+- `PUT /api/users/:id` - admin only
+- `DELETE /api/users/:id` - admin only
+
+### Projects
+
 - `GET /api/projects`
+- `GET /api/projects/:projectId`
+- `POST /api/projects` - admin only
+- `PUT /api/projects/:projectId` - admin only
+- `DELETE /api/projects/:projectId` - admin only
+- `PATCH /api/projects/:projectId/restore` - admin only
+
+### Versions
+
+- `GET /api/versions`
+- `GET /api/versions/:versionId`
+- `POST /api/versions` - admin only
+- `PUT /api/versions/:versionId` - admin only
+- `DELETE /api/versions/:versionId` - admin only
+- `PATCH /api/versions/:versionId/restore` - admin only
+
+### Test case groups
+
+- `GET /api/test-case-groups`
+- `GET /api/test-case-groups/:groupId`
+- `GET /api/test-case-groups/:groupId/versions`
+- `POST /api/test-case-groups` - admin only
+- `PUT /api/test-case-groups/:groupId` - admin only
+- `DELETE /api/test-case-groups/:groupId` - admin only
+- `PATCH /api/test-case-groups/:groupId/restore` - admin only
+
+### Test cases
+
 - `GET /api/test-cases`
+- `GET /api/test-cases/detail`
+- `GET /api/test-cases/:testCaseId`
+- `GET /api/test-cases/:testCaseId/versions`
+- `POST /api/test-cases` - admin only
+- `POST /api/test-cases/import` - admin only
+- `PUT /api/test-cases/:testCaseId` - admin only
+- `DELETE /api/test-cases/:testCaseId` - admin only
+- `PATCH /api/test-cases/:testCaseId/restore` - admin only
+
+### Test plans
+
 - `GET /api/test-plans`
+- `GET /api/test-plans/:testPlanId`
+- `GET /api/test-plans/:testPlanId/versions`
+- `POST /api/test-plans` - admin only
+- `PUT /api/test-plans/:testPlanId/assign` - admin only
+- `PUT /api/test-plans/:testPlanId` - admin only
+- `DELETE /api/test-plans/:testPlanId` - admin only
+- `PATCH /api/test-plans/:testPlanId/restore` - admin only
+
+### Test runs
+
 - `GET /api/test-runs`
-- `POST /api/test-runs`
+- `POST /api/test-runs` - admin or employee
+- `PATCH /api/test-runs/:runId/end` - admin or employee
+- `GET /api/test-runs/:runId/my-items`
+- `PATCH /api/test-runs/:runId/results/:resultId`
+- `POST /api/test-runs/:runId/automation-results` - automation ingestion endpoint
+
+### Dashboards
+
+- `GET /api/dashboard`
+- `GET /api/dashboard/projects`
+- `GET /api/dashboard/versions`
+- `GET /api/dashboard/test-plans`
+- `GET /api/dashboard/test-plans/:testPlanId`
 
 ## Useful Commands
 
