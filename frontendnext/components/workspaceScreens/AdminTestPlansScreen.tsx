@@ -2,7 +2,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction, FormEvent } from "react";
 import { DataTable, SectionCard } from "./shared";
 
@@ -74,6 +74,7 @@ export default function AdminTestPlansScreen(props: Props) {
   } = props;
 
   const selectAllCasesRef = useRef<HTMLInputElement | null>(null);
+  const [assigneeSearch, setAssigneeSearch] = useState("");
 
   const visibleCaseIds = useMemo(
     () =>
@@ -110,6 +111,28 @@ export default function AdminTestPlansScreen(props: Props) {
   }
 
   const selectedGroupCount = selectedPlanGroups.length;
+  const filteredUsers = useMemo(() => {
+    const query = assigneeSearch.trim().toLowerCase();
+
+    if (!query) {
+      return users;
+    }
+
+    return users.filter((user: RecordAny) => {
+      const name = String(user.name || "").toLowerCase();
+      const role = String(user.role || "").toLowerCase();
+      const email = String(user.email || "").toLowerCase();
+      return name.includes(query) || role.includes(query) || email.includes(query);
+    });
+  }, [assigneeSearch, users]);
+
+  const selectedAssignees = useMemo(
+    () => users.filter((user: RecordAny) => assignDraft.assigneeIds.includes(String(user._id))),
+    [assignDraft.assigneeIds, users],
+  );
+
+  const ownerName = currentUser?.name || "Current admin";
+  const ownerRole = currentUser?.role || "admin";
 
   return (
     <div className="workspace-stack">
@@ -325,46 +348,84 @@ export default function AdminTestPlansScreen(props: Props) {
       </SectionCard>
 
       <SectionCard title="Assign Assignees" subtitle="Owner se tu dong la admin dang thao tac">
-        <form className="workspace-form" onSubmit={saveAssignments}>
-          <label>
-            <span>Test Plan</span>
-            <select value={selectedPlanId} onChange={(e) => selectPlanForAssignment(e.target.value)} required>
-              <option value="">Select plan</option>
-              {scopedPlans.map((plan: RecordAny) => (
-                <option key={plan._id} value={plan._id}>
-                  {plan.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <div className="workspace-form__grid workspace-form__grid--two">
+        <form className="workspace-form workspace-form--assignments" onSubmit={saveAssignments}>
+          <div className="workspace-assignments__section">
             <label>
-              <span>Assignees</span>
-              <select
-                multiple
-                value={assignDraft.assigneeIds}
-                onChange={(e) =>
-                  setAssignDraft((prev: any) => ({
-                    ...prev,
-                    assigneeIds: Array.from(e.target.selectedOptions).map((option) => option.value),
-                  }))
-                }
-              >
-                {users.map((user: RecordAny) => (
-                  <option key={user._id} value={user._id}>
-                    {user.name} ({user.role})
+              <span>Test Plan</span>
+              <select value={selectedPlanId} onChange={(e) => selectPlanForAssignment(e.target.value)} required>
+                <option value="">Select plan</option>
+                {scopedPlans.map((plan: RecordAny) => (
+                  <option key={plan._id} value={plan._id}>
+                    {plan.name}
                   </option>
                 ))}
               </select>
             </label>
           </div>
 
-          <div className="workspace-banner">
-            Owner will be saved as <strong>{currentUser?.name}</strong> ({currentUser?.role}).
+          <div className="workspace-assignments__section">
+            <div className="workspace-assignments__picker">
+              <label>
+                <span>Assign Members</span>
+                <input
+                  type="search"
+                  value={assigneeSearch}
+                  onChange={(e) => setAssigneeSearch(e.target.value)}
+                  placeholder="Search users..."
+                />
+              </label>
+
+              <div className="workspace-assignments__list" role="group" aria-label="Assignees">
+                {filteredUsers.length === 0 ? (
+                  <div className="workspace-checklist__empty">
+                    No users found.
+                  </div>
+                ) : (
+                  filteredUsers.map((user: RecordAny) => {
+                    const userId = String(user._id);
+                    const checked = assignDraft.assigneeIds.includes(userId);
+
+                    return (
+                      <label
+                        key={userId}
+                        className={`workspace-assignments__item${checked ? " is-checked" : ""}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            setAssignDraft((prev: any) => ({
+                              ...prev,
+                              assigneeIds: checked
+                                ? prev.assigneeIds.filter((id: string) => id !== userId)
+                                : [...prev.assigneeIds, userId],
+                            }));
+                          }}
+                        />
+                        <span className="workspace-assignments__item-main">
+                          <strong>{user.name}</strong>
+                          <small>{user.role}</small>
+                        </span>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+            </div>
           </div>
 
-          <button className="workspace-primary" type="submit">
+          <div className="workspace-assignments__owner">
+            <span>Owner</span>
+            <strong>{ownerName}</strong>
+            <span>({ownerRole})</span>
+          </div>
+
+          <div className="workspace-assignments__summary">
+            <strong>{selectedAssignees.length}</strong>
+            <span>selected members</span>
+          </div>
+
+          <button className="workspace-primary workspace-assignments__submit" type="submit">
             Save assignment
           </button>
         </form>
