@@ -110,6 +110,119 @@ The backend exposes REST endpoints under `/api`. Key endpoints include:
 - Test cases: `GET /api/test-cases`, `POST /api/test-cases`, `GET /api/test-cases/:id`
 - Test plans & runs: `GET /api/test-plans`, `POST /api/test-plans`, `POST /api/test-runs`
 
+## Hướng Dẫn Auto Test
+
+Phần auto test của hệ thống lưu các bước kiểm thử ngay trong từng test case và chạy bằng Playwright (thư viện tự động hóa trình duyệt). Mục tiêu là để người dùng dựng step trong giao diện thật dễ đọc, sau đó chạy chúng như thao tác trình duyệt thực tế.
+
+### 1. Auto test nằm ở đâu
+- Mở một test case trong màn hình Test Cases.
+- Bật automation (chế độ tự động) cho test case đó.
+- Nhập base URL (URL gốc) nếu ứng dụng đang test dùng đường dẫn tương đối.
+- Thêm một hoặc nhiều automation step (bước tự động).
+- Lưu test case.
+- Tạo hoặc chạy test run từ một test plan đang ở automation mode.
+
+### 2. Cấu trúc của một step
+Mỗi step có các trường sau:
+- Action: hành động mà trình duyệt cần thực hiện.
+- Target type: cách Playwright (thư viện tự động hóa trình duyệt) tìm phần tử hoặc mục tiêu trên trang.
+- Target: selector chính, text của label, hoặc text dùng để định vị.
+- Value: dữ liệu bổ sung mà một số action sẽ dùng.
+- Expected: text, title, hoặc một đoạn URL dùng cho các bước assert (bước kiểm tra).
+- Timeout ms: số mili giây chờ tối đa trước khi báo lỗi.
+
+### 3. Các action đang hỗ trợ
+- `goto`: mở một trang hoặc một đường dẫn.
+- `click`: bấm vào một phần tử.
+- `type`: nhập text vào ô input.
+- `select`: chọn một option trong thẻ select.
+- `waitFor`: chờ phần tử hiện ra, hoặc chờ hết thời gian nếu không có target.
+- `assertText`: kiểm tra text hiển thị có xuất hiện trên trang.
+- `assertVisible`: kiểm tra phần tử đang hiển thị.
+- `assertUrl`: kiểm tra URL có chứa một đoạn mong đợi.
+- `assertTitle`: kiểm tra title của trang có chứa một đoạn mong đợi.
+- `assertHidden`: kiểm tra phần tử đã ẩn.
+- `assertEnabled`: kiểm tra phần tử đang bật/tương tác được.
+- `assertChecked`: kiểm tra checkbox hoặc switch đang được chọn.
+- `hover`: rê chuột lên phần tử.
+- `press`: gửi một tổ hợp phím.
+- `upload`: tải lên một hoặc nhiều file vào file input.
+- `dragTo`: kéo một phần tử sang một phần tử khác.
+
+### 4. Các target type đang hỗ trợ
+- `css`: selector CSS thông thường. Ví dụ: `#email`, `.btn-primary`, `input[name="email"]`.
+- `id`: dạng rút gọn cho id của phần tử. Ví dụ target: `email`.
+- `placeholder`: tìm theo placeholder text.
+- `text`: tìm theo text hiển thị.
+- `label`: tìm control theo label của nó.
+- `testid`: tìm theo `data-testid`.
+- `url`: dùng cho các step liên quan đến URL.
+
+### 5. Cách điền từng trường
+- Với `goto`, nhập path hoặc URL vào Value hoặc Target. Ví dụ: Value = `/login`.
+- Với `click`, `type`, `select`, `hover`, `assertVisible`, `assertHidden`, `assertEnabled`, `assertChecked`, nhập selector của phần tử vào Target.
+- Với `type`, nhập nội dung cần gõ vào Value.
+- Với `select`, nhập value của option vào Value.
+- Với `press`, nhập key combination (tổ hợp phím) vào Value, hoặc vào Target nếu bạn muốn.
+- Với `upload`, nhập đường dẫn file vào Value. Có thể nhập nhiều file, ngăn cách bằng dấu phẩy hoặc xuống dòng.
+- Với `dragTo`, nhập source locator (định vị phần tử kéo đi) vào Target và destination locator (định vị phần tử thả tới) vào Value.
+- Với `assertText`, `assertUrl`, và `assertTitle`, nhập phần nội dung mong đợi vào Expected. Nếu muốn nhập nhanh, có thể dùng Value.
+
+### 6. Mẫu sử dụng khuyến nghị
+
+#### Luồng đăng nhập
+1. `goto` với Value là `/login`
+2. `type` ô username với Value là `admin@example.com`
+3. `type` ô password với Value là `your-password`
+4. `click` nút submit
+5. `assertUrl` với Expected là `/dashboard`
+
+#### Luồng kiểm tra validate form
+1. `goto` trang form
+2. `click` nút submit khi chưa nhập gì
+3. `assertText` với Expected là nội dung lỗi validate
+4. `assertVisible` cho phần tử hiển thị lỗi
+
+#### Luồng upload file
+1. `goto` trang upload
+2. `upload` vào selector của file input
+3. Điền Value bằng đường dẫn file trên máy, ví dụ `C:\\files\\sample.pdf`
+4. Dùng `assertText` hoặc `assertVisible` để kiểm tra kết quả upload
+
+#### Luồng drag and drop
+1. Dùng `dragTo` khi trang cần kéo thẻ, mục, hoặc widget từ phần tử này sang phần tử khác.
+2. Target là phần tử nguồn.
+3. Value là selector của phần tử đích.
+
+### 7. Ví dụ selector thường dùng
+- Input có id: chọn Target type là `id`, Target là `email`.
+- Input có label: chọn Target type là `label`, Target là `Infrastructure Identifier`.
+- Input dùng CSS selector: chọn Target type là `css`, Target là `#email`.
+- Input có placeholder: chọn Target type là `placeholder`, Target là `Enter username`.
+- Button theo text: chọn Target type là `text`, Target là `Login`.
+
+### 8. Cách dùng tốt nhất
+- Ưu tiên `id`, `label`, hoặc `testid` khi có thể. Đây là các locator ổn định hơn so với CSS chain dài.
+- Dùng `css` khi không có id hoặc label ổn định.
+- Mỗi step nên chỉ làm một hành động rõ ràng.
+- Sau các action làm đổi trạng thái trang, nên thêm một bước assert (bước kiểm tra) để lỗi dễ đọc hơn.
+- Chỉ tăng timeout khi trang chậm hoặc đang upload file.
+- Dùng `baseUrl` cho các đường dẫn tương đối để test case dễ mang sang môi trường khác.
+
+### 9. Xử lý lỗi thường gặp
+- Nếu step báo không tìm thấy selector, hãy kiểm tra lại target type trước.
+- Nếu upload file lỗi, hãy নিশ্চিত bảo target là file input thật hoặc label có liên kết với file input.
+- Nếu drag and drop không chạy, hãy kiểm tra source và destination có đang hiển thị và kéo-thả được hay không.
+- Nếu điều hướng bị lỗi chứng chỉ (certificate error), runner hiện đã bỏ qua lỗi HTTPS certificate trong Playwright context.
+- Nếu assert quá chặt, hãy dùng một đoạn fragment (đoạn con) thay vì so khớp toàn bộ text hoặc title.
+
+### 10. Quy trình viết step khuyến nghị
+1. Xây luồng với số step ít nhất nhưng vẫn mô tả đúng nghiệp vụ.
+2. Thêm một bước assert sau mỗi điểm thay đổi trạng thái quan trọng.
+3. Ưu tiên locator ổn định trước.
+4. Lưu test case.
+5. Chạy test từ test plan rồi tinh chỉnh selector hoặc timeout nếu có step bị flaky (lúc đúng lúc sai).
+
 ## Troubleshooting
 - "Authentication failed" when connecting to MongoDB: ensure `authSource=admin` is present and Docker compose is running.
 - Backend can't reach Mongo: confirm `docker compose up` and `docker compose ps` show the mongodb service healthy.
