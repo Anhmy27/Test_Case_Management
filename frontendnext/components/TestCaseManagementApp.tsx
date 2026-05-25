@@ -706,16 +706,28 @@ export default function TestCaseManagementApp() {
     }
 
     const lowerMessage = message.toLowerCase();
-    const isError =
-      lowerMessage.includes("error") ||
-      lowerMessage.includes("failed") ||
-      lowerMessage.includes("khong") ||
-      lowerMessage.includes("chua") ||
-      lowerMessage.includes("required") ||
-      lowerMessage.includes("invalid") ||
-      lowerMessage.includes("not found") ||
-      lowerMessage.includes("no ") ||
-      lowerMessage.includes("ban chua");
+    const isError = [
+      "error",
+      "failed",
+      "duplicate",
+      "already exists",
+      "conflict",
+      "not found",
+      "invalid",
+      "required",
+      "forbidden",
+      "unauthorized",
+      "denied",
+      "cannot",
+      "can't",
+      "khong",
+      "không",
+      "chua",
+      "chưa",
+      "ton tai",
+      "tồn tại",
+      "already exists",
+    ].some((needle) => lowerMessage.includes(needle));
 
     return isError ? "error" : "success";
   }, [message]);
