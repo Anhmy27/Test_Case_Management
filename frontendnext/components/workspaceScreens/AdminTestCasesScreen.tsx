@@ -33,8 +33,8 @@ type Props = {
   editingTestCaseId: string;
   testCaseForm: TestCaseForm;
   setTestCaseForm: Dispatch<SetStateAction<TestCaseForm>>;
-  automationForm: { enabled: boolean; baseUrl: string; steps: AutomationStep[] };
-  setAutomationForm: Dispatch<SetStateAction<{ enabled: boolean; baseUrl: string; steps: AutomationStep[] }>>;
+  automationForm: { enabled: boolean; baseUrl: string; userKey: string; steps: AutomationStep[] };
+  setAutomationForm: Dispatch<SetStateAction<{ enabled: boolean; baseUrl: string; userKey: string; steps: AutomationStep[] }>>;
   addTestCaseStep: () => void;
   updateTestCaseStep: (index: number, key: string, value: string) => void;
   removeTestCaseStep: (index: number) => void;
@@ -220,6 +220,12 @@ export default function AdminTestCasesScreen(props: Props) {
                 <input value={automationForm.baseUrl} onChange={(e) => setAutomationForm((prev) => ({ ...prev, baseUrl: e.target.value }))} placeholder="https://app.example.com" />
               </label>
             </div>
+            <div className="workspace-form__grid workspace-form__grid--two">
+              <label>
+                <span>User (email/username)</span>
+                <input value={automationForm.userKey} onChange={(e) => setAutomationForm((prev) => ({ ...prev, userKey: e.target.value }))} placeholder="tester@company.com" />
+              </label>
+            </div>
             <div className="workspace-steps">
               <div className="workspace-steps__header">
                 <span>Playwright steps</span>
@@ -228,14 +234,14 @@ export default function AdminTestCasesScreen(props: Props) {
               {automationForm.steps.map((step, index) => (
                 <div key={index} className="workspace-automation-step">
                   <div className="workspace-form__grid workspace-form__grid--three">
-                    <label><span>Action</span><select value={step.action} onChange={(e) => updateAutomationStep(index, "action", e.target.value)}><option value="goto">goto</option><option value="click">click</option><option value="type">type</option><option value="select">select</option><option value="waitFor">waitFor</option><option value="assertText">assertText</option><option value="assertVisible">assertVisible</option></select></label>
-                    <label><span>Target type</span><select value={step.targetType} onChange={(e) => updateAutomationStep(index, "targetType", e.target.value)}><option value="css">css</option><option value="text">text</option><option value="label">label</option><option value="testid">testid</option><option value="url">url</option></select></label>
+                    <label><span>Action</span><select value={step.action} onChange={(e) => updateAutomationStep(index, "action", e.target.value)}><option value="goto">goto</option><option value="click">click</option><option value="type">type</option><option value="select">select</option><option value="waitFor">waitFor</option><option value="assertText">assertText</option><option value="assertVisible">assertVisible</option><option value="assertUrl">assertUrl</option><option value="assertTitle">assertTitle</option><option value="assertHidden">assertHidden</option><option value="assertEnabled">assertEnabled</option><option value="assertChecked">assertChecked</option><option value="hover">hover</option><option value="press">press</option><option value="upload">upload</option><option value="dragTo">dragTo</option></select></label>
+                    <label><span>Target type</span><select value={step.targetType} onChange={(e) => updateAutomationStep(index, "targetType", e.target.value)}><option value="css">css</option><option value="id">id</option><option value="placeholder">placeholder</option><option value="text">text</option><option value="label">label</option><option value="testid">testid</option><option value="url">url</option></select></label>
                     <label><span>Timeout ms</span><input type="number" min="0" value={step.timeoutMs} onChange={(e) => updateAutomationStep(index, "timeoutMs", e.target.value)} /></label>
                   </div>
                   <div className="workspace-form__grid workspace-form__grid--three">
-                    <label><span>Target</span><input value={step.target} onChange={(e) => updateAutomationStep(index, "target", e.target.value)} placeholder="#login-button / Username / submit-btn" /></label>
-                    <label><span>Value</span><input value={step.value} onChange={(e) => updateAutomationStep(index, "value", e.target.value)} placeholder="Text to type, option value, path..." /></label>
-                    <label><span>Expected</span><input value={step.expected} onChange={(e) => updateAutomationStep(index, "expected", e.target.value)} placeholder="Text to assert" /></label>
+                    <label><span>Target</span><input value={step.target} onChange={(e) => updateAutomationStep(index, "target", e.target.value)} placeholder="#login-button / email / Username / submit-btn" /></label>
+                    <label><span>Value</span><input value={step.value} onChange={(e) => updateAutomationStep(index, "value", e.target.value)} placeholder="Text to type, option value, path, key combo, file path, drop target..." /></label>
+                    <label><span>Expected</span><input value={step.expected} onChange={(e) => updateAutomationStep(index, "expected", e.target.value)} placeholder="Text, title or URL fragment to assert" /></label>
                   </div>
                   <div className="workspace-inline-actions workspace-inline-actions--right"><button type="button" className="workspace-secondary" onClick={() => removeAutomationStep(index)}>Remove automation step</button></div>
                 </div>

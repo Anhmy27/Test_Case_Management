@@ -138,6 +138,7 @@ export default function TestCaseManagementApp() {
   const [automationForm, setAutomationForm] = useState({
     enabled: false,
     baseUrl: "",
+    userKey: "",
     steps: [
       {
         action: "goto",
@@ -191,6 +192,7 @@ export default function TestCaseManagementApp() {
   } | null>(null);
   const lastTabRef = useRef<string>(activeTab);
   const selectedProjectIdRef = useRef<string>(selectedProjectId);
+  const previousSelectedProjectIdRef = useRef<string | null>(null);
   const router = useRouter();
 
   const setActiveTab = useCallback(
@@ -230,7 +232,7 @@ export default function TestCaseManagementApp() {
   const selectedRunPlanIsAutomation = String(selectedRunPlan?.executionMode || "manual") === "automation";
   const scopedRuns = isGlobalScope
     ? runs
-    : runs.filter((run) => getId(run.testPlan?.project) === selectedProjectId);
+    : runs.filter((run) => getId(run.testPlan?.project ?? run.project) === selectedProjectId);
   const myScopedRuns = scopedRuns.filter(
     (run) => String(run.startedBy?._id || run.startedBy || "") === currentUserId,
   );
@@ -354,6 +356,7 @@ export default function TestCaseManagementApp() {
     setAutomationForm({
       enabled: false,
       baseUrl: "",
+      userKey: "",
       steps: [
         {
           action: "goto",
@@ -636,6 +639,25 @@ export default function TestCaseManagementApp() {
   useEffect(() => {
     selectedProjectIdRef.current = selectedProjectId;
   }, [selectedProjectId]);
+
+  useEffect(() => {
+    if (previousSelectedProjectIdRef.current === null) {
+      previousSelectedProjectIdRef.current = selectedProjectId;
+      return;
+    }
+
+    if (previousSelectedProjectIdRef.current === selectedProjectId) {
+      return;
+    }
+
+    previousSelectedProjectIdRef.current = selectedProjectId;
+
+    if (!token || !currentUser) {
+      return;
+    }
+
+    void refreshAll(token, currentUser?.role, selectedProjectId);
+  }, [currentUser, refreshAll, selectedProjectId, token]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -961,6 +983,7 @@ export default function TestCaseManagementApp() {
     setAutomationForm({
       enabled: Boolean(testCase.automation?.enabled),
       baseUrl: testCase.automation?.baseUrl || "",
+      userKey: testCase.automation?.userKey || "",
       steps: automationSteps,
     });
     setActiveTab("test-cases");
@@ -983,6 +1006,7 @@ export default function TestCaseManagementApp() {
     setAutomationForm({
       enabled: false,
       baseUrl: "",
+      userKey: "",
       steps: [
         {
           action: "goto",
@@ -1049,6 +1073,7 @@ export default function TestCaseManagementApp() {
           steps,
           automation: {
             enabled: automationForm.enabled,
+            userKey: automationForm.userKey,
             baseUrl: automationForm.baseUrl,
             runner: "playwright",
             steps: automationSteps,
@@ -1070,6 +1095,7 @@ export default function TestCaseManagementApp() {
       setAutomationForm({
         enabled: false,
         baseUrl: "",
+        userKey: "",
         steps: [
           {
             action: "goto",

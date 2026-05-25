@@ -210,7 +210,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
   const scopedRuns = isGlobalScope
     ? runs
     : runs.filter(
-        (run: RecordAny) => getId(run.testPlan?.project) === selectedProjectId,
+        (run: RecordAny) => getId(run.testPlan?.project ?? run.project) === selectedProjectId,
       );
   const myScopedRuns = scopedRuns.filter(
     (run: RecordAny) =>
