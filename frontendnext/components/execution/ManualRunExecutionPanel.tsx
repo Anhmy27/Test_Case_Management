@@ -37,6 +37,23 @@ export default function ManualRunExecutionPanel({
   canEditRun,
   onLogBug,
 }: ManualRunExecutionPanelProps) {
+  const getExpectedResultText = (testCase: RecordAny) => {
+    const steps = Array.isArray(testCase?.steps) ? testCase.steps : [];
+    const uniqueExpected = Array.from(
+      new Set(
+        steps
+          .map((step: RecordAny) => String(step.expected || "").trim())
+          .filter(Boolean),
+      ),
+    );
+
+    if (uniqueExpected.length > 0) {
+      return uniqueExpected.join("\n");
+    }
+
+    return testCase?.expected || "N/A";
+  };
+
   const currentIndex = myItems.findIndex((item: RecordAny) => item._id === selectedItemId);
   const nextItem = currentIndex >= 0
     ? myItems.slice(currentIndex + 1).find((item: RecordAny) => item.status !== "pass") || myItems[currentIndex + 1]
@@ -145,9 +162,7 @@ export default function ManualRunExecutionPanel({
               <div className="execution-block">
                 <strong>Expected result</strong>
                 <p style={{ whiteSpace: "pre-line" }}>
-                  {Array.isArray(selectedItem.testCase?.steps) && selectedItem.testCase.steps.length > 0
-                    ? selectedItem.testCase.steps.map((step: RecordAny, index: number) => `${index + 1}. ${step.expected || ""}`).filter(Boolean).join("\n")
-                    : selectedItem.testCase?.expected || "N/A"}
+                  {getExpectedResultText(selectedItem.testCase)}
                 </p>
               </div>
               <div className="workspace-form">

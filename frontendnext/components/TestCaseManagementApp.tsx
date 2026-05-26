@@ -861,13 +861,16 @@ export default function TestCaseManagementApp() {
   const buildJiraBugDescription = useCallback((selectedRunValue: RecordAny, selectedItemValue: RecordAny) => {
     const testCase = selectedItemValue?.testCase || {};
     const steps = Array.isArray(testCase.steps) ? testCase.steps : [];
+    const uniqueExpected = Array.from(
+      new Set(
+        steps
+          .map((step: RecordAny) => String(step.expected || "").trim())
+          .filter(Boolean),
+      ),
+    );
     const stepLines = steps.flatMap((step: RecordAny, index: number) => {
       const action = String(step.action || "").trim();
-      const expected = String(step.expected || "").trim();
       const lines = [`${index + 1}. ${action || "Step"}`];
-      if (expected) {
-        lines.push(`   Expected: ${expected}`);
-      }
       return lines;
     });
 
@@ -878,7 +881,7 @@ export default function TestCaseManagementApp() {
       "Steps to reproduce:",
       ...(stepLines.length > 0 ? stepLines : ["1. <no manual steps captured>"]),
       "",
-      `Expected result: ${steps.length > 0 ? steps.map((step: RecordAny) => step.expected).filter(Boolean).join(" | ") : "N/A"}`,
+      `Expected result: ${uniqueExpected.length > 0 ? uniqueExpected.join(" | ") : testCase.expected || "N/A"}`,
       "",
       `Actual result: ${selectedItemValue?.note || ""}`,
     ].join("\n");
