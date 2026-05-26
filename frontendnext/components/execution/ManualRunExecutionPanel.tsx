@@ -41,7 +41,6 @@ export default function ManualRunExecutionPanel({
   const nextItem = currentIndex >= 0
     ? myItems.slice(currentIndex + 1).find((item: RecordAny) => item.status !== "pass") || myItems[currentIndex + 1]
     : undefined;
-  const previousItem = currentIndex > 0 ? myItems[currentIndex - 1] : undefined;
   const summary = myItems.reduce(
     (acc, item: RecordAny) => {
       const status = String(item.status || "untested");
@@ -190,74 +189,73 @@ export default function ManualRunExecutionPanel({
 
       {canEditRun && (
         <div className="execution-actions">
-          <button
-            type="button"
-            className="workspace-secondary"
-            disabled={!previousItem}
-            onClick={() => previousItem && setSelectedItemId(previousItem._id)}
-          >
-            Previous
-          </button>
-          <button
-            type="button"
-            className={selectedItem?.status === "pass" ? "workspace-primary is-selected" : "workspace-primary"}
-            onClick={async () => {
-              if (!selectedItemId) return;
-              await onUpdateResult(selectedItemId, "pass", notes[selectedItemId] || "", notes[`${selectedItemId}:notes`] || "");
-              void goToNextItem();
-            }}
-          >
-            Pass
-          </button>
-          <button
-            type="button"
-            className={selectedItem?.status === "fail" ? "workspace-danger is-selected" : "workspace-danger"}
-            onClick={async () => {
-              if (!selectedItemId) return;
-              await onUpdateResult(selectedItemId, "fail", notes[selectedItemId] || "", notes[`${selectedItemId}:notes`] || "");
-              void goToNextItem();
-            }}
-          >
-            Fail
-          </button>
-          <button
-            type="button"
-            className={selectedItem?.status === "blocked" ? "workspace-secondary is-selected" : "workspace-secondary"}
-            onClick={async () => {
-              if (!selectedItemId) return;
-              await onUpdateResult(selectedItemId, "blocked", notes[selectedItemId] || "", notes[`${selectedItemId}:notes`] || "");
-              void goToNextItem();
-            }}
-          >
-            Blocked
-          </button>
-          <button
-            type="button"
-            className={selectedItem?.status === "skip" ? "workspace-secondary is-selected" : "workspace-secondary"}
-            onClick={async () => {
-              if (!selectedItemId) return;
-              await onUpdateResult(selectedItemId, "skip", notes[selectedItemId] || "", notes[`${selectedItemId}:notes`] || "");
-              void goToNextItem();
-            }}
-          >
-            Skip
-          </button>
-          <button
-            type="button"
-            className="workspace-secondary"
-            disabled={!nextItem}
-            onClick={() => nextItem && setSelectedItemId(nextItem._id)}
-          >
-            Next case
-          </button>
-        </div>
-      )}
+          <div className="execution-actions__main">
+            <div className="execution-actions__row execution-actions__row--nav">
+              <button
+                type="button"
+                className="workspace-secondary"
+                disabled={!nextItem}
+                onClick={() => nextItem && setSelectedItemId(nextItem._id)}
+              >
+                Next case
+              </button>
+            </div>
 
-      {canEditRun && selectedRun?.status === "running" && (
-        <div className="workspace-inline-actions workspace-inline-actions--right">
-          <button type="button" className="workspace-danger" onClick={onEndRun}>
-            End current run
-          </button>
+            <div className="execution-actions__row execution-actions__row--results">
+              <button
+                type="button"
+                className={selectedItem?.status === "pass" ? "workspace-primary is-selected" : "workspace-primary"}
+                onClick={async () => {
+                  if (!selectedItemId) return;
+                  await onUpdateResult(selectedItemId, "pass", notes[selectedItemId] || "", notes[`${selectedItemId}:notes`] || "");
+                  void goToNextItem();
+                }}
+              >
+                Pass
+              </button>
+              <button
+                type="button"
+                className={selectedItem?.status === "fail" ? "workspace-danger is-selected" : "workspace-danger"}
+                onClick={async () => {
+                  if (!selectedItemId) return;
+                  await onUpdateResult(selectedItemId, "fail", notes[selectedItemId] || "", notes[`${selectedItemId}:notes`] || "");
+                  void goToNextItem();
+                }}
+              >
+                Fail
+              </button>
+              <button
+                type="button"
+                className={selectedItem?.status === "blocked" ? "workspace-secondary is-selected" : "workspace-secondary"}
+                onClick={async () => {
+                  if (!selectedItemId) return;
+                  await onUpdateResult(selectedItemId, "blocked", notes[selectedItemId] || "", notes[`${selectedItemId}:notes`] || "");
+                  void goToNextItem();
+                }}
+              >
+                Blocked
+              </button>
+              <button
+                type="button"
+                className={selectedItem?.status === "skip" ? "workspace-secondary is-selected" : "workspace-secondary"}
+                onClick={async () => {
+                  if (!selectedItemId) return;
+                  await onUpdateResult(selectedItemId, "skip", notes[selectedItemId] || "", notes[`${selectedItemId}:notes`] || "");
+                  void goToNextItem();
+                }}
+              >
+                Skip
+              </button>
+            </div>
+          </div>
+
+          {selectedRun?.status === "running" && (
+            <div className="execution-actions__side">
+              <button type="button" className="workspace-danger execution-actions__end" onClick={onEndRun}>
+                End current run
+              </button>
+            </div>
+          )}
         </div>
       )}
 

@@ -1660,15 +1660,68 @@ button {
 }
 
 .execution-actions {
+  grid-column: 1 / -1;
   position: sticky;
   bottom: 0;
-  display: flex;
-  gap: 0.65rem;
-  padding: 0.85rem 1rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.7rem;
+  padding: 0.8rem 0.9rem;
   border: 1px solid var(--line);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.95);
   box-shadow: 0 -10px 30px rgba(80, 60, 30, 0.08);
+}
+
+.execution-actions__main {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  align-items: flex-start;
+}
+
+.execution-actions__side {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.execution-actions__row {
+  display: flex;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.execution-actions__row--nav {
+  flex-wrap: wrap;
+}
+
+.execution-actions__row--results {
+  flex-wrap: wrap;
+}
+
+.execution-actions__end {
+  justify-self: end;
+  min-width: 138px;
+  min-height: 100%;
+}
+
+.execution-actions button {
+  width: auto;
+  min-height: 2.55rem;
+  padding: 0.5rem 0.8rem;
+  font-size: 0.88rem;
+  white-space: normal;
+  text-align: center;
+}
+
+.execution-actions__row--nav button {
+  min-width: 108px;
+}
+
+.execution-actions__row--results button {
+  min-width: 108px;
 }
 
 .execution-actions button.is-selected {
@@ -1677,6 +1730,7 @@ button {
 }
 
 .workspace-note {
+  grid-column: 1 / -1;
   padding: 0 0.25rem 0.25rem;
   font-size: 0.92rem;
   color: var(--muted);
@@ -1716,7 +1770,22 @@ button {
   }
 
   .execution-actions {
-    flex-wrap: wrap;
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+  }
+
+  .execution-actions__side {
+    justify-content: stretch;
+  }
+
+  .execution-actions__row--nav,
+  .execution-actions__row--results {
+    flex-direction: column;
+  }
+
+  .execution-actions__end {
+    grid-column: 1 / -1;
+    justify-self: stretch;
   }
 }
 

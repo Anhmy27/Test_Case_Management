@@ -214,7 +214,6 @@ export default function TestCaseManagementApp() {
 
   const setActiveTab = useCallback(
     (nextTab: string) => {
-      console.log('[TCMA] setActiveTab called ->', nextTab);
       setActiveTabState(nextTab);
 
       if (typeof window !== 'undefined') {
@@ -589,7 +588,6 @@ export default function TestCaseManagementApp() {
         return resp.user.role;
       })
       .then((role) => {
-        console.log('[TCMA] auth.me resolved, scheduling refreshAll', { role, projectId: selectedProjectIdRef.current });
         // only perform the initial auth refresh once per token across potential dev double-mounts
         try {
           if (typeof window !== 'undefined' && (window as any).__tcm_initialRefreshToken !== token) {
@@ -598,7 +596,6 @@ export default function TestCaseManagementApp() {
               void refreshAll(token, role, selectedProjectIdRef.current);
             });
           } else {
-            console.log('[TCMA] initial refresh already done, skipping duplicate');
           }
         } catch {
           queueMicrotask(() => {
