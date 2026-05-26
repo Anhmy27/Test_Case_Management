@@ -26,23 +26,6 @@ export default function AutomationRunExecutionPanel({
   setNotes,
   onLogBug,
 }: AutomationRunExecutionPanelProps) {
-  const getExpectedResultText = (testCase: RecordAny) => {
-    const steps = Array.isArray(testCase?.steps) ? testCase.steps : [];
-    const uniqueExpected = Array.from(
-      new Set(
-        steps
-          .map((step: RecordAny) => String(step.expected || "").trim())
-          .filter(Boolean),
-      ),
-    );
-
-    if (uniqueExpected.length > 0) {
-      return uniqueExpected.join("\n");
-    }
-
-    return testCase?.expected || "N/A";
-  };
-
   const canLogBug = selectedRun?.status === "completed" && selectedItem?.status === "fail";
 
   const summary = myItems.reduce(
@@ -139,7 +122,9 @@ export default function AutomationRunExecutionPanel({
               <div className="execution-block">
                 <strong>Expected result</strong>
                 <p style={{ whiteSpace: "pre-line" }}>
-                  {getExpectedResultText(selectedItem.testCase)}
+                  {Array.isArray(selectedItem.testCase?.steps) && selectedItem.testCase.steps.length > 0
+                    ? selectedItem.testCase.steps.map((step: RecordAny, index: number) => `${index + 1}. ${step.expected || ""}`).filter(Boolean).join("\n")
+                    : selectedItem.testCase?.expected || "N/A"}
                 </p>
               </div>
               <div className="execution-block execution-block--muted">
