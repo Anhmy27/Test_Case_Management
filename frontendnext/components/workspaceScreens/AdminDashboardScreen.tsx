@@ -6,72 +6,6 @@ import type { ReactNode } from "react";
 
 type RecordAny = Record<string, any>;
 
-function SectionCard({
-  title,
-  subtitle,
-  children,
-}: {
-  title: string;
-  subtitle?: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="workspace-card">
-      <div className="workspace-card__header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem" }}>
-        <div>
-          <h2>{title}</h2>
-          {subtitle && <p>{subtitle}</p>}
-        </div>
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function DataTable({
-  columns,
-  rows,
-  emptyText,
-}: {
-  columns: string[];
-  rows: ReactNode[];
-  emptyText: string;
-}) {
-  const columnStyle = {
-    gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))`,
-  };
-
-  return (
-    <div className="workspace-table">
-      <div className="workspace-table__head" style={columnStyle}>
-        {columns.map((column) => (
-          <div key={column}>{column}</div>
-        ))}
-      </div>
-      {rows.length === 0 ? (
-        <div className="workspace-table__empty">{emptyText}</div>
-      ) : (
-        <div className="workspace-table__body">
-          {rows.map((row, index) => (
-            <div key={index} className="workspace-table__row" style={columnStyle}>
-              {row}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function MiniStat({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="mini-stat">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
 type AdminDashboardScreenProps = {
   isGlobalScope: boolean;
   totalProjects: number;
@@ -87,6 +21,125 @@ type AdminDashboardScreenProps = {
   userName: (value: unknown) => string;
   getId: (value: unknown) => string;
 };
+
+type DataGridColumn = {
+  key: string;
+  label: string;
+  align?: "left" | "right" | "center";
+  width?: string;
+};
+
+type DataGridRow = {
+  id: string;
+  cells: ReactNode[];
+};
+
+function SectionHeader({
+  title,
+  subtitle,
+  actions,
+}: {
+  title: string;
+  subtitle?: string;
+  actions?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 px-6 py-4">
+      <div>
+        <div className="text-lg font-semibold text-slate-900">{title}</div>
+        {subtitle && (
+          <div className="text-sm text-slate-500">{subtitle}</div>
+        )}
+      </div>
+      {actions && <div className="flex items-center gap-2">{actions}</div>}
+    </div>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  helper,
+}: {
+  label: string;
+  value: ReactNode;
+  helper?: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        {label}
+      </div>
+      <div className="mt-2 text-2xl font-semibold text-slate-900">
+        {value}
+      </div>
+      {helper && <div className="mt-2 text-sm text-slate-500">{helper}</div>}
+    </div>
+  );
+}
+
+function DataGrid({
+  columns,
+  rows,
+  emptyText,
+}: {
+  columns: DataGridColumn[];
+  rows: DataGridRow[];
+  emptyText: string;
+}) {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="max-h-[360px] overflow-auto">
+        <table className="min-w-full text-left text-sm">
+          <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            <tr>
+              {columns.map((column) => (
+                <th
+                  key={column.key}
+                  className={`px-4 py-3 ${
+                    column.align === "right"
+                      ? "text-right"
+                      : column.align === "center"
+                        ? "text-center"
+                        : "text-left"
+                  }`}
+                  style={column.width ? { width: column.width } : undefined}
+                >
+                  {column.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-200">
+            {rows.length === 0 ? (
+              <tr>
+                <td
+                  className="px-4 py-6 text-center text-sm text-slate-500"
+                  colSpan={columns.length}
+                >
+                  {emptyText}
+                </td>
+              </tr>
+            ) : (
+              rows.map((row) => (
+                <tr
+                  key={row.id}
+                  className="transition hover:bg-slate-50"
+                >
+                  {row.cells.map((cell, index) => (
+                    <td key={index} className="px-4 py-3 text-slate-700">
+                      {cell}
+                    </td>
+                  ))}
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 export default function AdminDashboardScreen({
   isGlobalScope,
@@ -104,192 +157,339 @@ export default function AdminDashboardScreen({
   getId,
 }: AdminDashboardScreenProps) {
   const runningRuns = dashboardData.runningTestRuns || [];
+  const delayedPlans = dashboardData.delayedTestPlans || [];
+  const mostFailedCases = dashboardData.mostFailedTestCases || [];
+  const testerActivity = dashboardData.testerActivity || [];
+  const completionRate = dashboardSummary.completionRate || 0;
+  const passRate = dashboardSummary.passRate || 0;
+
+  const summaryCards = [
+    { label: "Running Runs", value: dashboardSummary.runningRuns || runningRunsCount || 0 },
+    { label: "Pass Rate", value: `${passRate}%`, helper: "All completed runs" },
+    { label: "Completion", value: `${completionRate}%`, helper: "Across active plans" },
+    {
+      label: "Risk Items",
+      value: delayedPlans.length + mostFailedCases.length,
+      helper: "Delayed or failing" ,
+    },
+  ] as const;
+
+  const runningRunRows = runningRuns
+    .map((run: RecordAny, index: number) => {
+      const rawProject = run.testPlan?.project ?? run.project ?? null;
+      const pid = getId(rawProject) || (typeof rawProject === "string" ? rawProject : "");
+      const project = projects.find((p: RecordAny) => {
+        const pId = String((p && (p._id ?? p.id)) || "");
+        return pId === pid || String(getId(p)) === pid;
+      });
+      const projectName = project?.name || (pid ? pid : "-");
+      return { run, projectName, index };
+    })
+    .filter(({ run, projectName }) =>
+      matchesSearch(run.name, run.testPlan?.name, projectName, userName(run.startedBy)),
+    )
+    .map(({ run, projectName, index }) => ({
+      id: String(run._id || run.id || index),
+      cells: [
+        <div key="run" className="font-semibold text-slate-900">
+          {run.name || run.testPlan?.name || "Untitled Run"}
+        </div>,
+        <div key="project" className="text-sm text-slate-600">
+          {projectName}
+        </div>,
+        <div key="tester" className="text-sm text-slate-600">
+          {userName(run.startedBy)}
+        </div>,
+        <span
+          key="status"
+          className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700"
+        >
+          Running
+        </span>,
+        <button
+          key="action"
+          type="button"
+          className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-900"
+        >
+          Open
+        </button>,
+      ],
+    }));
+
+  const riskRows = [
+    ...delayedPlans.map((plan: RecordAny, index: number) => ({
+      id: `delayed-${plan._id || index}`,
+      cells: [
+        <div key="item" className="font-semibold text-slate-900">
+          {plan.name}
+        </div>,
+        <div key="project" className="text-sm text-slate-600">
+          {plan.project?.name || "-"}
+        </div>,
+        <span
+          key="signal"
+          className="inline-flex items-center rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700"
+        >
+          Delayed plan
+        </span>,
+        <span
+          key="status"
+          className="inline-flex items-center rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700"
+        >
+          Attention
+        </span>,
+        <button
+          key="action"
+          type="button"
+          className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-900"
+        >
+          Review
+        </button>,
+      ],
+    })),
+    ...mostFailedCases.slice(0, 5).map((item: RecordAny, index: number) => ({
+      id: `fail-${item._id || index}`,
+      cells: [
+        <div key="item" className="font-semibold text-slate-900">
+          {item.caseKey} - {item.title}
+        </div>,
+        <div key="project" className="text-sm text-slate-600">
+          {item.project?.name || "-"}
+        </div>,
+        <span
+          key="signal"
+          className="inline-flex items-center rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700"
+        >
+          {item.failCount} fails
+        </span>,
+        <span
+          key="status"
+          className="inline-flex items-center rounded-full bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700"
+        >
+          High risk
+        </span>,
+        <button
+          key="action"
+          type="button"
+          className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-900"
+        >
+          Investigate
+        </button>,
+      ],
+    })),
+  ]
+    .filter((row) => row.cells.some((cell) => Boolean(cell)))
+    .filter((row) => {
+      const text = row.cells
+        .map((cell) => {
+          if (typeof cell === "string") return cell;
+          if (typeof cell === "number") return String(cell);
+          return "";
+        })
+        .join(" ");
+      return matchesSearch(text);
+    });
+
+  const projectRows = projectOverview
+    .filter((project: RecordAny) =>
+      matchesSearch(project.name, project.code, project.latestVersion),
+    )
+    .map((project: RecordAny) => ({
+      id: String(project._id || project.code || project.name),
+      cells: [
+        <div key="project" className="font-semibold text-slate-900">
+          {project.name}
+        </div>,
+        <div key="version" className="text-sm text-slate-600">
+          {project.latestVersion || "-"}
+        </div>,
+        <div key="pass" className="text-sm text-slate-600">
+          {project.passCount}
+        </div>,
+        <div key="fail" className="text-sm text-slate-600">
+          {project.failCount}
+        </div>,
+        <div key="progress" className="min-w-[140px]">
+          <div className="flex items-center justify-between text-xs text-slate-500">
+            <span>{project.progress}%</span>
+            <span>{project.totalTests || 0} tests</span>
+          </div>
+          <div className="mt-2 h-2 w-full rounded-full bg-slate-100">
+            <div
+              className="h-2 rounded-full bg-slate-900"
+              style={{ width: `${Math.max(0, Math.min(100, project.progress || 0))}%` }}
+            />
+          </div>
+        </div>,
+        <button
+          key="action"
+          type="button"
+          className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-900"
+        >
+          View
+        </button>,
+      ],
+    }));
+
+  const testerRows = testerActivity
+    .filter((item: RecordAny) => matchesSearch(item.name, item.email))
+    .map((item: RecordAny, index: number) => ({
+      id: String(item._id || index),
+      cells: [
+        <div key="tester" className="font-semibold text-slate-900">
+          {item.name}
+        </div>,
+        <div key="total" className="text-sm text-slate-600">
+          {item.totalTests}
+        </div>,
+        <div key="pass" className="text-sm text-emerald-600">
+          {item.passCount}
+        </div>,
+        <div key="fail" className="text-sm text-rose-600">
+          {item.failCount}
+        </div>,
+        <button
+          key="action"
+          type="button"
+          className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-900"
+        >
+          Review
+        </button>,
+      ],
+    }));
 
   return (
-    <div className="workspace-stack">
-      {isGlobalScope ? (
-        <>
-          <SectionCard title="Portfolio Overview" subtitle="Tong quan tat ca project">
-            <div className="workspace-metrics">
-              <MiniStat label="Projects" value={totalProjects} />
-              <MiniStat label="Test Plans" value={totalPlans} />
-              <MiniStat label="Test Cases" value={totalCases} />
-              <MiniStat label="Running Runs" value={runningRunsCount} />
-              <MiniStat label="Users" value={totalUsers} />
+    <div className="space-y-8">
+      <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <SectionHeader
+          title={isGlobalScope ? "Portfolio Overview" : "QA Command Center"}
+          subtitle={
+            isGlobalScope
+              ? "Cross-project operational health and immediate risks"
+              : "Active progress, execution risk, and tester throughput"
+          }
+          actions={
+            <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+              {isGlobalScope ? "Global" : "Project"}
             </div>
-          </SectionCard>
+          }
+        />
+        <div className="grid grid-cols-1 gap-4 px-6 py-5 md:grid-cols-2 xl:grid-cols-4">
+          <MetricCard label="Projects" value={totalProjects} />
+          <MetricCard label="Test Plans" value={totalPlans} />
+          <MetricCard label="Test Cases" value={totalCases} />
+          <MetricCard label="Users" value={totalUsers} />
+        </div>
+        <div className="grid grid-cols-1 gap-4 px-6 pb-6 md:grid-cols-2 xl:grid-cols-4">
+          {summaryCards.map((card) => (
+            <MetricCard
+              key={card.label}
+              label={card.label}
+              value={card.value}
+              helper={card.helper}
+            />
+          ))}
+        </div>
+      </section>
 
-          <div className="workspace-banner">
-            Chon 1 project de xem dashboard chi tiet theo test plan, fail rate, va tester activity.
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <div className="space-y-4">
+          <SectionHeader
+            title="Action Center"
+            subtitle="Runs that need immediate attention"
+          />
+          <DataGrid
+            columns={[
+              { key: "run", label: "Run" },
+              { key: "project", label: "Project" },
+              { key: "tester", label: "Tester" },
+              { key: "status", label: "Status", align: "center", width: "120px" },
+              { key: "action", label: "Action", align: "right", width: "120px" },
+            ]}
+            rows={runningRunRows}
+            emptyText="No running test runs"
+          />
+        </div>
+
+        <div className="space-y-4">
+          <SectionHeader
+            title="Risk Radar"
+            subtitle="Delayed plans and high-failure cases"
+          />
+          <DataGrid
+            columns={[
+              { key: "item", label: "Item" },
+              { key: "project", label: "Project" },
+              { key: "signal", label: "Signal" },
+              { key: "status", label: "Status", align: "center", width: "120px" },
+              { key: "action", label: "Action", align: "right", width: "120px" },
+            ]}
+            rows={riskRows}
+            emptyText="No risk items"
+          />
+        </div>
+      </div>
+
+      {!isGlobalScope && (
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+          <div className="space-y-4">
+            <SectionHeader
+              title="Tester Activity"
+              subtitle="Pass/fail distribution by tester"
+            />
+            <DataGrid
+              columns={[
+                { key: "tester", label: "Tester" },
+                { key: "total", label: "Total" },
+                { key: "pass", label: "Pass" },
+                { key: "fail", label: "Fail" },
+                { key: "action", label: "Action", align: "right", width: "120px" },
+              ]}
+              rows={testerRows}
+              emptyText="No tester activity"
+            />
           </div>
 
-          <div className="workspace-grid workspace-grid--two">
-            <SectionCard title="Active Runs" subtitle="Run dang chay tren tat ca project">
-              <DataTable
-                columns={["Run", "Project", "Tester", "Status"]}
-                rows={runningRuns
-                  .map((run: RecordAny) => {
-                    const rawProject = run.testPlan?.project ?? run.project ?? null;
-                    const pid = getId(rawProject) || (typeof rawProject === "string" ? rawProject : "");
-
-                    const proj = projects.find((p: RecordAny) => {
-                      const pId = String((p && (p._id ?? p.id)) || "");
-                      return pId === pid || String(getId(p)) === pid;
-                    });
-
-                    const projectName = proj?.name || (pid ? pid : "-");
-                    return { run, projectName };
-                  })
-                  .filter(({ run, projectName }: { run: RecordAny; projectName: string }) =>
-                    matchesSearch(run.name, run.testPlan?.name, projectName, userName(run.startedBy)),
-                  )
-                  .map(({ run, projectName }: { run: RecordAny; projectName: string }) => (
-                    <>
-                      <div>{run.name || run.testPlan?.name}</div>
-                      <div>{projectName}</div>
-                      <div>{userName(run.startedBy)}</div>
-                      <div className="workspace-pill workspace-pill--success">Running</div>
-                    </>
-                  ))}
-                emptyText="No running test runs"
-              />
-            </SectionCard>
-
-            <SectionCard title="Project Health" subtitle="Progress va fail count theo project">
-              <DataTable
-                columns={["Project", "Progress", "Pass", "Fail"]}
-                rows={projectOverview
-                  .filter((project: RecordAny) => matchesSearch(project.name, project.code))
-                  .map((project: RecordAny) => (
-                    <>
-                      <div>{project.name}</div>
-                      <div>{project.progress}%</div>
-                      <div>{project.passCount}</div>
-                      <div>{project.failCount}</div>
-                    </>
-                  ))}
-                emptyText="No project metrics"
-              />
-            </SectionCard>
-          </div>
-
-          <SectionCard title="Project Overview" subtitle="Version moi nhat, pass/fail, progress">
-            <DataTable
-              columns={["Project", "Latest Version", "Pass", "Fail", "Progress"]}
-              rows={projectOverview
-                .filter((project: RecordAny) => matchesSearch(project.name, project.code, project.latestVersion))
-                .map((project: RecordAny) => (
-                  <>
-                    <div>{project.name}</div>
-                    <div>{project.latestVersion}</div>
-                    <div>{project.passCount}</div>
-                    <div>{project.failCount}</div>
-                    <div>{project.progress}%</div>
-                  </>
-                ))}
+          <div className="space-y-4">
+            <SectionHeader
+              title="Project Health"
+              subtitle="Latest version signal and progress"
+            />
+            <DataGrid
+              columns={[
+                { key: "project", label: "Project" },
+                { key: "version", label: "Latest Version" },
+                { key: "pass", label: "Pass" },
+                { key: "fail", label: "Fail" },
+                { key: "progress", label: "Progress" },
+                { key: "action", label: "Action", align: "right", width: "120px" },
+              ]}
+              rows={projectRows}
               emptyText="No projects found"
             />
-          </SectionCard>
-        </>
-      ) : (
-        <>
-          <SectionCard title="Admin Dashboard" subtitle="Theo doi tien do, loi va tester activity">
-            <div className="workspace-metrics">
-              <MiniStat label="Running Test Runs" value={dashboardSummary.runningRuns || 0} />
-              <MiniStat label="Total Cases" value={dashboardSummary.totalCases || 0} />
-              <MiniStat label="Executed" value={dashboardSummary.executed || 0} />
-              <MiniStat label="Pass Rate" value={`${dashboardSummary.passRate || 0}%`} />
-            </div>
-          </SectionCard>
-
-          <div className="workspace-grid workspace-grid--two">
-            <SectionCard title="Running Test Runs" subtitle="Ai dang test, plan nao dang chay">
-              <DataTable
-                columns={["Tester", "Test Plan", "Progress", "Status"]}
-                rows={runningRuns
-                  .filter((run: RecordAny) => matchesSearch(run.testPlan?.name, run.name, userName(run.startedBy)))
-                  .map((run: RecordAny) => (
-                    <>
-                      <div>{userName(run.startedBy)}</div>
-                      <div>{run.testPlan?.name || run.name}</div>
-                      <div>{run.progress ?? `${run.results?.length || 0} cases`}</div>
-                      <div className="workspace-pill workspace-pill--success">Running</div>
-                    </>
-                  ))}
-                emptyText="No running test runs"
-              />
-            </SectionCard>
-
-            <SectionCard title="Delayed Test Plans" subtitle="Da assign nhung chua start">
-              <DataTable
-                columns={["Test Plan", "Project", "Owner"]}
-                rows={(dashboardData.delayedTestPlans || [])
-                  .filter((plan: RecordAny) => matchesSearch(plan.name, plan.project?.name, userName(plan.owner)))
-                  .map((plan: RecordAny) => (
-                    <>
-                      <div>{plan.name}</div>
-                      <div>{plan.project?.name || "-"}</div>
-                      <div>{userName(plan.owner)}</div>
-                    </>
-                  ))}
-                emptyText="No delayed plans"
-              />
-            </SectionCard>
           </div>
+        </div>
+      )}
 
-          <div className="workspace-grid workspace-grid--two">
-            <SectionCard title="Most Failed Test Cases" subtitle="Test case fail nhieu nhat">
-              <DataTable
-                columns={["Case", "Priority", "Fails"]}
-                rows={(dashboardData.mostFailedTestCases || [])
-                  .filter((item: RecordAny) => matchesSearch(item.caseKey, item.title, item.priority))
-                  .map((item: RecordAny) => (
-                    <>
-                      <div>{item.caseKey} - {item.title}</div>
-                      <div>{item.priority}</div>
-                      <div>{item.failCount}</div>
-                    </>
-                  ))}
-                emptyText="No failing cases"
-              />
-            </SectionCard>
-
-            <SectionCard title="Tester Activity" subtitle="Pass / fail theo tester">
-              <DataTable
-                columns={["Tester", "Total", "Pass", "Fail"]}
-                rows={(dashboardData.testerActivity || [])
-                  .filter((item: RecordAny) => matchesSearch(item.name, item.email))
-                  .map((item: RecordAny) => (
-                    <>
-                      <div>{item.name}</div>
-                      <div>{item.totalTests}</div>
-                      <div>{item.passCount}</div>
-                      <div>{item.failCount}</div>
-                    </>
-                  ))}
-                emptyText="No tester activity"
-              />
-            </SectionCard>
-          </div>
-
-          <SectionCard title="Project Overview" subtitle="Tong pass/fail, version moi nhat, progress">
-            <DataTable
-              columns={["Project", "Latest Version", "Pass", "Fail", "Progress"]}
-              rows={projectOverview
-                .filter((project: RecordAny) => matchesSearch(project.name, project.code, project.latestVersion))
-                .map((project: RecordAny) => (
-                  <>
-                    <div>{project.name}</div>
-                    <div>{project.latestVersion}</div>
-                    <div>{project.passCount}</div>
-                    <div>{project.failCount}</div>
-                    <div>{project.progress}%</div>
-                  </>
-                ))}
-              emptyText="No projects found"
-            />
-          </SectionCard>
-        </>
+      {isGlobalScope && (
+        <div className="space-y-4">
+          <SectionHeader
+            title="Project Health"
+            subtitle="Portfolio progress across all projects"
+          />
+          <DataGrid
+            columns={[
+              { key: "project", label: "Project" },
+              { key: "version", label: "Latest Version" },
+              { key: "pass", label: "Pass" },
+              { key: "fail", label: "Fail" },
+              { key: "progress", label: "Progress" },
+              { key: "action", label: "Action", align: "right", width: "120px" },
+            ]}
+            rows={projectRows}
+            emptyText="No projects found"
+          />
+        </div>
       )}
     </div>
   );

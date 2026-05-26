@@ -24,6 +24,19 @@ export default function AutomationRunExecutionPanel({
   notes,
   setNotes,
 }: AutomationRunExecutionPanelProps) {
+  const summary = myItems.reduce(
+    (acc, item: RecordAny) => {
+      const status = String(item.status || "untested");
+      if (status === "pass") acc.pass += 1;
+      else if (status === "fail") acc.fail += 1;
+      else if (status === "blocked") acc.blocked += 1;
+      else if (status === "skip") acc.skip += 1;
+      else acc.pending += 1;
+      return acc;
+    },
+    { pass: 0, fail: 0, blocked: 0, skip: 0, pending: 0 },
+  );
+
   return (
     <div className="execution-grid">
       <section className="execution-list">
@@ -32,6 +45,12 @@ export default function AutomationRunExecutionPanel({
             <div>
               <h2>Test Cases</h2>
               <p>Automation run chi hien thi testcase va ket qua hien tai</p>
+            </div>
+            <div className="workspace-inline-actions">
+              <span className="workspace-pill">{summary.pass} pass</span>
+              <span className="workspace-pill">{summary.fail} fail</span>
+              <span className="workspace-pill">{summary.blocked} blocked</span>
+              <span className="workspace-pill">{summary.pending} pending</span>
             </div>
           </div>
           <div className="execution-list__items">
@@ -68,14 +87,20 @@ export default function AutomationRunExecutionPanel({
             <div className="workspace-empty">Chon mot testcase ben trai</div>
           ) : (
             <div className="execution-detail__body">
-              <div className="execution-meta">
+              <div className="execution-meta execution-meta--hero">
                 <div className="execution-meta__head">
-                  <h3>{selectedItem.testCase?.title}</h3>
+                  <div>
+                    <h3>{selectedItem.testCase?.caseKey || "TC"} - {selectedItem.testCase?.title}</h3>
+                    <p>{selectedItem.testCase?.description || "No description"}</p>
+                  </div>
                   <span className={`workspace-pill status-${selectedItem.status}`}>
                     {selectedItem.status}
                   </span>
                 </div>
-                <p>{selectedItem.testCase?.description || "No description"}</p>
+                <div className="workspace-inline-actions">
+                  <span className="workspace-chip">Automation review mode</span>
+                  <span className="workspace-chip">Plan: {selectedRun?.testPlan?.name || selectedRun?.name || "-"}</span>
+                </div>
               </div>
               <div className="execution-block">
                 <strong>Steps</strong>
@@ -88,6 +113,10 @@ export default function AutomationRunExecutionPanel({
               <div className="execution-block">
                 <strong>Expected result</strong>
                 <p>{selectedItem.testCase?.expected || "N/A"}</p>
+              </div>
+              <div className="execution-block execution-block--muted">
+                <strong>Execution note</strong>
+                <p>{selectedItem.note || notes[selectedItem._id] || "No execution note yet"}</p>
               </div>
               <div className="workspace-form">
                 <label>

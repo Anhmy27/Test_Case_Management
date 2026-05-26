@@ -34,6 +34,32 @@ export default function ManualRunExecutionPanel({
   onEndRun,
   canEditRun,
 }: ManualRunExecutionPanelProps) {
+  const currentIndex = myItems.findIndex((item: RecordAny) => item._id === selectedItemId);
+  const nextItem = currentIndex >= 0
+    ? myItems.slice(currentIndex + 1).find((item: RecordAny) => item.status !== "pass") || myItems[currentIndex + 1]
+    : undefined;
+  const previousItem = currentIndex > 0 ? myItems[currentIndex - 1] : undefined;
+  const summary = myItems.reduce(
+    (acc, item: RecordAny) => {
+      const status = String(item.status || "untested");
+      if (status === "pass") acc.pass += 1;
+      else if (status === "fail") acc.fail += 1;
+      else if (status === "blocked") acc.blocked += 1;
+      else if (status === "skip") acc.skip += 1;
+      else acc.pending += 1;
+      return acc;
+    },
+    { pass: 0, fail: 0, blocked: 0, skip: 0, pending: 0 },
+  );
+
+  const goToNextItem = async () => {
+    if (!nextItem) {
+      return;
+    }
+
+    setSelectedItemId(nextItem._id);
+  };
+
   return (
     <div className="execution-grid">
       <section className="execution-list">
@@ -42,6 +68,12 @@ export default function ManualRunExecutionPanel({
             <div>
               <h2>Test Cases</h2>
               <p>Chon testcase dang execute</p>
+            </div>
+            <div className="workspace-inline-actions">
+              <span className="workspace-pill">{summary.pass} pass</span>
+              <span className="workspace-pill">{summary.fail} fail</span>
+              <span className="workspace-pill">{summary.blocked} blocked</span>
+              <span className="workspace-pill">{summary.pending} pending</span>
             </div>
           </div>
           <div className="execution-list__items">
@@ -78,14 +110,21 @@ export default function ManualRunExecutionPanel({
             <div className="workspace-empty">Chon mot testcase ben trai</div>
           ) : (
             <div className="execution-detail__body">
-              <div className="execution-meta">
+              <div className="execution-meta execution-meta--hero">
                 <div className="execution-meta__head">
-                  <h3>{selectedItem.testCase?.title}</h3>
+                  <div>
+                    <h3>{selectedItem.testCase?.caseKey || "TC"} - {selectedItem.testCase?.title}</h3>
+                    <p>{selectedItem.testCase?.description || "No description"}</p>
+                  </div>
                   <span className={`workspace-pill status-${selectedItem.status}`}>
                     {selectedItem.status}
                   </span>
                 </div>
-                <p>{selectedItem.testCase?.description || "No description"}</p>
+                <div className="workspace-inline-actions">
+                  <span className="workspace-chip">Priority: {selectedItem.testCase?.priority || "n/a"}</span>
+                  <span className="workspace-chip">Result owner: {selectedItem.tester?.name || selectedItem.owner?.name || "-"}</span>
+                  {selectedItem.executedAt ? <span className="workspace-chip">Updated: {new Date(selectedItem.executedAt).toLocaleString()}</span> : null}
+                </div>
               </div>
               <div className="execution-block">
                 <strong>Steps</strong>
@@ -140,31 +179,63 @@ export default function ManualRunExecutionPanel({
         <div className="execution-actions">
           <button
             type="button"
+            className="workspace-secondary"
+            disabled={!previousItem}
+            onClick={() => previousItem && setSelectedItemId(previousItem._id)}
+          >
+            Previous
+          </button>
+          <button
+            type="button"
             className={selectedItem?.status === "pass" ? "workspace-primary is-selected" : "workspace-primary"}
-            onClick={() => selectedItemId && onUpdateResult(selectedItemId, "pass", notes[selectedItemId] || "")}
+            onClick={async () => {
+              if (!selectedItemId) return;
+              await onUpdateResult(selectedItemId, "pass", notes[selectedItemId] || "");
+              void goToNextItem();
+            }}
           >
             Pass
           </button>
           <button
             type="button"
             className={selectedItem?.status === "fail" ? "workspace-danger is-selected" : "workspace-danger"}
-            onClick={() => selectedItemId && onUpdateResult(selectedItemId, "fail", notes[selectedItemId] || "")}
+            onClick={async () => {
+              if (!selectedItemId) return;
+              await onUpdateResult(selectedItemId, "fail", notes[selectedItemId] || "");
+              void goToNextItem();
+            }}
           >
             Fail
           </button>
           <button
             type="button"
             className={selectedItem?.status === "blocked" ? "workspace-secondary is-selected" : "workspace-secondary"}
-            onClick={() => selectedItemId && onUpdateResult(selectedItemId, "blocked", notes[selectedItemId] || "")}
+            onClick={async () => {
+              if (!selectedItemId) return;
+              await onUpdateResult(selectedItemId, "blocked", notes[selectedItemId] || "");
+              void goToNextItem();
+            }}
           >
             Blocked
           </button>
           <button
             type="button"
             className={selectedItem?.status === "skip" ? "workspace-secondary is-selected" : "workspace-secondary"}
-            onClick={() => selectedItemId && onUpdateResult(selectedItemId, "skip", notes[selectedItemId] || "")}
+            onClick={async () => {
+              if (!selectedItemId) return;
+              await onUpdateResult(selectedItemId, "skip", notes[selectedItemId] || "");
+              void goToNextItem();
+            }}
           >
             Skip
+          </button>
+          <button
+            type="button"
+            className="workspace-secondary"
+            disabled={!nextItem}
+            onClick={() => nextItem && setSelectedItemId(nextItem._id)}
+          >
+            Next case
           </button>
         </div>
       )}

@@ -5,7 +5,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { getId, userName } from "@/lib/api";
-import AdminDashboardScreen from "./workspaceScreens/AdminDashboardScreen";
+import AppShell from "./AppShell";
+import AdminDashboardScreen from "@/components/workspaceScreens/AdminDashboardScreen";
 import AdminProjectsScreen from "./workspaceScreens/AdminProjectsScreen";
 import AdminGroupsScreen from "./workspaceScreens/AdminGroupsScreen";
 import AdminTestCasesScreen from "./workspaceScreens/AdminTestCasesScreen";
@@ -138,6 +139,9 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
   const [selectedItemId, setSelectedItemId] = useState<string>("");
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [searchTerm, setSearchTerm] = useState<string>("");
+  const [searchPreset, setSearchPreset] = useState<
+    "all" | "risk" | "running" | "my-items"
+  >("all");
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const [detailGroupId, setDetailGroupId] = useState<string>("");
   const [detailRows, setDetailRows] = useState<RecordAny[]>([]);
@@ -167,6 +171,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
   const selectedRunStartedByCurrentUser =
     String(selectedRun?.startedBy?._id || selectedRun?.startedBy || "") ===
     currentUserId;
+  const currentUserLabel = userName(currentUser);
   const canEditSelectedRun = Boolean(
     selectedRun &&
       selectedRun.status === "running" &&
@@ -235,6 +240,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
     setSelectedItemId("");
     setNotes({});
     setSearchTerm("");
+    setSearchPreset("all");
     setDetailGroupId("");
   }, [visibleTab]);
 
@@ -374,6 +380,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
       ...prev,
       testPlanId: "",
     }));
+    setSearchPreset("all");
 
     if (!selectedProjectId) {
       return;
@@ -390,132 +397,190 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
   const matchesSearch = (
     ...values: Array<string | number | undefined | null>
   ) => {
+    const normalizedValues = values
+      .map((value) => String(value || "").toLowerCase())
+      .join(" ");
+
+    if (searchPreset === "running" && !normalizedValues.includes("running")) {
+      return false;
+    }
+
+    if (searchPreset === "risk") {
+      const hasRiskSignal =
+        normalizedValues.includes("fail") ||
+        normalizedValues.includes("blocked") ||
+        normalizedValues.includes("delayed") ||
+        normalizedValues.includes("overdue") ||
+        normalizedValues.includes("pending");
+
+      if (!hasRiskSignal) {
+        return false;
+      }
+    }
+
+    if (
+      searchPreset === "my-items" &&
+      !normalizedValues.includes(currentUserLabel.toLowerCase())
+    ) {
+      return false;
+    }
+
     if (!normalizedSearch) {
       return true;
     }
 
-    return values.some((value) =>
-      String(value || "")
-        .toLowerCase()
-        .includes(normalizedSearch),
-    );
+    return normalizedValues.includes(normalizedSearch);
   };
 
-  return (
-    <div className="workspace-shell">
-      <aside className="workspace-sidebar">
-        <div className="workspace-brand">
-          <div className="workspace-brand__pill">TCM</div>
-          <div>
-            <strong>QA Workspace</strong>
-            <p>{isAdmin ? "Admin role" : "Employee role"}</p>
-          </div>
-        </div>
+  const searchPresetButtons = [
+    { key: "all", label: "All" },
+    { key: "running", label: "Running" },
+    { key: "risk", label: "Risk" },
+    { key: "my-items", label: "My items" },
+  ] as const;
 
-        <div className="workspace-user">
-          <div>
-            <strong>{currentUser?.name}</strong>
-            <p>{currentUser?.email}</p>
-          </div>
-          <span className="workspace-chip">{currentUser?.role}</span>
+  const topbar = (
+    <div className="flex flex-wrap items-center gap-4">
+      <div className="min-w-[220px]">
+        <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+          Workspace
         </div>
-
-        <div className="workspace-filter">
-          <label>
-            <span>Project scope</span>
-            <select
-              value={selectedProjectId}
-              onChange={(e) => setSelectedProjectId(e.target.value)}
-            >
-              <option value="">All projects</option>
-              {projects.map((project: RecordAny) => (
-                <option key={project._id} value={project._id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
+        <div className="text-xl font-semibold text-slate-900">
+          {activeTabLabel}
+        </div>
+        <div className="text-sm text-slate-500">
+          Scope: <span className="font-medium text-slate-700">{scopeLabel}</span>
+        </div>
+      </div>
+      <div className="ml-auto flex flex-wrap items-center gap-3">
+        <div className="min-w-[220px]">
+          <label className="text-xs font-semibold text-slate-500">
+            Project scope
           </label>
-        </div>
-
-        <nav className="workspace-nav">
-          {navItems.map((item) => (
-            <button
-              key={item.key}
-              type="button"
-              className={
-                visibleTab === item.key
-                  ? "workspace-nav__item is-active"
-                  : "workspace-nav__item"
-              }
-              onClick={() => {
-                resetWorkspaceDrafts();
-                setActiveTab(item.key as any);
-              }}
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
-
-        <div className="workspace-sidebar__footer">
-          <button
-            type="button"
-            className="workspace-secondary"
-            onClick={logout}
+          <select
+            value={selectedProjectId}
+            onChange={(e) => setSelectedProjectId(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 shadow-sm focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200"
           >
-            Dang xuat
-          </button>
+            <option value="">All projects</option>
+            {projects.map((project: RecordAny) => (
+              <option key={project._id} value={project._id}>
+                {project.name}
+              </option>
+            ))}
+          </select>
         </div>
-      </aside>
-
-      <main className="workspace-main">
-        <section className="workspace-hero">
-          <div className="workspace-hero__copy">
-            <div className="workspace-hero__eyebrow">
-              {isAdmin ? "Admin workspace" : "Employee workspace"}
-            </div>
-            <h1>{activeTabLabel}</h1>
-            <p>
-              Scope: <strong>{scopeLabel}</strong>
-              {normalizedSearch ? (
-                <>
-                  {" "}
-                  · Search: <strong>{searchTerm}</strong>
-                </>
-              ) : null}
-            </p>
-          </div>
-          <div className="workspace-hero__chips">
-            <span className="workspace-chip workspace-chip--soft">
-              {projects.length} projects
-            </span>
-            <span className="workspace-chip workspace-chip--soft">
-              {plans.length} plans
-            </span>
-            <span className="workspace-chip workspace-chip--soft">
-              {runs.length} runs
-            </span>
-          </div>
-        </section>
-
-        {message && <div className="workspace-banner">{message}</div>}
-
-        <div className="workspace-toolbar">
-          <label>
-            <span>Search</span>
+        <div className="min-w-[260px]">
+          <label className="text-xs font-semibold text-slate-500">Search</label>
+          <div className="relative mt-1">
             <input
               type="search"
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
-              placeholder="Search by name, code, key..."
+              placeholder="Search by name, code, key, status..."
+              className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm font-medium text-slate-900 shadow-sm focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200"
             />
-          </label>
+            <svg
+              aria-hidden="true"
+              className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M21 21l-4.35-4.35m0 0a7.5 7.5 0 10-10.6 0 7.5 7.5 0 0010.6 0z"
+              />
+            </svg>
+          </div>
         </div>
+        <div className="flex items-center gap-2 text-xs text-slate-500">
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-600">
+            {projects.length} projects
+          </span>
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-600">
+            {plans.length} plans
+          </span>
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-600">
+            {runs.length} runs
+          </span>
+        </div>
+      </div>
+    </div>
+  );
 
-        {overrideContent ? (
-          overrideContent
-        ) : (
-          <>
+  return (
+    <AppShell
+      brand={{
+        title: "Test Case Management",
+        subtitle: isAdmin ? "Admin workspace" : "Tester workspace",
+      }}
+      user={{
+        name: currentUser?.name || "User",
+        email: currentUser?.email || "",
+        role: currentUser?.role || "",
+      }}
+      navItems={navItems}
+      activeKey={visibleTab}
+      onNavChange={(key) => {
+        resetWorkspaceDrafts();
+        setActiveTab(key as any);
+      }}
+      topbar={topbar}
+      sidebarFooter={
+        <button
+          type="button"
+          onClick={logout}
+          className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+        >
+          Dang xuat
+        </button>
+      }
+    >
+      {message && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900">
+          {message}
+        </div>
+      )}
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+            Quick filters
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {searchPresetButtons.map((button) => (
+              <button
+                key={button.key}
+                type="button"
+                className={
+                  searchPreset === button.key
+                    ? "rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white"
+                    : "rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-900"
+                }
+                onClick={() => setSearchPreset(button.key)}
+              >
+                {button.label}
+              </button>
+            ))}
+          </div>
+          <div className="ml-auto flex items-center gap-2 text-xs text-slate-500">
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-600">
+              {searchPreset === "all" ? "All records" : searchPreset}
+            </span>
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-600">
+              {normalizedSearch ? `Searching: ${searchTerm}` : "No text filter"}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {overrideContent ? (
+        overrideContent
+      ) : (
+        <>
 
         {isAdmin && visibleTab === "dashboard" && (
           <AdminDashboardScreen
@@ -560,6 +625,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
             createGroup={createGroup}
             scopedProjects={scopedProjects}
             groups={groups}
+            testCases={testCases}
             matchesSearch={matchesSearch}
           />
         )}
@@ -737,10 +803,9 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
             canEditSelectedRun={canEditSelectedRun}
           />
         )}
-          </>
-        )}
-      </main>
-    </div>
+        </>
+      )}
+    </AppShell>
   );
 }
 

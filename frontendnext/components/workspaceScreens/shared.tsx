@@ -10,7 +10,9 @@ export function SectionCard({
 }: {
   title: string;
   subtitle?: string;
+  actions?: ReactNode;
   children: ReactNode;
+  actions?: ReactNode;
   actions?: ReactNode;
 }) {
   return (
@@ -21,6 +23,7 @@ export function SectionCard({
       >
         <div>
           <h2>{title}</h2>
+        {actions && <div className="workspace-inline-actions">{actions}</div>}
           {subtitle && <p>{subtitle}</p>}
         </div>
         {actions && <div className="workspace-inline-actions">{actions}</div>}

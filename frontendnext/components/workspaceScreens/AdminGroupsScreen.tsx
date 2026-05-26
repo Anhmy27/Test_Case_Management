@@ -73,6 +73,7 @@ type AdminGroupsScreenProps = {
   deleteGroup: (groupId: string) => Promise<void>;
   scopedProjects: RecordAny[];
   groups: RecordAny[];
+  testCases: RecordAny[];
   matchesSearch: (...values: Array<string | number | undefined | null>) => boolean;
 };
 
@@ -86,9 +87,17 @@ export default function AdminGroupsScreen({
   deleteGroup,
   scopedProjects,
   groups,
+  testCases,
   matchesSearch,
 }: AdminGroupsScreenProps) {
   const isEditing = Boolean(editingGroupId);
+  const groupsByProject = scopedProjects.map((project: RecordAny) => {
+    const projectGroups = groups.filter((group: RecordAny) => String(group.project?._id || group.project) === String(project._id));
+    return {
+      project,
+      groups: projectGroups,
+    };
+  });
 
   return (
     <div className="workspace-stack">
@@ -153,6 +162,44 @@ export default function AdminGroupsScreen({
             )}
           </div>
         </form>
+      </SectionCard>
+
+      <SectionCard title="Hierarchy Overview" subtitle="Project → group structure cho navigation nhanh hơn">
+        {groupsByProject.length === 0 ? (
+          <div className="workspace-empty">No groups in current scope</div>
+        ) : (
+          <div className="workspace-tree">
+            {groupsByProject.map(({ project, groups: projectGroups }) => (
+              <details key={project._id} className="workspace-tree__project" open>
+                <summary>
+                  <strong>{project.name}</strong>
+                  <span>{projectGroups.length} groups</span>
+                </summary>
+                <div className="workspace-tree__branch">
+                  {projectGroups.length === 0 ? (
+                    <div className="workspace-empty">No groups under this project</div>
+                  ) : (
+                    projectGroups.map((group: RecordAny) => (
+                      (() => {
+                        const caseCount = testCases.filter((testCase: RecordAny) => String(testCase.group?._id || testCase.group) === String(group._id)).length;
+
+                        return (
+                      <div key={group._id} className="workspace-tree__node">
+                        <div className="workspace-tree__node-main">
+                          <strong>{group.name}</strong>
+                          <span>{group.description || "No description"}</span>
+                        </div>
+                          <span className="workspace-pill">{caseCount} cases</span>
+                        </div>
+                        );
+                      })()
+                    ))
+                  )}
+                </div>
+              </details>
+            ))}
+          </div>
+        )}
       </SectionCard>
 
       <SectionCard title="Group List" subtitle="Nhom theo project">
