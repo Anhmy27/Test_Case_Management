@@ -34,6 +34,23 @@ type DataGridRow = {
   cells: ReactNode[];
 };
 
+type SummaryCard = {
+  label: string;
+  value: ReactNode;
+  helper?: string;
+};
+
+type RunningRunRow = {
+  run: RecordAny;
+  projectName: string;
+  index: number;
+};
+
+type RiskRow = {
+  id: string;
+  cells: ReactNode[];
+};
+
 function SectionHeader({
   title,
   subtitle,
@@ -163,7 +180,7 @@ export default function AdminDashboardScreen({
   const completionRate = dashboardSummary.completionRate || 0;
   const passRate = dashboardSummary.passRate || 0;
 
-  const summaryCards = [
+  const summaryCards: SummaryCard[] = [
     { label: "Running Runs", value: dashboardSummary.runningRuns || runningRunsCount || 0 },
     { label: "Pass Rate", value: `${passRate}%`, helper: "All completed runs" },
     { label: "Completion", value: `${completionRate}%`, helper: "Across active plans" },
@@ -174,7 +191,7 @@ export default function AdminDashboardScreen({
     },
   ] as const;
 
-  const runningRunRows = runningRuns
+  const runningRunRows: DataGridRow[] = runningRuns
     .map((run: RecordAny, index: number) => {
       const rawProject = run.testPlan?.project ?? run.project ?? null;
       const pid = getId(rawProject) || (typeof rawProject === "string" ? rawProject : "");
@@ -185,10 +202,10 @@ export default function AdminDashboardScreen({
       const projectName = project?.name || (pid ? pid : "-");
       return { run, projectName, index };
     })
-    .filter(({ run, projectName }) =>
+    .filter(({ run, projectName }: RunningRunRow) =>
       matchesSearch(run.name, run.testPlan?.name, projectName, userName(run.startedBy)),
     )
-    .map(({ run, projectName, index }) => ({
+    .map(({ run, projectName, index }: RunningRunRow) => ({
       id: String(run._id || run.id || index),
       cells: [
         <div key="run" className="font-semibold text-slate-900">
@@ -216,7 +233,7 @@ export default function AdminDashboardScreen({
       ],
     }));
 
-  const riskRows = [
+  const riskRows: DataGridRow[] = [
     ...delayedPlans.map((plan: RecordAny, index: number) => ({
       id: `delayed-${plan._id || index}`,
       cells: [
@@ -278,10 +295,10 @@ export default function AdminDashboardScreen({
       ],
     })),
   ]
-    .filter((row) => row.cells.some((cell) => Boolean(cell)))
-    .filter((row) => {
+    .filter((row: RiskRow) => row.cells.some((cell: ReactNode) => Boolean(cell)))
+    .filter((row: RiskRow) => {
       const text = row.cells
-        .map((cell) => {
+        .map((cell: ReactNode) => {
           if (typeof cell === "string") return cell;
           if (typeof cell === "number") return String(cell);
           return "";
@@ -381,7 +398,7 @@ export default function AdminDashboardScreen({
           <MetricCard label="Users" value={totalUsers} />
         </div>
         <div className="grid grid-cols-1 gap-4 px-6 pb-6 md:grid-cols-2 xl:grid-cols-4">
-          {summaryCards.map((card) => (
+            {summaryCards.map((card: SummaryCard) => (
             <MetricCard
               key={card.label}
               label={card.label}

@@ -132,6 +132,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
     endRun,
     updateResult,
     startRun,
+    openJiraBugDialog,
     resetWorkspaceDrafts,
     message,
   } = workspace;
@@ -801,6 +802,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
             updateResult={updateResult}
             endRun={endRun}
             canEditSelectedRun={canEditSelectedRun}
+            onLogBug={openJiraBugDialog}
           />
         )}
         </>

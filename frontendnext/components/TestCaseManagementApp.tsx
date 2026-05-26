@@ -108,6 +108,7 @@ export default function TestCaseManagementApp() {
   const [projectForm, setProjectForm] = useState({
     name: "",
     code: "",
+    pid: "",
     description: "",
   });
   const [editingProjectId, setEditingProjectId] = useState<string>("");
@@ -189,6 +190,22 @@ export default function TestCaseManagementApp() {
     description: string;
     confirmLabel: string;
     onConfirm: () => Promise<void>;
+  } | null>(null);
+  const [jiraBugDialog, setJiraBugDialog] = useState<{
+    projectId: string;
+    projectName: string;
+    runId: string;
+    resultId: string;
+    caseKey: string;
+    caseTitle: string;
+    issueType: string;
+    summary: string;
+    description: string;
+    priority: string;
+    assignee: string;
+    labels: string;
+    submitting: boolean;
+    error: string;
   } | null>(null);
   const lastTabRef = useRef<string>(activeTab);
   const selectedProjectIdRef = useRef<string>(selectedProjectId);
@@ -335,7 +352,7 @@ export default function TestCaseManagementApp() {
 
   const resetWorkspaceDrafts = useCallback(() => {
     setEditingProjectId("");
-    setProjectForm({ name: "", code: "", description: "" });
+    setProjectForm({ name: "", code: "", pid: "", description: "" });
     setVersionForm({ projectId: "", name: "", releaseDate: "" });
     setGroupForm({ projectId: "", name: "", description: "" });
     setEditingVersionId("");
@@ -814,6 +831,7 @@ export default function TestCaseManagementApp() {
     setProjectForm({
       name: project.name || "",
       code: project.code || "",
+      pid: project.pid || "",
       description: project.description || "",
     });
     setActiveTab("projects");
@@ -821,7 +839,7 @@ export default function TestCaseManagementApp() {
 
   function cancelProjectEdit() {
     setEditingProjectId("");
-    setProjectForm({ name: "", code: "", description: "" });
+    setProjectForm({ name: "", code: "", pid: "", description: "" });
   }
 
   async function saveProject(event: FormEvent) {
@@ -837,11 +855,120 @@ export default function TestCaseManagementApp() {
         body: JSON.stringify(projectForm),
       });
 
-      setProjectForm({ name: "", code: "", description: "" });
+      setProjectForm({ name: "", code: "", pid: "", description: "" });
       setEditingProjectId("");
       setMessage(editingProjectId ? "Da cap nhat project" : "Da tao project");
     });
   }
+
+  const buildJiraBugDescription = useCallback((selectedRunValue: RecordAny, selectedItemValue: RecordAny) => {
+    const testCase = selectedItemValue?.testCase || {};
+    const steps = Array.isArray(testCase.steps) ? testCase.steps : [];
+    const stepLines = steps.flatMap((step: RecordAny, index: number) => {
+      const action = String(step.action || "").trim();
+      const expected = String(step.expected || "").trim();
+      const lines = [`${index + 1}. ${action || "Step"}`];
+      if (expected) {
+        lines.push(`   Expected: ${expected}`);
+      }
+      return lines;
+    });
+
+    return [
+      `Run: ${selectedRunValue?.name || ""}`,
+      `Test case: ${testCase.caseKey || "TC"} - ${testCase.title || "Untitled"}`,
+      "",
+      "Steps to reproduce:",
+      ...(stepLines.length > 0 ? stepLines : ["1. <no manual steps captured>"]),
+      "",
+      `Expected result: ${steps.length > 0 ? steps.map((step: RecordAny) => step.expected).filter(Boolean).join(" | ") : "N/A"}`,
+      "",
+      `Actual result: ${selectedItemValue?.note || ""}`,
+    ].join("\n");
+  }, []);
+
+  const mapPriorityToJira = useCallback((priority?: string) => {
+    switch (String(priority || "").toLowerCase()) {
+      case "critical":
+      case "highest":
+        return "1";
+      case "high":
+        return "2";
+      case "medium":
+        return "3";
+      case "low":
+        return "4";
+      case "lowest":
+        return "5";
+      default:
+        return "3";
+    }
+  }, []);
+
+  const openJiraBugDialog = useCallback(async (run: RecordAny, result: RecordAny) => {
+    const projectId = getId(run?.project);
+    const project = projects.find((item) => String(item._id) === String(projectId));
+
+    if (!project || !projectId) {
+      setMessage("Run project is missing Jira configuration");
+      return;
+    }
+
+    setJiraBugDialog({
+      projectId,
+      projectName: project.name || "",
+      runId: String(run?._id || ""),
+      resultId: String(result?._id || ""),
+      caseKey: result?.testCase?.caseKey || "TC",
+      caseTitle: result?.testCase?.title || "Untitled",
+      issueType: "",
+      summary: `[${result?.testCase?.caseKey || "TC"}] ${result?.testCase?.title || "Untitled"}`,
+      description: buildJiraBugDescription(run, result),
+      priority: mapPriorityToJira(result?.testCase?.priority),
+      assignee: "",
+      labels: "",
+      submitting: false,
+      error: "",
+    });
+  }, [buildJiraBugDescription, mapPriorityToJira, projects]);
+
+  const closeJiraBugDialog = useCallback(() => {
+    setJiraBugDialog(null);
+  }, []);
+
+  const updateJiraBugDialog = useCallback((patch: Partial<NonNullable<typeof jiraBugDialog>>) => {
+    setJiraBugDialog((prev) => (prev ? { ...prev, ...patch } : prev));
+  }, []);
+
+  const submitJiraBug = useCallback(async () => {
+    if (!jiraBugDialog) {
+      return;
+    }
+
+    updateJiraBugDialog({ submitting: true, error: "" });
+
+    try {
+      await apiRequest("/api/jira/log-bug", token, {
+        method: "POST",
+        body: JSON.stringify({
+          projectId: jiraBugDialog.projectId,
+          runId: jiraBugDialog.runId,
+          resultId: jiraBugDialog.resultId,
+          summary: jiraBugDialog.summary,
+          description: jiraBugDialog.description,
+          issueType: jiraBugDialog.issueType,
+          priority: jiraBugDialog.priority,
+          assignee: jiraBugDialog.assignee,
+          labels: jiraBugDialog.labels,
+        }),
+      });
+
+      setMessage("Da log bug len Jira");
+      closeJiraBugDialog();
+    } catch (error: any) {
+      updateJiraBugDialog({ submitting: false, error: error.message || "Unable to log Jira bug" });
+    }
+  }, [closeJiraBugDialog, jiraBugDialog, token, updateJiraBugDialog]);
 
   async function createVersion(event: FormEvent) {
     event.preventDefault();
@@ -1538,6 +1665,7 @@ export default function TestCaseManagementApp() {
     resultId: string,
     status: "pass" | "fail" | "blocked" | "skip",
     note: string,
+    notes: string,
   ) {
     if (!selectedRunId) {
       return;
@@ -1549,7 +1677,7 @@ export default function TestCaseManagementApp() {
         token,
         {
           method: "PATCH",
-          body: JSON.stringify({ status, note }),
+          body: JSON.stringify({ status, note, notes }),
         },
       );
       await loadMyItems(selectedRunId);
@@ -1732,6 +1860,7 @@ export default function TestCaseManagementApp() {
     endRun,
     updateResult,
     startRun,
+    openJiraBugDialog,
     dashboardData,
     dashboardSummary,
     projectOverview,
@@ -1799,6 +1928,115 @@ export default function TestCaseManagementApp() {
     <>
       {toastNode}
       {confirmDialogNode}
+      {jiraBugDialog && (
+        <div className="tcm-confirm-overlay" role="presentation">
+          <div className="jira-bug-modal" role="dialog" aria-modal="true" aria-labelledby="jira-bug-title">
+            <div className="jira-bug-modal__header">
+              <div className="jira-bug-modal__titleblock">
+                <h3 id="jira-bug-title">Log Bug</h3>
+                <p>Review the Jira payload, adjust the editable fields, then submit the issue.</p>
+              </div>
+              <button type="button" className="tcm-toast__close" onClick={closeJiraBugDialog} aria-label="Close dialog">
+                ×
+              </button>
+            </div>
+            {jiraBugDialog.error && <div className="jira-bug-modal__alert">{jiraBugDialog.error}</div>}
+            <div className="jira-bug-modal__summary">
+              <div><span>Project</span><strong>{jiraBugDialog.projectName || "-"}</strong></div>
+              <div><span>Run</span><strong>{jiraBugDialog.runId || "-"}</strong></div>
+              <div><span>Case</span><strong>{jiraBugDialog.caseKey} - {jiraBugDialog.caseTitle}</strong></div>
+            </div>
+            <div className="jira-bug-modal__body">
+              <section className="jira-bug-modal__section">
+                <div className="jira-bug-modal__section-head">
+                  <div>
+                    <span>Jira mapping</span>
+                    <h4>Project and issue metadata</h4>
+                  </div>
+                  <p>These fields control where the bug is created.</p>
+                </div>
+                <div className="workspace-form jira-bug-modal__form">
+                  <div className="workspace-form__grid workspace-form__grid--two">
+                    <label>
+                      <span>Issue type</span>
+                      <input value={jiraBugDialog.issueType} onChange={(e) => updateJiraBugDialog({ issueType: e.target.value })} placeholder="Issue type id" />
+                    </label>
+                    <label>
+                      <span>Priority</span>
+                      <select value={jiraBugDialog.priority} onChange={(e) => updateJiraBugDialog({ priority: e.target.value })}>
+                        <option value="1">1 - Highest</option>
+                        <option value="2">2 - High</option>
+                        <option value="3">3 - Medium</option>
+                        <option value="4">4 - Low</option>
+                        <option value="5">5 - Lowest</option>
+                      </select>
+                    </label>
+                  </div>
+                </div>
+              </section>
+
+              <section className="jira-bug-modal__section jira-bug-modal__section--wide">
+                <div className="jira-bug-modal__section-head">
+                  <div>
+                    <span>Bug content</span>
+                    <h4>Text that will be sent to Jira</h4>
+                  </div>
+                  <p>Keep summary short and description detailed.</p>
+                </div>
+                <div className="workspace-form jira-bug-modal__form">
+                  <label>
+                    <span>Summary</span>
+                    <input value={jiraBugDialog.summary} onChange={(e) => updateJiraBugDialog({ summary: e.target.value })} />
+                  </label>
+                  <label>
+                    <span>Description</span>
+                    <textarea rows={9} value={jiraBugDialog.description} onChange={(e) => updateJiraBugDialog({ description: e.target.value })} />
+                  </label>
+                  <label>
+                    <span>Labels</span>
+                    <input value={jiraBugDialog.labels} onChange={(e) => updateJiraBugDialog({ labels: e.target.value })} placeholder="BE, FE" />
+                  </label>
+                </div>
+              </section>
+
+              <section className="jira-bug-modal__section">
+                <div className="jira-bug-modal__section-head">
+                  <div>
+                    <span>Assignee</span>
+                    <h4>Enter assignee manually</h4>
+                  </div>
+                </div>
+                <div className="workspace-form jira-bug-modal__form">
+                  <label>
+                    <span>Assignee</span>
+                    <input
+                      value={jiraBugDialog.assignee}
+                      onChange={(e) => updateJiraBugDialog({ assignee: e.target.value })}
+                      placeholder="Jira username, key, or display name"
+                    />
+                  </label>
+                  <div className="workspace-note">
+                    The value below will be sent directly as Jira assignee.
+                  </div>
+                </div>
+              </section>
+            </div>
+            <div className="jira-bug-modal__footer">
+              <div className="jira-bug-modal__footer-note">
+                Fields above are editable; the run, case, and description template are prefilled from the selected failure.
+              </div>
+              <div className="workspace-inline-actions workspace-inline-actions--right">
+                <button type="button" className="workspace-secondary" onClick={closeJiraBugDialog} disabled={jiraBugDialog.submitting}>
+                  Cancel
+                </button>
+                <button type="button" className="workspace-danger" onClick={() => void submitJiraBug()} disabled={jiraBugDialog.submitting || !jiraBugDialog.issueType}>
+                  {jiraBugDialog.submitting ? "Creating..." : "Create bug"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <RoleWorkspace workspace={workspace} />
     </>
   );

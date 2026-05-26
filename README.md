@@ -44,6 +44,10 @@ CORS_ORIGIN=http://localhost:3000
 ADMIN_NAME=Admin Root
 ADMIN_EMAIL=admin@example.com
 ADMIN_PASSWORD=12345678
+# Optional because backend now defaults to https://rd.cytech.ai
+JIRA_BASE_URL=https://rd.cytech.ai
+JIRA_USERNAME=your-jira-username
+JIRA_PASSWORD=your-jira-password
 ```
 
 Then start the backend:

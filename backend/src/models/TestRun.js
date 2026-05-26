@@ -36,6 +36,11 @@ const runResultSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
+    notes: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     executedAt: {
       type: Date,
     },

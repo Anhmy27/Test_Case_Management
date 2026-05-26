@@ -652,7 +652,7 @@ const applyAutomationResults = asyncHandler(async (req, res) => {
 
   // update results by planItemId
   for (const item of results) {
-    const { planItemId, status, note } = item;
+    const { planItemId, status, note, notes } = item;
     if (!planItemId || !['pass', 'fail', 'blocked', 'skip'].includes(status)) {
       continue;
     }
@@ -662,6 +662,7 @@ const applyAutomationResults = asyncHandler(async (req, res) => {
 
     match.status = status;
     match.note = note || '';
+    match.notes = notes || '';
     match.executedAt = new Date();
     match.tester = isAdmin ? req.user.id : null;
   }
@@ -697,7 +698,7 @@ const listTestRuns = asyncHandler(async (req, res) => {
 
   const testRuns = await TestRun.find(query)
     .sort({ createdAt: -1 })
-    .populate('project', 'name code')
+    .populate('project', 'name code pid')
     .populate('version', 'name')
     .populate('testPlan', 'name executionMode')
     .populate('startedBy', 'name email role')
@@ -725,7 +726,7 @@ const listTestRuns = asyncHandler(async (req, res) => {
 const getMyRunItems = asyncHandler(async (req, res) => {
   const { runId } = req.params;
   const testRun = await TestRun.findById(toObjectId(runId, 'runId'))
-    .populate('results.testCase', 'caseKey title steps priority severity')
+    .populate('results.testCase', 'caseKey title description steps priority severity')
     .populate('results.owner', 'name email role')
     .populate('results.assignees', 'name email role')
     .populate('results.tester', 'name email role')
@@ -759,7 +760,7 @@ const getMyRunItems = asyncHandler(async (req, res) => {
 
 const updateRunResult = asyncHandler(async (req, res) => {
   const { runId, resultId } = req.params;
-  const { status, note } = req.body;
+  const { status, note, notes } = req.body;
 
   if (!['pass', 'fail', 'blocked', 'skip'].includes(status)) {
     throw httpError(400, 'status must be one of pass/fail/blocked/skip');
@@ -787,6 +788,7 @@ const updateRunResult = asyncHandler(async (req, res) => {
 
   result.status = status;
   result.note = note || '';
+  result.notes = notes || '';
   result.executedAt = new Date();
   result.tester = req.user.id;
 

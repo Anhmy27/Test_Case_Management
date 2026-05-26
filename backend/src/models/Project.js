@@ -13,6 +13,11 @@ const projectSchema = new mongoose.Schema(
       trim: true,
       uppercase: true,
     },
+    pid: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     description: {
       type: String,
       default: '',

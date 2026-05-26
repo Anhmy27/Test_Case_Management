@@ -22,13 +22,29 @@ type Props = {
   selectedItem?: RecordAny;
   notes: Record<string, string>;
   setNotes: Dispatch<SetStateAction<Record<string, string>>>;
-  updateResult: (resultId: string, status: "pass" | "fail" | "blocked" | "skip", note: string) => Promise<void>;
+  updateResult: (resultId: string, status: "pass" | "fail" | "blocked" | "skip", note: string, notes: string) => Promise<void>;
   endRun: (runId: string) => Promise<void>;
   canEditSelectedRun: boolean;
+  onLogBug?: (run: RecordAny, result: RecordAny) => void;
 };
 
 export default function ExecutionScreen(props: Props) {
-  const { runForm, setRunForm, startRun, scopedPlans, selectedRunPlanIsAutomation, selectedRun, myItems, selectedItemId, setSelectedItemId, selectedItem, notes, setNotes, updateResult, endRun, canEditSelectedRun } = props;
+  const { runForm, setRunForm, startRun, scopedPlans, selectedRunPlanIsAutomation, selectedRun, myItems, selectedItemId, setSelectedItemId, selectedItem, notes, setNotes, updateResult, endRun, canEditSelectedRun, onLogBug } = props;
+  
+  const handleEndRun = async () => {
+    if (!selectedRun) return;
+
+    if (selectedItemId && selectedItem) {
+      await updateResult(
+        selectedItemId,
+        selectedItem.status as "pass" | "fail" | "blocked" | "skip",
+        notes[selectedItemId] || selectedItem.note || "",
+        notes[`${selectedItemId}:notes`] || selectedItem.notes || "",
+      );
+    }
+
+    await endRun(selectedRun._id);
+  };
   const totalItems = myItems.length;
   const completedItems = myItems.filter((item) => ["pass", "fail", "blocked", "skip"].includes(String(item.status))).length;
   const activeRunCounts = myItems.reduce(
@@ -79,7 +95,7 @@ export default function ExecutionScreen(props: Props) {
               <div className="mini-stat"><span>Pending</span><strong>{activeRunCounts.pending}</strong></div>
             </div>
           </SectionCard>
-          <AutomationRunExecutionPanel selectedRun={selectedRun} myItems={myItems} selectedItemId={selectedItemId} setSelectedItemId={setSelectedItemId} selectedItem={selectedItem} notes={notes} setNotes={setNotes} />
+          <AutomationRunExecutionPanel selectedRun={selectedRun} myItems={myItems} selectedItemId={selectedItemId} setSelectedItemId={setSelectedItemId} selectedItem={selectedItem} notes={notes} setNotes={setNotes} onLogBug={onLogBug} />
         </div>
       ) : (
         <div className="execution-workbench">
@@ -93,7 +109,7 @@ export default function ExecutionScreen(props: Props) {
               <div className="mini-stat"><span>Pending</span><strong>{activeRunCounts.pending}</strong></div>
             </div>
           </SectionCard>
-          <ManualRunExecutionPanel selectedRun={selectedRun} myItems={myItems} selectedItemId={selectedItemId} setSelectedItemId={setSelectedItemId} selectedItem={selectedItem} notes={notes} setNotes={setNotes} onUpdateResult={updateResult} onEndRun={() => endRun(selectedRun._id)} canEditRun={canEditSelectedRun} />
+          <ManualRunExecutionPanel selectedRun={selectedRun} myItems={myItems} selectedItemId={selectedItemId} setSelectedItemId={setSelectedItemId} selectedItem={selectedItem} notes={notes} setNotes={setNotes} onUpdateResult={updateResult} onEndRun={handleEndRun} canEditRun={canEditSelectedRun} onLogBug={onLogBug} />
         </div>
       ) : (
         <div className="workspace-note">Chon hoac start mot test run de bat dau execution.</div>

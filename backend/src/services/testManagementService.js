@@ -393,7 +393,7 @@ const isPlanAssignedToUser = (testPlan, userId) => {
 
 // Project CRUD
 const createProject = asyncHandler(async (req, res) => {
-  const { name, code, description } = req.body;
+  const { name, code, description, pid } = req.body;
   if (!name || !code) {
     throw httpError(400, 'name and code are required');
   }
@@ -412,6 +412,7 @@ const createProject = asyncHandler(async (req, res) => {
   const project = await Project.create({
     name: normalizedName,
     code: normalizedCode,
+    pid: pid ? String(pid).trim() : '',
     description: description || '',
     createdBy: req.user.id,
   });
@@ -449,7 +450,7 @@ const getProject = asyncHandler(async (req, res) => {
 
 const updateProject = asyncHandler(async (req, res) => {
   const { projectId } = req.params;
-  const { name, code, description, status } = req.body;
+  const { name, code, description, status, pid } = req.body;
 
   const project = await Project.findById(toObjectId(projectId, 'projectId'));
   if (!project) {
@@ -475,6 +476,7 @@ const updateProject = asyncHandler(async (req, res) => {
   if (name) project.name = nextName;
   if (code) project.code = nextCode;
   if (description !== undefined) project.description = description || '';
+  if (pid !== undefined) project.pid = pid ? String(pid).trim() : '';
   if (status && ['active', 'archived'].includes(status)) project.status = status;
 
   await project.save();

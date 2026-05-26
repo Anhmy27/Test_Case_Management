@@ -13,6 +13,7 @@ interface AutomationRunExecutionPanelProps {
   selectedItem?: RecordAny;
   notes: Record<string, string>;
   setNotes: Dispatch<SetStateAction<Record<string, string>>>;
+  onLogBug?: (run: RecordAny, result: RecordAny) => void;
 }
 
 export default function AutomationRunExecutionPanel({
@@ -23,7 +24,10 @@ export default function AutomationRunExecutionPanel({
   selectedItem,
   notes,
   setNotes,
+  onLogBug,
 }: AutomationRunExecutionPanelProps) {
+  const canLogBug = selectedRun?.status === "completed" && selectedItem?.status === "fail";
+
   const summary = myItems.reduce(
     (acc, item: RecordAny) => {
       const status = String(item.status || "untested");
@@ -100,6 +104,11 @@ export default function AutomationRunExecutionPanel({
                 <div className="workspace-inline-actions">
                   <span className="workspace-chip">Automation review mode</span>
                   <span className="workspace-chip">Plan: {selectedRun?.testPlan?.name || selectedRun?.name || "-"}</span>
+                  {canLogBug && onLogBug && (
+                    <button type="button" className="workspace-secondary" onClick={() => onLogBug(selectedRun, selectedItem)}>
+                      Log Bug
+                    </button>
+                  )}
                 </div>
               </div>
               <div className="execution-block">
@@ -112,7 +121,11 @@ export default function AutomationRunExecutionPanel({
               </div>
               <div className="execution-block">
                 <strong>Expected result</strong>
-                <p>{selectedItem.testCase?.expected || "N/A"}</p>
+                <p style={{ whiteSpace: "pre-line" }}>
+                  {Array.isArray(selectedItem.testCase?.steps) && selectedItem.testCase.steps.length > 0
+                    ? selectedItem.testCase.steps.map((step: RecordAny, index: number) => `${index + 1}. ${step.expected || ""}`).filter(Boolean).join("\n")
+                    : selectedItem.testCase?.expected || "N/A"}
+                </p>
               </div>
               <div className="execution-block execution-block--muted">
                 <strong>Execution note</strong>
@@ -124,6 +137,14 @@ export default function AutomationRunExecutionPanel({
                   <textarea
                     rows={4}
                     value={notes[selectedItem._id] ?? selectedItem.note ?? ""}
+                    readOnly
+                  />
+                </label>
+                <label>
+                  <span>Notes</span>
+                  <textarea
+                    rows={3}
+                    value={selectedItem.notes || notes[`${selectedItem._id}:notes`] || ""}
                     readOnly
                   />
                 </label>

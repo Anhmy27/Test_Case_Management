@@ -17,9 +17,11 @@ interface ManualRunExecutionPanelProps {
     resultId: string,
     status: "pass" | "fail" | "blocked" | "skip",
     note: string,
+    notes: string,
   ) => void;
   onEndRun: () => void;
   canEditRun: boolean;
+  onLogBug?: (run: RecordAny, result: RecordAny) => void;
 }
 
 export default function ManualRunExecutionPanel({
@@ -33,6 +35,7 @@ export default function ManualRunExecutionPanel({
   onUpdateResult,
   onEndRun,
   canEditRun,
+  onLogBug,
 }: ManualRunExecutionPanelProps) {
   const currentIndex = myItems.findIndex((item: RecordAny) => item._id === selectedItemId);
   const nextItem = currentIndex >= 0
@@ -51,6 +54,7 @@ export default function ManualRunExecutionPanel({
     },
     { pass: 0, fail: 0, blocked: 0, skip: 0, pending: 0 },
   );
+  const canLogBug = selectedRun?.status === "completed" && selectedItem?.status === "fail";
 
   const goToNextItem = async () => {
     if (!nextItem) {
@@ -124,6 +128,11 @@ export default function ManualRunExecutionPanel({
                   <span className="workspace-chip">Priority: {selectedItem.testCase?.priority || "n/a"}</span>
                   <span className="workspace-chip">Result owner: {selectedItem.tester?.name || selectedItem.owner?.name || "-"}</span>
                   {selectedItem.executedAt ? <span className="workspace-chip">Updated: {new Date(selectedItem.executedAt).toLocaleString()}</span> : null}
+                  {canLogBug && onLogBug && (
+                    <button type="button" className="workspace-secondary" onClick={() => onLogBug(selectedRun, selectedItem)}>
+                      Log Bug
+                    </button>
+                  )}
                 </div>
               </div>
               <div className="execution-block">
@@ -136,7 +145,11 @@ export default function ManualRunExecutionPanel({
               </div>
               <div className="execution-block">
                 <strong>Expected result</strong>
-                <p>{selectedItem.testCase?.expected || "N/A"}</p>
+                <p style={{ whiteSpace: "pre-line" }}>
+                  {Array.isArray(selectedItem.testCase?.steps) && selectedItem.testCase.steps.length > 0
+                    ? selectedItem.testCase.steps.map((step: RecordAny, index: number) => `${index + 1}. ${step.expected || ""}`).filter(Boolean).join("\n")
+                    : selectedItem.testCase?.expected || "N/A"}
+                </p>
               </div>
               <div className="workspace-form">
                 <label>
@@ -158,7 +171,7 @@ export default function ManualRunExecutionPanel({
                   <span>Notes</span>
                   <textarea
                     rows={3}
-                    value={notes[`${selectedItem._id}:notes`] ?? ""}
+                    value={notes[`${selectedItem._id}:notes`] ?? selectedItem.notes ?? ""}
                     readOnly={!canEditRun}
                     onChange={(e) =>
                       canEditRun &&
@@ -190,7 +203,7 @@ export default function ManualRunExecutionPanel({
             className={selectedItem?.status === "pass" ? "workspace-primary is-selected" : "workspace-primary"}
             onClick={async () => {
               if (!selectedItemId) return;
-              await onUpdateResult(selectedItemId, "pass", notes[selectedItemId] || "");
+              await onUpdateResult(selectedItemId, "pass", notes[selectedItemId] || "", notes[`${selectedItemId}:notes`] || "");
               void goToNextItem();
             }}
           >
@@ -201,7 +214,7 @@ export default function ManualRunExecutionPanel({
             className={selectedItem?.status === "fail" ? "workspace-danger is-selected" : "workspace-danger"}
             onClick={async () => {
               if (!selectedItemId) return;
-              await onUpdateResult(selectedItemId, "fail", notes[selectedItemId] || "");
+              await onUpdateResult(selectedItemId, "fail", notes[selectedItemId] || "", notes[`${selectedItemId}:notes`] || "");
               void goToNextItem();
             }}
           >
@@ -212,7 +225,7 @@ export default function ManualRunExecutionPanel({
             className={selectedItem?.status === "blocked" ? "workspace-secondary is-selected" : "workspace-secondary"}
             onClick={async () => {
               if (!selectedItemId) return;
-              await onUpdateResult(selectedItemId, "blocked", notes[selectedItemId] || "");
+              await onUpdateResult(selectedItemId, "blocked", notes[selectedItemId] || "", notes[`${selectedItemId}:notes`] || "");
               void goToNextItem();
             }}
           >
@@ -223,7 +236,7 @@ export default function ManualRunExecutionPanel({
             className={selectedItem?.status === "skip" ? "workspace-secondary is-selected" : "workspace-secondary"}
             onClick={async () => {
               if (!selectedItemId) return;
-              await onUpdateResult(selectedItemId, "skip", notes[selectedItemId] || "");
+              await onUpdateResult(selectedItemId, "skip", notes[selectedItemId] || "", notes[`${selectedItemId}:notes`] || "");
               void goToNextItem();
             }}
           >

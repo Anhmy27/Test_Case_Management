@@ -65,8 +65,8 @@ function DataTable({
 
 type AdminProjectsScreenProps = {
   editingProjectId: string;
-  projectForm: { name: string; code: string; description: string };
-  setProjectForm: Dispatch<SetStateAction<{ name: string; code: string; description: string }>>;
+  projectForm: { name: string; code: string; pid: string; description: string };
+  setProjectForm: Dispatch<SetStateAction<{ name: string; code: string; pid: string; description: string }>>;
   saveProject: (event: React.FormEvent) => Promise<void>;
   cancelProjectEdit: () => void;
   projects: RecordAny[];
@@ -117,6 +117,19 @@ export default function AdminProjectsScreen({
                 required
               />
             </label>
+            <label>
+              <span>Jira pid</span>
+              <input
+                value={projectForm.pid}
+                onChange={(e) =>
+                  setProjectForm((prev) => ({
+                    ...prev,
+                    pid: e.target.value,
+                  }))
+                }
+                placeholder="11500"
+              />
+            </label>
           </div>
           <label>
             <span>Description</span>
@@ -146,13 +159,14 @@ export default function AdminProjectsScreen({
 
       <SectionCard title="Project List" subtitle="Card/table sach, riang">
         <DataTable
-          columns={["Project", "Code", "Action"]}
+          columns={["Project", "Code", "Pid", "Action"]}
           rows={projects
             .filter((project: RecordAny) => matchesSearch(project.name, project.code))
             .map((project: RecordAny) => (
               <>
                 <div>{project.name}</div>
                 <div>{project.code}</div>
+                <div>{project.pid || "-"}</div>
                 <div className="workspace-inline-actions">
                   <button type="button" className="workspace-secondary" onClick={() => startProjectEdit(project)}>
                     Edit

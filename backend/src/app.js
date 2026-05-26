@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
+const jiraRoutes = require('./routes/jiraRoutes');
 const testManagementRoutes = require('./routes/testManagementRoutes');
 const { errorMiddleware } = require('./middlewares/errorMiddleware');
 
@@ -20,6 +21,7 @@ app.get('/', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/jira', jiraRoutes);
 app.use('/api', testManagementRoutes);
 
 app.use(errorMiddleware);
