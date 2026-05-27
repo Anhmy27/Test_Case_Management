@@ -3,6 +3,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import type { ReactNode } from "react";
+import StatusBreakdownDonut from "@/components/dashboard/StatusBreakdownDonut";
 
 type RecordAny = Record<string, any>;
 
@@ -20,6 +21,7 @@ type AdminDashboardScreenProps = {
   matchesSearch: (...values: Array<string | number | undefined | null>) => boolean;
   userName: (value: unknown) => string;
   getId: (value: unknown) => string;
+  onNavigate?: (tab: string, projectId?: string) => void;
 };
 
 type DataGridColumn = {
@@ -172,6 +174,7 @@ export default function AdminDashboardScreen({
   matchesSearch,
   userName,
   getId,
+  onNavigate,
 }: AdminDashboardScreenProps) {
   const runningRuns = dashboardData.runningTestRuns || [];
   const delayedPlans = dashboardData.delayedTestPlans || [];
@@ -179,6 +182,10 @@ export default function AdminDashboardScreen({
   const testerActivity = dashboardData.testerActivity || [];
   const completionRate = dashboardSummary.completionRate || 0;
   const passRate = dashboardSummary.passRate || 0;
+  const passCount = Number(dashboardSummary.pass || 0);
+  const failCount = Number(dashboardSummary.fail || 0);
+  const blockedCount = Number(dashboardSummary.blocked || 0);
+  const untestedCount = Number(dashboardSummary.untested || 0);
 
   const summaryCards: SummaryCard[] = [
     { label: "Running Runs", value: dashboardSummary.runningRuns || runningRunsCount || 0 },
@@ -190,6 +197,13 @@ export default function AdminDashboardScreen({
       helper: "Delayed or failing" ,
     },
   ] as const;
+
+  const statusBreakdown = [
+    { key: "pass", label: "Passed", value: passCount, color: "#16a34a" },
+    { key: "fail", label: "Failed", value: failCount, color: "#ef4444" },
+    { key: "blocked", label: "Blocked", value: blockedCount, color: "#f59e0b" },
+    { key: "untested", label: "Not run", value: untestedCount, color: "#64748b" },
+  ];
 
   const runningRunRows: DataGridRow[] = runningRuns
     .map((run: RecordAny, index: number) => {
@@ -226,6 +240,7 @@ export default function AdminDashboardScreen({
         <button
           key="action"
           type="button"
+          onClick={() => onNavigate?.("test-runs")}
           className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-900"
         >
           Open
@@ -258,6 +273,7 @@ export default function AdminDashboardScreen({
         <button
           key="action"
           type="button"
+          onClick={() => onNavigate?.("test-plans", getId(plan.project))}
           className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-900"
         >
           Review
@@ -288,6 +304,7 @@ export default function AdminDashboardScreen({
         <button
           key="action"
           type="button"
+          onClick={() => onNavigate?.("test-cases-detail")}
           className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-900"
         >
           Investigate
@@ -341,6 +358,7 @@ export default function AdminDashboardScreen({
         <button
           key="action"
           type="button"
+          onClick={() => onNavigate?.("versions", String(project._id || ""))}
           className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-900"
         >
           View
@@ -368,6 +386,7 @@ export default function AdminDashboardScreen({
         <button
           key="action"
           type="button"
+          onClick={() => onNavigate?.("users")}
           className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-900"
         >
           Review
@@ -398,7 +417,7 @@ export default function AdminDashboardScreen({
           <MetricCard label="Users" value={totalUsers} />
         </div>
         <div className="grid grid-cols-1 gap-4 px-6 pb-6 md:grid-cols-2 xl:grid-cols-4">
-            {summaryCards.map((card: SummaryCard) => (
+          {summaryCards.map((card: SummaryCard) => (
             <MetricCard
               key={card.label}
               label={card.label}
@@ -406,6 +425,13 @@ export default function AdminDashboardScreen({
               helper={card.helper}
             />
           ))}
+        </div>
+        <div className="px-6 pb-6">
+          <StatusBreakdownDonut
+            title="Execution mix"
+            subtitle="Biểu đồ trạng thái giúp đọc nhanh pass/fail/blocked"
+            items={statusBreakdown}
+          />
         </div>
       </section>
 

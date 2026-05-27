@@ -10,9 +10,13 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
 } from "recharts";
 import StatusBadge from "./StatusBadge";
 import ExecutionHistory from "./ExecutionHistory";
+import StatusBreakdownDonut from "./StatusBreakdownDonut";
 import type { TestPlanDetail, TestCaseInsight } from "@/lib/tcmTypes";
 
 const getAuthToken = () => {
@@ -137,6 +141,12 @@ const TestPlanDetail: React.FC<TestPlanDetailProps> = ({
     notRun: run.notRunCount,
   }));
 
+  const summaryBreakdown = [
+    { key: "pass", label: "Passed", value: data.summary.passCount, color: "#16a34a" },
+    { key: "fail", label: "Failed", value: data.summary.failCount, color: "#ef4444" },
+    { key: "notRun", label: "Not run", value: data.summary.notRunCount, color: "#64748b" },
+  ];
+
   return (
     <div className="space-y-6">
       {/* Breadcrumb */}
@@ -166,43 +176,51 @@ const TestPlanDetail: React.FC<TestPlanDetailProps> = ({
       </div>
 
       {/* Header Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
-        <div className="bg-white p-6 rounded-lg shadow">
-          <p className="text-sm text-gray-600 mb-1">Total Tests</p>
-          <p className="text-3xl font-bold text-gray-900">
-            {data.summary.totalTests}
-          </p>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+            <p className="text-sm text-slate-500 mb-1">Total Tests</p>
+            <p className="text-3xl font-bold text-slate-900">
+              {data.summary.totalTests}
+            </p>
+          </div>
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+            <p className="text-sm text-slate-500 mb-1">Pass</p>
+            <p className="text-3xl font-bold text-emerald-600">
+              {data.summary.passCount}
+            </p>
+          </div>
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+            <p className="text-sm text-slate-500 mb-1">Fail</p>
+            <p className="text-3xl font-bold text-rose-600">
+              {data.summary.failCount}
+            </p>
+          </div>
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+            <p className="text-sm text-slate-500 mb-1">Not Run</p>
+            <p className="text-3xl font-bold text-slate-600">
+              {data.summary.notRunCount}
+            </p>
+          </div>
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+            <p className="text-sm text-slate-500 mb-1">Pass Rate</p>
+            <p className="text-3xl font-bold text-emerald-600">
+              {data.summary.passRate.toFixed(1)}%
+            </p>
+          </div>
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+            <p className="text-sm text-slate-500 mb-1">Progress</p>
+            <p className="text-3xl font-bold text-blue-600">
+              {data.summary.progress.toFixed(1)}%
+            </p>
+          </div>
         </div>
-        <div className="bg-white p-6 rounded-lg shadow">
-          <p className="text-sm text-gray-600 mb-1">Pass</p>
-          <p className="text-3xl font-bold text-green-600">
-            {data.summary.passCount}
-          </p>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow">
-          <p className="text-sm text-gray-600 mb-1">Fail</p>
-          <p className="text-3xl font-bold text-red-600">
-            {data.summary.failCount}
-          </p>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow">
-          <p className="text-sm text-gray-600 mb-1">Not Run</p>
-          <p className="text-3xl font-bold text-gray-600">
-            {data.summary.notRunCount}
-          </p>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow">
-          <p className="text-sm text-gray-600 mb-1">Pass Rate</p>
-          <p className="text-3xl font-bold text-green-600">
-            {data.summary.passRate.toFixed(1)}%
-          </p>
-        </div>
-        <div className="bg-white p-6 rounded-lg shadow">
-          <p className="text-sm text-gray-600 mb-1">Progress</p>
-          <p className="text-3xl font-bold text-blue-600">
-            {data.summary.progress.toFixed(1)}%
-          </p>
-        </div>
+
+        <StatusBreakdownDonut
+          title="Plan summary"
+          subtitle="Tỷ lệ pass / fail / not run của test plan"
+          items={summaryBreakdown}
+        />
       </div>
 
       {/* Run Trend Section */}

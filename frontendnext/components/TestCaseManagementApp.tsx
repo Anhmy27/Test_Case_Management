@@ -1293,6 +1293,122 @@ export default function TestCaseManagementApp() {
     });
   }
 
+  async function deleteTestCasesBulk(testCaseIds: string[]) {
+    if (!Array.isArray(testCaseIds) || testCaseIds.length === 0) {
+      return;
+    }
+
+    setMessage("Confirming bulk delete...");
+    setConfirmDialog({
+      title: `Xoa ${testCaseIds.length} test case?`,
+      description: "Thao tac nay khong the hoan tac.",
+      confirmLabel: "Xoa tat ca",
+      onConfirm: async () => {
+        await withAction(async () => {
+          for (const id of testCaseIds) {
+            await apiRequest(`/api/test-cases/${id}`, token, {
+              method: "DELETE",
+            });
+          }
+          setMessage("Da xoa nhieu test case");
+        });
+      },
+    });
+  }
+
+  async function duplicateTestCase(testCase: RecordAny) {
+    if (!testCase) return;
+    await withAction(async () => {
+      const originalKey = String(testCase.caseKey || "TC").toUpperCase();
+      const suffix = String(Date.now()).slice(-4);
+      const caseKey = `${originalKey}-COPY-${suffix}`;
+      const stepsSource = Array.isArray(testCase.steps) ? testCase.steps : [];
+      const expectedValue = testCase.expected || stepsSource[0]?.expected || "Same as original";
+      const steps = stepsSource.length
+        ? stepsSource.map((step: RecordAny, index: number) => ({
+            action: step.action || `Step ${index + 1}`,
+            expected: expectedValue,
+          }))
+        : [{ action: "Follow original", expected: expectedValue }];
+
+      const automationSteps = Array.isArray(testCase.automation?.steps)
+        ? testCase.automation.steps.map((step: RecordAny, index: number) => ({
+            order: index + 1,
+            action: step.action || "goto",
+            targetType: step.targetType || "css",
+            target: step.target || "",
+            value: step.value || "",
+            expected: step.expected || "",
+            timeoutMs: Number(step.timeoutMs || 15000),
+          }))
+        : [];
+
+      await apiRequest("/api/test-cases", token, {
+        method: "POST",
+        body: JSON.stringify({
+          projectId: getId(testCase.project),
+          groupId: getId(testCase.group),
+          caseKey,
+          title: `${testCase.title || "Test case"} (Copy)`,
+          priority: testCase.priority || "medium",
+          severity: testCase.severity || "major",
+          type: testCase.type || "functional",
+          description: testCase.description || "",
+          steps,
+          automation: {
+            enabled: Boolean(testCase.automation?.enabled),
+            userKey: testCase.automation?.userKey || "",
+            baseUrl: testCase.automation?.baseUrl || "",
+            runner: "playwright",
+            steps: automationSteps,
+          },
+        }),
+      });
+
+      setMessage("Da duplicate test case");
+    });
+  }
+
+  async function duplicateTestCasesBulk(testCases: RecordAny[]) {
+    if (!Array.isArray(testCases) || testCases.length === 0) {
+      return;
+    }
+
+    await withAction(async () => {
+      for (const testCase of testCases) {
+        await duplicateTestCase(testCase);
+      }
+      setMessage("Da duplicate nhieu test case");
+    });
+  }
+
+  async function duplicatePlan(plan: RecordAny) {
+    if (!plan) return;
+    await withAction(async () => {
+      const suffix = String(Date.now()).slice(-4);
+      const caseIds = Array.isArray(plan.items)
+        ? plan.items.map((item: RecordAny) => String(getId(item.testCase) || item.testCase)).filter(Boolean)
+        : [];
+      if (caseIds.length === 0) {
+        throw new Error("Plan khong co test case de duplicate");
+      }
+
+      await apiRequest("/api/test-plans", token, {
+        method: "POST",
+        body: JSON.stringify({
+          name: `${plan.name || "Test plan"} (Copy ${suffix})`,
+          description: plan.description || "",
+          projectId: getId(plan.project),
+          versionId: getId(plan.version),
+          caseIds,
+          executionMode: plan.executionMode || "manual",
+        }),
+      });
+
+      setMessage("Da duplicate test plan");
+    });
+  }
+
   function addTestCaseStep() {
     setTestCaseForm((prev) => ({
       ...prev,
@@ -1814,6 +1930,9 @@ export default function TestCaseManagementApp() {
     cancelTestCaseEdit,
     saveTestCase,
     deleteTestCase,
+    deleteTestCasesBulk,
+    duplicateTestCase,
+    duplicateTestCasesBulk,
     addTestCaseStep,
     updateTestCaseStep,
     removeTestCaseStep,
@@ -1836,6 +1955,7 @@ export default function TestCaseManagementApp() {
     editingExecutionMode,
     setEditingExecutionMode,
     updatePlanExecutionMode,
+    duplicatePlan,
     createVersion,
     createGroup,
     createPlan,

@@ -92,6 +92,9 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
     cancelTestCaseEdit,
     saveTestCase,
     deleteTestCase,
+    deleteTestCasesBulk,
+    duplicateTestCase,
+    duplicateTestCasesBulk,
     addTestCaseStep,
     updateTestCaseStep,
     removeTestCaseStep,
@@ -117,6 +120,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
     editingExecutionMode,
     setEditingExecutionMode,
     updatePlanExecutionMode,
+    duplicatePlan,
     createVersion,
     createGroup,
     createPlan,
@@ -598,6 +602,12 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
             matchesSearch={matchesSearch}
             userName={userName}
             getId={getId}
+            onNavigate={(tab, projectId) => {
+              if (projectId !== undefined) {
+                setSelectedProjectId(projectId);
+              }
+              setActiveTab(tab as any);
+            }}
           />
         )}
 
@@ -650,12 +660,16 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
             matchesSearch={matchesSearch}
             startTestCaseEdit={startTestCaseEdit}
             deleteTestCase={deleteTestCase}
+            deleteTestCases={deleteTestCasesBulk}
+            duplicateTestCase={duplicateTestCase}
+            duplicateTestCases={duplicateTestCasesBulk}
             scopedProjects={scopedProjects}
             scopedGroups={scopedGroups}
             selectedProjectId={selectedProjectId}
             downloadTestCaseTemplate={downloadTestCaseTemplate}
             importTestCases={importTestCases}
             importInputRef={importInputRef}
+            onNavigate={(tab) => setActiveTab(tab as any)}
           />
         )}
 
@@ -716,6 +730,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
             setEditingPlanId={setEditingPlanId}
             setEditingExecutionMode={setEditingExecutionMode}
             updatePlanExecutionMode={updatePlanExecutionMode}
+            duplicatePlan={duplicatePlan}
             userName={userName}
             getId={getId}
             matchesSearch={matchesSearch}

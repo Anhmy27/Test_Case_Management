@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import ProgressBar from "./ProgressBar";
 import StatusBadge from "./StatusBadge";
+import StatusBreakdownDonut from "./StatusBreakdownDonut";
 import type { VersionStats, TestPlanStats } from "@/lib/tcmTypes";
 
 const getAuthToken = () => {
@@ -106,6 +107,14 @@ const VersionDashboard: React.FC<VersionDashboardProps> = ({
     return "#ef4444";
   };
 
+  const versionBreakdown = selectedVersion
+    ? [
+        { key: "pass", label: "Passed", value: selectedVersion.passCount, color: "#16a34a" },
+        { key: "fail", label: "Failed", value: selectedVersion.failCount, color: "#ef4444" },
+        { key: "notRun", label: "Not run", value: selectedVersion.notRunCount, color: "#64748b" },
+      ]
+    : [];
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -154,35 +163,43 @@ const VersionDashboard: React.FC<VersionDashboardProps> = ({
       {selectedVersion && (
         <>
           {/* Version Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white p-6 rounded-lg shadow">
-              <p className="text-sm text-gray-600 mb-1">Total Test Plans</p>
-              <p className="text-3xl font-bold text-gray-900">
-                {selectedVersion.totalTestPlans}
-              </p>
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+                <p className="text-sm text-slate-500 mb-1">Total Test Plans</p>
+                <p className="text-3xl font-bold text-slate-900">
+                  {selectedVersion.totalTestPlans}
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+                <p className="text-sm text-slate-500 mb-1">Total Tests</p>
+                <p className="text-3xl font-bold text-slate-900">
+                  {selectedVersion.totalTests}
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+                <p className="text-sm text-slate-500 mb-1">Pass Rate</p>
+                <p className="text-3xl font-bold text-emerald-600">
+                  {selectedVersion.passRate.toFixed(1)}%
+                </p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+                <p className="text-sm text-slate-500 mb-1">Progress</p>
+                <p className="text-3xl font-bold text-blue-600">
+                  {selectedVersion.progress.toFixed(1)}%
+                </p>
+              </div>
             </div>
-            <div className="bg-white p-6 rounded-lg shadow">
-              <p className="text-sm text-gray-600 mb-1">Total Tests</p>
-              <p className="text-3xl font-bold text-gray-900">
-                {selectedVersion.totalTests}
-              </p>
-            </div>
-            <div className="bg-white p-6 rounded-lg shadow">
-              <p className="text-sm text-gray-600 mb-1">Pass Rate</p>
-              <p className="text-3xl font-bold text-green-600">
-                {selectedVersion.passRate.toFixed(1)}%
-              </p>
-            </div>
-            <div className="bg-white p-6 rounded-lg shadow">
-              <p className="text-sm text-gray-600 mb-1">Progress</p>
-              <p className="text-3xl font-bold text-blue-600">
-                {selectedVersion.progress.toFixed(1)}%
-              </p>
-            </div>
+
+            <StatusBreakdownDonut
+              title="Version status"
+              subtitle="Pass / fail / not run theo version"
+              items={versionBreakdown}
+            />
           </div>
 
           {/* Detailed Stats */}
-          <div className="bg-white p-6 rounded-lg shadow">
+          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
               Test Execution Summary
             </h3>
@@ -190,7 +207,7 @@ const VersionDashboard: React.FC<VersionDashboardProps> = ({
               <div>
                 <div className="flex justify-between text-sm mb-2">
                   <span className="text-gray-600">Passed</span>
-                  <span className="font-semibold text-green-600">
+                  <span className="font-semibold text-emerald-600">
                     {selectedVersion.passCount}
                   </span>
                 </div>
@@ -204,7 +221,7 @@ const VersionDashboard: React.FC<VersionDashboardProps> = ({
               <div>
                 <div className="flex justify-between text-sm mb-2">
                   <span className="text-gray-600">Failed</span>
-                  <span className="font-semibold text-red-600">
+                  <span className="font-semibold text-rose-600">
                     {selectedVersion.failCount}
                   </span>
                 </div>
@@ -218,7 +235,7 @@ const VersionDashboard: React.FC<VersionDashboardProps> = ({
               <div>
                 <div className="flex justify-between text-sm mb-2">
                   <span className="text-gray-600">Not Run</span>
-                  <span className="font-semibold text-gray-600">
+                  <span className="font-semibold text-slate-600">
                     {selectedVersion.notRunCount}
                   </span>
                 </div>

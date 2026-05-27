@@ -5,7 +5,6 @@
 import type { Dispatch, SetStateAction } from "react";
 import ManualRunExecutionPanel from "../execution/ManualRunExecutionPanel";
 import AutomationRunExecutionPanel from "../execution/AutomationRunExecutionPanel";
-import { SectionCard } from "./shared";
 
 type RecordAny = Record<string, any>;
 
@@ -61,58 +60,125 @@ export default function ExecutionScreen(props: Props) {
   );
 
   return (
-    <div className="execution-workspace">
-      <div className="execution-workspace__top">
-        <SectionCard
-          title={selectedRun ? "Execution Workbench" : "Start Test Run"}
-          subtitle={selectedRun ? "Theo doi progress, status, log va case detail trong 1 workspace" : "Admin co the run moi test plan, assignee chi run plan duoc assign"}
-          actions={selectedRun ? [
-            <span key="run-status" className={`workspace-pill ${selectedRun.status === "running" ? "workspace-pill--success" : ""}`}>{selectedRun.status}</span>,
-            <span key="run-mode" className="workspace-pill">{selectedRun.testPlan?.executionMode || "manual"}</span>,
-          ] : undefined}
-        >
-          <form className="workspace-form execution-launcher" onSubmit={startRun}>
-            <div className="workspace-form__grid workspace-form__grid--two">
-              <label><span>Test Plan</span><select value={runForm.testPlanId} onChange={(e) => setRunForm((prev: any) => ({ ...prev, testPlanId: e.target.value }))} required><option value="">Select plan</option>{scopedPlans.map((plan: RecordAny) => <option key={plan._id} value={plan._id}>{plan.name}</option>)}</select></label>
-              <label><span>Run name</span><input value={runForm.name} onChange={(e) => setRunForm((prev: any) => ({ ...prev, name: e.target.value }))} required /></label>
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-center gap-4">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Execution workbench
             </div>
-            <label><span>Automation base URL</span><input value={runForm.baseUrl || ""} onChange={(e) => setRunForm((prev: any) => ({ ...prev, baseUrl: e.target.value }))} placeholder="https://app.example.com" /></label>
-            {selectedRunPlanIsAutomation && <div className="workspace-banner">Playwright sẽ chạy ngay khi bạn start run cho plan automation này.</div>}
-            <button className="workspace-primary" type="submit">Start run</button>
-          </form>
-        </SectionCard>
-      </div>
+            <div className="text-xl font-semibold text-slate-900">
+              {selectedRun ? selectedRun.name : "Start a new test run"}
+            </div>
+            <div className="text-sm text-slate-500">
+              {selectedRun
+                ? "Queue, case detail, and result panel in one workspace"
+                : "Select a plan and launch a run to start execution"}
+            </div>
+          </div>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            {selectedRun ? (
+              <>
+                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                  selectedRun.status === "running"
+                    ? "bg-emerald-50 text-emerald-700"
+                    : "bg-slate-100 text-slate-600"
+                }`}>
+                  {selectedRun.status}
+                </span>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                  {selectedRun.testPlan?.executionMode || "manual"}
+                </span>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                  {completedItems}/{totalItems} done
+                </span>
+              </>
+            ) : null}
+          </div>
+        </div>
 
-      {selectedRun ? selectedRun.testPlan && String(selectedRun.testPlan.executionMode) === "automation" ? (
-        <div className="execution-workbench">
-          <SectionCard title="Run Summary" subtitle="Tổng quan execution hiện tại">
-            <div className="workspace-metrics workspace-metrics--execution">
-              <div className="mini-stat"><span>Cases</span><strong>{totalItems}</strong></div>
-              <div className="mini-stat"><span>Done</span><strong>{completedItems}</strong></div>
-              <div className="mini-stat"><span>Pass</span><strong>{activeRunCounts.pass}</strong></div>
-              <div className="mini-stat"><span>Fail</span><strong>{activeRunCounts.fail}</strong></div>
-              <div className="mini-stat"><span>Blocked</span><strong>{activeRunCounts.blocked}</strong></div>
-              <div className="mini-stat"><span>Pending</span><strong>{activeRunCounts.pending}</strong></div>
-            </div>
-          </SectionCard>
-          <AutomationRunExecutionPanel selectedRun={selectedRun} myItems={myItems} selectedItemId={selectedItemId} setSelectedItemId={setSelectedItemId} selectedItem={selectedItem} notes={notes} setNotes={setNotes} onLogBug={onLogBug} />
-        </div>
+        {!selectedRun && (
+          <form className="mt-5 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]" onSubmit={startRun}>
+            <label className="block text-xs font-semibold text-slate-500">
+              Test plan
+              <select
+                value={runForm.testPlanId}
+                onChange={(e) => setRunForm((prev: any) => ({ ...prev, testPlanId: e.target.value }))}
+                className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                required
+              >
+                <option value="">Select plan</option>
+                {scopedPlans.map((plan: RecordAny) => (
+                  <option key={plan._id} value={plan._id}>
+                    {plan.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-xs font-semibold text-slate-500">
+              Run name
+              <input
+                value={runForm.name}
+                onChange={(e) => setRunForm((prev: any) => ({ ...prev, name: e.target.value }))}
+                className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                required
+              />
+            </label>
+            <label className="block text-xs font-semibold text-slate-500">
+              Automation base URL
+              <input
+                value={runForm.baseUrl || ""}
+                onChange={(e) => setRunForm((prev: any) => ({ ...prev, baseUrl: e.target.value }))}
+                className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                placeholder="https://app.example.com"
+              />
+            </label>
+            <button
+              type="submit"
+              className="h-10 self-end rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800"
+            >
+              Start run
+            </button>
+          </form>
+        )}
+        {selectedRunPlanIsAutomation && !selectedRun && (
+          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            Playwright se tu dong chay ngay khi start run cho plan automation.
+          </div>
+        )}
+      </section>
+
+      {selectedRun ? (
+        selectedRun.testPlan && String(selectedRun.testPlan.executionMode) === "automation" ? (
+          <AutomationRunExecutionPanel
+            selectedRun={selectedRun}
+            myItems={myItems}
+            selectedItemId={selectedItemId}
+            setSelectedItemId={setSelectedItemId}
+            selectedItem={selectedItem}
+            notes={notes}
+            setNotes={setNotes}
+            onLogBug={onLogBug}
+          />
+        ) : (
+          <ManualRunExecutionPanel
+            selectedRun={selectedRun}
+            myItems={myItems}
+            selectedItemId={selectedItemId}
+            setSelectedItemId={setSelectedItemId}
+            selectedItem={selectedItem}
+            notes={notes}
+            setNotes={setNotes}
+            onUpdateResult={updateResult}
+            onEndRun={handleEndRun}
+            canEditRun={canEditSelectedRun}
+            onLogBug={onLogBug}
+          />
+        )
       ) : (
-        <div className="execution-workbench">
-          <SectionCard title="Run Summary" subtitle="Tổng quan execution hiện tại">
-            <div className="workspace-metrics workspace-metrics--execution">
-              <div className="mini-stat"><span>Cases</span><strong>{totalItems}</strong></div>
-              <div className="mini-stat"><span>Done</span><strong>{completedItems}</strong></div>
-              <div className="mini-stat"><span>Pass</span><strong>{activeRunCounts.pass}</strong></div>
-              <div className="mini-stat"><span>Fail</span><strong>{activeRunCounts.fail}</strong></div>
-              <div className="mini-stat"><span>Blocked</span><strong>{activeRunCounts.blocked}</strong></div>
-              <div className="mini-stat"><span>Pending</span><strong>{activeRunCounts.pending}</strong></div>
-            </div>
-          </SectionCard>
-          <ManualRunExecutionPanel selectedRun={selectedRun} myItems={myItems} selectedItemId={selectedItemId} setSelectedItemId={setSelectedItemId} selectedItem={selectedItem} notes={notes} setNotes={setNotes} onUpdateResult={updateResult} onEndRun={handleEndRun} canEditRun={canEditSelectedRun} onLogBug={onLogBug} />
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-500 shadow-sm">
+          Select a plan and start a run to enter the execution workbench.
         </div>
-      ) : (
-        <div className="workspace-note">Chon hoac start mot test run de bat dau execution.</div>
       )}
     </div>
   );

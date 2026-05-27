@@ -35,6 +35,7 @@ type Props = {
   setEditingPlanId: Dispatch<SetStateAction<string>>;
   setEditingExecutionMode: Dispatch<SetStateAction<string>>;
   updatePlanExecutionMode: (planId: string, mode: string) => Promise<void>;
+  duplicatePlan: (plan: RecordAny) => Promise<void>;
   userName: (value: unknown) => string;
   getId: (value: unknown) => string;
   matchesSearch: (...values: Array<string | number | undefined | null>) => boolean;
@@ -68,6 +69,7 @@ export default function AdminTestPlansScreen(props: Props) {
     setEditingPlanId,
     setEditingExecutionMode,
     updatePlanExecutionMode,
+    duplicatePlan,
     userName,
     getId,
     matchesSearch,
@@ -484,7 +486,7 @@ export default function AdminTestPlansScreen(props: Props) {
                   <div>
                     <span className="workspace-pill">{plan.executionMode || "manual"}</span>
                   </div>
-                  <div>
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
                       className="workspace-secondary"
@@ -494,6 +496,13 @@ export default function AdminTestPlansScreen(props: Props) {
                       }}
                     >
                       Update
+                    </button>
+                    <button
+                      type="button"
+                      className="workspace-secondary"
+                      onClick={() => void duplicatePlan(plan)}
+                    >
+                      Duplicate
                     </button>
                   </div>
                 </>
