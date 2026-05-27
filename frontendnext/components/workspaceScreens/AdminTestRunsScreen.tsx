@@ -24,26 +24,59 @@ type Props = {
 };
 
 export default function AdminTestRunsScreen({ runForm, setRunForm, startRun, scopedPlans, selectedRunPlanIsAutomation, adminRuns, matchesSearch, userName, currentUserId, setSelectedRunId, loadMyItems, setActiveTab }: Props) {
-  const [focusedRunId, setFocusedRunId] = useState<string>("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [planFilter, setPlanFilter] = useState("");
+  const [startedByFilter, setStartedByFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+
+  const planOptions = useMemo(
+    () =>
+      scopedPlans
+        .map((plan: RecordAny) => ({ id: String(plan._id), name: plan.name || "-" }))
+        .sort((a: { id: string; name: string }, b: { id: string; name: string }) => a.name.localeCompare(b.name)),
+    [scopedPlans],
+  );
+
+  const startedByOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+
+    adminRuns.forEach((run: RecordAny) => {
+      const id = String(run.startedBy?._id || run.startedBy || "");
+      if (!id) return;
+      if (!seen.has(id)) {
+        seen.set(id, userName(run.startedBy));
+      }
+    });
+
+    return Array.from(seen.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a: { id: string; name: string }, b: { id: string; name: string }) => a.name.localeCompare(b.name));
+  }, [adminRuns, userName]);
+
   const filteredRuns = useMemo(
-    () => adminRuns.filter((run: RecordAny) => matchesSearch(run.name, run.testPlan?.name, userName(run.startedBy), run.status, run.progress)),
-    [adminRuns, matchesSearch, userName],
+    () => {
+      const query = searchTerm.trim();
+
+      return adminRuns.filter((run: RecordAny) => {
+        const runPlanId = String(run.testPlan?._id || run.testPlan || "");
+        const startedById = String(run.startedBy?._id || run.startedBy || "");
+
+        if (planFilter && runPlanId !== planFilter) return false;
+        if (startedByFilter && startedById !== startedByFilter) return false;
+        if (statusFilter && String(run.status || "") !== statusFilter) return false;
+
+        return matchesSearch(
+          query,
+          run.name,
+          run.testPlan?.name,
+          userName(run.startedBy),
+          run.status,
+          run.progress,
+        );
+      });
+    },
+    [adminRuns, matchesSearch, planFilter, searchTerm, startedByFilter, statusFilter, userName],
   );
-  const focusedRun = useMemo(
-    () => filteredRuns.find((run: RecordAny) => String(run._id) === String(focusedRunId)) || filteredRuns[0] || null,
-    [filteredRuns, focusedRunId],
-  );
-  const relatedRuns = useMemo(() => {
-    if (!focusedRun) return [];
-    const focusedPlanId = String(focusedRun.testPlan?._id || focusedRun.testPlan || "");
-    return filteredRuns
-      .filter((run: RecordAny) => String(run.testPlan?._id || run.testPlan || "") === focusedPlanId)
-      .sort(
-        (a: RecordAny, b: RecordAny) =>
-          new Date(b.startedAt || b.createdAt || 0).getTime() - new Date(a.startedAt || a.createdAt || 0).getTime(),
-      )
-      .slice(0, 8);
-  }, [filteredRuns, focusedRun]);
 
   return (
     <div className="workspace-stack">
@@ -60,13 +93,54 @@ export default function AdminTestRunsScreen({ runForm, setRunForm, startRun, sco
       </SectionCard>
 
       <SectionCard title="Test Run List" subtitle="Start / completed runs">
-        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_320px]">
-          <DataTable columns={["Run", "Plan", "Progress", "Started by", "Status", "Action"]} rows={filteredRuns.map((run: RecordAny) => <><button type="button" className="text-left underline-offset-2 hover:underline" onClick={() => setFocusedRunId(String(run._id))}>{run.name}</button><div>{run.testPlan?.name || "-"}</div><div>{typeof run.progress === "number" ? `${run.progress.toFixed(1)}%` : "0%"}</div><div>{userName(run.startedBy)}</div><div className={run.status === "running" ? "workspace-pill workspace-pill--success" : "workspace-pill"}>{run.status}</div><div><ActionButton label={run.status === "running" && String(run.startedBy?._id || run.startedBy || "") === currentUserId ? "Open" : "View"} icon="↗" onClick={() => void (async () => { setSelectedRunId(run._id); await loadMyItems(run._id); setActiveTab("execution"); })()} /></div></>)} emptyText="No runs" />
-          <aside className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
-            <div className="text-xs uppercase tracking-wide text-slate-500">Run context</div>
-            {!focusedRun ? <div className="mt-2 text-slate-500">No run selected</div> : <div className="mt-2 space-y-2"><div><strong>Run:</strong> {focusedRun.name || "-"}</div><div><strong>Plan:</strong> {focusedRun.testPlan?.name || "-"}</div><div><strong>Status:</strong> {focusedRun.status || "-"}</div><div><strong>Progress:</strong> {typeof focusedRun.progress === "number" ? `${focusedRun.progress.toFixed(1)}%` : "0%"}</div><div><strong>Started by:</strong> {userName(focusedRun.startedBy)}</div><div className="rounded-lg border border-slate-200 bg-white p-2 text-xs text-slate-600">Run Context = ngữ cảnh của run đang chọn (plan nguồn, trạng thái, người chạy, tiến độ, và các execution items thuộc run này).</div><div className="rounded-lg border border-slate-200 bg-white p-2 text-xs text-slate-600"><div className="mb-1 font-semibold text-slate-700">Run history của plan này</div>{relatedRuns.length === 0 ? <div className="text-slate-500">No related runs</div> : <div className="space-y-1">{relatedRuns.map((run: RecordAny) => <div key={String(run._id)} className="flex items-center justify-between"><span className="truncate">{run.name || "Run"}</span><span className="ml-2 text-slate-500">{run.status || "-"}</span></div>)}</div>}</div></div>}
-          </aside>
+        <div className="workspace-filterbar mb-4">
+          <div className="workspace-filterbar__label">
+            <span>Run filters</span>
+            <p>Loc nhanh theo ten run, plan, nguoi bat dau va trang thai.</p>
+          </div>
+          <div className="grid flex-1 gap-3 lg:grid-cols-4">
+            <label className="workspace-filterbar__control">
+              <span className="sr-only">Search runs</span>
+              <input
+                type="search"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Search run, plan, started by..."
+              />
+            </label>
+            <label className="workspace-filterbar__control">
+              <span className="sr-only">Filter by plan</span>
+              <select value={planFilter} onChange={(event) => setPlanFilter(event.target.value)}>
+                <option value="">All plans</option>
+                {planOptions.map((plan) => (
+                  <option key={plan.id} value={plan.id}>
+                    {plan.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="workspace-filterbar__control">
+              <span className="sr-only">Filter by started by</span>
+              <select value={startedByFilter} onChange={(event) => setStartedByFilter(event.target.value)}>
+                <option value="">All starters</option>
+                {startedByOptions.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="workspace-filterbar__control">
+              <span className="sr-only">Filter by status</span>
+              <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                <option value="">All statuses</option>
+                <option value="running">Running</option>
+                <option value="completed">Completed</option>
+              </select>
+            </label>
+          </div>
         </div>
+        <DataTable columns={["Run", "Plan", "Progress", "Started by", "Status", "Action"]} rows={filteredRuns.map((run: RecordAny) => <><div className="font-medium text-slate-900">{run.name}</div><div>{run.testPlan?.name || "-"}</div><div>{typeof run.progress === "number" ? `${run.progress.toFixed(1)}%` : "0%"}</div><div>{userName(run.startedBy)}</div><div className={run.status === "running" ? "workspace-pill bg-amber-50 text-amber-700" : run.status === "completed" ? "workspace-pill bg-emerald-50 text-emerald-700" : "workspace-pill"}>{run.status}</div><div><ActionButton label={run.status === "running" && String(run.startedBy?._id || run.startedBy || "") === currentUserId ? "Open" : "View"} icon="↗" onClick={() => void (async () => { setSelectedRunId(run._id); await loadMyItems(run._id); setActiveTab("execution"); })()} /></div></>)} emptyText="No runs" />
       </SectionCard>
     </div>
   );

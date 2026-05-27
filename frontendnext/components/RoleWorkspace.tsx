@@ -669,6 +669,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
             scopedProjects={scopedProjects}
             groups={groups}
             testCases={testCases}
+            startTestCaseEdit={startTestCaseEdit}
             matchesSearch={matchesSearch}
           />
         )}
@@ -703,7 +704,6 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
             downloadTestCaseTemplate={downloadTestCaseTemplate}
             importTestCases={importTestCases}
             importInputRef={importInputRef}
-            onNavigate={(tab) => setActiveTab(tab as any)}
           />
         )}
 

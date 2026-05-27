@@ -922,8 +922,10 @@ export default function TestCaseManagementApp() {
       if (token) {
         await refreshAll(token, currentUser?.role, selectedProjectId);
       }
+      return true;
     } catch (error: any) {
       setMessage(error.message || "Action failed");
+      return false;
     }
   }, [currentUser, refreshAll, selectedProjectId, token]);
 
@@ -1734,21 +1736,30 @@ export default function TestCaseManagementApp() {
 
   async function createPlan(event: FormEvent) {
     event.preventDefault();
-    await withAction(async () => {
-      await apiRequest("/api/test-plans", token, {
-        method: "POST",
-        body: JSON.stringify(planForm),
-      });
+    return withAction(async () => {
+      const isEditing = Boolean(editingPlanId);
+
+      await apiRequest(
+        isEditing ? `/api/test-plans/${editingPlanId}` : "/api/test-plans",
+        token,
+        {
+          method: isEditing ? "PUT" : "POST",
+          body: JSON.stringify(planForm),
+        },
+      );
+
       setPlanForm({
         name: "",
         description: "",
-        projectId: planForm.projectId,
-        versionId: planForm.versionId,
+        projectId: isEditing ? planForm.projectId : planForm.projectId,
+        versionId: isEditing ? planForm.versionId : planForm.versionId,
         executionMode: "manual",
         selectedGroupIds: [],
         caseIds: [],
       });
-      setMessage("Da tao test plan");
+      setEditingPlanId("");
+      setEditingExecutionMode("");
+      setMessage(isEditing ? "Da cap nhat test plan" : "Da tao test plan");
     });
   }
 

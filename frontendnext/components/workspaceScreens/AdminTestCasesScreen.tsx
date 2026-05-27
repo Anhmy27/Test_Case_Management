@@ -58,7 +58,6 @@ type Props = {
   downloadTestCaseTemplate: () => void;
   importTestCases: (file: File) => Promise<void>;
   importInputRef: MutableRefObject<HTMLInputElement | null>;
-  onNavigate?: (tab: string) => void;
 };
 
 type FilterPreset = "all" | "high-risk" | "automation" | "manual" | "recent";
@@ -94,7 +93,6 @@ export default function AdminTestCasesScreen(props: Props) {
     downloadTestCaseTemplate,
     importTestCases,
     importInputRef,
-    onNavigate,
   } = props;
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -103,6 +101,7 @@ export default function AdminTestCasesScreen(props: Props) {
   const [preset, setPreset] = useState<FilterPreset>("all");
   const [groupFilter, setGroupFilter] = useState<string>("");
   const [draggingStep, setDraggingStep] = useState<DragPayload | null>(null);
+  const [showRecentModal, setShowRecentModal] = useState(false);
 
   const effectiveActiveId = editingTestCaseId || activeId;
 
@@ -155,6 +154,14 @@ export default function AdminTestCasesScreen(props: Props) {
         new Date(a.updatedAt || a.createdAt || 0).getTime(),
       )
       .slice(0, 5);
+  }, [testCases]);
+
+  const allRecentCases = useMemo(() => {
+    return [...testCases].sort(
+      (a, b) =>
+        new Date(b.updatedAt || b.createdAt || 0).getTime() -
+        new Date(a.updatedAt || a.createdAt || 0).getTime(),
+    );
   }, [testCases]);
 
   const presetButtons: Array<{ key: FilterPreset; label: string }> = [
@@ -220,34 +227,6 @@ export default function AdminTestCasesScreen(props: Props) {
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <button
               type="button"
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50 hover:text-slate-900"
-              onClick={() => onNavigate?.("groups")}
-            >
-              View groups
-            </button>
-            <button
-              type="button"
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50 hover:text-slate-900"
-              onClick={() => onNavigate?.("test-plans")}
-            >
-              Go to plans
-            </button>
-            <button
-              type="button"
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50 hover:text-slate-900"
-              onClick={() => onNavigate?.("execution")}
-            >
-              ▶ Run execution
-            </button>
-            <button
-              type="button"
-              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
-              onClick={downloadTestCaseTemplate}
-            >
-              Download template
-            </button>
-            <button
-              type="button"
               className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-slate-800"
               onClick={() => {
                 cancelTestCaseEdit();
@@ -255,6 +234,13 @@ export default function AdminTestCasesScreen(props: Props) {
               }}
             >
               + New test case
+            </button>
+            <button
+              type="button"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
+              onClick={downloadTestCaseTemplate}
+            >
+              Download template
             </button>
             <button
               type="button"
@@ -335,7 +321,7 @@ export default function AdminTestCasesScreen(props: Props) {
                     await duplicateTestCases(selected);
                   }}
                 >
-                  + Duplicate selected
+                  ⧉ Duplicate selected
                 </button>
                 <button
                   type="button"
@@ -346,7 +332,7 @@ export default function AdminTestCasesScreen(props: Props) {
                     setSelectedIds([]);
                   }}
                 >
-                  x Delete selected
+                  🗑 Delete selected
                 </button>
               </div>
             </div>
@@ -448,7 +434,7 @@ export default function AdminTestCasesScreen(props: Props) {
                                 setPanelMode("view");
                               }}
                             >
-                              View
+                              ↗ View
                             </button>
                             <button
                               type="button"
@@ -459,7 +445,7 @@ export default function AdminTestCasesScreen(props: Props) {
                                 setPanelMode("edit");
                               }}
                             >
-                              * Edit
+                              ✎ Edit
                             </button>
                             <button
                               type="button"
@@ -469,7 +455,7 @@ export default function AdminTestCasesScreen(props: Props) {
                                 void duplicateTestCase(testCase);
                               }}
                             >
-                              + Duplicate
+                              ⧉ Duplicate
                             </button>
                             <button
                               type="button"
@@ -479,7 +465,7 @@ export default function AdminTestCasesScreen(props: Props) {
                                 deleteTestCase(caseId);
                               }}
                             >
-                              x Delete
+                              🗑 Delete
                             </button>
                           </div>
                         </td>
@@ -513,7 +499,7 @@ export default function AdminTestCasesScreen(props: Props) {
                       setPanelMode("edit");
                     }}
                   >
-                    * Edit
+                    ✎ Edit
                   </button>
                 )}
                 {panelMode !== "create" && activeCase && (
@@ -522,7 +508,7 @@ export default function AdminTestCasesScreen(props: Props) {
                     className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
                     onClick={() => void duplicateTestCase(activeCase)}
                   >
-                    + Duplicate
+                    ⧉ Duplicate
                   </button>
                 )}
               </div>
@@ -928,7 +914,19 @@ export default function AdminTestCasesScreen(props: Props) {
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="text-sm font-semibold text-slate-900">Recent activity</div>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-semibold text-slate-900">Recent activity</div>
+                <div className="text-xs text-slate-500">5 test case gan nhat</div>
+              </div>
+              <button
+                type="button"
+                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
+                onClick={() => setShowRecentModal(true)}
+              >
+                View all
+              </button>
+            </div>
             <div className="mt-3 space-y-3 text-sm text-slate-600">
               {recentCases.map((item) => (
                 <button
@@ -950,6 +948,95 @@ export default function AdminTestCasesScreen(props: Props) {
           </section>
         </aside>
       </div>
+
+      {showRecentModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm">
+          <div className="relative max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
+            <button
+              type="button"
+              onClick={() => setShowRecentModal(false)}
+              className="absolute right-4 top-4 text-slate-400 hover:text-slate-600"
+            >
+              ✕
+            </button>
+
+            <div className="mb-4">
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Recent activity</div>
+              <h3 className="text-xl font-semibold text-slate-900">All test cases by recency</h3>
+              <div className="text-sm text-slate-600">
+                Showing {allRecentCases.length} test cases with details, last update time, and automation context.
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {allRecentCases.length === 0 ? (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                  No test cases found.
+                </div>
+              ) : (
+                allRecentCases.map((item) => {
+                  const stepCount = Array.isArray(item.steps) ? item.steps.length : 0;
+                  return (
+                    <button
+                      key={String(item._id)}
+                      type="button"
+                      onClick={() => {
+                        setActiveId(String(item._id));
+                        setPanelMode("view");
+                        setShowRecentModal(false);
+                      }}
+                      className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{item.caseKey || item.key}</div>
+                          <div className="text-base font-semibold text-slate-900">{item.title || item.name}</div>
+                        </div>
+                        <span className={item.automation?.enabled ? "rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700" : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600"}>
+                          {item.automation?.enabled ? "Automation" : "Manual"}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                        <span className="rounded-full bg-rose-50 px-2.5 py-1 font-semibold text-rose-700">
+                          {item.priority || "medium"}
+                        </span>
+                        <span className="rounded-full bg-amber-50 px-2.5 py-1 font-semibold text-amber-700">
+                          {item.severity || "major"}
+                        </span>
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-600">
+                          {item.type || "functional"}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600">
+                        <div className="rounded-lg bg-slate-50 p-2">
+                          <div className="text-slate-500">Project</div>
+                          <div className="font-semibold text-slate-800">{item.project?.name || "-"}</div>
+                        </div>
+                        <div className="rounded-lg bg-slate-50 p-2">
+                          <div className="text-slate-500">Group</div>
+                          <div className="font-semibold text-slate-800">{item.group?.name || "-"}</div>
+                        </div>
+                        <div className="rounded-lg bg-slate-50 p-2">
+                          <div className="text-slate-500">Steps</div>
+                          <div className="font-semibold text-slate-800">{stepCount}</div>
+                        </div>
+                        <div className="rounded-lg bg-slate-50 p-2">
+                          <div className="text-slate-500">Updated</div>
+                          <div className="font-semibold text-slate-800">
+                            {new Date(item.updatedAt || item.createdAt || 0).toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

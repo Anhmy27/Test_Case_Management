@@ -2,8 +2,9 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import { useCallback, useMemo, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import { ActionButton, DataTable, SectionCard } from "./shared";
+import { ActionButton, SectionCard } from "./shared";
 
 type RecordAny = Record<string, any>;
 
@@ -18,6 +19,7 @@ type AdminGroupsScreenProps = {
   scopedProjects: RecordAny[];
   groups: RecordAny[];
   testCases: RecordAny[];
+  startTestCaseEdit: (testCase: RecordAny) => void;
   matchesSearch: (...values: Array<string | number | undefined | null>) => boolean;
 };
 
@@ -32,16 +34,114 @@ export default function AdminGroupsScreen({
   scopedProjects,
   groups,
   testCases,
+  startTestCaseEdit,
   matchesSearch,
 }: AdminGroupsScreenProps) {
   const isEditing = Boolean(editingGroupId);
-  const groupsByProject = scopedProjects.map((project: RecordAny) => {
-    const projectGroups = groups.filter((group: RecordAny) => String(group.project?._id || group.project) === String(project._id));
-    return {
-      project,
-      groups: projectGroups,
-    };
-  });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [projectFilter, setProjectFilter] = useState("");
+  const [hierarchyPage, setHierarchyPage] = useState(1);
+  const hierarchyPageSize = 4;
+
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+
+  const matchesLocalSearch = useCallback(
+    (...values: Array<string | number | undefined | null>) => {
+      if (!normalizedSearch) {
+        return true;
+      }
+
+      return values.some((value) => String(value || "").toLowerCase().includes(normalizedSearch));
+    },
+    [normalizedSearch],
+  );
+
+  const filteredGroups = useMemo(() => {
+    return groups.filter((group: RecordAny) => {
+      const groupProjectId = String(group.project?._id || group.project || "");
+      if (projectFilter && groupProjectId !== projectFilter) {
+        return false;
+      }
+
+      return matchesSearch(group.name, group.project?.name, group.description) && matchesLocalSearch(group.name, group.project?.name, group.description);
+    });
+  }, [groups, matchesLocalSearch, matchesSearch, projectFilter]);
+
+  const groupsByProject = useMemo(() => {
+    return scopedProjects
+      .map((project: RecordAny) => {
+        if (projectFilter && String(project._id) !== projectFilter) {
+          return null;
+        }
+
+        const projectGroups = filteredGroups.filter((group: RecordAny) => String(group.project?._id || group.project) === String(project._id));
+        const projectMatches = matchesSearch(project.name) && matchesLocalSearch(project.name);
+
+        if (!projectMatches && projectGroups.length === 0) {
+          return null;
+        }
+
+        return {
+          project,
+          groups: projectGroups,
+        };
+      })
+      .filter(Boolean) as Array<{ project: RecordAny; groups: RecordAny[] }>;
+  }, [filteredGroups, matchesLocalSearch, matchesSearch, projectFilter, scopedProjects]);
+
+  const totalHierarchyPages = Math.max(1, Math.ceil(groupsByProject.length / hierarchyPageSize));
+  const safeHierarchyPage = Math.min(hierarchyPage, totalHierarchyPages);
+  const visibleHierarchyProjects = groupsByProject.slice(
+    (safeHierarchyPage - 1) * hierarchyPageSize,
+    (safeHierarchyPage - 1) * hierarchyPageSize + hierarchyPageSize,
+  );
+
+  const filterBar = (
+    <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
+      <label className="grid min-w-[240px] flex-1 gap-1">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Search</span>
+        <input
+          type="search"
+          value={searchTerm}
+          onChange={(event) => {
+            setSearchTerm(event.target.value);
+            setHierarchyPage(1);
+          }}
+          placeholder="Search group, project, description..."
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-slate-200"
+        />
+      </label>
+      <label className="grid min-w-[220px] gap-1">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Project filter</span>
+        <select
+          value={projectFilter}
+          onChange={(event) => {
+            setProjectFilter(event.target.value);
+            setHierarchyPage(1);
+          }}
+          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-slate-200"
+        >
+          <option value="">All projects</option>
+          {scopedProjects.map((project: RecordAny) => (
+            <option key={project._id} value={String(project._id)}>
+              {project.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button
+        type="button"
+        className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-100"
+        onClick={() => {
+          setSearchTerm("");
+          setProjectFilter("");
+          setHierarchyPage(1);
+        }}
+      >
+        Reset filters
+      </button>
+    </div>
+  );
 
   return (
     <div className="workspace-stack">
@@ -104,64 +204,98 @@ export default function AdminGroupsScreen({
         </form>
       </SectionCard>
 
-      <SectionCard title="Hierarchy Overview" subtitle="Project → group structure cho navigation nhanh hơn">
-        {groupsByProject.length === 0 ? (
-          <div className="workspace-empty">No groups in current scope</div>
-        ) : (
-          <div className="workspace-tree">
-            {groupsByProject.map(({ project, groups: projectGroups }) => (
-              <details key={project._id} className="workspace-tree__project" open>
-                <summary>
-                  <strong>{project.name}</strong>
-                  <span>{projectGroups.length} groups</span>
-                </summary>
-                <div className="workspace-tree__branch">
-                  {projectGroups.length === 0 ? (
-                    <div className="workspace-empty">No groups under this project</div>
-                  ) : (
-                    projectGroups.map((group: RecordAny) => (
-                      (() => {
-                        const caseCount = testCases.filter((testCase: RecordAny) => String(testCase.group?._id || testCase.group) === String(group._id)).length;
-
-                        return (
-                      <div key={group._id} className="workspace-tree__node">
-                        <div className="workspace-tree__node-main">
-                          <strong>{group.name}</strong>
-                          <span>{group.description || "No description"}</span>
-                        </div>
-                          <span className="workspace-pill">{caseCount} cases</span>
-                        </div>
-                        );
-                      })()
-                    ))
-                  )}
-                </div>
-              </details>
-            ))}
-          </div>
-        )}
-      </SectionCard>
-
       <SectionCard title="Group List" subtitle="Nhom theo project">
-        <DataTable
-          columns={["Group", "Project", "Description", "Actions"]}
-          rows={groups
-            .filter((group: RecordAny) =>
-              matchesSearch(group.name, group.project?.name, group.description),
-            )
-            .map((group: RecordAny) => (
-              <>
-                <div>{group.name}</div>
-                <div>{group.project?.name || "-"}</div>
-                <div>{group.description || "-"}</div>
-                <div className="workspace-inline-actions">
-                  <ActionButton label="Edit" icon="✎" onClick={() => startGroupEdit(group)} />
-                  <ActionButton label="Delete" icon="🗑" variant="danger" onClick={() => void deleteGroup(group._id)} />
-                </div>
-              </>
-            ))}
-          emptyText="No groups"
-        />
+        <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-600">
+            {filteredGroups.length} groups
+          </span>
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-600">
+            {projectFilter ? "Filtered by project" : "All projects"}
+          </span>
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-600">
+            Scroll or page through the list
+          </span>
+        </div>
+        <div className="space-y-3">
+          {filterBar}
+          <div className="max-h-[620px] overflow-y-auto pr-1">
+            {visibleHierarchyProjects.length === 0 ? (
+              <div className="workspace-empty">No groups</div>
+            ) : (
+              <div className="space-y-3">
+                {visibleHierarchyProjects.map(({ project, groups: projectGroups }) => (
+                  <details key={`list-${project._id}`} className="group rounded-2xl border border-slate-200 bg-white/90 shadow-sm transition hover:border-slate-300" open>
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-900 transition group-open:rounded-b-none group-open:border-b group-open:border-slate-200">
+                      <span className="flex items-center gap-3">
+                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold text-white">
+                          {String(project.name || "?").slice(0, 1).toUpperCase()}
+                        </span>
+                        <span>
+                          <strong className="block text-slate-900">{project.name}</strong>
+                          <span className="block text-xs font-normal text-slate-500">{project.code || "Project"}</span>
+                        </span>
+                      </span>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                        {projectGroups.length} groups
+                      </span>
+                    </summary>
+
+                    <div className="space-y-2 px-4 pb-4 pt-3">
+                      {projectGroups.length === 0 ? (
+                        <div className="workspace-empty">No groups under this project</div>
+                      ) : (
+                        projectGroups.map((group: RecordAny) => {
+                          const groupId = String(group._id);
+                          const groupCases = testCases.filter((testCase: RecordAny) => String(testCase.group?._id || testCase.group) === groupId);
+                          const shouldScrollCases = groupCases.length >= 4;
+
+                          return (
+                            <details key={group._id} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+                              <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="font-semibold text-slate-900">{group.name}</div>
+                                  <div className="truncate text-xs text-slate-500">{group.description || "No description"}</div>
+                                </div>
+                                <div className="flex shrink-0 items-center gap-2">
+                                  <span className="workspace-pill bg-white">{groupCases.length} cases</span>
+                                  <ActionButton label="Edit" icon="✎" onClick={() => startGroupEdit(group)} />
+                                  <ActionButton label="Delete" icon="🗑" variant="danger" onClick={() => void deleteGroup(group._id)} />
+                                </div>
+                              </summary>
+
+                              <div className="mt-3 border-l border-slate-200 pl-3">
+                                {groupCases.length === 0 ? (
+                                  <div className="workspace-empty">No test cases in this group</div>
+                                ) : (
+                                  <div className={`space-y-2 ${shouldScrollCases ? "max-h-[240px] overflow-y-auto pr-1" : ""}`}>
+                                    {groupCases.map((testCase: RecordAny) => (
+                                      <button
+                                        key={testCase._id}
+                                        type="button"
+                                        className="w-full rounded-lg border border-white bg-white px-3 py-2 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          startTestCaseEdit(testCase);
+                                        }}
+                                      >
+                                        <div className="font-semibold text-slate-900">{testCase.caseKey} - {testCase.title}</div>
+                                        <div className="text-xs text-slate-500">{testCase.description || "No description"}</div>
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </details>
+                          );
+                        })
+                      )}
+                    </div>
+                  </details>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </SectionCard>
     </div>
   );

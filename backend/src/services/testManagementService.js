@@ -1043,49 +1043,47 @@ const listTestCaseDetails = asyncHandler(async (req, res) => {
   );
   const versionIds = allCaseVersions.map((row) => row._id);
 
-  let recentByEntity = new Map();
+  let historyByEntity = new Map();
   if (versionIds.length > 0) {
-    const historyRows = await TestRun.aggregate([
-      {
-        $match: {
-          project: projectObjectId,
-        },
-      },
-      {
-        $unwind: '$results',
-      },
-      {
-        $match: {
-          'results.status': { $in: ['pass', 'fail', 'blocked', 'skip'] },
-          'results.testCase': { $in: versionIds },
-        },
-      },
-      {
-        $sort: {
-          'results.executedAt': -1,
-          updatedAt: -1,
-          startedAt: -1,
-        },
-      },
-      {
-        $project: {
-          testCase: '$results.testCase',
-          status: '$results.status',
-        },
-      },
-    ]);
+    const historyRuns = await TestRun.find({
+      project: projectObjectId,
+    })
+      .select('name status startedAt endedAt startedBy endedBy results')
+      .populate('startedBy', 'name email role')
+      .populate('endedBy', 'name email role')
+      .lean();
 
-    recentByEntity = historyRows.reduce((acc, row) => {
-      const entityId = versionIdToEntityId.get(objectIdString(row.testCase));
-      if (!entityId) {
-        return acc;
-      }
+    historyByEntity = historyRuns.reduce((acc, run) => {
+      const runStartedAt = run.startedAt || run.createdAt || null;
 
-      const existing = acc.get(entityId) || [];
-      if (existing.length < 3) {
-        existing.push(row.status);
-        acc.set(entityId, existing);
-      }
+      (run.results || [])
+        .filter((result) => ['pass', 'fail', 'blocked', 'skip'].includes(result.status) && result.testCase)
+        .sort((left, right) => {
+          const leftTime = new Date(left.executedAt || runStartedAt || 0).getTime();
+          const rightTime = new Date(right.executedAt || runStartedAt || 0).getTime();
+          return rightTime - leftTime;
+        })
+        .forEach((result) => {
+          const entityId = versionIdToEntityId.get(objectIdString(result.testCase));
+          if (!entityId) {
+            return;
+          }
+
+          const existing = acc.get(entityId) || [];
+          existing.push({
+            runId: String(run._id),
+            runName: run.name,
+            runStatus: run.status,
+            status: result.status,
+            executedAt: result.executedAt || runStartedAt,
+            startedAt: run.startedAt || run.createdAt || null,
+            endedAt: run.endedAt || null,
+            startedBy: run.startedBy || null,
+            endedBy: run.endedBy || null,
+            note: result.note || result.notes || '',
+          });
+          acc.set(entityId, existing);
+        });
 
       return acc;
     }, new Map());
@@ -1093,7 +1091,8 @@ const listTestCaseDetails = asyncHandler(async (req, res) => {
 
   const detailRows = testCases.map((testCase) => ({
     ...testCase,
-    recentStatuses: recentByEntity.get(objectIdString(testCase.entityId)) || [],
+    recentStatuses: (historyByEntity.get(objectIdString(testCase.entityId)) || []).slice(0, 3).map((entry) => entry.status),
+    executionHistory: historyByEntity.get(objectIdString(testCase.entityId)) || [],
   }));
 
   res.json({ testCases: detailRows });
@@ -1594,6 +1593,11 @@ const assignTestPlanItems = asyncHandler(async (req, res) => {
 const updateTestPlan = asyncHandler(async (req, res) => {
   const { testPlanId } = req.params;
   const { name, key, description, projectId, versionId, caseIds, executionMode, ownerId, assigneeIds } = req.body;
+
+  const hasRuns = await TestRun.exists({ testPlan: toObjectId(testPlanId, 'testPlanId') });
+  if (hasRuns) {
+    throw httpError(400, 'Test plan da co run, khong the update');
+  }
 
   const nextTestPlan = await updateVersionedDocument(TestPlan, testPlanId, async (current) => {
     const nextProjectId = projectId ? toObjectId(projectId, 'projectId') : current.project;

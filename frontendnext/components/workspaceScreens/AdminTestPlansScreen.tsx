@@ -3,15 +3,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Dispatch, SetStateAction, FormEvent, RefObject } from "react";
-import { ActionButton, DataTable, SectionCard } from "./shared";
+import type { Dispatch, SetStateAction, FormEvent } from "react";
+import { ActionButton } from "./shared";
 
 type RecordAny = Record<string, any>;
 
 type Props = {
   planForm: any;
   setPlanForm: Dispatch<SetStateAction<any>>;
-  createPlan: (event: FormEvent) => Promise<void>;
+  createPlan: (event: FormEvent) => Promise<boolean>;
   scopedProjects: RecordAny[];
   scopedVersions: RecordAny[];
   planProjectGroups: RecordAny[];
@@ -69,7 +69,6 @@ export default function AdminTestPlansScreen(props: Props) {
     saveAssignments,
     scopedPlans,
     editingPlanId,
-    editingExecutionMode,
     setEditingPlanId,
     setEditingExecutionMode,
     updatePlanExecutionMode,
@@ -85,6 +84,15 @@ export default function AdminTestPlansScreen(props: Props) {
 
   const selectAllCasesRef = useRef<HTMLInputElement | null>(null);
   const [assigneeSearch, setAssigneeSearch] = useState("");
+  const emptyPlanDraft = {
+    name: "",
+    description: "",
+    projectId: "",
+    versionId: "",
+    executionMode: "manual",
+    selectedGroupIds: [] as string[],
+    caseIds: [] as string[],
+  };
 
   const visibleCaseIds = useMemo(
     () =>
@@ -93,6 +101,18 @@ export default function AdminTestPlansScreen(props: Props) {
       ),
     [selectedPlanCasesByGroup],
   );
+
+  const selectedPlanProject = useMemo(() => {
+    if (!planForm.projectId) {
+      return planProjectGroups[0]?.project || null;
+    }
+
+    return (
+      scopedProjects.find((project: RecordAny) => String(getId(project) || project._id) === String(planForm.projectId)) ||
+      planProjectGroups[0]?.project ||
+      null
+    );
+  }, [getId, planForm.projectId, planProjectGroups, scopedProjects]);
 
   const selectedVisibleCaseCount = visibleCaseIds.filter((caseId) =>
     selectedPlanCaseIds.has(caseId),
@@ -143,13 +163,32 @@ export default function AdminTestPlansScreen(props: Props) {
 
   const ownerName = currentUser?.name || "Current admin";
   const ownerRole = currentUser?.role || "admin";
-  const [activeView, setActiveView] = useState<"plans" | "cases" | "runs">("plans");
   const [activePlanId, setActivePlanId] = useState<string>("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [statusBulkMode, setStatusBulkMode] = useState<"manual" | "automation">("manual");
-  const createSectionRef = useRef<HTMLDivElement | null>(null);
-  const assignSectionRef = useRef<HTMLDivElement | null>(null);
-  const listSectionRef = useRef<HTMLDivElement | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showAssignModal, setShowAssignModal] = useState(false);
+
+  useEffect(() => {
+    if (!showCreateModal || !editingPlanId || planProjectGroups.length === 0) {
+      return;
+    }
+
+    if ((planForm.selectedGroupIds || []).length > 0) {
+      return;
+    }
+
+    setPlanForm((prev: any) => {
+      if ((prev.selectedGroupIds || []).length > 0) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        selectedGroupIds: planProjectGroups.map((group: RecordAny) => String(group._id)),
+      };
+    });
+  }, [editingPlanId, planForm.selectedGroupIds, planProjectGroups, setPlanForm, showCreateModal]);
 
   const filteredPlans = useMemo(
     () =>
@@ -218,22 +257,59 @@ export default function AdminTestPlansScreen(props: Props) {
     setSelectedIds([]);
   }
 
-  function scrollToSection(ref: RefObject<HTMLDivElement | null>) {
-    ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  function openCreatePlanModal() {
+    setEditingPlanId("");
+    setEditingExecutionMode("");
+    setPlanForm(emptyPlanDraft);
+    setShowCreateModal(true);
+  }
+
+  function openEditPlanModal(plan: RecordAny) {
+    const caseIds = Array.isArray(plan.items)
+      ? plan.items.map((item: RecordAny) => String(getId(item.testCase) || item.testCase)).filter(Boolean)
+      : [];
+
+    setEditingPlanId(String(plan._id));
+    setEditingExecutionMode(String(plan.executionMode || "manual"));
+    setPlanForm({
+      name: plan.name || "",
+      description: plan.description || "",
+      projectId: String(getId(plan.project) || ""),
+      versionId: String(getId(plan.version) || ""),
+      executionMode: String(plan.executionMode || "manual"),
+      selectedGroupIds: [],
+      caseIds,
+    });
+    setShowCreateModal(true);
+  }
+
+  function closePlanModal() {
+    setShowCreateModal(false);
+    setEditingPlanId("");
+    setEditingExecutionMode("");
+    setPlanForm(emptyPlanDraft);
+  }
+
+  function openAssignModal(planId?: string) {
+    if (planId) {
+      selectPlanForAssignment(planId);
+    }
+
+    setShowAssignModal(true);
+  }
+
+  async function handleSaveAssignments(event: FormEvent) {
+    await saveAssignments(event);
+    setShowAssignModal(false);
   }
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50 via-sky-50 to-white p-5 shadow-sm">
+    <div className="space-y-4">
+      <section className="rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50 via-sky-50 to-white p-4 shadow-sm">
         <div className="flex flex-wrap items-start gap-3">
           <div>
             <div className="text-sm font-semibold text-slate-900">Test Plan Workbench</div>
             <div className="text-xs text-slate-600">Planning hub: assign case, track progress, jump to execution</div>
-          </div>
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            <button type="button" title="Plans" onClick={() => setActiveView("plans")} className={activeView === "plans" ? "rounded-full bg-indigo-600 px-3 py-1 text-xs font-semibold text-white" : "rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600"}>◉ Plans</button>
-            <button type="button" title="Assigned Cases" onClick={() => setActiveView("cases")} className={activeView === "cases" ? "rounded-full bg-indigo-600 px-3 py-1 text-xs font-semibold text-white" : "rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600"}>☰ Assigned Cases</button>
-            <button type="button" title="Execution Runs" onClick={() => setActiveView("runs")} className={activeView === "runs" ? "rounded-full bg-indigo-600 px-3 py-1 text-xs font-semibold text-white" : "rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600"}>▶ Execution Runs</button>
           </div>
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -244,23 +320,22 @@ export default function AdminTestPlansScreen(props: Props) {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Toolbar</span>
           <ActionButton
             label="Create"
             icon="＋"
             variant="primary"
-            onClick={() => scrollToSection(createSectionRef)}
-            tooltip="Jump to create test plan form"
+            onClick={openCreatePlanModal}
+            tooltip="Open create test plan modal"
           />
           <ActionButton
             label="Assign"
             icon="👥"
             onClick={() => {
               if (activePlan?._id) {
-                selectPlanForAssignment(String(activePlan._id));
-                scrollToSection(assignSectionRef);
+                openAssignModal(String(activePlan._id));
               }
             }}
             disabled={!activePlan}
@@ -286,31 +361,8 @@ export default function AdminTestPlansScreen(props: Props) {
             onClick={() => {
               setSelectedIds([]);
               setActivePlanId("");
-              setActiveView("plans");
             }}
             tooltip="Reset local view, filters, and selection"
-          />
-          <ActionButton
-            label="History"
-            icon="🕘"
-            onClick={() => {
-              setActiveView("runs");
-              scrollToSection(listSectionRef);
-            }}
-            tooltip="Open execution run history context"
-          />
-          <ActionButton
-            label="Settings"
-            icon="⚙"
-            onClick={() => {
-              if (activePlan?._id) {
-                setEditingPlanId(String(activePlan._id));
-                setEditingExecutionMode(String(activePlan.executionMode || "manual"));
-                scrollToSection(listSectionRef);
-              }
-            }}
-            disabled={!activePlan}
-            tooltip={activePlan ? "Configure selected plan execution mode" : "Select a plan first"}
           />
           <div className="ml-auto flex items-center gap-2">
             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">{filteredPlans.length} visible</span>
@@ -330,7 +382,7 @@ export default function AdminTestPlansScreen(props: Props) {
               <button type="button" title="Bulk update status" onClick={() => void bulkUpdateExecutionMode()} disabled={selectedIds.length === 0} className="rounded-lg border border-amber-200 px-3 py-1.5 text-xs font-semibold text-amber-700 disabled:opacity-50">Bulk mode</button>
             </div>
           </div>
-          <div className="max-h-[620px] overflow-auto">
+          <div className="max-h-[620px] overflow-x-auto overflow-y-auto">
             <table className="min-w-full text-left text-sm">
               <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                 <tr>
@@ -351,7 +403,7 @@ export default function AdminTestPlansScreen(props: Props) {
                     <td className="px-4 py-3 text-xs font-semibold text-slate-700">{userName(plan.owner)}</td>
                     <td className="px-4 py-3"><span className={String(plan.executionMode || "manual") === "automation" ? "rounded-full bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700" : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600"}>{plan.executionMode || "manual"}</span></td>
                     <td className="px-4 py-3"><div className="flex justify-end gap-1.5">
-                      <button title={hasRuns ? "Plan da co run, khong the sua mode" : "Edit"} type="button" disabled={hasRuns} className="rounded-lg border border-slate-200 px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50" onClick={(e) => { e.stopPropagation(); setEditingPlanId(plan._id); setEditingExecutionMode(plan.executionMode || "manual"); }}>✎</button>
+                      <button title={hasRuns ? "Plan da co run, khong the edit" : "Edit"} type="button" disabled={hasRuns} className="rounded-lg border border-slate-200 px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50" onClick={(e) => { e.stopPropagation(); openEditPlanModal(plan); }}>✎</button>
                       <button title="Duplicate" type="button" className="rounded-lg border border-slate-200 px-2 py-1 text-xs" onClick={(e) => { e.stopPropagation(); void duplicatePlan(plan); }}>⧉</button>
                       <button title={hasRuns ? "Plan da co run, khong the xoa" : "Delete"} type="button" disabled={hasRuns} className="rounded-lg border border-rose-200 px-2 py-1 text-xs text-rose-700 disabled:cursor-not-allowed disabled:opacity-50" onClick={(e) => { e.stopPropagation(); void deletePlan(planId); }}>🗑</button>
                       <button title="Run" type="button" className="rounded-lg border border-emerald-200 px-2 py-1 text-xs text-emerald-700" onClick={(e) => { e.stopPropagation(); startQuickRun(plan); }}>▶</button>
@@ -363,26 +415,32 @@ export default function AdminTestPlansScreen(props: Props) {
           </div>
         </section>
 
-        <aside className="space-y-6 xl:sticky xl:top-24">
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <aside className="space-y-4 xl:sticky xl:top-24">
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="text-sm font-semibold text-slate-900">Plan detail</div>
             {!activePlan ? <div className="mt-3 text-sm text-slate-500">Select a plan to inspect details</div> : <div className="mt-3 space-y-3 text-sm">
               <div><div className="text-xs uppercase tracking-wide text-slate-500">Name</div><div className="font-semibold text-slate-900">{activePlan.name}</div></div>
               <div className="grid grid-cols-2 gap-2 text-xs"><div className="rounded-lg bg-slate-50 p-2"><div className="text-slate-500">Project</div><div className="font-semibold text-slate-800">{activePlan.project?.name || "-"}</div></div><div className="rounded-lg bg-slate-50 p-2"><div className="text-slate-500">Version</div><div className="font-semibold text-slate-800">{activePlan.version?.name || "-"}</div></div></div>
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">{activePlan.description || "No description"}</div>
-              <div className="flex gap-2"><button type="button" className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white" onClick={() => startQuickRun(activePlan)}>Run this plan</button><button type="button" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600" onClick={() => { selectPlanForAssignment(String(activePlan._id)); setActiveView("cases"); }}>Assign cases</button></div>
+              <div className="flex gap-2"><button type="button" className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white" onClick={() => startQuickRun(activePlan)}>Run this plan</button><button type="button" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600" onClick={() => openAssignModal(String(activePlan._id))}>Assign cases</button></div>
             </div>}
           </section>
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="text-sm font-semibold text-slate-900">Recent activity</div>
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-semibold text-slate-900">Recent activity</div>
+              <button type="button" className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold" onClick={() => {}}>View all</button>
+            </div>
             <div className="mt-3 space-y-2">
               {recentActivity.map((item: RecordAny) => <button key={String(item._id)} type="button" onClick={() => setActivePlanId(String(item._id))} className="flex w-full items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-left hover:border-slate-300"><span><span className="block text-xs text-slate-500">{item.project?.name || "-"}</span><span className="block text-sm font-semibold text-slate-900">{item.name}</span></span><span className="text-xs text-slate-400">{new Date(item.updatedAt || item.createdAt || 0).toLocaleDateString()}</span></button>)}
             </div>
           </section>
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="text-sm font-semibold text-slate-900">Execution runs</div>
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="text-sm font-semibold text-slate-900">Execution runs</div>
+              <button type="button" className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold" onClick={() => setActiveTab("test-runs")}>View all</button>
+            </div>
             <div className="mt-3 space-y-2 text-sm">
               {relatedRuns.length === 0 ? <div className="text-slate-500">No related runs</div> : relatedRuns.map((run: RecordAny) => <div key={String(run._id)} className="rounded-lg border border-slate-200 p-3"><div className="flex items-center justify-between"><strong className="text-slate-900">{run.name || "Run"}</strong><span className={run.status === "completed" ? "text-emerald-700" : run.status === "running" ? "text-amber-700" : "text-slate-500"}>{run.status || "pending"}</span></div><div className="text-xs text-slate-500">{new Date(run.createdAt || 0).toLocaleString()}</div></div>)}
             </div>
@@ -390,10 +448,24 @@ export default function AdminTestPlansScreen(props: Props) {
         </aside>
       </div>
 
-      <div className="workspace-stack">
-      <div ref={createSectionRef}>
-      <SectionCard title="Test Plans" subtitle="Assign user va tao plan rieng biet">
-        <form className="workspace-form" onSubmit={createPlan}>
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="relative max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
+            <button
+              type="button"
+              onClick={closePlanModal}
+              className="absolute right-4 top-4 text-slate-400 hover:text-slate-600"
+            >
+              ✕
+            </button>
+            <h3 className="mb-2 text-lg font-semibold text-slate-900">{editingPlanId ? "Edit Test Plan" : "Create Test Plan"}</h3>
+            <p className="mb-4 text-sm text-slate-600">{editingPlanId ? "Sua thong tin plan, gom ca danh sach test case." : "Assign user va tao plan rieng biet"}</p>
+            <form className="workspace-form" onSubmit={async (e) => {
+              const saved = await createPlan(e);
+              if (saved) {
+                setShowCreateModal(false);
+              }
+            }}>
           <div className="workspace-form__grid workspace-form__grid--two">
             <label>
               <span>Project</span>
@@ -488,36 +560,100 @@ export default function AdminTestPlansScreen(props: Props) {
 
           <label>
             <span>Groups</span>
-            <div className="workspace-checklist workspace-checklist--compact workspace-checklist--scrollable">
-              {planProjectGroups.length === 0 ? (
-                <div className="workspace-checklist__empty">
-                  Chon project truoc de lay danh sach group.
-                </div>
+            <div className="workspace-checklist workspace-checklist--compact workspace-checklist--scrollable rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
+              {!selectedPlanProject ? (
+                <div className="workspace-checklist__empty">Chon project truoc de lay danh sach group.</div>
               ) : (
-                planProjectGroups.map((group: RecordAny) => {
-                  const groupId = String(group._id);
-                  const checked = selectedPlanGroupIds.has(groupId);
-                  const groupCaseCount = planProjectCases.filter(
-                    (testCase: RecordAny) => String(getId(testCase.group)) === groupId,
-                  ).length;
-
-                  return (
-                    <label
-                      key={groupId}
-                      className={`workspace-checklist__item workspace-checklist__item--compact workspace-checklist__item--singleline${checked ? " is-checked" : ""}`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => togglePlanGroup(groupId)}
-                      />
-                      <span className="workspace-checklist__item-main">
-                        <strong>{group.name}</strong>
-                        <small>{groupCaseCount} test cases</small>
+                <details className="group rounded-2xl border border-slate-200 bg-white shadow-sm" open>
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-900 transition group-open:rounded-b-none group-open:border-b group-open:border-slate-200">
+                    <span className="flex items-center gap-3">
+                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-600 text-xs font-semibold text-white">
+                        {String(selectedPlanProject.name || "?").slice(0, 1).toUpperCase()}
                       </span>
-                    </label>
-                  );
-                })
+                      <span>
+                        <strong className="block text-slate-900">{selectedPlanProject.name}</strong>
+                        <span className="block text-xs font-normal text-slate-500">
+                          {planProjectGroups.length} groups in current scope
+                        </span>
+                      </span>
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                      {selectedPlanGroupIds.size} selected
+                    </span>
+                  </summary>
+
+                  <div className="space-y-2 border-l border-slate-200 px-4 py-3">
+                    {planProjectGroups.length === 0 ? (
+                      <div className="workspace-checklist__empty workspace-checklist__empty--inline">
+                        Khong co group nao trong project nay.
+                      </div>
+                    ) : (
+                      planProjectGroups.map((group: RecordAny) => {
+                        const groupId = String(group._id);
+                        const checked = selectedPlanGroupIds.has(groupId);
+                        const groupCases = planProjectCases.filter(
+                          (testCase: RecordAny) => String(getId(testCase.group)) === groupId,
+                        );
+                        const shouldScrollCases = groupCases.length >= 4;
+
+                        return (
+                          <details key={groupId} className={`rounded-xl border px-3 py-2.5 ${checked ? "border-emerald-200 bg-emerald-50/60" : "border-slate-100 bg-slate-50"}`}>
+                            <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+                              <label
+                                className={`workspace-checklist__item workspace-checklist__item--compact workspace-checklist__item--singleline${checked ? " is-checked" : ""} flex-1 border-0 bg-transparent p-0`}
+                                onClick={(event) => event.stopPropagation()}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => togglePlanGroup(groupId)}
+                                />
+                                <span className="workspace-checklist__item-main">
+                                  <strong>{group.name}</strong>
+                                  <small>{groupCases.length} test cases</small>
+                                </span>
+                              </label>
+                            </summary>
+
+                            <div className="mt-3 border-l border-slate-200 pl-3">
+                              {groupCases.length === 0 ? (
+                                <div className="workspace-checklist__empty workspace-checklist__empty--inline">
+                                  Khong co test case trong group nay.
+                                </div>
+                              ) : (
+                                <div className={`space-y-2 ${shouldScrollCases ? "max-h-[240px] overflow-y-auto pr-1" : ""}`}>
+                                  {groupCases.map((testCase: RecordAny) => {
+                                    const caseId = String(testCase._id);
+                                    const checkedCase = selectedPlanCaseIds.has(caseId);
+
+                                    return (
+                                      <label
+                                        key={caseId}
+                                        className={`workspace-checklist__case workspace-checklist__case--compact workspace-checklist__case--singleline${checkedCase ? " is-checked" : ""}`}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={checkedCase}
+                                          onChange={() => togglePlanCase(groupId, caseId)}
+                                        />
+                                        <span className="workspace-checklist__case-main">
+                                          <strong>
+                                            {testCase.caseKey} - {testCase.title}
+                                          </strong>
+                                          <small>{testCase.description || "Khong co mo ta"}</small>
+                                        </span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          </details>
+                        );
+                      })
+                    )}
+                  </div>
+                </details>
               )}
             </div>
           </label>
@@ -598,187 +734,115 @@ export default function AdminTestPlansScreen(props: Props) {
           </div>
 
           <button className="workspace-primary" type="submit">
-            Create test plan
+            {editingPlanId ? "Save test plan" : "Create test plan"}
           </button>
         </form>
-      </SectionCard>
-      </div>
-
-      <div ref={assignSectionRef}>
-      <SectionCard title="Assign Assignees" subtitle="Owner se tu dong la admin dang thao tac">
-        <form className="workspace-form workspace-form--assignments" onSubmit={saveAssignments}>
-          <div className="workspace-assignments__section">
-            <label>
-              <span>Test Plan</span>
-              <select value={selectedPlanId} onChange={(e) => selectPlanForAssignment(e.target.value)} required>
-                <option value="">Select plan</option>
-                {scopedPlans.map((plan: RecordAny) => (
-                  <option key={plan._id} value={plan._id}>
-                    {plan.name}
-                  </option>
-                ))}
-              </select>
-            </label>
           </div>
+        </div>
+      )}
 
-          <div className="workspace-assignments__section">
-            <div className="workspace-assignments__picker">
-              <label>
-                <span>Assign Members</span>
-                <input
-                  type="search"
-                  value={assigneeSearch}
-                  onChange={(e) => setAssigneeSearch(e.target.value)}
-                  placeholder="Search users..."
-                />
-              </label>
+      {showAssignModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="relative max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
+            <button
+              type="button"
+              onClick={() => setShowAssignModal(false)}
+              className="absolute right-4 top-4 text-slate-400 hover:text-slate-600"
+            >
+              ✕
+            </button>
+            <h3 className="mb-2 text-lg font-semibold text-slate-900">Assign Assignees</h3>
+            <p className="mb-4 text-sm text-slate-600">Owner se tu dong la admin dang thao tac</p>
 
-              <div className="workspace-assignments__list" role="group" aria-label="Assignees">
-                {filteredUsers.length === 0 ? (
-                  <div className="workspace-checklist__empty">
-                    No users found.
-                  </div>
-                ) : (
-                  filteredUsers.map((user: RecordAny) => {
-                    const userId = String(user._id);
-                    const checked = assignDraft.assigneeIds.includes(userId);
-
-                    return (
-                      <label
-                        key={userId}
-                        className={`workspace-assignments__item${checked ? " is-checked" : ""}`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => {
-                            setAssignDraft((prev: any) => ({
-                              ...prev,
-                              assigneeIds: checked
-                                ? prev.assigneeIds.filter((id: string) => id !== userId)
-                                : [...prev.assigneeIds, userId],
-                            }));
-                          }}
-                        />
-                        <span className="workspace-assignments__item-main">
-                          <strong>{user.name}</strong>
-                          <small>{user.role}</small>
-                        </span>
-                      </label>
-                    );
-                  })
-                )}
+            <form
+              className="workspace-form workspace-form--assignments"
+              onSubmit={async (event) => {
+                await handleSaveAssignments(event);
+              }}
+            >
+              <div className="workspace-assignments__section">
+                <label>
+                  <span>Test Plan</span>
+                  <select value={selectedPlanId} onChange={(e) => selectPlanForAssignment(e.target.value)} required>
+                    <option value="">Select plan</option>
+                    {scopedPlans.map((plan: RecordAny) => (
+                      <option key={plan._id} value={plan._id}>
+                        {plan.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               </div>
-            </div>
-          </div>
 
-          <div className="workspace-assignments__owner">
-            <span>Owner</span>
-            <strong>{ownerName}</strong>
-            <span>({ownerRole})</span>
-          </div>
+              <div className="workspace-assignments__section">
+                <div className="workspace-assignments__picker">
+                  <label>
+                    <span>Assign Members</span>
+                    <input
+                      type="search"
+                      value={assigneeSearch}
+                      onChange={(e) => setAssigneeSearch(e.target.value)}
+                      placeholder="Search users..."
+                    />
+                  </label>
 
-          <div className="workspace-assignments__summary">
-            <strong>{selectedAssignees.length}</strong>
-            <span>selected members</span>
-          </div>
+                  <div className="workspace-assignments__list" role="group" aria-label="Assignees">
+                    {filteredUsers.length === 0 ? (
+                      <div className="workspace-checklist__empty">
+                        No users found.
+                      </div>
+                    ) : (
+                      filteredUsers.map((user: RecordAny) => {
+                        const userId = String(user._id);
+                        const checked = assignDraft.assigneeIds.includes(userId);
 
-          <button className="workspace-primary workspace-assignments__submit" type="submit">
-            Save assignment
-          </button>
-        </form>
-      </SectionCard>
-      </div>
-
-      <div ref={listSectionRef}>
-      <SectionCard title="Test Plan List">
-        {editingPlanId ? (
-          <div className="workspace-form">
-            <label>
-              <span>Execution Mode</span>
-              <select
-                value={editingExecutionMode}
-                onChange={(e) => setEditingExecutionMode(e.target.value)}
-              >
-                <option value="manual">Manual</option>
-                <option value="automation">Automation</option>
-              </select>
-            </label>
-            <div className="workspace-inline-actions">
-              <button
-                type="button"
-                className="workspace-primary"
-                onClick={() => {
-                  if (editingExecutionMode) {
-                    void updatePlanExecutionMode(editingPlanId, editingExecutionMode);
-                  }
-                }}
-              >
-                Save
-              </button>
-              <button
-                type="button"
-                className="workspace-secondary"
-                onClick={() => {
-                  setEditingPlanId("");
-                  setEditingExecutionMode("");
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        ) : (
-          <DataTable
-            columns={["Plan", "Project", "Version", "Owner", "Mode", "Action"]}
-            rows={filteredPlans.map((plan: RecordAny) => {
-                const hasRuns = runs.some((run: RecordAny) => String(getId(run.testPlan)) === String(plan._id));
-                return <>
-                  <div>{plan.name}</div>
-                  <div>{plan.project?.name || "-"}</div>
-                  <div>{plan.version?.name || "-"}</div>
-                  <div>{userName(plan.owner)}</div>
-                  <div>
-                    <span className="workspace-pill">{plan.executionMode || "manual"}</span>
+                        return (
+                          <label
+                            key={userId}
+                            className={`workspace-assignments__item${checked ? " is-checked" : ""}`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => {
+                                setAssignDraft((prev: any) => ({
+                                  ...prev,
+                                  assigneeIds: checked
+                                    ? prev.assigneeIds.filter((id: string) => id !== userId)
+                                    : [...prev.assigneeIds, userId],
+                                }));
+                              }}
+                            />
+                            <span className="workspace-assignments__item-main">
+                              <strong>{user.name}</strong>
+                              <small>{user.role}</small>
+                            </span>
+                          </label>
+                        );
+                      })
+                    )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      className="workspace-secondary"
-                      title={hasRuns ? "Plan da co run, khong the sua mode" : "Update"}
-                      disabled={hasRuns}
-                      onClick={() => {
-                        setEditingPlanId(plan._id);
-                        setEditingExecutionMode(plan.executionMode || "manual");
-                      }}
-                    >
-                      Update
-                    </button>
-                    <button
-                      type="button"
-                      className="workspace-secondary"
-                      onClick={() => void duplicatePlan(plan)}
-                    >
-                      Duplicate
-                    </button>
-                    <button
-                      type="button"
-                      className="workspace-danger"
-                      title={hasRuns ? "Plan da co run, khong the xoa" : "Delete"}
-                      disabled={hasRuns}
-                      onClick={() => void deletePlan(String(plan._id))}
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </>
-              })}
-            emptyText="No plans"
-          />
-        )}
-      </SectionCard>
-      </div>
-      </div>
+                </div>
+              </div>
+
+              <div className="workspace-assignments__owner">
+                <span>Owner</span>
+                <strong>{ownerName}</strong>
+                <span>({ownerRole})</span>
+              </div>
+
+              <div className="workspace-assignments__summary">
+                <strong>{selectedAssignees.length}</strong>
+                <span>selected members</span>
+              </div>
+
+              <button className="workspace-primary workspace-assignments__submit" type="submit">
+                Save assignment
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
