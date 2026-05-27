@@ -42,7 +42,7 @@ const isPlanAssignedToUser = (testPlan, userId) => {
 };
 
 const createProject = asyncHandler(async (req, res) => {
-  const { name, code, description } = req.body;
+  const { name, code, description, jiraProjectKey, jiraProductKey, Jiraproduckeys, JiraProductKey } = req.body;
   if (!name || !code) {
     throw httpError(400, 'name and code are required');
   }
@@ -57,6 +57,7 @@ const createProject = asyncHandler(async (req, res) => {
     name,
     code,
     description: description || '',
+    jiraProjectKey: String(jiraProjectKey || jiraProductKey || Jiraproduckeys || JiraProductKey || '').trim(),
     createdBy: req.user.id,
   });
 
@@ -65,7 +66,7 @@ const createProject = asyncHandler(async (req, res) => {
 
 const updateProject = asyncHandler(async (req, res) => {
   const { projectId } = req.params;
-  const { name, code, description, status } = req.body;
+  const { name, code, description, status, jiraProjectKey, jiraProductKey, Jiraproduckeys, JiraProductKey } = req.body;
 
   const project = await Project.findById(toObjectId(projectId, 'projectId'));
   if (!project) {
@@ -83,6 +84,9 @@ const updateProject = asyncHandler(async (req, res) => {
   if (name) project.name = name;
   if (code) project.code = code;
   if (description !== undefined) project.description = description || '';
+  if (jiraProjectKey !== undefined || jiraProductKey !== undefined || Jiraproduckeys !== undefined || JiraProductKey !== undefined) {
+    project.jiraProjectKey = String(jiraProjectKey || jiraProductKey || Jiraproduckeys || JiraProductKey || '').trim();
+  }
   if (status && ['active', 'archived'].includes(status)) project.status = status;
 
   await project.save();

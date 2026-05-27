@@ -12,6 +12,7 @@ import AdminGroupsScreen from "./workspaceScreens/AdminGroupsScreen";
 import AdminTestCasesScreen from "./workspaceScreens/AdminTestCasesScreen";
 import AdminTestCasesDetailScreen from "./workspaceScreens/AdminTestCasesDetailScreen";
 import AdminVersionsScreen from "./workspaceScreens/AdminVersionsScreen";
+import AdminIssueTypesScreen from "./workspaceScreens/AdminIssueTypesScreen";
 import AdminTestPlansScreen from "@/components/workspaceScreens/AdminTestPlansScreen";
 import AdminTestRunsScreen from "./workspaceScreens/AdminTestRunsScreen";
 import AdminUsersScreen from "./workspaceScreens/AdminUsersScreen";
@@ -34,6 +35,7 @@ const adminNav = [
   { key: "test-cases", label: "Test Cases" },
   { key: "test-cases-detail", label: "Test Cases Detail" },
   { key: "versions", label: "Versions" },
+  { key: "issue-types", label: "Issue Types" },
   { key: "test-plans", label: "Test Plans" },
   { key: "test-runs", label: "Test Runs" },
   { key: "execution", label: "Execution" },
@@ -77,6 +79,14 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
     startVersionEdit,
     cancelVersionEdit,
     deleteVersion,
+    issueTypes,
+    issueTypeForm,
+    setIssueTypeForm,
+    createIssueType,
+    editingIssueTypeId,
+    startIssueTypeEdit,
+    cancelIssueTypeEdit,
+    deleteIssueType,
     groupForm,
     setGroupForm,
     editingGroupId,
@@ -230,7 +240,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
   const navItems = isAdmin
     ? isGlobalScope
       ? adminNav.filter((item) =>
-          ["dashboard", "projects", "users"].includes(item.key),
+          ["dashboard", "projects", "issue-types", "users"].includes(item.key),
         )
       : adminNav.filter((item) => item.key !== "projects")
     : employeeNav;
@@ -361,7 +371,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
     }
 
     const allowedTabs = isGlobalScope
-      ? ["dashboard", "projects", "execution", "users"]
+      ? ["dashboard", "projects", "issue-types", "execution", "users"]
       : [
           "dashboard",
           "groups",
@@ -699,6 +709,20 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
             projects={projects}
             matchesSearch={matchesSearch}
             getId={getId}
+          />
+        )}
+
+        {isAdmin && visibleTab === "issue-types" && (
+          <AdminIssueTypesScreen
+            issueTypeForm={issueTypeForm}
+            setIssueTypeForm={setIssueTypeForm}
+            createIssueType={createIssueType}
+            editingIssueTypeId={editingIssueTypeId}
+            startIssueTypeEdit={startIssueTypeEdit}
+            cancelIssueTypeEdit={cancelIssueTypeEdit}
+            deleteIssueType={deleteIssueType}
+            issueTypes={issueTypes}
+            matchesSearch={matchesSearch}
           />
         )}
 

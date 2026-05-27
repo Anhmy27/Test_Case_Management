@@ -21,6 +21,7 @@ type AutomationStepForm = {
 const adminNav = [
   { key: "dashboard", label: "Dashboard" },
   { key: "projects", label: "Projects" },
+  { key: "issue-types", label: "Issue Types" },
   { key: "groups", label: "Groups" },
   { key: "test-cases", label: "Test Cases" },
   { key: "test-cases-detail", label: "Test Cases Detail" },
@@ -76,6 +77,19 @@ function resolveWorkspacePath(role?: string, tab?: string) {
   return `/workspace/${safeRole}/${safeTab}`;
 }
 
+function getProjectJiraProductKey(project?: RecordAny | null) {
+  return String(
+    project?.jiraProjectKey ||
+      project?.jiraProductKey ||
+      project?.Jiraproduckeys ||
+      project?.JiraProductKey ||
+      project?.jiraProductKeys ||
+      project?.code ||
+      project?.Code ||
+      "",
+  ).trim();
+}
+
 export default function TestCaseManagementApp() {
   const [isMounted, setIsMounted] = useState(false);
   const [token, setToken] = useState<string>(() => {
@@ -98,6 +112,7 @@ export default function TestCaseManagementApp() {
   const [users, setUsers] = useState<RecordAny[]>([]);
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [versions, setVersions] = useState<RecordAny[]>([]);
+  const [issueTypes, setIssueTypes] = useState<RecordAny[]>([]);
   const [groups, setGroups] = useState<RecordAny[]>([]);
   const [testCases, setTestCases] = useState<RecordAny[]>([]);
   const [plans, setPlans] = useState<RecordAny[]>([]);
@@ -109,13 +124,22 @@ export default function TestCaseManagementApp() {
     name: "",
     code: "",
     pid: "",
+    jiraProductKey: "",
     description: "",
   });
+  const [assigneeQuery, setAssigneeQuery] = useState<string>("");
+  const [assigneeOptions, setAssigneeOptions] = useState<RecordAny[]>([]);
+  const [assigneeLoading, setAssigneeLoading] = useState<boolean>(false);
+  const [assigneeDropdownOpen, setAssigneeDropdownOpen] = useState<boolean>(false);
   const [editingProjectId, setEditingProjectId] = useState<string>("");
   const [versionForm, setVersionForm] = useState({
     projectId: "",
     name: "",
     releaseDate: "",
+  });
+  const [issueTypeForm, setIssueTypeForm] = useState({
+    name: "",
+    idjira: "",
   });
   const [groupForm, setGroupForm] = useState({
     projectId: "",
@@ -123,6 +147,7 @@ export default function TestCaseManagementApp() {
     description: "",
   });
   const [editingVersionId, setEditingVersionId] = useState<string>("");
+  const [editingIssueTypeId, setEditingIssueTypeId] = useState<string>("");
   const [editingGroupId, setEditingGroupId] = useState<string>("");
   const [testCaseForm, setTestCaseForm] = useState({
     projectId: "",
@@ -203,10 +228,39 @@ export default function TestCaseManagementApp() {
     description: string;
     priority: string;
     assignee: string;
+    originalEstimate: string;
+    versions: string[];
     labels: string;
     submitting: boolean;
     error: string;
   } | null>(null);
+  const getAssigneeValue = useCallback((assignee: RecordAny) => {
+    return String(assignee.name || assignee.key || assignee.accountId || '');
+  }, []);
+  const selectedAssigneeLabel = useMemo(() => {
+    if (!jiraBugDialog?.assignee) {
+      return '';
+    }
+
+    const selectedAssignee = assigneeOptions.find((assignee) => getAssigneeValue(assignee) === jiraBugDialog.assignee);
+    return String(
+      selectedAssignee?.displayName ||
+        selectedAssignee?.name ||
+        selectedAssignee?.key ||
+        jiraBugDialog.assignee ||
+        '',
+    );
+  }, [assigneeOptions, getAssigneeValue, jiraBugDialog?.assignee]);
+
+  const selectedAssigneeDetail = useMemo(() => {
+    if (!jiraBugDialog?.assignee) return null;
+    return (
+      assigneeOptions.find((assignee) => getAssigneeValue(assignee) === jiraBugDialog.assignee) || null
+    );
+  }, [assigneeOptions, getAssigneeValue, jiraBugDialog?.assignee]);
+  const jiraIssueTypeOptions = useMemo(() => {
+    return issueTypes;
+  }, [issueTypes]);
   const lastTabRef = useRef<string>(activeTab);
   const selectedProjectIdRef = useRef<string>(selectedProjectId);
   const previousSelectedProjectIdRef = useRef<string | null>(null);
@@ -255,7 +309,7 @@ export default function TestCaseManagementApp() {
   const adminRuns = isAdmin ? runs : scopedRuns;
   const navItems = isAdmin
     ? isGlobalScope
-      ? adminNav.filter((item) => ["dashboard", "projects", "users"].includes(item.key))
+      ? adminNav.filter((item) => ["dashboard", "projects", "issue-types", "users"].includes(item.key))
       : adminNav.filter((item) => item.key !== "projects")
     : employeeNav;
   const visibleTab = navItems.some((item) => item.key === activeTab) ? activeTab : navItems[0].key;
@@ -351,10 +405,12 @@ export default function TestCaseManagementApp() {
 
   const resetWorkspaceDrafts = useCallback(() => {
     setEditingProjectId("");
-    setProjectForm({ name: "", code: "", pid: "", description: "" });
+    setProjectForm({ name: "", code: "", pid: "", jiraProductKey: "", description: "" });
     setVersionForm({ projectId: "", name: "", releaseDate: "" });
+    setIssueTypeForm({ name: "", idjira: "" });
     setGroupForm({ projectId: "", name: "", description: "" });
     setEditingVersionId("");
+    setEditingIssueTypeId("");
     setEditingGroupId("");
     setEditingTestCaseId("");
     setTestCaseForm({
@@ -507,10 +563,11 @@ export default function TestCaseManagementApp() {
           () => apiRequest<{ testCases: RecordAny[] }>(`/api/test-cases${projectQuery}`, currentToken, opts),
           () => apiRequest<{ testPlans: RecordAny[] }>(`/api/test-plans${projectQuery}`, currentToken, opts),
           () => apiRequest<{ testRuns: RecordAny[] }>(`/api/test-runs${projectQuery}`, currentToken, opts),
+          () => apiRequest<{ issueTypes: RecordAny[] }>(`/api/issue-types`, currentToken, opts),
           () => apiRequest<RecordAny>(`/api/dashboard${projectQuery}`, currentToken, opts),
         ];
 
-        const [versionResp, groupResp, caseResp, planResp, runResp, dashboardResp] = await runWithConcurrency(taskFns, 2);
+        const [versionResp, groupResp, caseResp, planResp, runResp, issueTypeResp, dashboardResp] = await runWithConcurrency(taskFns, 2);
 
         setProjects(projectResp.projects || []);
         setVersions((versionResp && versionResp.versions) || []);
@@ -518,6 +575,7 @@ export default function TestCaseManagementApp() {
         setTestCases((caseResp && caseResp.testCases) || []);
         setPlans((planResp && planResp.testPlans) || []);
         setRuns((runResp && runResp.testRuns) || []);
+        setIssueTypes((issueTypeResp && issueTypeResp.issueTypes) || []);
         setDashboard(dashboardResp || null);
 
         if ((role || currentUser?.role) === "admin") {
@@ -555,6 +613,26 @@ export default function TestCaseManagementApp() {
       }
     };
   }, [currentUser]);
+
+  useEffect(() => {
+    // fetch issue types when project scope or token changes (for dropdowns)
+    if (!token) return;
+
+    let cancelled = false;
+    void apiRequest<{ issueTypes: RecordAny[] }>(`/api/issue-types`, token)
+      .then((resp) => {
+        if (cancelled) return;
+        setIssueTypes(Array.isArray(resp.issueTypes) ? resp.issueTypes : []);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setIssueTypes([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token, selectedProjectId]);
 
   useEffect(() => {
     tokenRef.current = token;
@@ -628,6 +706,10 @@ export default function TestCaseManagementApp() {
 
     queueMicrotask(() => {
       setVersionForm((prev) => ({
+        ...prev,
+        projectId: selectedProjectId,
+      }));
+      setIssueTypeForm((prev) => ({
         ...prev,
         projectId: selectedProjectId,
       }));
@@ -829,6 +911,7 @@ export default function TestCaseManagementApp() {
       name: project.name || "",
       code: project.code || "",
       pid: project.pid || "",
+      jiraProductKey: getProjectJiraProductKey(project),
       description: project.description || "",
     });
     setActiveTab("projects");
@@ -836,7 +919,7 @@ export default function TestCaseManagementApp() {
 
   function cancelProjectEdit() {
     setEditingProjectId("");
-    setProjectForm({ name: "", code: "", pid: "", description: "" });
+    setProjectForm({ name: "", code: "", pid: "", jiraProductKey: "", description: "" });
   }
 
   async function saveProject(event: FormEvent) {
@@ -852,7 +935,7 @@ export default function TestCaseManagementApp() {
         body: JSON.stringify(projectForm),
       });
 
-      setProjectForm({ name: "", code: "", pid: "", description: "" });
+      setProjectForm({ name: "", code: "", pid: "", jiraProductKey: "", description: "" });
       setEditingProjectId("");
       setMessage(editingProjectId ? "Da cap nhat project" : "Da tao project");
     });
@@ -914,6 +997,13 @@ export default function TestCaseManagementApp() {
       return;
     }
 
+    const runVersionName = String(
+      run?.version?.name ||
+      run?.testPlan?.version?.name ||
+      run?.testPlanVersion?.name ||
+      '',
+    ).trim();
+
     setJiraBugDialog({
       projectId,
       projectName: project.name || "",
@@ -926,6 +1016,8 @@ export default function TestCaseManagementApp() {
       description: buildJiraBugDescription(run, result),
       priority: mapPriorityToJira(result?.testCase?.priority),
       assignee: "",
+      originalEstimate: "",
+      versions: runVersionName ? [runVersionName] : [],
       labels: "",
       submitting: false,
       error: "",
@@ -939,6 +1031,43 @@ export default function TestCaseManagementApp() {
   const updateJiraBugDialog = useCallback((patch: Partial<NonNullable<typeof jiraBugDialog>>) => {
     setJiraBugDialog((prev) => (prev ? { ...prev, ...patch } : prev));
   }, []);
+
+  useEffect(() => {
+    if (!jiraBugDialog?.projectId || !assigneeDropdownOpen) return;
+
+    const project = projects.find((p) => String(p._id) === String(jiraBugDialog.projectId));
+    const projectKey = getProjectJiraProductKey(project);
+
+    if (!projectKey) {
+      queueMicrotask(() => {
+        setAssigneeOptions([]);
+        setAssigneeLoading(false);
+      });
+      return;
+    }
+
+    const q = encodeURIComponent(assigneeQuery || '');
+    const url = `/api/jira/assignable-users?projectKeys=${encodeURIComponent(projectKey)}&maxResults=100&username=${q}`;
+
+    let cancelled = false;
+    void apiRequest<{ users: RecordAny[] }>(url, token)
+      .then((resp) => {
+        if (cancelled) return;
+        setAssigneeOptions(Array.isArray(resp.users) ? resp.users : []);
+      })
+      .catch((err: any) => {
+        if (cancelled) return;
+        setAssigneeOptions([]);
+        setMessage(err?.message || 'Unable to fetch Jira users');
+      })
+      .finally(() => {
+        if (!cancelled) setAssigneeLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [assigneeQuery, assigneeDropdownOpen, jiraBugDialog?.projectId, projects, token]);
 
   const submitJiraBug = useCallback(async () => {
     if (!jiraBugDialog) {
@@ -959,6 +1088,8 @@ export default function TestCaseManagementApp() {
           issueType: jiraBugDialog.issueType,
           priority: jiraBugDialog.priority,
           assignee: jiraBugDialog.assignee,
+          timetracking_originalestimate: jiraBugDialog.originalEstimate,
+          versions: jiraBugDialog.versions,
           labels: jiraBugDialog.labels,
         }),
       });
@@ -989,6 +1120,53 @@ export default function TestCaseManagementApp() {
       setMessage(editingVersionId ? "Da cap nhat version" : "Da tao version");
     });
   }
+    async function createIssueType(event: FormEvent) {
+      event.preventDefault();
+      await withAction(async () => {
+        const endpoint = editingIssueTypeId ? `/api/issue-types/${editingIssueTypeId}` : "/api/issue-types";
+        const method = editingIssueTypeId ? "PUT" : "POST";
+
+        await apiRequest(endpoint, token, {
+          method,
+          body: JSON.stringify({ name: issueTypeForm.name, idjira: issueTypeForm.idjira }),
+        });
+
+        setIssueTypeForm({ name: "", idjira: "" });
+        setEditingIssueTypeId("");
+        setMessage(editingIssueTypeId ? "Da cap nhat Issue type" : "Da tao Issue type");
+      });
+    }
+
+    function startIssueTypeEdit(issueType: RecordAny) {
+      setEditingIssueTypeId(String(issueType._id));
+      setIssueTypeForm({ name: issueType.name || "", idjira: issueType.idjira || "" });
+      setActiveTab("issue-types");
+    }
+
+    function cancelIssueTypeEdit() {
+      setEditingIssueTypeId("");
+      setIssueTypeForm({ name: "", idjira: "" });
+    }
+
+    async function deleteIssueType(issueTypeId: string) {
+      setMessage("Confirming delete issue type...");
+      setConfirmDialog({
+        title: "Xoa issue type nay?",
+        description: "Thao tac nay khong the hoan tac.",
+        confirmLabel: "Xoa",
+        onConfirm: async () => {
+          await withAction(async () => {
+            await apiRequest(`/api/issue-types/${issueTypeId}`, token, {
+              method: "DELETE",
+            });
+            if (editingIssueTypeId === issueTypeId) {
+              cancelIssueTypeEdit();
+            }
+            setMessage("Da xoa issue type");
+          });
+        },
+      });
+    }
 
   function startVersionEdit(version: RecordAny) {
     setEditingVersionId(String(version._id));
@@ -1957,6 +2135,14 @@ export default function TestCaseManagementApp() {
     updatePlanExecutionMode,
     duplicatePlan,
     createVersion,
+    issueTypes,
+    issueTypeForm,
+    setIssueTypeForm,
+    createIssueType,
+    editingIssueTypeId,
+    startIssueTypeEdit,
+    cancelIssueTypeEdit,
+    deleteIssueType,
     createGroup,
     createPlan,
     createUser,
@@ -2079,7 +2265,12 @@ export default function TestCaseManagementApp() {
                   <div className="workspace-form__grid workspace-form__grid--two">
                     <label>
                       <span>Issue type</span>
-                      <input value={jiraBugDialog.issueType} onChange={(e) => updateJiraBugDialog({ issueType: e.target.value })} placeholder="Issue type id" />
+                      <select value={jiraBugDialog.issueType} onChange={(e) => updateJiraBugDialog({ issueType: e.target.value })}>
+                        <option value="">Select issue type</option>
+                        {jiraIssueTypeOptions.map((it) => (
+                          <option key={String(it._id)} value={it.idjira || it._id}>{it.name} {it.idjira ? `(${it.idjira})` : ''}</option>
+                        ))}
+                      </select>
                     </label>
                     <label>
                       <span>Priority</span>
@@ -2116,6 +2307,14 @@ export default function TestCaseManagementApp() {
                     <span>Labels</span>
                     <input value={jiraBugDialog.labels} onChange={(e) => updateJiraBugDialog({ labels: e.target.value })} placeholder="BE, FE" />
                   </label>
+                  <label>
+                    <span>Original Estimate</span>
+                    <input
+                      value={jiraBugDialog.originalEstimate}
+                      onChange={(e) => updateJiraBugDialog({ originalEstimate: e.target.value })}
+                      placeholder="eg. 3w 4d 12h"
+                    />
+                  </label>
                 </div>
               </section>
 
@@ -2123,22 +2322,87 @@ export default function TestCaseManagementApp() {
                 <div className="jira-bug-modal__section-head">
                   <div>
                     <span>Assignee</span>
-                    <h4>Enter assignee manually</h4>
+                      <h4>Search Jira users</h4>
                   </div>
                 </div>
-                <div className="workspace-form jira-bug-modal__form">
-                  <label>
-                    <span>Assignee</span>
-                    <input
-                      value={jiraBugDialog.assignee}
-                      onChange={(e) => updateJiraBugDialog({ assignee: e.target.value })}
-                      placeholder="Jira username, key, or display name"
-                    />
-                  </label>
-                  <div className="workspace-note">
-                    The value below will be sent directly as Jira assignee.
+                  <div className="workspace-form jira-bug-modal__form">
+                    <label>
+                      <span>Search assignee</span>
+                      <input
+                        value={assigneeQuery || selectedAssigneeLabel}
+                        onChange={(e) => {
+                          if (jiraBugDialog?.assignee && !assigneeQuery && e.target.value !== selectedAssigneeLabel) {
+                            updateJiraBugDialog({ assignee: '' });
+                          }
+                          setAssigneeQuery(e.target.value);
+                          setAssigneeDropdownOpen(true);
+                          setAssigneeLoading(true);
+                        }}
+                        onFocus={() => {
+                          setAssigneeDropdownOpen(true);
+                          if (!assigneeQuery && selectedAssigneeLabel) {
+                            setAssigneeQuery('');
+                          }
+                        }}
+                        placeholder="Type a Jira username"
+                      />
+                    </label>
+
+                    {jiraBugDialog?.assignee ? (
+                      <div className="jira-bug-modal__selected-assignee">
+                        <div className="jira-bug-modal__selected-assignee-label">Selected assignee</div>
+                        <div className="jira-bug-modal__selected-assignee-card">
+                          <div>
+                            <strong>{selectedAssigneeDetail?.displayName || selectedAssigneeDetail?.name || selectedAssigneeLabel || jiraBugDialog.assignee}</strong>
+                            <span style={{ marginLeft: 8, color: '#6b7280', fontSize: '0.95em' }}>{selectedAssigneeDetail?.emailAddress || selectedAssigneeDetail?.name || jiraBugDialog.assignee}</span>
+                          </div>
+                          <button
+                            type="button"
+                            className="workspace-secondary"
+                            onClick={() => {
+                              updateJiraBugDialog({ assignee: '' });
+                              setAssigneeQuery('');
+                              setAssigneeDropdownOpen(true);
+                            }}
+                          >
+                            Change
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {assigneeDropdownOpen ? (
+                      <div className="jira-bug-modal__assignee-list" role="listbox">
+                        {assigneeLoading ? (
+                          <div className="jira-bug-modal__assignee-item">Searching Jira...</div>
+                        ) : assigneeOptions.length > 0 ? (
+                          assigneeOptions.map((a) => (
+                            <div
+                              key={String(a.name || a.key || a.accountId || a.displayName)}
+                              className="jira-bug-modal__assignee-item"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => {
+                                const nextAssignee = getAssigneeValue(a);
+                                updateJiraBugDialog({ assignee: nextAssignee });
+                                setAssigneeQuery('');
+                                setAssigneeDropdownOpen(false);
+                                setAssigneeLoading(false);
+                              }}
+                              role="option"
+                              aria-selected={jiraBugDialog?.assignee === String(a.name || a.key || a.accountId || '')}
+                            >
+                              <strong>{a.displayName || a.name || a.key}</strong>
+                              <span>{a.emailAddress || a.name || a.key}</span>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="jira-bug-modal__assignee-item">No users matched</div>
+                        )}
+                      </div>
+                    ) : null}
+
+                    <div className="workspace-note">The selected username will be sent to Jira as the assignee.</div>
                   </div>
-                </div>
               </section>
             </div>
             <div className="jira-bug-modal__footer">

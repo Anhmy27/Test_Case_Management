@@ -1,8 +1,11 @@
 const express = require('express');
 const { authenticate } = require('../middlewares/authMiddleware');
-const { logBug } = require('../controllers/jiraController');
+const { logBug, getAssignableUsers } = require('../controllers/jiraController');
 
 const router = express.Router();
+
+// public route: frontend can search Jira assignable users without app auth
+router.get('/assignable-users', getAssignableUsers);
 
 router.use(authenticate);
 

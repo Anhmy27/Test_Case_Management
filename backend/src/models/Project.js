@@ -18,6 +18,18 @@ const projectSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
+    jiraProjectKey: {
+      type: String,
+      default: '',
+      trim: true,
+      uppercase: true,
+    },
+    jiraProductKey: {
+      type: String,
+      default: '',
+      trim: true,
+      uppercase: true,
+    },
     description: {
       type: String,
       default: '',

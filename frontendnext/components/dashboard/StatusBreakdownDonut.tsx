@@ -48,7 +48,7 @@ export default function StatusBreakdownDonut({
                 ))}
               </Pie>
               <Tooltip
-                formatter={(value: number, name: string) => [value, name]}
+                formatter={(value: any, name: any) => [value, name]}
                 contentStyle={{
                   borderRadius: "12px",
                   border: "1px solid #e2e8f0",

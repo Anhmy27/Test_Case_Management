@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 const XLSX = require('xlsx');
 const Project = require('../models/Project');
 const Version = require('../models/Version');
+const IssueType = require('../models/IssueType');
 const TestCase = require('../models/TestCase');
 const TestCaseGroup = require('../models/TestCaseGroup');
 const TestPlan = require('../models/TestPlan');
@@ -647,6 +648,110 @@ const restoreVersion = asyncHandler(async (req, res) => {
   version.deletedAt = null;
   await version.save();
   res.json({ version });
+});
+
+// Issue type CRUD
+const createIssueType = asyncHandler(async (req, res) => {
+  const { name, idjira } = req.body;
+  // TEMP LOG: help debug unexpected validation errors from frontend
+  try {
+    console.log('POST /api/issue-types body:', JSON.stringify(req.body));
+  } catch (e) {}
+  if (!name || !idjira) {
+    throw httpError(400, 'name and idjira are required');
+  }
+
+  const normalizedName = normalizeName(name);
+  const normalizedIdJira = String(idjira).trim();
+
+  const duplicate = await IssueType.findOne({
+    deletedAt: null,
+    $or: [{ name: normalizedName }, { idjira: normalizedIdJira }],
+  }).lean();
+  if (duplicate) {
+    throw httpError(409, 'Issue type name or Jira id already exists');
+  }
+
+  const issueType = await IssueType.create({
+    name: normalizedName,
+    idjira: normalizedIdJira,
+    createdBy: req.user.id,
+  });
+
+  res.status(201).json({ issueType });
+});
+
+const listIssueTypes = asyncHandler(async (req, res) => {
+  const { search, includeDeleted } = req.query;
+  const filters = [];
+
+  if (includeDeleted !== 'true') {
+    filters.push({ deletedAt: null });
+  }
+
+  if (search) {
+    filters.push(buildSearchMatch(search, ['name', 'idjira']));
+  }
+
+  const match = filters.length === 0 ? {} : filters.length === 1 ? filters[0] : { $and: filters };
+  const issueTypes = await IssueType.find(match).sort({ createdAt: -1 }).lean();
+
+  res.json({ issueTypes });
+});
+
+const getIssueType = asyncHandler(async (req, res) => {
+  const { issueTypeId } = req.params;
+  const issueType = await IssueType.findById(toObjectId(issueTypeId, 'issueTypeId')).lean();
+  if (!issueType) {
+    throw httpError(404, 'Issue type not found');
+  }
+
+  res.json({ issueType });
+});
+
+const updateIssueType = asyncHandler(async (req, res) => {
+  const { issueTypeId } = req.params;
+  const { name, idjira } = req.body;
+
+  const issueType = await IssueType.findById(toObjectId(issueTypeId, 'issueTypeId'));
+  if (!issueType) {
+    throw httpError(404, 'Issue type not found');
+  }
+
+  if (issueType.deletedAt) {
+    throw httpError(409, 'Restore the issue type before editing it');
+  }
+
+  if (name !== undefined) issueType.name = normalizeName(name);
+  if (idjira !== undefined) issueType.idjira = String(idjira || '').trim();
+
+  if (!issueType.name || !issueType.idjira) {
+    throw httpError(400, 'name and idjira are required');
+  }
+
+  const duplicate = await IssueType.findOne({
+    _id: { $ne: issueType._id },
+    deletedAt: null,
+    $or: [{ name: issueType.name }, { idjira: issueType.idjira }],
+  }).lean();
+  if (duplicate) {
+    throw httpError(409, 'Issue type name or Jira id already exists');
+  }
+
+  await issueType.save();
+  res.json({ issueType });
+});
+
+const deleteIssueType = asyncHandler(async (req, res) => {
+  const { issueTypeId } = req.params;
+  const issueType = await IssueType.findById(toObjectId(issueTypeId, 'issueTypeId'));
+  if (!issueType) {
+    throw httpError(404, 'Issue type not found');
+  }
+
+  issueType.deletedAt = new Date();
+  await issueType.save();
+  res.status(204).send();
 });
 
 // Test case group CRUD
@@ -1582,6 +1687,11 @@ module.exports = {
   updateVersion,
   deleteVersion,
   restoreVersion,
+  createIssueType,
+  listIssueTypes,
+  getIssueType,
+  updateIssueType,
+  deleteIssueType,
   createTestCaseGroup,
   listTestCaseGroups,
   getTestCaseGroup,
