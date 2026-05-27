@@ -118,6 +118,7 @@ const createBugIssue = async ({
   priority,
   assignee,
   labels,
+  versions,
 }) => {
   const context = await createLoggedInContext();
 
@@ -169,6 +170,7 @@ const createBugIssue = async ({
         'dnd-dropzone': '',
         priority: priority || '3',
         labels: labels || '',
+        versions: Array.isArray(versions) ? versions.join(',') : (versions || ''),
         issuelinks: '',
         'issuelinks-linktype': '',
       },
@@ -210,6 +212,34 @@ const createBugIssue = async ({
   }
 };
 
+const searchAssignableUsers = async ({
+  projectKeys,
+  username = '',
+  maxResults = 100,
+}) => {
+  const context = await createLoggedInContext();
+
+  try {
+    const query = new URLSearchParams();
+    query.set('maxResults', String(maxResults || 100));
+    query.set('projectKeys', String(projectKeys || ''));
+    query.set('username', String(username || ''));
+
+    const response = await context.get(`/rest/api/latest/user/assignable/multiProjectSearch?${query.toString()}`);
+
+    if (!response.ok()) {
+      const body = await response.text();
+      throw httpError(502, body || 'Unable to load Jira assignable users');
+    }
+
+    const data = await response.json();
+    return Array.isArray(data) ? data : [];
+  } finally {
+    await context.dispose();
+  }
+};
+
 module.exports = {
   createBugIssue,
+  searchAssignableUsers,
 };

@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 const Project = require('../models/Project');
 const { asyncHandler } = require('../utils/asyncHandler');
 const { httpError } = require('../utils/httpError');
-const { createBugIssue } = require('../services/jiraService');
+const { createBugIssue, searchAssignableUsers } = require('../services/jiraService');
 
 const getProjectById = async (projectId) => {
   if (!mongoose.Types.ObjectId.isValid(projectId)) {
@@ -50,6 +50,8 @@ const logBug = asyncHandler(async (req, res) => {
     pid: project.pid,
   });
 
+  const { versions } = req.body;
+
   const created = await createBugIssue({
     pid: project.pid,
     issueTypeId: issueType,
@@ -58,6 +60,7 @@ const logBug = asyncHandler(async (req, res) => {
     priority,
     assignee,
     labels,
+    versions,
   });
 
   console.log('[Jira] logBug created', {
@@ -75,4 +78,27 @@ const logBug = asyncHandler(async (req, res) => {
 
 module.exports = {
   logBug,
+};
+
+const getAssignableUsers = asyncHandler(async (req, res) => {
+  const { projectKeys, projectKey, username = '', maxResults = '100' } = req.query;
+
+  const resolvedProjectKeys = String(projectKeys || projectKey || '').trim();
+
+  if (!resolvedProjectKeys) {
+    throw httpError(400, 'projectKeys is required');
+  }
+
+  const users = await searchAssignableUsers({
+    projectKeys: resolvedProjectKeys,
+    username: String(username || ''),
+    maxResults: Number(maxResults) || 100,
+  });
+
+  res.json({ users });
+});
+
+module.exports = {
+  logBug,
+  getAssignableUsers,
 };

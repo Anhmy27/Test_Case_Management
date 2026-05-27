@@ -13,6 +13,11 @@ const {
   updateVersion,
   deleteVersion,
   restoreVersion,
+  createIssueType,
+  listIssueTypes,
+  getIssueType,
+  updateIssueType,
+  deleteIssueType,
   createTestCaseGroup,
   listTestCaseGroups,
   getTestCaseGroup,
@@ -73,6 +78,12 @@ router.get('/versions/:versionId', getVersion);
 router.put('/versions/:versionId', authorize('admin'), updateVersion);
 router.delete('/versions/:versionId', authorize('admin'), deleteVersion);
 router.patch('/versions/:versionId/restore', authorize('admin'), restoreVersion);
+
+router.get('/issue-types', listIssueTypes);
+router.post('/issue-types', authorize('admin'), createIssueType);
+router.get('/issue-types/:issueTypeId', getIssueType);
+router.put('/issue-types/:issueTypeId', authorize('admin'), updateIssueType);
+router.delete('/issue-types/:issueTypeId', authorize('admin'), deleteIssueType);
 
 router.get('/test-case-groups', listTestCaseGroups);
 router.get('/test-case-groups/:groupId', getTestCaseGroup);

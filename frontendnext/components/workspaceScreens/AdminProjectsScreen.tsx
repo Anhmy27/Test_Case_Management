@@ -9,8 +9,8 @@ type RecordAny = Record<string, any>;
 
 type AdminProjectsScreenProps = {
   editingProjectId: string;
-  projectForm: { name: string; code: string; pid: string; description: string };
-  setProjectForm: Dispatch<SetStateAction<{ name: string; code: string; pid: string; description: string }>>;
+  projectForm: { name: string; code: string; pid: string; jiraProductKey: string; description: string };
+  setProjectForm: Dispatch<SetStateAction<{ name: string; code: string; pid: string; jiraProductKey: string; description: string }>>;
   saveProject: (event: React.FormEvent) => Promise<void>;
   cancelProjectEdit: () => void;
   projects: RecordAny[];
@@ -74,6 +74,19 @@ export default function AdminProjectsScreen({
                 placeholder="11500"
               />
             </label>
+            <label>
+              <span>Jira Product Key</span>
+              <input
+                value={projectForm.jiraProductKey}
+                onChange={(e) =>
+                  setProjectForm((prev) => ({
+                    ...prev,
+                    jiraProductKey: e.target.value,
+                  }))
+                }
+                placeholder="CED"
+              />
+            </label>
           </div>
           <label>
             <span>Description</span>
@@ -103,7 +116,7 @@ export default function AdminProjectsScreen({
 
       <SectionCard title="Project List" subtitle="Card/table sach, riang">
         <DataTable
-          columns={["Project", "Code", "Pid", "Action"]}
+          columns={["Project", "Code", "Pid", "Jira Key", "Action"]}
           rows={projects
             .filter((project: RecordAny) => matchesSearch(project.name, project.code))
             .map((project: RecordAny) => (
@@ -111,6 +124,7 @@ export default function AdminProjectsScreen({
                 <div>{project.name}</div>
                 <div>{project.code}</div>
                 <div>{project.pid || "-"}</div>
+                <div>{project.jiraProjectKey || project.jiraProductKey || project.Jiraproduckeys || project.JiraProductKey || "-"}</div>
                 <div className="workspace-inline-actions">
                   <ActionButton label="Edit" icon="✎" onClick={() => startProjectEdit(project)} />
                   <ActionButton label="Delete" icon="🗑" variant="danger" onClick={() => void deleteProject(project._id)} />

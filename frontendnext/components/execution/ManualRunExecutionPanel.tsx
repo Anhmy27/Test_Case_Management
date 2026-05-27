@@ -1,7 +1,7 @@
 "use client";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 
 type RecordAny = Record<string, any>;
@@ -104,13 +104,13 @@ export default function ManualRunExecutionPanel({
       .slice(0, 6);
   }, [myItems]);
 
-  const goToNextItem = async () => {
+  const goToNextItem = useCallback(async () => {
     if (!nextItem) {
       return;
     }
 
     setSelectedItemId(nextItem._id);
-  };
+  }, [nextItem, setSelectedItemId]);
 
   useEffect(() => {
     if (!canEditRun) return;
@@ -151,7 +151,7 @@ export default function ManualRunExecutionPanel({
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [canEditRun, nextItem, notes, onUpdateResult, previousItem, selectedItemId, setSelectedItemId]);
+  }, [canEditRun, goToNextItem, nextItem, notes, onUpdateResult, previousItem, selectedItemId, setSelectedItemId]);
 
   return (
     <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)_320px]">
@@ -350,7 +350,7 @@ export default function ManualRunExecutionPanel({
                       {item.testCase?.caseKey || "TC"}
                     </div>
                     <div className="text-xs text-slate-500">
-                      {item.status} · {new Date(item.executedAt || item.updatedAt || Date.now()).toLocaleString()}
+                      {item.status} · {new Date(item.executedAt || item.updatedAt || 0).toLocaleString()}
                     </div>
                   </div>
                 ))
