@@ -8,8 +8,8 @@ import { DataTable, SectionCard } from "./shared";
 type RecordAny = Record<string, any>;
 
 type Props = {
-  versionForm: { projectId: string; name: string; releaseDate: string };
-  setVersionForm: Dispatch<SetStateAction<{ projectId: string; name: string; releaseDate: string }>>;
+  versionForm: { projectId: string; name: string; idjira?: string; releaseDate: string };
+  setVersionForm: Dispatch<SetStateAction<{ projectId: string; name: string; idjira?: string; releaseDate: string }>>;
   createVersion: (event: React.FormEvent) => Promise<void>;
   editingVersionId: string;
   startVersionEdit: (version: RecordAny) => void;
@@ -45,6 +45,7 @@ export default function AdminVersionsScreen({
           <div className="workspace-form__grid workspace-form__grid--three">
             <label><span>Project</span><select value={versionForm.projectId} onChange={(e) => setVersionForm((prev) => ({ ...prev, projectId: e.target.value }))} required><option value="">Select</option>{scopedProjects.map((project: RecordAny) => <option key={project._id} value={project._id}>{project.name}</option>)}</select></label>
             <label><span>Name</span><input value={versionForm.name} onChange={(e) => setVersionForm((prev) => ({ ...prev, name: e.target.value }))} required /></label>
+            <label><span>Jira id</span><input value={(versionForm as any).idjira || ''} onChange={(e) => setVersionForm((prev) => ({ ...prev, idjira: e.target.value }))} placeholder="e.g. 10010" /></label>
             <label><span>Release date</span><input type="date" value={versionForm.releaseDate} onChange={(e) => setVersionForm((prev) => ({ ...prev, releaseDate: e.target.value }))} /></label>
           </div>
           <div className="workspace-inline-actions">
@@ -56,7 +57,7 @@ export default function AdminVersionsScreen({
 
       <SectionCard title="Version List">
         <DataTable
-          columns={["Version", "Project", "Actions"]}
+          columns={["Version", "Jira id", "Project", "Actions"]}
           rows={versions
             .map((version: RecordAny) => {
               const pid = getId(version.project);
@@ -72,6 +73,7 @@ export default function AdminVersionsScreen({
             .map(({ version, projectName }: { version: RecordAny; projectName: string }) => (
               <>
                 <div>{version.name}</div>
+                <div>{version.idjira || '-'}</div>
                 <div>{projectName}</div>
                 <div className="workspace-inline-actions">
                   <button type="button" className="workspace-secondary" onClick={() => startVersionEdit(version)}>

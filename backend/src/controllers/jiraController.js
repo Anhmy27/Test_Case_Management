@@ -50,6 +50,8 @@ const logBug = asyncHandler(async (req, res) => {
     pid: project.pid,
   });
 
+  const { versions } = req.body;
+
   const created = await createBugIssue({
     pid: project.pid,
     issueTypeId: issueType,
@@ -58,6 +60,7 @@ const logBug = asyncHandler(async (req, res) => {
     priority,
     assignee,
     labels,
+    versions,
   });
 
   console.log('[Jira] logBug created', {

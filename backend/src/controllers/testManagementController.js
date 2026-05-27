@@ -124,7 +124,7 @@ const listProjects = asyncHandler(async (req, res) => {
 });
 
 const createVersion = asyncHandler(async (req, res) => {
-  const { projectId, name, releaseDate, notes } = req.body;
+  const { projectId, name, idjira, releaseDate, notes } = req.body;
   if (!projectId || !name) {
     throw httpError(400, 'projectId and name are required');
   }
@@ -134,18 +134,23 @@ const createVersion = asyncHandler(async (req, res) => {
     throw httpError(404, 'Project not found');
   }
 
-  // Check for duplicate version name in same project
-  const existingVersion = await Version.findOne({ 
-    project: project._id, 
-    name: name 
-  }).lean();
+  // Normalize idjira
+  const idjiraValue = String(idjira || '').trim();
+
+  // Check for duplicate version name or idjira in same project
+  const dupQuery = {
+    project: project._id,
+    $or: [{ name }, { ...(idjiraValue ? { idjira: idjiraValue } : {}) }],
+  };
+  const existingVersion = await Version.findOne(dupQuery).lean();
   if (existingVersion) {
-    throw httpError(409, `Version "${name}" already exists in this project`);
+    throw httpError(409, `Version with the same name or Jira id already exists in this project`);
   }
 
   const version = await Version.create({
     project: project._id,
     name,
+    idjira: idjiraValue,
     releaseDate,
     notes: notes || '',
     createdBy: req.user.id,

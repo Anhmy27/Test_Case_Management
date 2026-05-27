@@ -135,6 +135,7 @@ export default function TestCaseManagementApp() {
   const [versionForm, setVersionForm] = useState({
     projectId: "",
     name: "",
+    idjira: "",
     releaseDate: "",
   });
   const [issueTypeForm, setIssueTypeForm] = useState({
@@ -307,11 +308,32 @@ export default function TestCaseManagementApp() {
     (run) => String(run.startedBy?._id || run.startedBy || "") === currentUserId,
   );
   const adminRuns = isAdmin ? runs : scopedRuns;
-  const navItems = isAdmin
-    ? isGlobalScope
-      ? adminNav.filter((item) => ["dashboard", "projects", "issue-types", "users"].includes(item.key))
-      : adminNav.filter((item) => item.key !== "projects")
-    : employeeNav;
+  const navItems = (() => {
+    if (!isAdmin) return employeeNav;
+
+    const allowedForGlobal = [
+      "dashboard",
+      "projects",
+      "issue-types",
+      "execution",
+      "users",
+    ];
+
+    const allowedForProject = [
+      "dashboard",
+      "groups",
+      "test-cases",
+      "test-cases-detail",
+      "versions",
+      "test-plans",
+      "test-runs",
+      "execution",
+      "users",
+    ];
+
+    const allowed = isGlobalScope ? allowedForGlobal : allowedForProject;
+    return adminNav.filter((item) => allowed.includes(item.key));
+  })();
   const visibleTab = navItems.some((item) => item.key === activeTab) ? activeTab : navItems[0].key;
   const activeTabLabel = navItems.find((item) => item.key === visibleTab)?.label || "Workspace";
   const searchTerm = "";
@@ -406,7 +428,7 @@ export default function TestCaseManagementApp() {
   const resetWorkspaceDrafts = useCallback(() => {
     setEditingProjectId("");
     setProjectForm({ name: "", code: "", pid: "", jiraProductKey: "", description: "" });
-    setVersionForm({ projectId: "", name: "", releaseDate: "" });
+    setVersionForm({ projectId: "", name: "", idjira: "", releaseDate: "" });
     setIssueTypeForm({ name: "", idjira: "" });
     setGroupForm({ projectId: "", name: "", description: "" });
     setEditingVersionId("");
@@ -997,12 +1019,22 @@ export default function TestCaseManagementApp() {
       return;
     }
 
-    const runVersionName = String(
-      run?.version?.name ||
-      run?.testPlan?.version?.name ||
-      run?.testPlanVersion?.name ||
-      '',
-    ).trim();
+    // Resolve idjira from the local versions list when possible
+    let runVersionIdJira = "";
+
+    // If run.version is an object or id, try to find matching loaded version
+    const runVersionRef = run?.version && (run.version._id || run.version);
+    if (runVersionRef) {
+      const matched = versions.find((v) => String(v._id) === String(runVersionRef));
+      if (matched) runVersionIdJira = String(matched.idjira || '').trim();
+    }
+
+    // Fall back to other available fields
+    if (!runVersionIdJira) {
+      runVersionIdJira = String(
+        run?.version?.idjira || run?.testPlan?.version?.idjira || run?.testPlanVersion?.idjira || run?.version?.name || ''
+      ).trim();
+    }
 
     setJiraBugDialog({
       projectId,
@@ -1017,12 +1049,12 @@ export default function TestCaseManagementApp() {
       priority: mapPriorityToJira(result?.testCase?.priority),
       assignee: "",
       originalEstimate: "",
-      versions: runVersionName ? [runVersionName] : [],
+      versions: runVersionIdJira ? [runVersionIdJira] : [],
       labels: "",
       submitting: false,
       error: "",
     });
-  }, [buildJiraBugDescription, mapPriorityToJira, projects]);
+  }, [buildJiraBugDescription, mapPriorityToJira, projects, versions]);
 
   const closeJiraBugDialog = useCallback(() => {
     setJiraBugDialog(null);
@@ -1114,6 +1146,7 @@ export default function TestCaseManagementApp() {
       setVersionForm({
         projectId: versionForm.projectId,
         name: "",
+        idjira: "",
         releaseDate: "",
       });
       setEditingVersionId("");
@@ -1173,6 +1206,7 @@ export default function TestCaseManagementApp() {
     setVersionForm({
       projectId: getId(version.project),
       name: version.name || "",
+      idjira: version.idjira || "",
       releaseDate: version.releaseDate ? String(version.releaseDate).slice(0, 10) : "",
     });
     setActiveTab("versions");
@@ -1180,7 +1214,7 @@ export default function TestCaseManagementApp() {
 
   function cancelVersionEdit() {
     setEditingVersionId("");
-    setVersionForm({ projectId: "", name: "", releaseDate: "" });
+    setVersionForm({ projectId: "", name: "", idjira: "", releaseDate: "" });
   }
 
   async function deleteVersion(versionId: string) {

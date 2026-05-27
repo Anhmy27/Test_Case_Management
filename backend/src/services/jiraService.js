@@ -118,6 +118,7 @@ const createBugIssue = async ({
   priority,
   assignee,
   labels,
+  versions,
 }) => {
   const context = await createLoggedInContext();
 
@@ -169,6 +170,8 @@ const createBugIssue = async ({
         'dnd-dropzone': '',
         priority: priority || '3',
         labels: labels || '',
+        versions: Array.isArray(versions) ? versions.join(',') : (versions || ''),
+        fixVersions: Array.isArray(versions) ? versions.join(',') : (versions || ''),
         issuelinks: '',
         'issuelinks-linktype': '',
       },

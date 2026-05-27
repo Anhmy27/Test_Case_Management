@@ -237,13 +237,32 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
       String(run.startedBy?._id || run.startedBy || "") === currentUserId,
   );
   const adminRuns = isAdmin ? runs : scopedRuns;
-  const navItems = isAdmin
-    ? isGlobalScope
-      ? adminNav.filter((item) =>
-          ["dashboard", "projects", "issue-types", "users"].includes(item.key),
-        )
-      : adminNav.filter((item) => item.key !== "projects")
-    : employeeNav;
+  const navItems = (() => {
+    if (!isAdmin) return employeeNav;
+
+    const allowedForGlobal = [
+      "dashboard",
+      "projects",
+      "issue-types",
+      "execution",
+      "users",
+    ];
+
+    const allowedForProject = [
+      "dashboard",
+      "groups",
+      "test-cases",
+      "test-cases-detail",
+      "versions",
+      "test-plans",
+      "test-runs",
+      "execution",
+      "users",
+    ];
+
+    const allowed = isGlobalScope ? allowedForGlobal : allowedForProject;
+    return adminNav.filter((item) => allowed.includes(item.key));
+  })();
   const visibleTab = navItems.some((item) => item.key === activeTab)
     ? activeTab
     : navItems[0].key;
