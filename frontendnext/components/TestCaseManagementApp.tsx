@@ -1036,6 +1036,8 @@ export default function TestCaseManagementApp() {
       ).trim();
     }
 
+    const defaultIssueType = jiraIssueTypeOptions && jiraIssueTypeOptions.length ? (jiraIssueTypeOptions[0].idjira || String(jiraIssueTypeOptions[0]._id || '')) : '';
+
     setJiraBugDialog({
       projectId,
       projectName: project.name || "",
@@ -1043,7 +1045,7 @@ export default function TestCaseManagementApp() {
       resultId: String(result?._id || ""),
       caseKey: result?.testCase?.caseKey || "TC",
       caseTitle: result?.testCase?.title || "Untitled",
-      issueType: "",
+      issueType: defaultIssueType,
       summary: `[${result?.testCase?.caseKey || "TC"}] ${result?.testCase?.title || "Untitled"}`,
       description: buildJiraBugDescription(run, result),
       priority: mapPriorityToJira(result?.testCase?.priority),
@@ -1054,7 +1056,7 @@ export default function TestCaseManagementApp() {
       submitting: false,
       error: "",
     });
-  }, [buildJiraBugDescription, mapPriorityToJira, projects, versions]);
+  }, [buildJiraBugDescription, mapPriorityToJira, projects, versions, jiraIssueTypeOptions]);
 
   const closeJiraBugDialog = useCallback(() => {
     setJiraBugDialog(null);
@@ -2302,7 +2304,7 @@ export default function TestCaseManagementApp() {
                       <select value={jiraBugDialog.issueType} onChange={(e) => updateJiraBugDialog({ issueType: e.target.value })}>
                         <option value="">Select issue type</option>
                         {jiraIssueTypeOptions.map((it) => (
-                          <option key={String(it._id)} value={it.idjira || it._id}>{it.name} {it.idjira ? `(${it.idjira})` : ''}</option>
+                          <option key={String(it._id)} value={it.idjira || it._id}>{it.name}</option>
                         ))}
                       </select>
                     </label>
