@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import type { Dispatch, SetStateAction } from "react";
-import { DataTable, SectionCard } from "./shared";
+import { ActionButton, DataTable, SectionCard } from "./shared";
 
 type RecordAny = Record<string, any>;
 
@@ -47,8 +47,8 @@ export default function AdminUsersScreen({
             <label><span>Role</span><select value={newUserForm.role} onChange={(e) => setNewUserForm((prev) => ({ ...prev, role: e.target.value }))}><option value="employee">employee</option><option value="admin">admin</option></select></label>
           </div>
           <div className="workspace-inline-actions">
-            <button className="workspace-primary" type="submit">{isEditing ? "Update user" : "Create user"}</button>
-            {isEditing && <button type="button" className="workspace-secondary" onClick={cancelUserEdit}>Cancel</button>}
+            <ActionButton label={isEditing ? "Update user" : "Create user"} icon={isEditing ? "💾" : "＋"} variant="primary" />
+            {isEditing && <ActionButton label="Cancel" icon="↩" onClick={cancelUserEdit} tooltip="Cancel editing" />}
           </div>
         </form>
       </SectionCard>
@@ -64,18 +64,15 @@ export default function AdminUsersScreen({
                 <div>{user.email}</div>
                 <div>{user.role}</div>
                 <div className="workspace-inline-actions">
-                  <button type="button" className="workspace-secondary" onClick={() => startUserEdit(user)}>
-                    Edit
-                  </button>
-                  <button
-                    type="button"
-                    className="workspace-danger"
+                  <ActionButton label="Edit" icon="✎" onClick={() => startUserEdit(user)} />
+                  <ActionButton
+                    label="Delete"
+                    icon="🗑"
+                    variant="danger"
                     onClick={() => void deleteUser(user._id)}
                     disabled={String(user._id) === currentUserId}
-                    title={String(user._id) === currentUserId ? "You cannot delete your own account" : undefined}
-                  >
-                    Delete
-                  </button>
+                    tooltip={String(user._id) === currentUserId ? "You cannot delete your own account" : "Delete user"}
+                  />
                 </div>
               </>
             ))}

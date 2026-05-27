@@ -98,9 +98,11 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
     addTestCaseStep,
     updateTestCaseStep,
     removeTestCaseStep,
+    moveTestCaseStep,
     addAutomationStep,
     updateAutomationStep,
     removeAutomationStep,
+    moveAutomationStep,
     planForm,
     setPlanForm,
     runForm,
@@ -120,6 +122,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
     editingExecutionMode,
     setEditingExecutionMode,
     updatePlanExecutionMode,
+    deletePlan,
     duplicatePlan,
     createVersion,
     createGroup,
@@ -651,9 +654,11 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
             addTestCaseStep={addTestCaseStep}
             updateTestCaseStep={updateTestCaseStep}
             removeTestCaseStep={removeTestCaseStep}
+            moveTestCaseStep={moveTestCaseStep}
             addAutomationStep={addAutomationStep}
             updateAutomationStep={updateAutomationStep}
             removeAutomationStep={removeAutomationStep}
+            moveAutomationStep={moveAutomationStep}
             saveTestCase={saveTestCase}
             cancelTestCaseEdit={cancelTestCaseEdit}
             testCases={testCases}
@@ -730,7 +735,11 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
             setEditingPlanId={setEditingPlanId}
             setEditingExecutionMode={setEditingExecutionMode}
             updatePlanExecutionMode={updatePlanExecutionMode}
+            deletePlan={deletePlan}
             duplicatePlan={duplicatePlan}
+            runs={runs}
+            setRunForm={setRunForm}
+            setActiveTab={setActiveTab}
             userName={userName}
             getId={getId}
             matchesSearch={matchesSearch}
@@ -825,6 +834,8 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
     </AppShell>
   );
 }
+
+
 
 
 

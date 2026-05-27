@@ -3,65 +3,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import type { Dispatch, SetStateAction } from "react";
+import { ActionButton, DataTable, SectionCard } from "./shared";
 
 type RecordAny = Record<string, any>;
-
-function SectionCard({
-  title,
-  subtitle,
-  children,
-}: {
-  title: string;
-  subtitle?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="workspace-card">
-      <div className="workspace-card__header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem" }}>
-        <div>
-          <h2>{title}</h2>
-          {subtitle && <p>{subtitle}</p>}
-        </div>
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function DataTable({
-  columns,
-  rows,
-  emptyText,
-}: {
-  columns: string[];
-  rows: React.ReactNode[];
-  emptyText: string;
-}) {
-  const columnStyle = {
-    gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))`,
-  };
-
-  return (
-    <div className="workspace-table">
-      <div className="workspace-table__head" style={columnStyle}>
-        {columns.map((column) => (
-          <div key={column}>{column}</div>
-        ))}
-      </div>
-      {rows.length === 0 ? (
-        <div className="workspace-table__empty">{emptyText}</div>
-      ) : (
-        <div className="workspace-table__body">
-          {rows.map((row, index) => (
-            <div key={index} className="workspace-table__row" style={columnStyle}>
-              {row}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 type AdminGroupsScreenProps = {
   groupForm: { projectId: string; name: string; description: string };
@@ -152,13 +96,9 @@ export default function AdminGroupsScreen({
             />
           </label>
           <div className="workspace-inline-actions">
-            <button className="workspace-primary" type="submit">
-              {isEditing ? "Update group" : "Create group"}
-            </button>
+            <ActionButton label={isEditing ? "Update group" : "Create group"} icon={isEditing ? "💾" : "＋"} variant="primary" />
             {isEditing && (
-              <button type="button" className="workspace-secondary" onClick={cancelGroupEdit}>
-                Cancel
-              </button>
+              <ActionButton label="Cancel" icon="↩" onClick={cancelGroupEdit} tooltip="Cancel editing" />
             )}
           </div>
         </form>
@@ -215,12 +155,8 @@ export default function AdminGroupsScreen({
                 <div>{group.project?.name || "-"}</div>
                 <div>{group.description || "-"}</div>
                 <div className="workspace-inline-actions">
-                  <button type="button" className="workspace-secondary" onClick={() => startGroupEdit(group)}>
-                    Edit
-                  </button>
-                  <button type="button" className="workspace-danger" onClick={() => void deleteGroup(group._id)}>
-                    Delete
-                  </button>
+                  <ActionButton label="Edit" icon="✎" onClick={() => startGroupEdit(group)} />
+                  <ActionButton label="Delete" icon="🗑" variant="danger" onClick={() => void deleteGroup(group._id)} />
                 </div>
               </>
             ))}

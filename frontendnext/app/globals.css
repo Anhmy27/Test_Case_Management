@@ -1,15 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f7f9fc;
+  --background: #f5f7fb;
   --foreground: #0f172a;
   --surface: #ffffff;
-  --surface-2: #f1f5f9;
-  --line: #e2e8f0;
-  --accent: #2563eb;
-  --accent-2: #0f766e;
-  --muted: #64748b;
-  --app-bg: #f6f8fb;
+  --surface-2: #eef2f7;
+  --line: #d7dee8;
+  --accent: #1e3a8a;
+  --accent-2: #0f172a;
+  --muted: #5b6b82;
+  --app-bg: #f1f5f9;
 }
 
 @theme inline {
@@ -191,7 +191,7 @@ button {
   top: 1rem;
   align-self: start;
   background:
-    linear-gradient(180deg, rgba(11, 46, 44, 0.96) 0%, rgba(15, 118, 110, 0.92) 100%);
+    linear-gradient(180deg, rgba(15, 23, 42, 0.96) 0%, rgba(30, 41, 59, 0.92) 100%);
   backdrop-filter: blur(18px);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 22px;
@@ -217,8 +217,8 @@ button {
   width: 44px;
   height: 44px;
   border-radius: 14px;
-  background: linear-gradient(135deg, #f8fafc, #d1fae5);
-  color: #0f766e;
+  background: linear-gradient(135deg, #e2e8f0, #c7d2fe);
+  color: #1e3a8a;
   color: #fff;
   display: grid;
   place-items: center;
@@ -311,7 +311,7 @@ button {
 }
 
 .workspace-chip--active {
-  background: linear-gradient(135deg, #0f766e, #115e59);
+  background: linear-gradient(135deg, #1e3a8a, #0f172a);
   color: #fff;
   border: 1px solid transparent;
 }
@@ -346,7 +346,7 @@ button {
 }
 
 .workspace-nav__item.is-active {
-  background: linear-gradient(135deg, #f8fafc, #d1fae5);
+  background: linear-gradient(135deg, #f8fafc, #dbeafe);
   color: #0f172a;
   border-color: transparent;
 }
@@ -368,7 +368,7 @@ button {
 }
 
 .workspace-primary {
-  background: linear-gradient(135deg, #0f766e, #115e59);
+  background: linear-gradient(135deg, #1e3a8a, #0f172a);
   color: #fff;
 }
 
@@ -389,8 +389,8 @@ button {
   border-radius: 24px;
   padding: 1rem 1.1rem;
   background:
-    radial-gradient(circle at 0% 0%, rgba(15, 118, 110, 0.12), transparent 38%),
-    radial-gradient(circle at 100% 0%, rgba(190, 18, 60, 0.08), transparent 28%),
+    radial-gradient(circle at 0% 0%, rgba(30, 58, 138, 0.12), transparent 38%),
+    radial-gradient(circle at 100% 0%, rgba(148, 163, 184, 0.14), transparent 28%),
     rgba(255, 255, 255, 0.88);
   box-shadow: 0 16px 30px rgba(80, 60, 30, 0.06);
   display: flex;

@@ -1,6 +1,18 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
+
+type ActionButtonProps = {
+  label: string;
+  icon?: string;
+  onClick?: () => void;
+  disabled?: boolean;
+  loading?: boolean;
+  variant?: "primary" | "secondary" | "danger" | "ghost";
+  tooltip?: string;
+  className?: string;
+};
 
 export function SectionCard({
   title,
@@ -34,14 +46,28 @@ export function DataTable({
   columns,
   rows,
   emptyText,
+  pageSize = 10,
+  enablePagination = true,
 }: {
   columns: string[];
   rows: ReactNode[];
   emptyText: string;
+  pageSize?: number;
+  enablePagination?: boolean;
 }) {
+  const [currentPage, setCurrentPage] = useState(1);
   const columnStyle = {
     gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))`,
   };
+
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+
+  const visibleRows = useMemo(() => {
+    if (!enablePagination) return rows;
+    const start = (safePage - 1) * pageSize;
+    return rows.slice(start, start + pageSize);
+  }, [enablePagination, pageSize, rows, safePage]);
 
   return (
     <div className="workspace-table">
@@ -54,13 +80,73 @@ export function DataTable({
         <div className="workspace-table__empty">{emptyText}</div>
       ) : (
         <div className="workspace-table__body">
-          {rows.map((row, index) => (
+          {visibleRows.map((row, index) => (
             <div key={index} className="workspace-table__row" style={columnStyle}>
               {row}
             </div>
           ))}
         </div>
       )}
+      {enablePagination && rows.length > pageSize ? (
+        <div className="flex items-center justify-between gap-3 px-2 py-2 text-xs text-slate-600">
+          <span>
+            Page {safePage}/{totalPages} · {rows.length} items
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="rounded border border-slate-200 px-2 py-1 disabled:opacity-50"
+              disabled={safePage <= 1}
+              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+            >
+              Prev
+            </button>
+            <button
+              type="button"
+              className="rounded border border-slate-200 px-2 py-1 disabled:opacity-50"
+              disabled={safePage >= totalPages}
+              onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      ) : null}
     </div>
+  );
+}
+
+export function ActionButton({
+  label,
+  icon,
+  onClick,
+  disabled,
+  loading,
+  variant = "secondary",
+  tooltip,
+  className,
+}: ActionButtonProps) {
+  const base = "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition";
+  const tone =
+    variant === "primary"
+      ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
+      : variant === "danger"
+        ? "border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-300 hover:bg-rose-100"
+        : variant === "ghost"
+          ? "border-transparent bg-transparent text-slate-600 hover:bg-slate-100"
+          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50";
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled || loading}
+      title={tooltip || label}
+      aria-label={label}
+      className={`${base} ${tone} disabled:cursor-not-allowed disabled:opacity-50 ${className || ""}`}
+    >
+      {loading ? "…" : icon ? <span aria-hidden="true">{icon}</span> : null}
+      <span>{label}</span>
+    </button>
   );
 }

@@ -1441,6 +1441,19 @@ export default function TestCaseManagementApp() {
     });
   }
 
+  function moveTestCaseStep(fromIndex: number, toIndex: number) {
+    setTestCaseForm((prev) => {
+      if (fromIndex === toIndex) return prev;
+      if (fromIndex < 0 || toIndex < 0 || fromIndex >= prev.steps.length || toIndex >= prev.steps.length) {
+        return prev;
+      }
+      const nextSteps = [...prev.steps];
+      const [moved] = nextSteps.splice(fromIndex, 1);
+      nextSteps.splice(toIndex, 0, moved);
+      return { ...prev, steps: nextSteps };
+    });
+  }
+
   function addAutomationStep() {
     setAutomationForm((prev) => ({
       ...prev,
@@ -1492,6 +1505,19 @@ export default function TestCaseManagementApp() {
     });
   }
 
+  function moveAutomationStep(fromIndex: number, toIndex: number) {
+    setAutomationForm((prev) => {
+      if (fromIndex === toIndex) return prev;
+      if (fromIndex < 0 || toIndex < 0 || fromIndex >= prev.steps.length || toIndex >= prev.steps.length) {
+        return prev;
+      }
+      const nextSteps = [...prev.steps];
+      const [moved] = nextSteps.splice(fromIndex, 1);
+      nextSteps.splice(toIndex, 0, moved);
+      return { ...prev, steps: nextSteps };
+    });
+  }
+
   async function createPlan(event: FormEvent) {
     event.preventDefault();
     await withAction(async () => {
@@ -1531,6 +1557,10 @@ export default function TestCaseManagementApp() {
 
   async function updatePlanExecutionMode(planId: string, executionMode: string) {
     await withAction(async () => {
+      const hasRuns = runs.some((run) => String(getId(run.testPlan)) === String(planId));
+      if (hasRuns) {
+        throw new Error("Test plan da co run, khong the update");
+      }
       await apiRequest(`/api/test-plans/${planId}`, token, {
         method: "PUT",
         body: JSON.stringify({ executionMode }),
@@ -1539,6 +1569,26 @@ export default function TestCaseManagementApp() {
       setMessage("Da cap nhat execution mode cho test plan");
       setEditingPlanId("");
       setEditingExecutionMode("");
+    });
+  }
+
+  async function deletePlan(planId: string) {
+    const hasRuns = runs.some((run) => String(getId(run.testPlan)) === String(planId));
+    if (hasRuns) {
+      setMessage("Test plan da co run, khong the xoa");
+      return;
+    }
+
+    setConfirmDialog({
+      title: "Xoa test plan nay?",
+      description: "Chi cho phep xoa khi plan chua co execution run.",
+      confirmLabel: "Xoa",
+      onConfirm: async () => {
+        await withAction(async () => {
+          await apiRequest(`/api/test-plans/${planId}`, token, { method: "DELETE" });
+          setMessage("Da xoa test plan");
+        });
+      },
     });
   }
 
@@ -1936,9 +1986,11 @@ export default function TestCaseManagementApp() {
     addTestCaseStep,
     updateTestCaseStep,
     removeTestCaseStep,
+    moveTestCaseStep,
     addAutomationStep,
     updateAutomationStep,
     removeAutomationStep,
+    moveAutomationStep,
     planForm,
     setPlanForm,
     runForm,
@@ -1955,6 +2007,7 @@ export default function TestCaseManagementApp() {
     editingExecutionMode,
     setEditingExecutionMode,
     updatePlanExecutionMode,
+    deletePlan,
     duplicatePlan,
     createVersion,
     createGroup,
@@ -2161,6 +2214,7 @@ export default function TestCaseManagementApp() {
     </>
   );
 }
+
 
 
 

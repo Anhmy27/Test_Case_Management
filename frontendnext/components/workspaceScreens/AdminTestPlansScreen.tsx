@@ -3,8 +3,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Dispatch, SetStateAction, FormEvent } from "react";
-import { DataTable, SectionCard } from "./shared";
+import type { Dispatch, SetStateAction, FormEvent, RefObject } from "react";
+import { ActionButton, DataTable, SectionCard } from "./shared";
 
 type RecordAny = Record<string, any>;
 
@@ -35,7 +35,11 @@ type Props = {
   setEditingPlanId: Dispatch<SetStateAction<string>>;
   setEditingExecutionMode: Dispatch<SetStateAction<string>>;
   updatePlanExecutionMode: (planId: string, mode: string) => Promise<void>;
+  deletePlan: (planId: string) => Promise<void>;
   duplicatePlan: (plan: RecordAny) => Promise<void>;
+  runs: RecordAny[];
+  setRunForm: Dispatch<SetStateAction<{ testPlanId: string; name: string; baseUrl: string }>>;
+  setActiveTab: Dispatch<SetStateAction<string>>;
   userName: (value: unknown) => string;
   getId: (value: unknown) => string;
   matchesSearch: (...values: Array<string | number | undefined | null>) => boolean;
@@ -69,7 +73,11 @@ export default function AdminTestPlansScreen(props: Props) {
     setEditingPlanId,
     setEditingExecutionMode,
     updatePlanExecutionMode,
+    deletePlan,
     duplicatePlan,
+    runs,
+    setRunForm,
+    setActiveTab,
     userName,
     getId,
     matchesSearch,
@@ -135,9 +143,255 @@ export default function AdminTestPlansScreen(props: Props) {
 
   const ownerName = currentUser?.name || "Current admin";
   const ownerRole = currentUser?.role || "admin";
+  const [activeView, setActiveView] = useState<"plans" | "cases" | "runs">("plans");
+  const [activePlanId, setActivePlanId] = useState<string>("");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [statusBulkMode, setStatusBulkMode] = useState<"manual" | "automation">("manual");
+  const createSectionRef = useRef<HTMLDivElement | null>(null);
+  const assignSectionRef = useRef<HTMLDivElement | null>(null);
+  const listSectionRef = useRef<HTMLDivElement | null>(null);
+
+  const filteredPlans = useMemo(
+    () =>
+      scopedPlans.filter((plan: RecordAny) =>
+        matchesSearch(plan.name, plan.project?.name, plan.version?.name, userName(plan.owner)),
+      ),
+    [matchesSearch, scopedPlans, userName],
+  );
+
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const allVisibleSelected =
+    filteredPlans.length > 0 && filteredPlans.every((plan: RecordAny) => selectedSet.has(String(plan._id)));
+
+  const activePlan =
+    scopedPlans.find((plan: RecordAny) => String(plan._id) === String(activePlanId)) ||
+    filteredPlans[0] ||
+    null;
+
+  const relatedRuns = useMemo(() => {
+    if (!activePlan) return [];
+    return runs
+      .filter((run: RecordAny) => String(getId(run.testPlan)) === String(activePlan._id))
+      .sort(
+        (a: RecordAny, b: RecordAny) =>
+          new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(),
+      )
+      .slice(0, 6);
+  }, [activePlan, getId, runs]);
+
+  const progressStats = useMemo(() => {
+    const totalPlans = scopedPlans.length;
+    const automationPlans = scopedPlans.filter((plan: RecordAny) => String(plan.executionMode) === "automation").length;
+    const runningRuns = runs.filter((run: RecordAny) => run.status === "running").length;
+    const completedRuns = runs.filter((run: RecordAny) => run.status === "completed").length;
+    return { totalPlans, automationPlans, runningRuns, completedRuns };
+  }, [runs, scopedPlans]);
+
+  const recentActivity = useMemo(() => {
+    return [...scopedPlans]
+      .sort(
+        (a: RecordAny, b: RecordAny) =>
+          new Date(b.updatedAt || b.createdAt || 0).getTime() -
+          new Date(a.updatedAt || a.createdAt || 0).getTime(),
+      )
+      .slice(0, 5);
+  }, [scopedPlans]);
+
+  const selectedPlans = filteredPlans.filter((plan: RecordAny) => selectedSet.has(String(plan._id)));
+
+  function togglePlanSelection(planId: string) {
+    setSelectedIds((prev) =>
+      prev.includes(planId) ? prev.filter((id) => id !== planId) : [...prev, planId],
+    );
+  }
+
+  function startQuickRun(plan: RecordAny) {
+    const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
+    setRunForm((prev) => ({ ...prev, testPlanId: String(plan._id), name: `${plan.name} - ${stamp}` }));
+    setActiveTab("execution");
+  }
+
+  async function bulkUpdateExecutionMode() {
+    for (const plan of selectedPlans) {
+      await updatePlanExecutionMode(String(plan._id), statusBulkMode);
+    }
+    setSelectedIds([]);
+  }
+
+  function scrollToSection(ref: RefObject<HTMLDivElement | null>) {
+    ref.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   return (
-    <div className="workspace-stack">
+    <div className="space-y-6">
+      <section className="rounded-2xl border border-indigo-100 bg-gradient-to-r from-indigo-50 via-sky-50 to-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-start gap-3">
+          <div>
+            <div className="text-sm font-semibold text-slate-900">Test Plan Workbench</div>
+            <div className="text-xs text-slate-600">Planning hub: assign case, track progress, jump to execution</div>
+          </div>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <button type="button" title="Plans" onClick={() => setActiveView("plans")} className={activeView === "plans" ? "rounded-full bg-indigo-600 px-3 py-1 text-xs font-semibold text-white" : "rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600"}>◉ Plans</button>
+            <button type="button" title="Assigned Cases" onClick={() => setActiveView("cases")} className={activeView === "cases" ? "rounded-full bg-indigo-600 px-3 py-1 text-xs font-semibold text-white" : "rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600"}>☰ Assigned Cases</button>
+            <button type="button" title="Execution Runs" onClick={() => setActiveView("runs")} className={activeView === "runs" ? "rounded-full bg-indigo-600 px-3 py-1 text-xs font-semibold text-white" : "rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600"}>▶ Execution Runs</button>
+          </div>
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2"><div className="text-[11px] uppercase tracking-wide text-slate-500">Plans</div><div className="text-lg font-semibold text-slate-900">{progressStats.totalPlans}</div></div>
+          <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2"><div className="text-[11px] uppercase tracking-wide text-slate-500">Automation</div><div className="text-lg font-semibold text-violet-700">{progressStats.automationPlans}</div></div>
+          <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2"><div className="text-[11px] uppercase tracking-wide text-slate-500">Running runs</div><div className="text-lg font-semibold text-amber-700">{progressStats.runningRuns}</div></div>
+          <div className="rounded-xl border border-white/70 bg-white/80 px-3 py-2"><div className="text-[11px] uppercase tracking-wide text-slate-500">Completed runs</div><div className="text-lg font-semibold text-emerald-700">{progressStats.completedRuns}</div></div>
+        </div>
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Toolbar</span>
+          <ActionButton
+            label="Create"
+            icon="＋"
+            variant="primary"
+            onClick={() => scrollToSection(createSectionRef)}
+            tooltip="Jump to create test plan form"
+          />
+          <ActionButton
+            label="Assign"
+            icon="👥"
+            onClick={() => {
+              if (activePlan?._id) {
+                selectPlanForAssignment(String(activePlan._id));
+                scrollToSection(assignSectionRef);
+              }
+            }}
+            disabled={!activePlan}
+            tooltip={activePlan ? "Assign members to selected plan" : "Select a plan first"}
+          />
+          <ActionButton
+            label="Run"
+            icon="▶"
+            onClick={() => activePlan && startQuickRun(activePlan)}
+            disabled={!activePlan}
+            tooltip={activePlan ? "Start a run from selected plan" : "Select a plan first"}
+          />
+          <ActionButton
+            label="Duplicate"
+            icon="⧉"
+            onClick={() => activePlan && void duplicatePlan(activePlan)}
+            disabled={!activePlan}
+            tooltip={activePlan ? "Duplicate selected plan" : "Select a plan first"}
+          />
+          <ActionButton
+            label="Refresh"
+            icon="↻"
+            onClick={() => {
+              setSelectedIds([]);
+              setActivePlanId("");
+              setActiveView("plans");
+            }}
+            tooltip="Reset local view, filters, and selection"
+          />
+          <ActionButton
+            label="History"
+            icon="🕘"
+            onClick={() => {
+              setActiveView("runs");
+              scrollToSection(listSectionRef);
+            }}
+            tooltip="Open execution run history context"
+          />
+          <ActionButton
+            label="Settings"
+            icon="⚙"
+            onClick={() => {
+              if (activePlan?._id) {
+                setEditingPlanId(String(activePlan._id));
+                setEditingExecutionMode(String(activePlan.executionMode || "manual"));
+                scrollToSection(listSectionRef);
+              }
+            }}
+            disabled={!activePlan}
+            tooltip={activePlan ? "Configure selected plan execution mode" : "Select a plan first"}
+          />
+          <div className="ml-auto flex items-center gap-2">
+            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">{filteredPlans.length} visible</span>
+            <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">{selectedIds.length} selected</span>
+          </div>
+        </div>
+      </section>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 px-4 py-3">
+            <div className="text-sm font-semibold text-slate-900">Plan grid</div>
+            <div className="ml-auto flex flex-wrap items-center gap-2">
+              <select value={statusBulkMode} onChange={(e) => setStatusBulkMode(e.target.value as "manual" | "automation")} className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs">
+                <option value="manual">manual</option><option value="automation">automation</option>
+              </select>
+              <button type="button" title="Bulk update status" onClick={() => void bulkUpdateExecutionMode()} disabled={selectedIds.length === 0} className="rounded-lg border border-amber-200 px-3 py-1.5 text-xs font-semibold text-amber-700 disabled:opacity-50">Bulk mode</button>
+            </div>
+          </div>
+          <div className="max-h-[620px] overflow-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-4 py-3"><input type="checkbox" checked={allVisibleSelected} onChange={() => setSelectedIds(allVisibleSelected ? [] : filteredPlans.map((item: RecordAny) => String(item._id)))} /></th>
+                  <th className="px-4 py-3">Plan</th><th className="px-4 py-3">Scope</th><th className="px-4 py-3">Owner</th><th className="px-4 py-3">Mode</th><th className="px-4 py-3 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {filteredPlans.length === 0 ? <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">No plans</td></tr> : filteredPlans.map((plan: RecordAny) => {
+                  const planId = String(plan._id);
+                  const selected = selectedSet.has(planId);
+                  const active = String(activePlan?._id || "") === planId;
+                  const hasRuns = runs.some((run: RecordAny) => String(getId(run.testPlan)) === planId);
+                  return <tr key={planId} onClick={() => setActivePlanId(planId)} className={`cursor-pointer transition hover:bg-slate-50 ${active ? "bg-indigo-50/60" : ""}`}>
+                    <td className="px-4 py-3"><input type="checkbox" checked={selected} onChange={(e) => { e.stopPropagation(); togglePlanSelection(planId); }} /></td>
+                    <td className="px-4 py-3"><div className="font-semibold text-slate-900">{plan.name}</div><div className="text-xs text-slate-500">{(plan.items || []).length} case(s)</div></td>
+                    <td className="px-4 py-3 text-xs text-slate-600"><div>{plan.project?.name || "-"}</div><div>{plan.version?.name || "-"}</div></td>
+                    <td className="px-4 py-3 text-xs font-semibold text-slate-700">{userName(plan.owner)}</td>
+                    <td className="px-4 py-3"><span className={String(plan.executionMode || "manual") === "automation" ? "rounded-full bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700" : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600"}>{plan.executionMode || "manual"}</span></td>
+                    <td className="px-4 py-3"><div className="flex justify-end gap-1.5">
+                      <button title={hasRuns ? "Plan da co run, khong the sua mode" : "Edit"} type="button" disabled={hasRuns} className="rounded-lg border border-slate-200 px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50" onClick={(e) => { e.stopPropagation(); setEditingPlanId(plan._id); setEditingExecutionMode(plan.executionMode || "manual"); }}>✎</button>
+                      <button title="Duplicate" type="button" className="rounded-lg border border-slate-200 px-2 py-1 text-xs" onClick={(e) => { e.stopPropagation(); void duplicatePlan(plan); }}>⧉</button>
+                      <button title={hasRuns ? "Plan da co run, khong the xoa" : "Delete"} type="button" disabled={hasRuns} className="rounded-lg border border-rose-200 px-2 py-1 text-xs text-rose-700 disabled:cursor-not-allowed disabled:opacity-50" onClick={(e) => { e.stopPropagation(); void deletePlan(planId); }}>🗑</button>
+                      <button title="Run" type="button" className="rounded-lg border border-emerald-200 px-2 py-1 text-xs text-emerald-700" onClick={(e) => { e.stopPropagation(); startQuickRun(plan); }}>▶</button>
+                    </div></td>
+                  </tr>;
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <aside className="space-y-6 xl:sticky xl:top-24">
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="text-sm font-semibold text-slate-900">Plan detail</div>
+            {!activePlan ? <div className="mt-3 text-sm text-slate-500">Select a plan to inspect details</div> : <div className="mt-3 space-y-3 text-sm">
+              <div><div className="text-xs uppercase tracking-wide text-slate-500">Name</div><div className="font-semibold text-slate-900">{activePlan.name}</div></div>
+              <div className="grid grid-cols-2 gap-2 text-xs"><div className="rounded-lg bg-slate-50 p-2"><div className="text-slate-500">Project</div><div className="font-semibold text-slate-800">{activePlan.project?.name || "-"}</div></div><div className="rounded-lg bg-slate-50 p-2"><div className="text-slate-500">Version</div><div className="font-semibold text-slate-800">{activePlan.version?.name || "-"}</div></div></div>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">{activePlan.description || "No description"}</div>
+              <div className="flex gap-2"><button type="button" className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white" onClick={() => startQuickRun(activePlan)}>Run this plan</button><button type="button" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600" onClick={() => { selectPlanForAssignment(String(activePlan._id)); setActiveView("cases"); }}>Assign cases</button></div>
+            </div>}
+          </section>
+
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="text-sm font-semibold text-slate-900">Recent activity</div>
+            <div className="mt-3 space-y-2">
+              {recentActivity.map((item: RecordAny) => <button key={String(item._id)} type="button" onClick={() => setActivePlanId(String(item._id))} className="flex w-full items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-left hover:border-slate-300"><span><span className="block text-xs text-slate-500">{item.project?.name || "-"}</span><span className="block text-sm font-semibold text-slate-900">{item.name}</span></span><span className="text-xs text-slate-400">{new Date(item.updatedAt || item.createdAt || 0).toLocaleDateString()}</span></button>)}
+            </div>
+          </section>
+
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="text-sm font-semibold text-slate-900">Execution runs</div>
+            <div className="mt-3 space-y-2 text-sm">
+              {relatedRuns.length === 0 ? <div className="text-slate-500">No related runs</div> : relatedRuns.map((run: RecordAny) => <div key={String(run._id)} className="rounded-lg border border-slate-200 p-3"><div className="flex items-center justify-between"><strong className="text-slate-900">{run.name || "Run"}</strong><span className={run.status === "completed" ? "text-emerald-700" : run.status === "running" ? "text-amber-700" : "text-slate-500"}>{run.status || "pending"}</span></div><div className="text-xs text-slate-500">{new Date(run.createdAt || 0).toLocaleString()}</div></div>)}
+            </div>
+          </section>
+        </aside>
+      </div>
+
+      <div className="workspace-stack">
+      <div ref={createSectionRef}>
       <SectionCard title="Test Plans" subtitle="Assign user va tao plan rieng biet">
         <form className="workspace-form" onSubmit={createPlan}>
           <div className="workspace-form__grid workspace-form__grid--two">
@@ -348,7 +602,9 @@ export default function AdminTestPlansScreen(props: Props) {
           </button>
         </form>
       </SectionCard>
+      </div>
 
+      <div ref={assignSectionRef}>
       <SectionCard title="Assign Assignees" subtitle="Owner se tu dong la admin dang thao tac">
         <form className="workspace-form workspace-form--assignments" onSubmit={saveAssignments}>
           <div className="workspace-assignments__section">
@@ -432,7 +688,9 @@ export default function AdminTestPlansScreen(props: Props) {
           </button>
         </form>
       </SectionCard>
+      </div>
 
+      <div ref={listSectionRef}>
       <SectionCard title="Test Plan List">
         {editingPlanId ? (
           <div className="workspace-form">
@@ -473,12 +731,9 @@ export default function AdminTestPlansScreen(props: Props) {
         ) : (
           <DataTable
             columns={["Plan", "Project", "Version", "Owner", "Mode", "Action"]}
-            rows={scopedPlans
-              .filter((plan: RecordAny) =>
-                matchesSearch(plan.name, plan.project?.name, plan.version?.name, userName(plan.owner)),
-              )
-              .map((plan: RecordAny) => (
-                <>
+            rows={filteredPlans.map((plan: RecordAny) => {
+                const hasRuns = runs.some((run: RecordAny) => String(getId(run.testPlan)) === String(plan._id));
+                return <>
                   <div>{plan.name}</div>
                   <div>{plan.project?.name || "-"}</div>
                   <div>{plan.version?.name || "-"}</div>
@@ -490,6 +745,8 @@ export default function AdminTestPlansScreen(props: Props) {
                     <button
                       type="button"
                       className="workspace-secondary"
+                      title={hasRuns ? "Plan da co run, khong the sua mode" : "Update"}
+                      disabled={hasRuns}
                       onClick={() => {
                         setEditingPlanId(plan._id);
                         setEditingExecutionMode(plan.executionMode || "manual");
@@ -504,13 +761,24 @@ export default function AdminTestPlansScreen(props: Props) {
                     >
                       Duplicate
                     </button>
+                    <button
+                      type="button"
+                      className="workspace-danger"
+                      title={hasRuns ? "Plan da co run, khong the xoa" : "Delete"}
+                      disabled={hasRuns}
+                      onClick={() => void deletePlan(String(plan._id))}
+                    >
+                      Delete
+                    </button>
                   </div>
                 </>
-              ))}
+              })}
             emptyText="No plans"
           />
         )}
       </SectionCard>
+      </div>
+      </div>
     </div>
   );
 }

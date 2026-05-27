@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import type { Dispatch, SetStateAction } from "react";
-import { DataTable, SectionCard } from "./shared";
+import { ActionButton, DataTable, SectionCard } from "./shared";
 
 type RecordAny = Record<string, any>;
 
@@ -48,8 +48,8 @@ export default function AdminVersionsScreen({
             <label><span>Release date</span><input type="date" value={versionForm.releaseDate} onChange={(e) => setVersionForm((prev) => ({ ...prev, releaseDate: e.target.value }))} /></label>
           </div>
           <div className="workspace-inline-actions">
-            <button className="workspace-primary" type="submit">{isEditing ? "Update version" : "Create version"}</button>
-            {isEditing && <button type="button" className="workspace-secondary" onClick={cancelVersionEdit}>Cancel</button>}
+            <ActionButton label={isEditing ? "Update version" : "Create version"} icon={isEditing ? "💾" : "＋"} variant="primary" />
+            {isEditing && <ActionButton label="Cancel" icon="↩" onClick={cancelVersionEdit} tooltip="Cancel editing" />}
           </div>
         </form>
       </SectionCard>
@@ -74,12 +74,8 @@ export default function AdminVersionsScreen({
                 <div>{version.name}</div>
                 <div>{projectName}</div>
                 <div className="workspace-inline-actions">
-                  <button type="button" className="workspace-secondary" onClick={() => startVersionEdit(version)}>
-                    Edit
-                  </button>
-                  <button type="button" className="workspace-danger" onClick={() => void deleteVersion(version._id)}>
-                    Delete
-                  </button>
+                  <ActionButton label="Edit" icon="✎" onClick={() => startVersionEdit(version)} />
+                  <ActionButton label="Delete" icon="🗑" variant="danger" onClick={() => void deleteVersion(version._id)} />
                 </div>
               </>
             ))}

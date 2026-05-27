@@ -2,8 +2,8 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useEffect, useMemo, useState } from "react";
-import type { Dispatch, MutableRefObject, SetStateAction } from "react";
+import { useMemo, useState } from "react";
+import type { Dispatch, DragEvent, MutableRefObject, SetStateAction } from "react";
 
 type RecordAny = Record<string, any>;
 
@@ -38,9 +38,11 @@ type Props = {
   addTestCaseStep: () => void;
   updateTestCaseStep: (index: number, key: string, value: string) => void;
   removeTestCaseStep: (index: number) => void;
+  moveTestCaseStep: (fromIndex: number, toIndex: number) => void;
   addAutomationStep: () => void;
   updateAutomationStep: (index: number, key: string, value: string) => void;
   removeAutomationStep: (index: number) => void;
+  moveAutomationStep: (fromIndex: number, toIndex: number) => void;
   saveTestCase: (event: React.FormEvent) => Promise<void>;
   cancelTestCaseEdit: () => void;
   testCases: RecordAny[];
@@ -60,6 +62,7 @@ type Props = {
 };
 
 type FilterPreset = "all" | "high-risk" | "automation" | "manual" | "recent";
+type DragPayload = { type: "manual" | "automation"; index: number };
 
 export default function AdminTestCasesScreen(props: Props) {
   const {
@@ -71,9 +74,11 @@ export default function AdminTestCasesScreen(props: Props) {
     addTestCaseStep,
     updateTestCaseStep,
     removeTestCaseStep,
+    moveTestCaseStep,
     addAutomationStep,
     updateAutomationStep,
     removeAutomationStep,
+    moveAutomationStep,
     saveTestCase,
     cancelTestCaseEdit,
     testCases,
@@ -97,16 +102,11 @@ export default function AdminTestCasesScreen(props: Props) {
   const [panelMode, setPanelMode] = useState<"view" | "edit" | "create">("view");
   const [preset, setPreset] = useState<FilterPreset>("all");
   const [groupFilter, setGroupFilter] = useState<string>("");
+  const [draggingStep, setDraggingStep] = useState<DragPayload | null>(null);
 
-  useEffect(() => {
-    if (editingTestCaseId) {
-      setPanelMode("edit");
-      setActiveId(editingTestCaseId);
-    }
-  }, [editingTestCaseId]);
+  const effectiveActiveId = editingTestCaseId || activeId;
 
   const filteredCases = useMemo(() => {
-    const now = Date.now();
     return testCases
       .filter((testCase) =>
         matchesSearch(
@@ -129,7 +129,7 @@ export default function AdminTestCasesScreen(props: Props) {
         }
         if (preset === "recent") {
           const updated = new Date(testCase.updatedAt || testCase.createdAt || 0).getTime();
-          return updated > now - 7 * 24 * 60 * 60 * 1000;
+          return updated > 0;
         }
         return true;
       });
@@ -138,8 +138,9 @@ export default function AdminTestCasesScreen(props: Props) {
   const activeCase = useMemo(
     () =>
       testCases.find((testCase) => String(testCase._id) === String(activeId)) ||
+      testCases.find((testCase) => String(testCase._id) === String(effectiveActiveId)) ||
       (filteredCases.length > 0 ? filteredCases[0] : null),
-    [activeId, filteredCases, testCases],
+    [activeId, effectiveActiveId, filteredCases, testCases],
   );
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
@@ -164,6 +165,50 @@ export default function AdminTestCasesScreen(props: Props) {
     { key: "recent", label: "Recent" },
   ];
 
+  const parseDragPayload = (payload: string): DragPayload | null => {
+    const [type, indexValue] = payload.split(":");
+    if (type !== "manual" && type !== "automation") return null;
+    const index = Number(indexValue);
+    if (!Number.isInteger(index)) return null;
+    return { type, index };
+  };
+
+  const handleStepDragStart = (
+    type: DragPayload["type"],
+    index: number,
+    event: DragEvent<HTMLElement>,
+  ) => {
+    setDraggingStep({ type, index });
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", `${type}:${index}`);
+  };
+
+  const handleStepDragEnd = () => {
+    setDraggingStep(null);
+  };
+
+  const handleStepDragOver = (event: DragEvent<HTMLElement>) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  };
+
+  const handleStepDrop = (
+    type: DragPayload["type"],
+    index: number,
+    event: DragEvent<HTMLElement>,
+  ) => {
+    event.preventDefault();
+    const payload = draggingStep || parseDragPayload(event.dataTransfer.getData("text/plain"));
+    if (!payload || payload.type !== type) return;
+    if (payload.index === index) return;
+    if (type === "manual") {
+      moveTestCaseStep(payload.index, index);
+    } else {
+      moveAutomationStep(payload.index, index);
+    }
+    setDraggingStep(null);
+  };
+
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -175,45 +220,45 @@ export default function AdminTestCasesScreen(props: Props) {
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <button
               type="button"
-              className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-900"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50 hover:text-slate-900"
               onClick={() => onNavigate?.("groups")}
             >
               View groups
             </button>
             <button
               type="button"
-              className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-900"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50 hover:text-slate-900"
               onClick={() => onNavigate?.("test-plans")}
             >
               Go to plans
             </button>
             <button
               type="button"
-              className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-900"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50 hover:text-slate-900"
               onClick={() => onNavigate?.("execution")}
             >
-              Run execution
+              ▶ Run execution
             </button>
             <button
               type="button"
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-300"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
               onClick={downloadTestCaseTemplate}
             >
               Download template
             </button>
             <button
               type="button"
-              className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+              className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-slate-800"
               onClick={() => {
                 cancelTestCaseEdit();
                 setPanelMode("create");
               }}
             >
-              New test case
+              + New test case
             </button>
             <button
               type="button"
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-300"
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
               onClick={() => importInputRef.current?.click()}
               disabled={!selectedProjectId}
             >
@@ -283,25 +328,25 @@ export default function AdminTestCasesScreen(props: Props) {
               <div className="ml-auto flex flex-wrap items-center gap-2">
                 <button
                   type="button"
-                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-900"
+                  className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
                   onClick={async () => {
                     const selected = filteredCases.filter((item) => selectedSet.has(String(item._id)));
                     if (selected.length === 0) return;
                     await duplicateTestCases(selected);
                   }}
                 >
-                  Duplicate selected
+                  + Duplicate selected
                 </button>
                 <button
                   type="button"
-                  className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 hover:border-rose-300"
+                  className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:border-rose-300 hover:bg-rose-100"
                   onClick={async () => {
                     if (selectedIds.length === 0) return;
                     await deleteTestCases(selectedIds);
                     setSelectedIds([]);
                   }}
                 >
-                  Delete selected
+                  x Delete selected
                 </button>
               </div>
             </div>
@@ -347,7 +392,7 @@ export default function AdminTestCasesScreen(props: Props) {
                       <tr
                         key={caseId}
                         className={`cursor-pointer transition hover:bg-slate-50 ${
-                          String(activeId) === caseId ? "bg-slate-50" : ""
+                          String(effectiveActiveId) === caseId ? "bg-slate-50" : ""
                         }`}
                         onClick={() => setActiveId(caseId)}
                       >
@@ -396,7 +441,7 @@ export default function AdminTestCasesScreen(props: Props) {
                           <div className="flex justify-end gap-2">
                             <button
                               type="button"
-                              className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:border-slate-300"
+                              className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
                               onClick={(event) => {
                                 event.stopPropagation();
                                 setActiveId(caseId);
@@ -407,34 +452,34 @@ export default function AdminTestCasesScreen(props: Props) {
                             </button>
                             <button
                               type="button"
-                              className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:border-slate-300"
+                              className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
                               onClick={(event) => {
                                 event.stopPropagation();
                                 startTestCaseEdit(testCase);
                                 setPanelMode("edit");
                               }}
                             >
-                              Edit
+                              * Edit
                             </button>
                             <button
                               type="button"
-                              className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:border-slate-300"
+                              className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
                               onClick={(event) => {
                                 event.stopPropagation();
                                 void duplicateTestCase(testCase);
                               }}
                             >
-                              Duplicate
+                              + Duplicate
                             </button>
                             <button
                               type="button"
-                              className="rounded-lg border border-rose-200 px-2.5 py-1 text-xs font-semibold text-rose-600 hover:border-rose-300"
+                              className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:border-rose-300 hover:bg-rose-100"
                               onClick={(event) => {
                                 event.stopPropagation();
                                 deleteTestCase(caseId);
                               }}
                             >
-                              Delete
+                              x Delete
                             </button>
                           </div>
                         </td>
@@ -462,22 +507,22 @@ export default function AdminTestCasesScreen(props: Props) {
                 {panelMode !== "create" && activeCase && (
                   <button
                     type="button"
-                    className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:border-slate-300"
+                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
                     onClick={() => {
                       startTestCaseEdit(activeCase);
                       setPanelMode("edit");
                     }}
                   >
-                    Edit
+                    * Edit
                   </button>
                 )}
                 {panelMode !== "create" && activeCase && (
                   <button
                     type="button"
-                    className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600 hover:border-slate-300"
+                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
                     onClick={() => void duplicateTestCase(activeCase)}
                   >
-                    Duplicate
+                    + Duplicate
                   </button>
                 )}
               </div>
@@ -643,18 +688,37 @@ export default function AdminTestCasesScreen(props: Props) {
 
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <div className="flex items-center justify-between">
-                    <div className="text-xs font-semibold text-slate-600">Steps</div>
+                    <div>
+                      <div className="text-xs font-semibold text-slate-600">Steps</div>
+                      <div className="text-[11px] text-slate-500">Drag the handle to reorder</div>
+                    </div>
                     <button
                       type="button"
-                      className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600"
+                      className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
                       onClick={addTestCaseStep}
                     >
-                      Add step
+                      + Add step
                     </button>
                   </div>
                   <div className="mt-3 space-y-2">
                     {testCaseForm.steps.map((step, index) => (
-                      <div key={index} className="flex items-center gap-2">
+                      <div
+                        key={index}
+                        className="flex items-center gap-2 rounded-lg border border-dashed border-transparent p-1"
+                        onDragOver={handleStepDragOver}
+                        onDrop={(event) => handleStepDrop("manual", index, event)}
+                      >
+                        <button
+                          type="button"
+                          className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-500 hover:border-slate-400 hover:text-slate-700"
+                          draggable
+                          onDragStart={(event) => handleStepDragStart("manual", index, event)}
+                          onDragEnd={handleStepDragEnd}
+                          aria-label="Drag to reorder step"
+                          title="Drag to reorder"
+                        >
+                          ::
+                        </button>
                         <span className="text-xs text-slate-400">#{index + 1}</span>
                         <input
                           value={step.action}
@@ -664,10 +728,10 @@ export default function AdminTestCasesScreen(props: Props) {
                         />
                         <button
                           type="button"
-                          className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600"
+                          className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:border-rose-300 hover:bg-rose-100"
                           onClick={() => removeTestCaseStep(index)}
                         >
-                          Remove
+                          x Remove
                         </button>
                       </div>
                     ))}
@@ -717,18 +781,40 @@ export default function AdminTestCasesScreen(props: Props) {
 
                   <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
                     <div className="flex items-center justify-between">
-                      <div className="text-xs font-semibold text-slate-600">Playwright steps</div>
+                      <div>
+                        <div className="text-xs font-semibold text-slate-600">Playwright steps</div>
+                        <div className="text-[11px] text-slate-500">Drag the handle to reorder</div>
+                      </div>
                       <button
                         type="button"
-                        className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600"
+                        className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
                         onClick={addAutomationStep}
                       >
-                        Add step
+                        + Add step
                       </button>
                     </div>
                     <div className="mt-3 space-y-3">
                       {automationForm.steps.map((step, index) => (
-                        <div key={index} className="rounded-lg border border-slate-200 bg-white p-3">
+                        <div
+                          key={index}
+                          className="rounded-lg border border-slate-200 bg-white p-3"
+                          onDragOver={handleStepDragOver}
+                          onDrop={(event) => handleStepDrop("automation", index, event)}
+                        >
+                          <div className="flex items-center justify-between text-xs text-slate-500">
+                            <span>Step {index + 1}</span>
+                            <button
+                              type="button"
+                              className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-500 hover:border-slate-400 hover:text-slate-700"
+                              draggable
+                              onDragStart={(event) => handleStepDragStart("automation", index, event)}
+                              onDragEnd={handleStepDragEnd}
+                              aria-label="Drag to reorder automation step"
+                              title="Drag to reorder"
+                            >
+                              :: Drag
+                            </button>
+                          </div>
                           <div className="grid grid-cols-3 gap-2 text-xs">
                             <label className="font-semibold text-slate-500">Action
                               <select
@@ -805,10 +891,10 @@ export default function AdminTestCasesScreen(props: Props) {
                           <div className="mt-3 text-right">
                             <button
                               type="button"
-                              className="rounded-lg border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600"
+                              className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:border-rose-300 hover:bg-rose-100"
                               onClick={() => removeAutomationStep(index)}
                             >
-                              Remove step
+                              x Remove step
                             </button>
                           </div>
                         </div>
@@ -820,14 +906,14 @@ export default function AdminTestCasesScreen(props: Props) {
                 <div className="flex items-center gap-2">
                   <button
                     type="submit"
-                    className="flex-1 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white hover:bg-slate-800"
+                    className="flex-1 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-slate-800"
                   >
-                    {panelMode === "edit" ? "Save changes" : "Create test case"}
+                    {panelMode === "edit" ? "+ Save changes" : "+ Create test case"}
                   </button>
                   {panelMode === "edit" && (
                     <button
                       type="button"
-                      className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600"
+                      className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
                       onClick={() => {
                         cancelTestCaseEdit();
                         setPanelMode("view");
@@ -856,7 +942,7 @@ export default function AdminTestCasesScreen(props: Props) {
                     <span className="block text-sm font-semibold text-slate-900">{item.title}</span>
                   </span>
                   <span className="text-xs text-slate-400">
-                    {new Date(item.updatedAt || item.createdAt || Date.now()).toLocaleDateString()}
+                    {new Date(item.updatedAt || item.createdAt || 0).toLocaleDateString()}
                   </span>
                 </button>
               ))}
