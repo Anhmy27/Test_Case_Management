@@ -11,6 +11,10 @@ const runResultSchema = new mongoose.Schema(
       ref: 'TestCase',
       required: true,
     },
+    group: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'TestCaseGroup',
+    },
     owner: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

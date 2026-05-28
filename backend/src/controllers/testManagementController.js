@@ -848,9 +848,23 @@ const startTestRun = asyncHandler(async (req, res) => {
     throw httpError(404, 'A test case in this test plan could not be resolved to the latest version');
   }
 
+  // Resolve group snapshots (store the active/latest group document _id at run start)
+  const latestGroups = await Promise.all(latestTestCases.map(async (tc) => {
+    if (!tc || !tc.group) return null;
+    const foundGroup = await TestCaseGroup.findOne({
+      $and: [
+        { $or: [ { _id: tc.group }, { entityId: tc.group } ] },
+        { deletedAt: null },
+        { $or: [{ isLatest: true }, { isLatest: { $exists: false } }] },
+      ],
+    }).lean();
+    return foundGroup || null;
+  }));
+
   const results = testPlan.items.map((item, index) => ({
     planItemId: item._id,
     testCase: latestTestCases[index]._id,
+    group: latestGroups[index] ? latestGroups[index]._id : (latestTestCases[index] ? latestTestCases[index].group : null),
     owner: testPlan.owner,
     assignees: testPlan.assignees || [],
     tester: testPlan.owner || (testPlan.assignees && testPlan.assignees.length > 0 ? testPlan.assignees[0] : undefined),

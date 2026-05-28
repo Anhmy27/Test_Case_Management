@@ -1465,9 +1465,68 @@ const listTestCaseDetails = asyncHandler(async (req, res) => {
     { project: { $in: projectObjectIds } },
     activeLatestFilter(),
   ];
-
+  let resolvedGroup = null;
   if (groupId) {
-    filters.push({ group: toObjectId(groupId, 'groupId') });
+    // Resolve provided groupId (could be entityId or version _id) to all
+    // group version _ids that belong to this project, then match runs whose
+    // results.group is one of those version _ids. This ensures the frontend
+    // may send either the group's entityId or a version _id and still match.
+    const groupObjectId = toObjectId(groupId, 'groupId');
+
+    // include all versions for the group entity (do not restrict to isLatest)
+    const groupVersionIds = await TestCaseGroup.find({
+      $and: [
+        { $or: [{ entityId: groupObjectId }, { _id: groupObjectId }] },
+        { project: { $in: projectObjectIds } },
+      ],
+    }).distinct('_id');
+
+    resolvedGroup = await TestCaseGroup.findOne({
+      $and: [
+        { $or: [{ entityId: groupObjectId }, { _id: groupObjectId }] },
+        { project: { $in: projectObjectIds } },
+        activeLatestFilter(),
+      ],
+    }).select('entityId name key deletedAt').lean();
+
+    if (!resolvedGroup && groupVersionIds.length > 0) {
+      resolvedGroup = await TestCaseGroup.findOne({
+        _id: { $in: groupVersionIds.map((v) => toObjectId(v, 'groupId')) },
+      }).select('entityId name key deletedAt').lean();
+    }
+
+    if (!groupVersionIds || groupVersionIds.length === 0) {
+      res.json({ testCases: [], pagination: null });
+      return;
+    }
+
+    const runs = await TestRun.find({ project: { $in: projectObjectIds }, 'results.group': { $in: groupVersionIds.map((v) => toObjectId(v, 'groupId')) } }).select('results').lean();
+
+    const matchedVersionIds = new Set();
+    for (const run of runs) {
+      for (const r of run.results || []) {
+        if (r && r.group && groupVersionIds.some((gid) => String(gid) === String(r.group)) && r.testCase) {
+          matchedVersionIds.add(String(r.testCase));
+        }
+      }
+    }
+
+    if (matchedVersionIds.size === 0) {
+      res.json({ testCases: [], pagination: null });
+      return;
+    }
+
+    const matchedVersions = await TestCase.find({ _id: { $in: Array.from(matchedVersionIds).map((v) => toObjectId(v, 'testCaseId')) } }).select('_id entityId').lean();
+    const matchedEntityIds = matchedVersions.map((v) => String(v.entityId || '')).filter(Boolean);
+    const matchedVersionIdList = matchedVersions.map((v) => String(v._id)).filter(Boolean);
+    const combinedIds = Array.from(new Set([...matchedEntityIds, ...matchedVersionIdList]));
+
+    filters.push({
+      $or: [
+        { entityId: { $in: combinedIds.map((v) => toObjectId(v, 'testCaseId')) } },
+        { _id: { $in: combinedIds.map((v) => toObjectId(v, 'testCaseId')) } },
+      ],
+    });
   }
 
   if (search) {
@@ -1491,7 +1550,7 @@ const listTestCaseDetails = asyncHandler(async (req, res) => {
     .filter(Boolean);
 
   const allCaseVersions = await TestCase.find({
-    project: projectObjectId,
+    project: { $in: projectObjectIds },
     entityId: { $in: entityIds },
   })
     .select('_id entityId')
@@ -1505,12 +1564,31 @@ const listTestCaseDetails = asyncHandler(async (req, res) => {
   let historyByEntity = new Map();
   if (versionIds.length > 0) {
     const historyRuns = await TestRun.find({
-      project: projectObjectId,
+      project: { $in: projectObjectIds },
     })
       .select('name status startedAt endedAt startedBy endedBy results')
       .populate('startedBy', 'name email role')
       .populate('endedBy', 'name email role')
       .lean();
+
+    const referencedGroupIds = Array.from(new Set(
+      historyRuns.flatMap((run) => (run.results || []).map((result) => objectIdString(result.group)).filter(Boolean)),
+    ));
+    const referencedGroupObjectIds = referencedGroupIds.filter((value) => mongoose.Types.ObjectId.isValid(value));
+    const referencedGroups = referencedGroupObjectIds.length > 0
+      ? await TestCaseGroup.find({
+          $or: [
+            { _id: { $in: referencedGroupObjectIds.map((v) => toObjectId(v, 'groupId')) } },
+            { entityId: { $in: referencedGroupObjectIds.map((v) => toObjectId(v, 'groupId')) } },
+          ],
+        }).select('entityId name key deletedAt').lean()
+      : [];
+
+    const groupMap = new Map();
+    for (const group of referencedGroups) {
+      groupMap.set(String(group._id), group);
+      if (group.entityId) groupMap.set(String(group.entityId), group);
+    }
 
     historyByEntity = historyRuns.reduce((acc, run) => {
       const runStartedAt = run.startedAt || run.createdAt || null;
@@ -1528,6 +1606,8 @@ const listTestCaseDetails = asyncHandler(async (req, res) => {
             return;
           }
 
+          const resultGroup = result.group ? (groupMap.get(objectIdString(result.group)) || null) : null;
+
           const existing = acc.get(entityId) || [];
           existing.push({
             runId: String(run._id),
@@ -1539,6 +1619,7 @@ const listTestCaseDetails = asyncHandler(async (req, res) => {
             endedAt: run.endedAt || null,
             startedBy: run.startedBy || null,
             endedBy: run.endedBy || null,
+            group: resultGroup,
             note: result.note || result.notes || '',
           });
           acc.set(entityId, existing);
@@ -1550,6 +1631,7 @@ const listTestCaseDetails = asyncHandler(async (req, res) => {
 
   const detailRows = testCases.map((testCase) => ({
     ...testCase,
+    group: (historyByEntity.get(objectIdString(testCase.entityId)) || [])[0]?.group || resolvedGroup || testCase.group || null,
     recentStatuses: (historyByEntity.get(objectIdString(testCase.entityId)) || []).slice(0, 3).map((entry) => entry.status),
     executionHistory: historyByEntity.get(objectIdString(testCase.entityId)) || [],
   }));
