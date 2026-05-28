@@ -159,13 +159,22 @@ const ensureProjectExists = async (projectId, { includeDeleted = false } = {}) =
   }
   project = await Project.findOne(idQuery).lean();
   if (!project) throw httpError(404, 'Project not found');
+  // Backfill entityId if missing (some older docs may not have it)
+  if (!project.entityId) {
+    await Project.findByIdAndUpdate(project._id, { $set: { entityId: project._id } });
+    project.entityId = project._id;
+  }
   return project;
 };
 
 const ensureVersionExists = async (versionId, projectId, { includeDeleted = false } = {}) => {
   const project = await ensureProjectExists(projectId, { includeDeleted });
 
-  const base = { project: project._id };
+  const projectVersionIds = await Project.find({ entityId: project.entityId }).distinct('_id');
+  const projectRefs = Array.from(
+    new Set([...(projectVersionIds || []), project._id, project.entityId].filter(Boolean).map((value) => String(value))),
+  ).map((value) => toObjectId(value, 'projectId'));
+  const base = { project: { $in: projectRefs } };
   if (!includeDeleted) {
     base.$or = [{ isLatest: true }, { isLatest: { $exists: false } }];
     base.deletedAt = null;
@@ -177,35 +186,66 @@ const ensureVersionExists = async (versionId, projectId, { includeDeleted = fals
 
   version = await Version.findOne({ _id: toObjectId(versionId, 'versionId'), ...base }).lean();
   if (!version) throw httpError(404, 'Version not found in selected project');
+  if (!version.entityId) {
+    await Version.findByIdAndUpdate(version._id, { $set: { entityId: version._id } });
+    version.entityId = version._id;
+  }
   return version;
 };
 
 const ensureGroupExists = async (groupId, projectId, { includeDeleted = false } = {}) => {
   const project = await ensureProjectExists(projectId, { includeDeleted });
 
-  const base = { project: project._id };
-  if (!includeDeleted) {
-    base.$or = [{ isLatest: true }, { isLatest: { $exists: false } }];
-    base.deletedAt = null;
+  const projectVersionIds = await Project.find({ entityId: project.entityId }).distinct('_id');
+  const allowedProjectRefs = new Set(
+    [
+      ...(projectVersionIds || []),
+      project._id,
+      project.entityId,
+    ]
+      .filter(Boolean)
+      .map((value) => String(value)),
+  );
+
+  const group = await TestCaseGroup.findOne({
+    $or: [
+      { entityId: toObjectId(groupId, 'groupId') },
+      { _id: toObjectId(groupId, 'groupId') },
+    ],
+    ...(includeDeleted
+      ? {}
+      : {
+          $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+          deletedAt: null,
+        }),
+  }).lean();
+
+  if (!group) {
+    throw httpError(404, 'Test case group not found in selected project');
   }
 
-  let group = await TestCaseGroup.findOne({ entityId: toObjectId(groupId, 'groupId'), ...base }).lean();
-  if (group) return group;
+  const groupProjectRef = extractReferenceId(group.project);
+  if (!allowedProjectRefs.has(groupProjectRef)) {
+    throw httpError(404, 'Test case group not found in selected project');
+  }
 
-  group = await TestCaseGroup.findOne({ _id: toObjectId(groupId, 'groupId'), ...base }).lean();
-  if (!group) throw httpError(404, 'Test case group not found in selected project');
   return group;
 };
 
 const ensureTestCaseExists = async (testCaseId, projectId, { includeDeleted = false } = {}) => {
   const project = await ensureProjectExists(projectId, { includeDeleted });
 
-  const base = { project: project._id };
+  // Accept test cases whose `project` field stores either the project's version _id
+  // or the project's stable `entityId`.
+  const projectIds = [project._id];
+  if (project.entityId) projectIds.push(project.entityId);
+
+  const base = { project: { $in: projectIds } };
   if (!includeDeleted) {
-    base.$or = [{ isLatest: true }, { isLatest: { $exists: false } }];
-    base.deletedAt = null;
+    base.$and = [activeLatestFilter()];
   }
 
+  // Try resolving by test case entityId first, then by document _id, scoping to allowed project ids
   let testCase = await TestCase.findOne({ entityId: toObjectId(testCaseId, 'testCaseId'), ...base }).lean();
   if (testCase) return testCase;
 
@@ -314,6 +354,58 @@ const createVersionedDocument = async (Model, payload, session) => {
   ], session ? { session } : undefined);
 
   return doc;
+};
+
+const resolveTestCaseByReference = async (testCaseRef, { includeDeleted = false } = {}) => {
+  if (!testCaseRef) {
+    return null;
+  }
+
+  const match = {
+    $or: [
+      { entityId: toObjectId(testCaseRef, 'testCaseId') },
+      { _id: toObjectId(testCaseRef, 'testCaseId') },
+    ],
+  };
+
+  if (!includeDeleted) {
+    match.$and = [activeLatestFilter()];
+  }
+
+  return TestCase.findOne(match).lean();
+};
+
+const attachTestPlanCases = async (testPlan) => {
+  if (!testPlan) {
+    return null;
+  }
+
+  const referencedCaseIds = Array.from(new Set((testPlan.items || [])
+    .map((item) => extractReferenceId(item.testCase))
+    .filter(Boolean)));
+
+  const attachedCases = referencedCaseIds.length > 0
+    ? await TestCase.find({
+        $or: [
+          { _id: { $in: referencedCaseIds.filter((value) => mongoose.Types.ObjectId.isValid(value)).map((value) => toObjectId(value, 'testCaseId')) } },
+          { entityId: { $in: referencedCaseIds.filter((value) => mongoose.Types.ObjectId.isValid(value)).map((value) => toObjectId(value, 'testCaseId')) } },
+        ],
+      }).select('entityId key name caseKey title deletedAt').lean()
+    : [];
+
+  const caseMap = new Map();
+  for (const testCase of attachedCases) {
+    caseMap.set(String(testCase._id), testCase);
+    if (testCase.entityId) caseMap.set(String(testCase.entityId), testCase);
+  }
+
+  return {
+    ...testPlan,
+    items: (testPlan.items || []).map((item) => ({
+      ...item,
+      testCase: caseMap.get(extractReferenceId(item.testCase)) || item.testCase || null,
+    })),
+  };
 };
 
 const updateVersionedDocument = async (Model, currentId, buildNextPayload) => {
@@ -584,13 +676,20 @@ const createVersion = asyncHandler(async (req, res) => {
   const project = await ensureProjectExists(projectId);
   const normalizedName = normalizeName(name);
   const normalizedIdJira = idjira ? String(idjira).trim() : '';
+  const projectRef = project.entityId || project._id;
 
   const orMatchers = [{ name: normalizedName }];
   if (normalizedIdJira) orMatchers.push({ idjira: normalizedIdJira });
 
+  const projectVersionIds = await Project.find({ entityId: project.entityId }).distinct('_id');
+  const projectRefs = Array.from(
+    new Set([...(projectVersionIds || []), project._id, project.entityId].filter(Boolean).map((value) => String(value))),
+  ).map((value) => toObjectId(value, 'projectId'));
+
   const existingVersion = await Version.findOne({
-    project: project._id,
+    project: { $in: projectRefs },
     deletedAt: null,
+    isLatest: true,
     $or: orMatchers,
   }).lean();
   if (existingVersion) {
@@ -598,7 +697,7 @@ const createVersion = asyncHandler(async (req, res) => {
   }
 
   const version = await Version.create({
-    project: project._id,
+    project: projectRef,
     name: normalizedName,
     idjira: normalizedIdJira,
     releaseDate,
@@ -606,11 +705,29 @@ const createVersion = asyncHandler(async (req, res) => {
     createdBy: req.user.id,
   });
 
-  const populated = await Version.findById(version._id)
-    .populate('project', 'entityId name code deletedAt')
-    .lean();
+  const populatedVersion = await Version.findById(version._id).lean();
+  let projectObj = null;
+  if (populatedVersion && populatedVersion.project) {
+    projectObj = await Project.findOne({
+      $and: [
+        {
+          $or: [
+            { _id: populatedVersion.project },
+            { entityId: populatedVersion.project },
+          ],
+        },
+        { deletedAt: null },
+        activeLatestFilter(),
+      ],
+    }).select('entityId name code deletedAt').lean();
+  }
 
-  res.status(201).json({ version: populated });
+  const normalizedVersion = {
+    ...populatedVersion,
+    project: projectObj || (populatedVersion ? populatedVersion.project : null),
+  };
+
+  res.status(201).json({ version: normalizedVersion });
 });
 
 const listVersions = asyncHandler(async (req, res) => {
@@ -623,9 +740,11 @@ const listVersions = asyncHandler(async (req, res) => {
     const projectIds = Array.from(new Set([...(projectVersionIds || []), String(project.entityId || project._id)]));
     filters.push({ project: { $in: projectIds.map((value) => toObjectId(value, 'projectId')) } });
   } else {
-    const activeProjects = await Project.find({ deletedAt: null }).distinct('entityId');
-    const activeProjectDocs = await Project.find({ entityId: { $in: activeProjects } }).distinct('_id');
-    filters.push({ project: { $in: activeProjectDocs } });
+    const activeProjects = await Project.find({ deletedAt: null }).select('_id entityId').lean();
+    const activeProjectIds = Array.from(
+      new Set(activeProjects.flatMap((item) => [String(item._id), String(item.entityId || '')]).filter(Boolean)),
+    );
+    filters.push({ project: { $in: activeProjectIds.map((value) => toObjectId(value, 'projectId')) } });
   }
 
   if (includeDeleted !== 'true') {
@@ -640,10 +759,30 @@ const listVersions = asyncHandler(async (req, res) => {
   const match = filters.length === 0 ? {} : filters.length === 1 ? filters[0] : { $and: filters };
   const versions = await Version.find(match)
     .sort({ createdAt: -1 })
-    .populate('project', 'entityId name code deletedAt')
     .lean();
 
-  res.json({ versions });
+  const referencedProjectIds = Array.from(new Set(versions.map((version) => String(version.project || '')).filter(Boolean)));
+  const referencedProjects = referencedProjectIds.length > 0
+    ? await Project.find({
+        $or: [
+          { _id: { $in: referencedProjectIds.filter((value) => mongoose.Types.ObjectId.isValid(value)).map((value) => toObjectId(value, 'projectId')) } },
+          { entityId: { $in: referencedProjectIds.filter((value) => mongoose.Types.ObjectId.isValid(value)).map((value) => toObjectId(value, 'projectId')) } },
+        ],
+      }).select('entityId name code deletedAt').lean()
+    : [];
+
+  const projectMap = new Map();
+  for (const project of referencedProjects) {
+    projectMap.set(String(project._id), project);
+    if (project.entityId) projectMap.set(String(project.entityId), project);
+  }
+
+  const normalizedVersions = versions.map((version) => ({
+    ...version,
+    project: projectMap.get(String(version.project)) || version.project || null,
+  }));
+
+  res.json({ versions: normalizedVersions });
 });
 
 const getVersion = asyncHandler(async (req, res) => {
@@ -653,7 +792,6 @@ const getVersion = asyncHandler(async (req, res) => {
     $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
     deletedAt: null,
   })
-    .populate('project', 'entityId name code deletedAt')
     .lean();
 
   if (!version && mongoose.Types.ObjectId.isValid(versionId)) {
@@ -662,7 +800,6 @@ const getVersion = asyncHandler(async (req, res) => {
       $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
       deletedAt: null,
     })
-      .populate('project', 'entityId name code deletedAt')
       .lean();
   }
 
@@ -671,7 +808,25 @@ const getVersion = asyncHandler(async (req, res) => {
     return;
   }
 
-  res.json({ version });
+  const project = await Project.findOne({
+    $and: [
+      {
+        $or: [
+          { _id: version.project },
+          { entityId: version.project },
+        ],
+      },
+      { deletedAt: null },
+      activeLatestFilter(),
+    ],
+  }).select('entityId name code deletedAt').lean();
+
+  res.json({
+    version: {
+      ...version,
+      project: project || version.project || null,
+    },
+  });
 });
 
 const updateVersion = asyncHandler(async (req, res) => {
@@ -691,12 +846,14 @@ const updateVersion = asyncHandler(async (req, res) => {
     const orMatchers = [{ name: nextName }];
     if (nextIdJira) orMatchers.push({ idjira: nextIdJira });
 
+    const currentProjectRefs = [String(current.project || '')].filter(Boolean).map((value) => toObjectId(value, 'projectId'));
+
     const duplicate = await Version.findOne({
       _id: { $ne: current._id },
       entityId: { $ne: current.entityId },
-      project: current.project,
       deletedAt: null,
       isLatest: true,
+      project: { $in: currentProjectRefs },
       $or: orMatchers,
     }).lean();
     if (duplicate) {
@@ -713,11 +870,26 @@ const updateVersion = asyncHandler(async (req, res) => {
     };
   });
 
-  const populated = await Version.findById(nextVersion._id)
-    .populate('project', 'entityId name code deletedAt')
-    .lean();
+  const populated = await Version.findById(nextVersion._id).lean();
+  const project = await Project.findOne({
+    $and: [
+      {
+        $or: [
+          { _id: populated.project },
+          { entityId: populated.project },
+        ],
+      },
+      { deletedAt: null },
+      activeLatestFilter(),
+    ],
+  }).select('entityId name code deletedAt').lean();
 
-  res.json({ version: populated });
+  res.json({
+    version: {
+      ...populated,
+      project: project || populated.project || null,
+    },
+  });
 });
 
 const deleteVersion = asyncHandler(async (req, res) => {
@@ -869,9 +1041,10 @@ const createTestCaseGroup = asyncHandler(async (req, res) => {
   const project = await ensureProjectExists(projectId);
   const normalizedName = normalizeName(name);
   const normalizedKey = normalizeKey(key || name);
+  const projectRef = project.entityId || project._id;
 
   const duplicate = await TestCaseGroup.findOne({
-    project: project._id,
+    project: { $in: [project._id, project.entityId].filter(Boolean) },
     deletedAt: null,
     isLatest: true,
     $or: [{ key: normalizedKey }, { name: normalizedName }],
@@ -885,7 +1058,7 @@ const createTestCaseGroup = asyncHandler(async (req, res) => {
     versionNumber: 1,
     isLatest: true,
     deletedAt: null,
-    project: project._id,
+    project: projectRef,
     key: normalizedKey,
     name: normalizedName,
     description: description || '',
@@ -901,25 +1074,19 @@ const listTestCaseGroups = asyncHandler(async (req, res) => {
 
   if (projectId) {
     const project = await ensureProjectExists(projectId);
-    // project documents are versioned and groups may reference any project version _id
-    // when a project has been updated the latest project _id will differ from older
-    // versions. To ensure we return groups created under any project version for
-    // the same project entity, match against all project version _ids for the
-    // project's entityId.
     try {
       const projectVersionIds = await Project.find({ entityId: project.entityId }).distinct('_id');
-      // also include the entityId itself in case some groups were incorrectly
-      // stored with the project's entityId rather than a project document _id
       const projectIds = Array.from(new Set([...(projectVersionIds || []), String(project.entityId || project._id)]));
-      // ensure ObjectId values for matching
       baseFilters.project = { $in: projectIds.map((v) => toObjectId(v, 'projectId')) };
     } catch (err) {
-      // fallback to matching the single _id if anything goes wrong
-      baseFilters.project = project._id;
+      baseFilters.project = { $in: [project._id, project.entityId].filter(Boolean) };
     }
   } else {
-    const activeProjectIds = await Project.find({ deletedAt: null }).distinct('_id');
-    baseFilters.project = { $in: activeProjectIds };
+    const activeProjects = await Project.find({ deletedAt: null }).select('_id entityId').lean();
+    const activeProjectIds = Array.from(
+      new Set(activeProjects.flatMap((item) => [String(item._id), String(item.entityId || '')]).filter(Boolean)),
+    );
+    baseFilters.project = { $in: activeProjectIds.map((value) => toObjectId(value, 'projectId')) };
   }
 
   const { docs: groups, pagination } = await buildVersionedList({
@@ -1001,9 +1168,10 @@ const updateTestCaseGroup = asyncHandler(async (req, res) => {
     let nextProjectId;
     if (projectId) {
       const resolved = await ensureProjectExists(projectId, { includeDeleted: false });
-      nextProjectId = resolved._id;
+      nextProjectId = resolved.entityId || resolved._id;
     } else {
-      nextProjectId = current.project;
+      const currentProject = await ensureProjectExists(current.project, { includeDeleted: false });
+      nextProjectId = currentProject.entityId || currentProject._id;
     }
 
     const normalizedName = name ? normalizeName(name) : current.name;
@@ -1075,9 +1243,12 @@ const createTestCase = asyncHandler(async (req, res) => {
     throw httpError(400, 'automation.steps[] are required when automation is enabled');
   }
 
+  const projectRefs = [String(project._id), String(project.entityId || '')].filter(Boolean);
+  const groupRefs = [String(group._id), String(group.entityId || '')].filter(Boolean);
+
   const duplicate = await TestCase.findOne({
-    project: project._id,
-    group: group._id,
+    project: { $in: projectRefs.map((value) => toObjectId(value, 'projectId')) },
+    group: { $in: groupRefs.map((value) => toObjectId(value, 'groupId')) },
     deletedAt: null,
     isLatest: true,
     $or: [{ key: normalizedKey }, { name: normalizedName }],
@@ -1574,6 +1745,7 @@ const importTestCases = asyncHandler(async (req, res) => {
   }
 
   const project = await ensureProjectExists(projectId);
+  const projectRefs = [String(project._id), String(project.entityId || '')].filter(Boolean);
 
   try {
     const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
@@ -1616,7 +1788,7 @@ const importTestCases = asyncHandler(async (req, res) => {
         }
 
         const groupQuery = {
-          project: project._id,
+          project: { $in: projectRefs.map((value) => toObjectId(value, 'projectId')) },
           deletedAt: null,
           isLatest: true,
         };
@@ -1674,8 +1846,8 @@ const importTestCases = asyncHandler(async (req, res) => {
         const normalizedName = normalizeName(title);
 
         const duplicate = await TestCase.findOne({
-          project: project._id,
-          group: group._id,
+          project: { $in: projectRefs.map((value) => toObjectId(value, 'projectId')) },
+          group: { $in: [String(group._id), String(group.entityId || '')].filter(Boolean).map((value) => toObjectId(value, 'groupId')) },
           deletedAt: null,
           isLatest: true,
           $or: [{ key: normalizedKey }, { name: normalizedName }],
@@ -1781,10 +1953,12 @@ const createTestPlan = asyncHandler(async (req, res) => {
   const releaseVersion = await ensureVersionExists(versionId, project._id);
   const normalizedKey = normalizeKey(key || name);
   const normalizedName = normalizeName(name);
+  const projectRefs = [String(project._id), String(project.entityId || '')].filter(Boolean);
+  const versionRefs = [String(releaseVersion._id), String(releaseVersion.entityId || '')].filter(Boolean);
 
   const duplicate = await TestPlan.findOne({
-    project: project._id,
-    version: releaseVersion._id,
+    project: { $in: projectRefs },
+    version: { $in: versionRefs },
     deletedAt: null,
     isLatest: true,
     $or: [{ key: normalizedKey }, { name: normalizedName }],
@@ -1793,15 +1967,21 @@ const createTestPlan = asyncHandler(async (req, res) => {
     throw httpError(409, 'Test plan name or key already exists in this release version');
   }
 
+  const allowedProjectRefs = new Set(projectRefs);
   const validCaseIds = [];
   for (let index = 0; index < caseIds.length; index += 1) {
-    const testCase = await ensureTestCaseExists(caseIds[index], project._id, { includeDeleted: true });
-    if (String(testCase.project) !== String(project._id)) {
+    const testCase = await resolveTestCaseByReference(caseIds[index], { includeDeleted: true });
+    if (!testCase) {
+      throw httpError(400, 'Some caseIds do not exist in selected project');
+    }
+
+    const caseProjectRef = extractReferenceId(testCase.project);
+    if (!allowedProjectRefs.has(String(caseProjectRef))) {
       throw httpError(400, 'Some caseIds do not exist in selected project');
     }
 
     validCaseIds.push({
-      testCase: testCase._id,
+      testCase: testCase.entityId || testCase._id,
       order: index + 1,
       owner: ownerId ? toObjectId(ownerId, 'ownerId') : undefined,
       assignees: Array.isArray(assigneeIds)
@@ -1818,8 +1998,8 @@ const createTestPlan = asyncHandler(async (req, res) => {
     key: normalizedKey,
     name: normalizedName,
     description: description || '',
-    project: project._id,
-    version: releaseVersion._id,
+    project: project.entityId ? project.entityId : project._id,
+    version: releaseVersion.entityId ? releaseVersion.entityId : releaseVersion._id,
     createdBy: req.user.id,
     owner: ownerId ? toObjectId(ownerId, 'ownerId') : undefined,
     assignees: Array.isArray(assigneeIds)
@@ -1829,17 +2009,26 @@ const createTestPlan = asyncHandler(async (req, res) => {
     items: validCaseIds,
   });
 
-  res.status(201).json({ testPlan });
+  const normalizedPlan = await attachTestPlanCases(
+    await TestPlan.findById(testPlan._id)
+      .populate('project', 'entityId name code deletedAt')
+      .populate('version', 'entityId name deletedAt')
+      .populate('owner', 'name email role')
+      .populate('assignees', 'name email role')
+      .lean(),
+  );
+
+  res.status(201).json({ testPlan: normalizedPlan });
 });
 
 const listTestPlans = asyncHandler(async (req, res) => {
   const { projectId, versionId, search, includeDeleted } = req.query;
   const baseFilters = {};
+  let resolvedProject = null;
 
   if (projectId) {
-    let project;
     try {
-      project = await ensureProjectExists(projectId);
+      resolvedProject = await ensureProjectExists(projectId);
     } catch (error) {
       if (error.statusCode === 404) {
         res.json({ testPlans: [], pagination: null });
@@ -1847,15 +2036,40 @@ const listTestPlans = asyncHandler(async (req, res) => {
       }
       throw error;
     }
-    baseFilters.project = project._id;
   } else {
-    const activeProjectIds = await Project.find({ deletedAt: null }).distinct('_id');
-    baseFilters.project = { $in: activeProjectIds };
+    const activeProjectRefs = await Project.find({ deletedAt: null }).select('_id entityId').lean();
+    const activeProjectIds = Array.from(new Set(
+      activeProjectRefs.flatMap((project) => [String(project._id), String(project.entityId || '')]).filter(Boolean),
+    ));
+    baseFilters.project = { $in: activeProjectIds.map((v) => toObjectId(v, 'projectId')) };
   }
+
+  if (resolvedProject) {
+    const projectRefs = await Project.find({ entityId: resolvedProject.entityId }).select('_id entityId').lean();
+    const projectIds = Array.from(new Set(
+      projectRefs.flatMap((project) => [String(project._id), String(project.entityId || '')]).filter(Boolean),
+    ));
+    baseFilters.project = { $in: projectIds.map((v) => toObjectId(v, 'projectId')) };
+  }
+
   if (versionId) {
     let version;
     try {
-      version = await ensureVersionExists(versionId, baseFilters.project);
+      if (resolvedProject) {
+        version = await ensureVersionExists(versionId, resolvedProject._id);
+      } else {
+        version = await Version.findOne({
+          $or: [
+            { entityId: toObjectId(versionId, 'versionId') },
+            { _id: toObjectId(versionId, 'versionId') },
+          ],
+          ...activeLatestFilter(),
+          deletedAt: null,
+        }).lean();
+        if (!version) {
+          throw httpError(404, 'Version not found');
+        }
+      }
     } catch (error) {
       if (error.statusCode === 404) {
         res.json({ testPlans: [], pagination: null });
@@ -1863,28 +2077,72 @@ const listTestPlans = asyncHandler(async (req, res) => {
       }
       throw error;
     }
-    baseFilters.version = version._id;
+    // allow version stored as entityId or document _id
+    const versionRefs = [String(version._id)];
+    if (version.entityId) versionRefs.push(String(version.entityId));
+    baseFilters.version = { $in: versionRefs.map((v) => toObjectId(v, 'versionId')) };
   }
-
   const { docs: testPlans, pagination } = await buildVersionedList({
     model: TestPlan,
     query: req.query,
     search,
     searchFields: ['key', 'name', 'description'],
     baseFilters,
+    // populate relations except project/version which we will attach manually
     populate: [
-      { path: 'project', select: 'name code deletedAt' },
-      { path: 'version', select: 'name deletedAt' },
       { path: 'owner', select: 'name email role' },
       { path: 'assignees', select: 'name email role' },
-      { path: 'items.testCase', select: 'key name caseKey title deletedAt' },
     ],
     includeDeleted: includeDeleted === 'true',
   });
 
+  // Attach project & version objects for plans whose project/version fields may store
+  // either a project/version _id or the entityId. Use active/latest filter when possible.
+  const referencedProjectIds = Array.from(new Set(testPlans.map((p) => extractReferenceId(p.project)).filter(Boolean)));
+  let attachedProjects = [];
+  if (referencedProjectIds.length > 0) {
+    const referencedProjectObjectIds = referencedProjectIds.filter((v) => mongoose.Types.ObjectId.isValid(v));
+    attachedProjects = await Project.find({
+      $or: [
+        { _id: { $in: referencedProjectObjectIds.map((v) => toObjectId(v, 'projectId')) } },
+        { entityId: { $in: referencedProjectObjectIds.map((v) => toObjectId(v, 'projectId')) } },
+      ],
+    }).select('entityId name code deletedAt').lean();
+  }
+  const projectMap = new Map();
+  for (const p of attachedProjects) {
+    projectMap.set(String(p._id), p);
+    if (p.entityId) projectMap.set(String(p.entityId), p);
+  }
+
+  const referencedVersionIds = Array.from(new Set(testPlans.map((p) => extractReferenceId(p.version)).filter(Boolean)));
+  let attachedVersions = [];
+  if (referencedVersionIds.length > 0) {
+    const referencedVersionObjectIds = referencedVersionIds.filter((v) => mongoose.Types.ObjectId.isValid(v));
+    attachedVersions = await Version.find({
+      $or: [
+        { _id: { $in: referencedVersionObjectIds.map((v) => toObjectId(v, 'versionId')) } },
+        { entityId: { $in: referencedVersionObjectIds.map((v) => toObjectId(v, 'versionId')) } },
+      ],
+    }).select('entityId name deletedAt').lean();
+  }
+  const versionMap = new Map();
+  for (const v of attachedVersions) {
+    versionMap.set(String(v._id), v);
+    if (v.entityId) versionMap.set(String(v.entityId), v);
+  }
+
+  const normalizedPlans = testPlans.map((plan) => ({
+    ...plan,
+    project: projectMap.get(extractReferenceId(plan.project)) || plan.project || null,
+    version: versionMap.get(extractReferenceId(plan.version)) || plan.version || null,
+  }));
+
+  const attachedPlans = await Promise.all(normalizedPlans.map((plan) => attachTestPlanCases(plan)));
+
   const visiblePlans = req.user.role === 'admin'
-    ? testPlans
-    : testPlans.filter((plan) => isPlanAssignedToUser(plan, req.user.id));
+    ? attachedPlans
+    : attachedPlans.filter((plan) => isPlanAssignedToUser(plan, req.user.id));
 
   res.json({ testPlans: visiblePlans, pagination });
 });
@@ -1893,17 +2151,16 @@ const getTestPlan = asyncHandler(async (req, res) => {
   const { testPlanId } = req.params;
   const testPlan = await TestPlan.findOne({ entityId: toObjectId(testPlanId, 'testPlanId') })
     .populate('project', 'entityId name code deletedAt')
-    .populate('version', 'name deletedAt')
+    .populate('version', 'entityId name deletedAt')
     .populate('owner', 'name email role')
     .populate('assignees', 'name email role')
-    .populate('items.testCase', 'key name caseKey title deletedAt')
     .lean();
   if (!testPlan) {
     res.json({ testPlan: null });
     return;
   }
 
-  res.json({ testPlan });
+  res.json({ testPlan: await attachTestPlanCases(testPlan) });
 });
 
 const getTestPlanVersions = asyncHandler(async (req, res) => {
@@ -1939,13 +2196,12 @@ const assignTestPlanItems = asyncHandler(async (req, res) => {
 
   const populated = await TestPlan.findById(nextTestPlan._id)
     .populate('project', 'entityId name code deletedAt')
-    .populate('version', 'name deletedAt')
+    .populate('version', 'entityId name deletedAt')
     .populate('owner', 'name email role')
     .populate('assignees', 'name email role')
-    .populate('items.testCase', 'key name caseKey title deletedAt')
     .lean();
 
-  res.json({ testPlan: populated });
+  res.json({ testPlan: await attachTestPlanCases(populated) });
 });
 
 const updateTestPlan = asyncHandler(async (req, res) => {
@@ -1964,16 +2220,18 @@ const updateTestPlan = asyncHandler(async (req, res) => {
     const nextProjectId = projectId ? toObjectId(projectId, 'projectId') : current.project;
     const nextVersionId = versionId ? toObjectId(versionId, 'versionId') : current.version;
 
-    await ensureProjectExists(nextProjectId, { includeDeleted: false });
-    await ensureVersionExists(nextVersionId, nextProjectId, { includeDeleted: false });
+    const project = await ensureProjectExists(nextProjectId, { includeDeleted: false });
+    const version = await ensureVersionExists(nextVersionId, nextProjectId, { includeDeleted: false });
+    const projectRefs = [String(project._id), String(project.entityId || '')].filter(Boolean);
+    const versionRefs = [String(version._id), String(version.entityId || '')].filter(Boolean);
 
     const normalizedName = name ? normalizeName(name) : current.name;
     const normalizedKey = normalizeKey(key || current.key || current.name);
 
     const duplicate = await TestPlan.findOne({
       _id: { $ne: current._id },
-      project: nextProjectId,
-      version: nextVersionId,
+      project: { $in: projectRefs },
+      version: { $in: versionRefs },
       deletedAt: null,
       isLatest: true,
       $or: [{ key: normalizedKey }, { name: normalizedName }],
@@ -1987,14 +2245,23 @@ const updateTestPlan = asyncHandler(async (req, res) => {
     let items = current.items;
     if (Array.isArray(caseIds) && caseIds.length > 0) {
       items = [];
+      const allowedProjectRefs = new Set([
+        String(nextProjectId),
+        String((await ensureProjectExists(nextProjectId, { includeDeleted: false })).entityId || ''),
+      ].filter(Boolean));
       for (let index = 0; index < caseIds.length; index += 1) {
-        const testCase = await ensureTestCaseExists(caseIds[index], nextProjectId, { includeDeleted: true });
-        if (String(testCase.project) !== String(nextProjectId)) {
+        const testCase = await resolveTestCaseByReference(caseIds[index], { includeDeleted: true });
+        if (!testCase) {
+          throw httpError(400, 'Some caseIds do not exist in selected project');
+        }
+
+        const caseProjectRef = extractReferenceId(testCase.project);
+        if (!allowedProjectRefs.has(String(caseProjectRef))) {
           throw httpError(400, 'Some caseIds do not exist in selected project');
         }
 
         items.push({
-          testCase: testCase._id,
+          testCase: testCase.entityId || testCase._id,
           order: index + 1,
           owner: ownerId ? toObjectId(ownerId, 'ownerId') : current.owner,
           assignees: Array.isArray(assigneeIds)
@@ -2021,14 +2288,13 @@ const updateTestPlan = asyncHandler(async (req, res) => {
   });
 
   const populated = await TestPlan.findById(nextTestPlan._id)
-    .populate('project', 'name code deletedAt')
-    .populate('version', 'name deletedAt')
+    .populate('project', 'entityId name code deletedAt')
+    .populate('version', 'entityId name deletedAt')
     .populate('owner', 'name email role')
     .populate('assignees', 'name email role')
-    .populate('items.testCase', 'key name caseKey title deletedAt')
     .lean();
 
-  res.json({ testPlan: populated });
+  res.json({ testPlan: await attachTestPlanCases(populated) });
 });
 
 const deleteTestPlan = asyncHandler(async (req, res) => {
@@ -2039,13 +2305,12 @@ const deleteTestPlan = asyncHandler(async (req, res) => {
 const restoreTestPlan = asyncHandler(async (req, res) => {
   await restoreVersionSeries(TestPlan, req.params.testPlanId);
   const testPlan = await TestPlan.findOne({ entityId: toObjectId(req.params.testPlanId, 'testPlanId') })
-    .populate('project', 'name code deletedAt')
-    .populate('version', 'name deletedAt')
+    .populate('project', 'entityId name code deletedAt')
+    .populate('version', 'entityId name deletedAt')
     .populate('owner', 'name email role')
     .populate('assignees', 'name email role')
-    .populate('items.testCase', 'key name caseKey title deletedAt')
     .lean();
-  res.json({ testPlan });
+  res.json({ testPlan: await attachTestPlanCases(testPlan) });
 });
 
 module.exports = {

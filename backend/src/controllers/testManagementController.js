@@ -41,6 +41,127 @@ const isPlanAssignedToUser = (testPlan, userId) => {
   return ownerMatch || assigneeMatch;
 };
 
+const findTestPlanByReference = async (testPlanRef) => {
+  if (!testPlanRef) {
+    return null;
+  }
+
+  const objectId = toObjectId(testPlanRef, 'testPlanId');
+  return TestPlan.findOne({
+    $and: [
+      { $or: [{ entityId: objectId }, { _id: objectId }] },
+      { deletedAt: null },
+      { $or: [{ isLatest: true }, { isLatest: { $exists: false } }] },
+    ],
+  }).lean();
+};
+
+const findLatestTestCaseByReference = async (testCaseRef) => {
+  if (!testCaseRef) {
+    return null;
+  }
+
+  const objectId = toObjectId(testCaseRef, 'testCaseId');
+  const referencedCase = await TestCase.findOne({
+    $or: [{ _id: objectId }, { entityId: objectId }],
+  }).lean();
+
+  if (!referencedCase) {
+    return null;
+  }
+
+  const entityId = referencedCase.entityId || referencedCase._id;
+  const latestCase = await TestCase.findOne({
+    entityId,
+    deletedAt: null,
+    $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+  }).lean();
+
+  return latestCase || referencedCase;
+};
+
+const buildTestRunReferenceMatch = (runRef) => {
+  const objectId = toObjectId(runRef, 'runId');
+  return {
+    $or: [{ entityId: objectId }, { _id: objectId }],
+  };
+};
+
+const attachRunTestPlan = async (testRun) => {
+  const resolvedPlan = await findTestPlanByReference(testRun?.testPlan);
+  return {
+    ...testRun,
+    testPlan: resolvedPlan
+      ? {
+          _id: resolvedPlan._id,
+          entityId: resolvedPlan.entityId,
+          name: resolvedPlan.name,
+          executionMode: resolvedPlan.executionMode,
+        }
+      : testRun?.testPlan || null,
+  };
+};
+
+const findProjectByReference = async (projectRef) => {
+  if (!projectRef) {
+    return null;
+  }
+
+  const objectId = toObjectId(projectRef, 'projectId');
+  return Project.findOne({
+    $and: [
+      { $or: [{ entityId: objectId }, { _id: objectId }] },
+      { deletedAt: null },
+      { $or: [{ isLatest: true }, { isLatest: { $exists: false } }] },
+    ],
+  }).lean();
+};
+
+const findVersionByReference = async (versionRef) => {
+  if (!versionRef) {
+    return null;
+  }
+
+  const objectId = toObjectId(versionRef, 'versionId');
+  return Version.findOne({
+    $and: [
+      { $or: [{ entityId: objectId }, { _id: objectId }] },
+      { deletedAt: null },
+      { $or: [{ isLatest: true }, { isLatest: { $exists: false } }] },
+    ],
+  }).lean();
+};
+
+const attachRunProjectAndVersion = async (testRun) => {
+  const [project, version] = await Promise.all([
+    findProjectByReference(testRun?.project),
+    findVersionByReference(testRun?.version),
+  ]);
+
+  return {
+    ...testRun,
+    project: project
+      ? {
+          _id: project._id,
+          entityId: project.entityId,
+          name: project.name,
+          code: project.code,
+          pid: project.pid,
+          jiraProjectKey: project.jiraProjectKey,
+          jiraProductKey: project.jiraProductKey,
+        }
+      : testRun?.project || null,
+    version: version
+      ? {
+          _id: version._id,
+          entityId: version.entityId,
+          name: version.name,
+          idjira: version.idjira,
+        }
+      : testRun?.version || null,
+  };
+};
+
 const createProject = asyncHandler(async (req, res) => {
   const { name, code, description, jiraProjectKey, jiraProductKey, Jiraproduckeys, JiraProductKey } = req.body;
   if (!name || !code) {
@@ -215,9 +336,11 @@ const createTestCaseGroup = asyncHandler(async (req, res) => {
     throw httpError(404, 'Project not found');
   }
 
+  const projectRef = project.entityId || project._id;
+
   // Check for duplicate group name in same project
   const existingGroup = await TestCaseGroup.findOne({ 
-    project: project._id, 
+    project: { $in: [project._id, project.entityId].filter(Boolean) }, 
     name: name 
   }).lean();
   if (existingGroup) {
@@ -225,7 +348,7 @@ const createTestCaseGroup = asyncHandler(async (req, res) => {
   }
 
   const group = await TestCaseGroup.create({
-    project: project._id,
+    project: projectRef,
     name,
     description: description || '',
     createdBy: req.user.id,
@@ -285,20 +408,24 @@ const createTestCase = asyncHandler(async (req, res) => {
     throw httpError(404, 'Project not found');
   }
 
+  const projectRef = project.entityId || project._id;
+
   const group = await TestCaseGroup.findOne({
-    entityId: toObjectId(groupId, 'groupId'),
-    project: project._id,
-    $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
-    deletedAt: null,
+    $and: [
+      { $or: [{ entityId: toObjectId(groupId, 'groupId') }, { _id: toObjectId(groupId, 'groupId') }] },
+      { project: { $in: [project._id, project.entityId].filter(Boolean) } },
+      { $or: [{ isLatest: true }, { isLatest: { $exists: false } }] },
+      { deletedAt: null },
+    ],
   }).lean();
-  if (!group || String(group.project) !== String(project._id)) {
+  if (!group) {
     throw httpError(404, 'Test case group not found in selected project');
   }
 
   // Check for duplicate caseKey in same group
   const existingCase = await TestCase.findOne({ 
-    project: project._id, 
-    group: group._id, 
+    project: { $in: [project._id, project.entityId].filter(Boolean) }, 
+    group: { $in: [group._id, group.entityId].filter(Boolean) }, 
     caseKey: caseKey.toUpperCase() 
   }).lean();
   if (existingCase) {
@@ -316,8 +443,8 @@ const createTestCase = asyncHandler(async (req, res) => {
     : [];
 
   const testCase = await TestCase.create({
-    project: project.entityId ? project.entityId : project._id,
-    group: group.entityId ? group.entityId : group._id,
+    project: projectRef,
+    group: group.entityId || group._id,
     caseKey,
     title,
     description: description || '',
@@ -364,7 +491,7 @@ const updateTestCase = asyncHandler(async (req, res) => {
       deletedAt: null,
     }).lean();
     if (!projectDoc) throw httpError(404, 'Project not found');
-    nextProjectId = projectDoc._id;
+    nextProjectId = projectDoc.entityId || projectDoc._id;
   } else {
     nextProjectId = testCase.project;
   }
@@ -377,23 +504,30 @@ const updateTestCase = asyncHandler(async (req, res) => {
       deletedAt: null,
     }).lean();
     if (!groupDoc) throw httpError(404, 'Test case group not found');
-    nextGroupId = groupDoc._id;
+    nextGroupId = groupDoc.entityId || groupDoc._id;
   } else {
     nextGroupId = testCase.group;
   }
 
   const nextCaseKey = caseKey || testCase.caseKey;
 
-  const group = await TestCaseGroup.findById(nextGroupId).lean();
-  if (!group || String(group.project) !== String(nextProjectId)) {
+  const group = await TestCaseGroup.findOne({
+    $and: [
+      { $or: [{ entityId: nextGroupId }, { _id: nextGroupId }] },
+      { project: { $in: [nextProjectId].filter(Boolean) } },
+      { $or: [{ isLatest: true }, { isLatest: { $exists: false } }] },
+      { deletedAt: null },
+    ],
+  }).lean();
+  if (!group) {
     throw httpError(404, 'Test case group not found in selected project');
   }
 
   // Check for duplicate if caseKey or group is being changed
   if (caseKey || groupId) {
     const existingCase = await TestCase.findOne({ 
-      project: nextProjectId,
-      group: nextGroupId,
+      project: { $in: [nextProjectId].filter(Boolean) },
+      group: { $in: [nextGroupId].filter(Boolean) },
       caseKey: nextCaseKey.toUpperCase(),
       _id: { $ne: testCase._id } // Exclude current case
     }).lean();
@@ -535,8 +669,8 @@ const createTestPlan = asyncHandler(async (req, res) => {
   const testPlan = await TestPlan.create({
     name,
     description: description || '',
-    project: project._id,
-    version: version._id,
+    project: project.entityId ? project.entityId : project._id,
+    version: version.entityId ? version.entityId : version._id,
     createdBy: req.user.id,
     executionMode: executionMode === 'automation' ? 'automation' : 'manual',
     items: validCaseIds,
@@ -658,34 +792,65 @@ const startTestRun = asyncHandler(async (req, res) => {
     throw httpError(400, 'testPlanId and name are required');
   }
 
-  const testPlan = await TestPlan.findOne({
-    _id: toObjectId(testPlanId, 'testPlanId'),
-    deletedAt: null,
-    $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+  const resolvedTestPlan = await TestPlan.findOne({
+    $and: [
+      {
+        $or: [
+          { entityId: toObjectId(testPlanId, 'testPlanId') },
+          { _id: toObjectId(testPlanId, 'testPlanId') },
+        ],
+      },
+      { deletedAt: null },
+      { $or: [{ isLatest: true }, { isLatest: { $exists: false } }] },
+    ],
   })
     .populate('owner', 'name email role')
     .populate('assignees', 'name email role')
     .lean();
-  if (!testPlan) {
+  if (!resolvedTestPlan) {
     throw httpError(404, 'Test plan not found');
   }
+
+  const testPlan = resolvedTestPlan;
 
   if (req.user.role !== 'admin' && !isPlanAssignedToUser(testPlan, req.user.id)) {
     throw httpError(403, 'You are not assigned to this test plan');
   }
 
+  const resolvedProject = await findProjectByReference(testPlan.project);
+  const resolvedVersion = await findVersionByReference(testPlan.version);
+
+  if (!resolvedProject) {
+    throw httpError(404, 'Project not found');
+  }
+
+  if (!resolvedVersion) {
+    throw httpError(404, 'Version not found');
+  }
+
   // Check if a run with the same name already exists for this test plan
+  const testPlanRef = testPlan._id;
+
   const existingRun = await TestRun.findOne({
-    testPlan: testPlan._id,
+    testPlan: { $in: [testPlan._id, testPlan.entityId].filter(Boolean) },
     name: name.trim(),
   }).lean();
   if (existingRun) {
     throw httpError(409, `A test run with name "${name}" already exists for this test plan`);
   }
 
-  const results = testPlan.items.map((item) => ({
+  const latestTestCases = await Promise.all(
+    testPlan.items.map((item) => findLatestTestCaseByReference(item.testCase))
+  );
+
+  const missingLatestCaseIndex = latestTestCases.findIndex((testCase) => !testCase);
+  if (missingLatestCaseIndex !== -1) {
+    throw httpError(404, 'A test case in this test plan could not be resolved to the latest version');
+  }
+
+  const results = testPlan.items.map((item, index) => ({
     planItemId: item._id,
-    testCase: item.testCase,
+    testCase: latestTestCases[index]._id,
     owner: testPlan.owner,
     assignees: testPlan.assignees || [],
     tester: testPlan.owner || (testPlan.assignees && testPlan.assignees.length > 0 ? testPlan.assignees[0] : undefined),
@@ -713,9 +878,9 @@ const startTestRun = asyncHandler(async (req, res) => {
 
   const testRun = await TestRun.create({
     name,
-    project: testPlan.project,
-    version: testPlan.version,
-    testPlan: testPlan._id,
+    project: resolvedProject._id,
+    version: resolvedVersion._id,
+    testPlan: testPlanRef,
     status: 'running',
     startedAt: new Date(),
     startedBy: req.user.id,
@@ -726,8 +891,9 @@ const startTestRun = asyncHandler(async (req, res) => {
 
   // Populate testPlan with executionMode for the response
   const populatedTestRun = await TestRun.findById(testRun._id)
-    .populate('testPlan', 'name executionMode')
     .lean();
+
+  const testRunPayload = await attachRunProjectAndVersion(await attachRunTestPlan(populatedTestRun));
 
   if (testPlan.executionMode === 'automation') {
     const automationResult = await executeAutomationRun({
@@ -737,17 +903,17 @@ const startTestRun = asyncHandler(async (req, res) => {
     });
 
     const populatedAutomationRun = await TestRun.findById(automationResult.testRun._id)
-      .populate('testPlan', 'name executionMode')
       .lean();
+    const automationRunPayload = await attachRunProjectAndVersion(await attachRunTestPlan(populatedAutomationRun));
 
     return res.status(201).json({
-      testRun: populatedAutomationRun,
+      testRun: automationRunPayload,
       automationSummary: automationResult.summary,
       automationReport: automationResult.report,
     });
   }
 
-  res.status(201).json({ testRun: populatedTestRun });
+  res.status(201).json({ testRun: testRunPayload });
 });
 
 const applyAutomationResults = asyncHandler(async (req, res) => {
@@ -764,12 +930,12 @@ const applyAutomationResults = asyncHandler(async (req, res) => {
   }
 
   // Prevent manual updates for automation runs
-  const parentPlan = await TestPlan.findById(testRun.testPlan).lean();
+  const parentPlan = await findTestPlanByReference(testRun.testPlan);
   if (parentPlan && parentPlan.executionMode === 'automation') {
     throw httpError(403, 'Manual updates are not allowed for automation test runs');
   }
 
-  const testPlan = await TestPlan.findById(testRun.testPlan).lean();
+  const testPlan = await findTestPlanByReference(testRun.testPlan);
   if (!testPlan) {
     throw httpError(404, 'Test plan not found');
   }
@@ -826,7 +992,11 @@ const listTestRuns = asyncHandler(async (req, res) => {
       res.json({ testRuns: [] });
       return;
     }
-    query.project = projectDoc._id;
+    const projectRefs = await Project.find({ entityId: projectDoc.entityId }).select('_id entityId').lean();
+    const projectIds = Array.from(new Set(
+      projectRefs.flatMap((project) => [String(project._id), String(project.entityId || '')]).filter(Boolean),
+    ));
+    query.project = { $in: projectIds.map((value) => toObjectId(value, 'projectId')) };
   }
 
   if (versionId) {
@@ -839,7 +1009,11 @@ const listTestRuns = asyncHandler(async (req, res) => {
       res.json({ testRuns: [] });
       return;
     }
-    query.version = versionDoc._id;
+    const versionRefs = await Version.find({ entityId: versionDoc.entityId }).select('_id entityId').lean();
+    const versionIds = Array.from(new Set(
+      versionRefs.flatMap((version) => [String(version._id), String(version.entityId || '')]).filter(Boolean),
+    ));
+    query.version = { $in: versionIds.map((value) => toObjectId(value, 'versionId')) };
   }
 
   if (status) {
@@ -852,27 +1026,27 @@ const listTestRuns = asyncHandler(async (req, res) => {
 
   const testRuns = await TestRun.find(query)
     .sort({ createdAt: -1 })
-    .populate('project', 'name code pid')
-    .populate('version', 'name')
-    .populate('testPlan', 'name executionMode')
     .populate('startedBy', 'name email role')
     .populate('endedBy', 'name email role')
     .lean();
 
-  const testRunsWithProgress = testRuns.map((testRun) => {
+  const testRunsWithProgress = [];
+  for (const testRun of testRuns) {
+    const withPlan = await attachRunTestPlan(testRun);
+    const withProjectVersion = await attachRunProjectAndVersion(withPlan);
     const results = Array.isArray(testRun.results) ? testRun.results : [];
     const total = results.length;
     const executed = results.filter((result) => !['untested', 'skip'].includes(result.status)).length;
     const passCount = results.filter((result) => result.status === 'pass').length;
 
-    return {
-      ...testRun,
+    testRunsWithProgress.push({
+      ...withProjectVersion,
       progress: total > 0 ? Number(((executed / total) * 100).toFixed(2)) : 0,
       passRate: executed > 0 ? Number(((passCount / executed) * 100).toFixed(2)) : 0,
       totalResults: total,
       executedResults: executed,
-    };
-  });
+    });
+  }
 
   res.json({ testRuns: testRunsWithProgress });
 });
@@ -903,11 +1077,42 @@ const getMyRunItems = asyncHandler(async (req, res) => {
         return ownerMatch || assigneeMatch;
       });
 
+  const [project, version, plan] = await Promise.all([
+    findProjectByReference(testRun.project),
+    findVersionByReference(testRun.version),
+    findTestPlanByReference(testRun.testPlan),
+  ]);
+
   res.json({
     testRun: {
-      id: String(testRun._id),
-      name: testRun.name,
-      status: testRun.status,
+      ...testRun,
+      project: project
+        ? {
+            _id: project._id,
+            entityId: project.entityId,
+            name: project.name,
+            code: project.code,
+            pid: project.pid,
+            jiraProjectKey: project.jiraProjectKey,
+            jiraProductKey: project.jiraProductKey,
+          }
+        : testRun.project || null,
+      version: version
+        ? {
+            _id: version._id,
+            entityId: version.entityId,
+            name: version.name,
+            idjira: version.idjira,
+          }
+        : testRun.version || null,
+      testPlan: plan
+        ? {
+            _id: plan._id,
+            entityId: plan.entityId,
+            name: plan.name,
+            executionMode: plan.executionMode,
+          }
+        : testRun.testPlan || null,
     },
     results,
   });
@@ -970,7 +1175,7 @@ const endTestRun = asyncHandler(async (req, res) => {
   }
 
   // block manual ending for automation runs
-  const parentPlan = await TestPlan.findById(testRun.testPlan).lean();
+  const parentPlan = await findTestPlanByReference(testRun.testPlan);
   if (parentPlan && parentPlan.executionMode === 'automation') {
     throw httpError(403, 'Automation runs cannot be ended manually');
   }
@@ -986,6 +1191,8 @@ const endTestRun = asyncHandler(async (req, res) => {
 const getDashboard = asyncHandler(async (req, res) => {
   const { projectId, versionId } = req.query;
   const match = {};
+  let resolvedProjectEntityId = null;
+  let resolvedVersionEntityId = null;
 
   if (projectId) {
     const projectDoc = await Project.findOne({
@@ -1005,7 +1212,12 @@ const getDashboard = asyncHandler(async (req, res) => {
         projectOverview: [],
       });
     }
-    match.project = projectDoc._id;
+    resolvedProjectEntityId = projectDoc.entityId;
+    const projectRefs = await Project.find({ entityId: projectDoc.entityId }).select('_id entityId').lean();
+    const projectIds = Array.from(new Set(
+      projectRefs.flatMap((project) => [String(project._id), String(project.entityId || '')]).filter(Boolean),
+    ));
+    match.project = { $in: projectIds.map((value) => toObjectId(value, 'projectId')) };
   }
 
   if (versionId) {
@@ -1026,7 +1238,12 @@ const getDashboard = asyncHandler(async (req, res) => {
         projectOverview: [],
       });
     }
-    match.version = versionDoc._id;
+    resolvedVersionEntityId = versionDoc.entityId;
+    const versionRefs = await Version.find({ entityId: versionDoc.entityId }).select('_id entityId').lean();
+    const versionIds = Array.from(new Set(
+      versionRefs.flatMap((version) => [String(version._id), String(version.entityId || '')]).filter(Boolean),
+    ));
+    match.version = { $in: versionIds.map((value) => toObjectId(value, 'versionId')) };
   }
 
   const runs = await TestRun.aggregate([
@@ -1111,8 +1328,8 @@ const getDashboard = asyncHandler(async (req, res) => {
     .populate('testPlan', 'name')
     .lean();
 
-  const delayedTestPlans = await TestPlan.find(match.project
-    ? { project: match.project, deletedAt: null, $or: [{ isLatest: true }, { isLatest: { $exists: false } }] }
+  const delayedTestPlans = await TestPlan.find(resolvedProjectEntityId
+    ? { project: { $in: (await Project.find({ entityId: resolvedProjectEntityId }).select('_id entityId').lean()).flatMap((project) => [project._id, project.entityId].filter(Boolean)) }, deletedAt: null, $or: [{ isLatest: true }, { isLatest: { $exists: false } }] }
     : { deletedAt: null, $or: [{ isLatest: true }, { isLatest: { $exists: false } }] })
     .populate('project', 'name code')
     .populate('version', 'name')
@@ -1214,14 +1431,18 @@ const getDashboard = asyncHandler(async (req, res) => {
     };
   });
 
-  const projectDocs = await Project.find(match.project ? { _id: match.project, deletedAt: null } : { deletedAt: null })
+  const projectDocs = await Project.find(resolvedProjectEntityId ? { entityId: resolvedProjectEntityId, deletedAt: null } : { deletedAt: null })
     .lean();
 
   const projectOverview = await Promise.all(
     projectDocs.map(async (project) => {
-      const latestVersion = await Version.findOne({ project: project._id, deletedAt: null }).sort({ createdAt: -1 }).lean();
+      const projectRefs = await Project.find({ entityId: project.entityId }).select('_id entityId').lean();
+      const projectIds = Array.from(new Set(
+        projectRefs.flatMap((item) => [String(item._id), String(item.entityId || '')]).filter(Boolean),
+      ));
+      const latestVersion = await Version.findOne({ entityId: project.entityId, deletedAt: null }).sort({ createdAt: -1 }).lean();
       const projectRuns = await TestRun.aggregate([
-        { $match: { project: project._id } },
+        { $match: { project: { $in: projectIds.map((value) => toObjectId(value, 'projectId')) } } },
         {
           $project: {
             total: { $size: '$results' },
@@ -1288,12 +1509,17 @@ const getProjectDashboard = asyncHandler(async (req, res) => {
   
   const projectStats = await Promise.all(
     projects.map(async (project) => {
-      const latestVersion = await Version.findOne({ project: project._id, deletedAt: null })
+      const projectRefs = await Project.find({ entityId: project.entityId }).select('_id entityId').lean();
+      const projectIds = Array.from(new Set(
+        projectRefs.flatMap((item) => [String(item._id), String(item.entityId || '')]).filter(Boolean),
+      ));
+
+      const latestVersion = await Version.findOne({ entityId: project.entityId, deletedAt: null })
         .sort({ createdAt: -1 })
         .lean();
       
       const runs = await TestRun.aggregate([
-        { $match: { project: project._id } },
+        { $match: { project: { $in: projectIds.map((value) => toObjectId(value, 'projectId')) } } },
         {
           $project: {
             total: { $size: '$results' },
@@ -1366,18 +1592,26 @@ const getVersionDashboard = asyncHandler(async (req, res) => {
     return;
   }
 
-  const versions = await Version.find({ project: projectDoc._id, deletedAt: null })
+  const projectRefs = await Project.find({ entityId: projectDoc.entityId }).select('_id entityId').lean();
+  const projectIds = Array.from(new Set(
+    projectRefs.flatMap((project) => [String(project._id), String(project.entityId || '')]).filter(Boolean),
+  ));
+
+  const versions = await Version.find({ project: { $in: projectIds.map((value) => toObjectId(value, 'projectId')) }, deletedAt: null })
     .sort({ createdAt: -1 })
     .lean();
-
   const versionStats = await Promise.all(
     versions.map(async (version) => {
-      const testPlans = await TestPlan.find({ version: version._id }).lean();
+      const versionRefs = await Version.find({ entityId: version.entityId }).select('_id entityId').lean();
+      const versionIds = Array.from(new Set(
+        versionRefs.flatMap((item) => [String(item._id), String(item.entityId || '')]).filter(Boolean),
+      ));
+
+      const testPlans = await TestPlan.find({ version: { $in: versionIds.map((value) => toObjectId(value, 'versionId')) } }).lean();
       const totalTestPlans = testPlans.length;
       
-      const testPlanIds = testPlans.map(tp => tp._id);
       const runs = await TestRun.aggregate([
-        { $match: { version: version._id } },
+        { $match: { version: { $in: versionIds.map((value) => toObjectId(value, 'versionId')) } } },
         {
           $project: {
             total: { $size: '$results' },

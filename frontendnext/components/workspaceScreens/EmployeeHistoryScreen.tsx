@@ -24,7 +24,7 @@ export default function EmployeeHistoryScreen({ myScopedRuns, matchesSearch, set
     });
 
   const focusedRun = useMemo(
-    () => completedRuns.find((run: RecordAny) => getId(run) === String(focusedRunId)) || completedRuns[0] || null,
+    () => completedRuns.find((run: RecordAny) => String(run?._id || run?.id || "") === String(focusedRunId)) || completedRuns[0] || null,
     [completedRuns, focusedRunId],
   );
 
@@ -44,12 +44,13 @@ export default function EmployeeHistoryScreen({ myScopedRuns, matchesSearch, set
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_320px]">
           <div className="workspace-history-strip">
             {completedRuns.slice(0, 10).map((run: RecordAny) => {
-              const isActive = String(getId(focusedRun) || "") === String(getId(run));
+                const runId = String(run?._id || run?.id || "");
+                const isActive = String(focusedRun?._id || focusedRun?.id || "") === runId;
               return (
                 <button
-                  key={getId(run)}
+                    key={runId}
                   type="button"
-                  onClick={() => setFocusedRunId(getId(run))}
+                    onClick={() => setFocusedRunId(runId)}
                   className={`workspace-history-strip__item text-left ${isActive ? "ring-2 ring-indigo-300" : ""}`}
                 >
                   <span className="workspace-pill status-pass">{run.status || "completed"}</span>
@@ -110,7 +111,7 @@ export default function EmployeeHistoryScreen({ myScopedRuns, matchesSearch, set
               <div>{userName(run.startedBy)}</div>
               <div>{run.completedAt || run.endedAt || run.updatedAt || run.createdAt ? new Date(run.completedAt || run.endedAt || run.updatedAt || run.createdAt).toLocaleString() : "-"}</div>
               <div>
-                <ActionButton label="View" icon="↗" onClick={() => void (async () => { setSelectedRunId(getId(run)); await loadMyItems(getId(run)); setActiveTab("execution"); })()} />
+                <ActionButton label="View" icon="↗" onClick={() => void (async () => { const runId = String(run?._id || run?.id || ""); setSelectedRunId(runId); await loadMyItems(runId); setActiveTab("execution"); })()} />
               </div>
             </>
           ))}

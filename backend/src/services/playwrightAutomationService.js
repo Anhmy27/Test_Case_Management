@@ -13,13 +13,28 @@ const { runAutomationSteps, DEFAULT_TIMEOUT } = require('./automation/playwright
 
 const authManager = createAuthManager();
 
+const findTestPlanByReference = async (testPlanRef) => {
+  if (!testPlanRef) {
+    return null;
+  }
+
+  const objectId = new (require('mongoose')).Types.ObjectId(String(testPlanRef));
+  return TestPlan.findOne({
+    $and: [
+      { $or: [{ entityId: objectId }, { _id: objectId }] },
+      { deletedAt: null },
+      { $or: [{ isLatest: true }, { isLatest: { $exists: false } }] },
+    ],
+  }).lean();
+};
+
 const executeAutomationRun = async ({ testRunId, baseUrl = '', executedBy }) => {
   const testRun = await TestRun.findById(testRunId);
   if (!testRun) {
     throw httpError(404, 'Test run not found');
   }
 
-  const parentPlan = await TestPlan.findById(testRun.testPlan).lean();
+  const parentPlan = await findTestPlanByReference(testRun.testPlan);
   if (!parentPlan) {
     throw httpError(404, 'Test plan not found');
   }

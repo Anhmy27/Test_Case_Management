@@ -88,6 +88,42 @@ function getProjectJiraProjectKey(project?: RecordAny | null) {
   ).trim();
 }
 
+function getRunDocumentId(value: unknown) {
+  if (!value) {
+    return "";
+  }
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (typeof value === "object" && value !== null) {
+    const record = value as RecordAny;
+    return String(record._id || record.id || getId(record) || "").trim();
+  }
+
+  return String(value).trim();
+}
+
+function findProjectByReference(projects: RecordAny[], reference: unknown) {
+  const referenceId = String(getId(reference) || reference || "").trim();
+  if (!referenceId) {
+    return null;
+  }
+
+  return (
+    projects.find((project) => {
+      const projectIds = [
+        String(project?._id || "").trim(),
+        String(project?.entityId || "").trim(),
+        String(getId(project) || "").trim(),
+      ].filter(Boolean);
+
+      return projectIds.includes(referenceId);
+    }) || null
+  );
+}
+
 function resolveScopedValueItem(value: unknown, items: RecordAny[]) {
   const normalizedValue = String(getId(value) || value || "").trim().toLowerCase();
   const candidateIds = new Set(
@@ -454,7 +490,7 @@ export default function TestCaseManagementApp() {
   }
 
   const selectedRun = useMemo(
-    () => runs.find((run) => getId(run) === selectedRunId),
+    () => runs.find((run) => getRunDocumentId(run) === selectedRunId),
     [runs, selectedRunId],
   );
   const canEndRun = useCallback(
@@ -1076,8 +1112,8 @@ export default function TestCaseManagementApp() {
   }, []);
 
   const openJiraBugDialog = useCallback(async (run: RecordAny, result: RecordAny) => {
-    const projectId = getId(run?.project);
-    const project = projects.find((item) => getId(item) === String(projectId));
+    const projectId = String(run?.project?._id || run?.project || "").trim();
+    const project = findProjectByReference(projects, run?.project);
 
     if (!project || !projectId) {
       setMessage("Run project is missing Jira configuration");
@@ -1088,9 +1124,9 @@ export default function TestCaseManagementApp() {
     let runVersionIdJira = "";
 
     // If run.version is an object or id, try to find matching loaded version
-    const runVersionRef = run?.version && (getId(run.version) || run.version);
+    const runVersionRef = String(run?.version?._id || run?.version || "").trim();
     if (runVersionRef) {
-      const matched = versions.find((v) => getId(v) === String(runVersionRef));
+      const matched = versions.find((v) => String(v?._id || "") === String(runVersionRef));
       if (matched) runVersionIdJira = String(matched.idjira || '').trim();
     }
 
@@ -1106,7 +1142,7 @@ export default function TestCaseManagementApp() {
     setJiraBugDialog({
       projectId,
       projectName: project.name || "",
-      runId: getId(run) || "",
+      runId: getRunDocumentId(run) || "",
       resultId: getId(result) || "",
       caseKey: result?.testCase?.caseKey || "TC",
       caseTitle: result?.testCase?.title || "Untitled",
@@ -1134,7 +1170,7 @@ export default function TestCaseManagementApp() {
   useEffect(() => {
     if (!jiraBugDialog?.projectId || !assigneeDropdownOpen) return;
 
-    const project = projects.find((p) => getId(p) === String(jiraBugDialog.projectId));
+    const project = findProjectByReference(projects, jiraBugDialog.projectId);
     const projectKey = getProjectJiraProjectKey(project);
 
     if (!projectKey) {
@@ -1899,7 +1935,12 @@ export default function TestCaseManagementApp() {
         body: JSON.stringify(runForm),
       });
       if (response.testRun) {
-        await loadMyItems(getId(response.testRun));
+        const nextRunId = getRunDocumentId(response.testRun);
+        setRuns((prev) => {
+          const filtered = prev.filter((run) => getId(run) !== nextRunId);
+          return [response.testRun, ...filtered];
+        });
+        await loadMyItems(nextRunId);
         setActiveTab("execution");
       }
       setRunForm({ testPlanId: "", name: "", baseUrl: "" });
@@ -1923,12 +1964,20 @@ export default function TestCaseManagementApp() {
   }
 
   async function loadMyItems(runId: string) {
-    setSelectedRunId(runId);
+    const originalRunId = getRunDocumentId(runId);
+    setSelectedRunId(originalRunId);
     try {
-      const response = await apiRequest<{ results: RecordAny[] }>(
-        `/api/test-runs/${runId}/my-items`,
+      const response = await apiRequest<{ testRun?: RecordAny | null; results: RecordAny[] }>(
+        `/api/test-runs/${originalRunId}/my-items`,
         token,
       );
+      if (response.testRun) {
+        setRuns((prev) => {
+          const nextRunId = getRunDocumentId(response.testRun);
+          const filtered = prev.filter((run) => getId(run) !== nextRunId);
+          return [response.testRun as RecordAny, ...filtered];
+        });
+      }
       setMyItems(response.results || []);
     } catch (error: any) {
       setMessage(error.message || "Khong tai duoc danh sach case");

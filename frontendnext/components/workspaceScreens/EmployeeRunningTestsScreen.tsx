@@ -18,7 +18,7 @@ export default function EmployeeRunningTestsScreen({ myScopedRuns, matchesSearch
     .filter((run: RecordAny) => matchesSearch(run.name, run.testPlan?.name, run.status, run.progress));
 
   const focusedRun = useMemo(
-    () => runningRuns.find((run: RecordAny) => getId(run) === String(focusedRunId)) || runningRuns[0] || null,
+    () => runningRuns.find((run: RecordAny) => String(run?._id || run?.id || "") === String(focusedRunId)) || runningRuns[0] || null,
     [focusedRunId, runningRuns],
   );
 
@@ -30,11 +30,11 @@ export default function EmployeeRunningTestsScreen({ myScopedRuns, matchesSearch
             columns={["Run", "Plan", "Progress", "Status", "Action"]}
             rows={runningRuns.map((run: RecordAny) => (
               <>
-                <button type="button" className="text-left underline-offset-2 hover:underline" onClick={() => setFocusedRunId(getId(run))}>{run.name}</button>
+                <button type="button" className="text-left underline-offset-2 hover:underline" onClick={() => setFocusedRunId(String(run?._id || run?.id || ""))}>{run.name}</button>
                 <div>{run.testPlan?.name || "-"}</div>
                 <div>{typeof run.progress === "number" ? `${run.progress.toFixed(1)}%` : "0%"}</div>
                 <div>{run.status}</div>
-                <div><ActionButton label="Open" icon="↗" onClick={() => void (async () => { const runId = getId(run); setSelectedRunId(runId); await loadMyItems(runId); setActiveTab("execution"); })()} /></div>
+                <div><ActionButton label="Open" icon="↗" onClick={() => void (async () => { const runId = String(run?._id || run?.id || ""); setSelectedRunId(runId); await loadMyItems(runId); setActiveTab("execution"); })()} /></div>
               </>
             ))}
             emptyText="No running tests"
