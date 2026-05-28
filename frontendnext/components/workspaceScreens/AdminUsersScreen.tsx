@@ -4,6 +4,7 @@
 
 import type { Dispatch, SetStateAction } from "react";
 import { ActionButton, DataTable, SectionCard } from "./shared";
+import { getId } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
 
@@ -47,7 +48,7 @@ export default function AdminUsersScreen({
             <label><span>Role</span><select value={newUserForm.role} onChange={(e) => setNewUserForm((prev) => ({ ...prev, role: e.target.value }))}><option value="employee">employee</option><option value="admin">admin</option></select></label>
           </div>
           <div className="workspace-inline-actions">
-            <ActionButton label={isEditing ? "Update user" : "Create user"} icon={isEditing ? "💾" : "＋"} variant="primary" />
+            <ActionButton type="submit" label={isEditing ? "Update user" : "Create user"} icon={isEditing ? "💾" : "＋"} variant="primary" />
             {isEditing && <ActionButton label="Cancel" icon="↩" onClick={cancelUserEdit} tooltip="Cancel editing" />}
           </div>
         </form>
@@ -69,9 +70,9 @@ export default function AdminUsersScreen({
                     label="Delete"
                     icon="🗑"
                     variant="danger"
-                    onClick={() => void deleteUser(user._id)}
-                    disabled={String(user._id) === currentUserId}
-                    tooltip={String(user._id) === currentUserId ? "You cannot delete your own account" : "Delete user"}
+                    onClick={() => void deleteUser(getId(user))}
+                    disabled={getId(user) === currentUserId}
+                    tooltip={getId(user) === currentUserId ? "You cannot delete your own account" : "Delete user"}
                   />
                 </div>
               </>

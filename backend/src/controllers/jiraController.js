@@ -9,7 +9,12 @@ const getProjectById = async (projectId) => {
     throw httpError(400, 'projectId is invalid');
   }
 
-  const project = await Project.findById(projectId).lean();
+  const objectId = new mongoose.Types.ObjectId(projectId);
+  const project = await Project.findOne({
+    entityId: objectId,
+    $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+    deletedAt: null,
+  }).lean();
   if (!project) {
     throw httpError(404, 'Project not found');
   }

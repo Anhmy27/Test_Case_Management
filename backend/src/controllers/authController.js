@@ -76,7 +76,8 @@ const login = asyncHandler(async (req, res) => {
 const me = asyncHandler(async (req, res) => {
   const user = await User.findById(req.user.id).select('-passwordHash').lean();
   if (!user) {
-    throw httpError(404, 'User not found');
+    res.json({ user: null });
+    return;
   }
 
   res.json({ user });

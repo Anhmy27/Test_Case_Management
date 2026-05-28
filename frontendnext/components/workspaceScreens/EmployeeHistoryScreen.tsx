@@ -3,6 +3,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useMemo, useState } from "react";
+import { getId } from "@/lib/api";
 import { ActionButton, DataTable, SectionCard } from "./shared";
 
 type RecordAny = Record<string, any>;
@@ -23,7 +24,7 @@ export default function EmployeeHistoryScreen({ myScopedRuns, matchesSearch, set
     });
 
   const focusedRun = useMemo(
-    () => completedRuns.find((run: RecordAny) => String(run._id) === String(focusedRunId)) || completedRuns[0] || null,
+    () => completedRuns.find((run: RecordAny) => getId(run) === String(focusedRunId)) || completedRuns[0] || null,
     [completedRuns, focusedRunId],
   );
 
@@ -43,12 +44,12 @@ export default function EmployeeHistoryScreen({ myScopedRuns, matchesSearch, set
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_320px]">
           <div className="workspace-history-strip">
             {completedRuns.slice(0, 10).map((run: RecordAny) => {
-              const isActive = String(focusedRun?._id || "") === String(run._id);
+              const isActive = String(getId(focusedRun) || "") === String(getId(run));
               return (
                 <button
-                  key={run._id}
+                  key={getId(run)}
                   type="button"
-                  onClick={() => setFocusedRunId(String(run._id))}
+                  onClick={() => setFocusedRunId(getId(run))}
                   className={`workspace-history-strip__item text-left ${isActive ? "ring-2 ring-indigo-300" : ""}`}
                 >
                   <span className="workspace-pill status-pass">{run.status || "completed"}</span>
@@ -88,7 +89,7 @@ export default function EmployeeHistoryScreen({ myScopedRuns, matchesSearch, set
             const label = String(run.status || "completed");
             const toneClass = label === "completed" ? "status-pass" : "status-skip";
             return (
-              <div key={run._id} className="workspace-history-strip__item">
+              <div key={getId(run)} className="workspace-history-strip__item">
                 <span className={`workspace-pill ${toneClass}`}>{label}</span>
                 <strong>{run.name}</strong>
                 <small>{run.testPlan?.name || "-"}</small>
@@ -109,7 +110,7 @@ export default function EmployeeHistoryScreen({ myScopedRuns, matchesSearch, set
               <div>{userName(run.startedBy)}</div>
               <div>{run.completedAt || run.endedAt || run.updatedAt || run.createdAt ? new Date(run.completedAt || run.endedAt || run.updatedAt || run.createdAt).toLocaleString() : "-"}</div>
               <div>
-                <ActionButton label="View" icon="↗" onClick={() => void (async () => { setSelectedRunId(run._id); await loadMyItems(run._id); setActiveTab("execution"); })()} />
+                <ActionButton label="View" icon="↗" onClick={() => void (async () => { setSelectedRunId(getId(run)); await loadMyItems(getId(run)); setActiveTab("execution"); })()} />
               </div>
             </>
           ))}

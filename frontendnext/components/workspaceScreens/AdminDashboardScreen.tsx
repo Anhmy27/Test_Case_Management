@@ -209,10 +209,7 @@ export default function AdminDashboardScreen({
     .map((run: RecordAny, index: number) => {
       const rawProject = run.testPlan?.project ?? run.project ?? null;
       const pid = getId(rawProject) || (typeof rawProject === "string" ? rawProject : "");
-      const project = projects.find((p: RecordAny) => {
-        const pId = String((p && (p._id ?? p.id)) || "");
-        return pId === pid || String(getId(p)) === pid;
-      });
+      const project = projects.find((p: RecordAny) => getId(p) === pid);
       const projectName = project?.name || (pid ? pid : "-");
       return { run, projectName, index };
     })
@@ -220,7 +217,7 @@ export default function AdminDashboardScreen({
       matchesSearch(run.name, run.testPlan?.name, projectName, userName(run.startedBy)),
     )
     .map(({ run, projectName, index }: RunningRunRow) => ({
-      id: String(run._id || run.id || index),
+      id: String(getId(run) || run.id || index),
       cells: [
         <div key="run" className="font-semibold text-slate-900">
           {run.name || run.testPlan?.name || "Untitled Run"}
@@ -250,7 +247,7 @@ export default function AdminDashboardScreen({
 
   const riskRows: DataGridRow[] = [
     ...delayedPlans.map((plan: RecordAny, index: number) => ({
-      id: `delayed-${plan._id || index}`,
+      id: `delayed-${getId(plan) || index}`,
       cells: [
         <div key="item" className="font-semibold text-slate-900">
           {plan.name}
@@ -281,7 +278,7 @@ export default function AdminDashboardScreen({
       ],
     })),
     ...mostFailedCases.slice(0, 5).map((item: RecordAny, index: number) => ({
-      id: `fail-${item._id || index}`,
+      id: `fail-${getId(item) || index}`,
       cells: [
         <div key="item" className="font-semibold text-slate-900">
           {item.caseKey} - {item.title}
@@ -329,7 +326,7 @@ export default function AdminDashboardScreen({
       matchesSearch(project.name, project.code, project.latestVersion),
     )
     .map((project: RecordAny) => ({
-      id: String(project._id || project.code || project.name),
+      id: String(getId(project) || project.code || project.name),
       cells: [
         <div key="project" className="font-semibold text-slate-900">
           {project.name}
@@ -358,7 +355,7 @@ export default function AdminDashboardScreen({
         <button
           key="action"
           type="button"
-          onClick={() => onNavigate?.("versions", String(project._id || ""))}
+          onClick={() => onNavigate?.("versions", getId(project) || "")}
           className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-900"
         >
           View
@@ -369,7 +366,7 @@ export default function AdminDashboardScreen({
   const testerRows = testerActivity
     .filter((item: RecordAny) => matchesSearch(item.name, item.email))
     .map((item: RecordAny, index: number) => ({
-      id: String(item._id || index),
+      id: String(getId(item) || index),
       cells: [
         <div key="tester" className="font-semibold text-slate-900">
           {item.name}

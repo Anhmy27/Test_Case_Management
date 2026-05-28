@@ -77,17 +77,65 @@ function resolveWorkspacePath(role?: string, tab?: string) {
   return `/workspace/${safeRole}/${safeTab}`;
 }
 
-function getProjectJiraProductKey(project?: RecordAny | null) {
+function getProjectJiraProjectKey(project?: RecordAny | null) {
   return String(
     project?.jiraProjectKey ||
       project?.jiraProductKey ||
       project?.Jiraproduckeys ||
       project?.JiraProductKey ||
       project?.jiraProductKeys ||
-      project?.code ||
-      project?.Code ||
       "",
   ).trim();
+}
+
+function resolveScopedValueItem(value: unknown, items: RecordAny[]) {
+  const normalizedValue = String(getId(value) || value || "").trim().toLowerCase();
+  const candidateIds = new Set(
+    [getId(value), typeof value === "string" ? value : ""]
+      .concat(
+        typeof value === "object" && value !== null
+          ? [
+              String((value as RecordAny)._id || ""),
+              String((value as RecordAny).entityId || ""),
+              String((value as RecordAny).id || ""),
+            ]
+          : [],
+      )
+      .map((item) => String(item || "").trim())
+      .filter(Boolean),
+  );
+
+  return (
+    items.find((item) => {
+      const itemIds = [
+        getId(item),
+        String(item?._id || ""),
+        String(item?.entityId || ""),
+        String(item?.id || ""),
+      ]
+        .map((itemId) => String(itemId || "").trim())
+        .filter(Boolean);
+
+      if (itemIds.some((itemId) => candidateIds.has(itemId))) {
+        return true;
+      }
+
+      const itemLabels = [item?.name, item?.code, item?.key, item?.title]
+        .map((label) => String(label || "").trim().toLowerCase())
+        .filter(Boolean);
+
+      return Boolean(normalizedValue) && itemLabels.some((label) => label === normalizedValue);
+    }) || null
+  );
+}
+
+function resolveScopedValueId(value: unknown, items: RecordAny[]) {
+  const match = resolveScopedValueItem(value, items);
+  if (match) {
+    return getId(match);
+  }
+
+  return String(getId(value) || value || "").trim();
 }
 
 export default function TestCaseManagementApp() {
@@ -124,7 +172,7 @@ export default function TestCaseManagementApp() {
     name: "",
     code: "",
     pid: "",
-    jiraProductKey: "",
+    jiraProjectKey: "",
     description: "",
   });
   const [assigneeQuery, setAssigneeQuery] = useState<string>("");
@@ -282,30 +330,32 @@ export default function TestCaseManagementApp() {
   );
 
   const isAdmin = currentUser?.role === "admin";
-  const currentUserId = String(currentUser?._id || "");
+  const currentUserId = getId(currentUser);
   const dashboardData = dashboard || {};
   const dashboardSummary = dashboardData.summary || {};
   const projectOverview = dashboardData.projectOverview || [];
-  const selectedProject = projects.find((project) => project._id === selectedProjectId);
+  const selectedProject = projects.find((project) => getId(project) === selectedProjectId);
+  const hasValidProjectScope = Boolean(selectedProjectId && selectedProject);
+  const effectiveProjectId = hasValidProjectScope ? selectedProjectId : "";
   const scopeLabel = selectedProject ? selectedProject.name : "All projects";
-  const isGlobalScope = !selectedProjectId;
+  const isGlobalScope = !effectiveProjectId;
   const scopedProjects = isGlobalScope ? projects : selectedProject ? [selectedProject] : [];
   const scopedVersions = isGlobalScope
     ? versions
-    : versions.filter((version) => getId(version.project) === selectedProjectId);
+    : versions.filter((version) => getId(version.project) === effectiveProjectId);
   const scopedGroups = isGlobalScope
     ? groups
-    : groups.filter((group) => getId(group.project) === selectedProjectId);
+    : groups.filter((group) => getId(group.project) === effectiveProjectId);
   const scopedPlans = isGlobalScope
     ? plans
-    : plans.filter((plan) => getId(plan.project) === selectedProjectId);
-  const selectedRunPlan = scopedPlans.find((plan) => String(plan._id) === String(runForm.testPlanId));
+    : plans.filter((plan) => getId(plan.project) === effectiveProjectId);
+  const selectedRunPlan = scopedPlans.find((plan) => getId(plan) === String(runForm.testPlanId));
   const selectedRunPlanIsAutomation = String(selectedRunPlan?.executionMode || "manual") === "automation";
   const scopedRuns = isGlobalScope
     ? runs
     : runs.filter((run) => getId(run.testPlan?.project ?? run.project) === selectedProjectId);
   const myScopedRuns = scopedRuns.filter(
-    (run) => String(run.startedBy?._id || run.startedBy || "") === currentUserId,
+    (run) => String(getId(run.startedBy) || getId(run.startedBy) || "") === currentUserId,
   );
   const adminRuns = isAdmin ? runs : scopedRuns;
   const navItems = (() => {
@@ -356,10 +406,10 @@ export default function TestCaseManagementApp() {
   const selectedPlanGroupIds = new Set(planForm.selectedGroupIds || []);
   const selectedPlanCaseIds = new Set(planForm.caseIds || []);
   const selectedPlanGroups = planProjectGroups.filter((group) =>
-    selectedPlanGroupIds.has(String(group._id)),
+    selectedPlanGroupIds.has(getId(group)),
   );
   const selectedPlanCasesByGroup = selectedPlanGroups.map((group) => {
-    const groupId = String(group._id);
+    const groupId = getId(group);
     return {
       group,
       cases: planProjectCases.filter((testCase) => String(getId(testCase.group)) === groupId),
@@ -373,7 +423,7 @@ export default function TestCaseManagementApp() {
         : [...prev.selectedGroupIds, groupId];
       const nextGroupSet = new Set(nextGroupIds);
       const nextCaseIds = prev.caseIds.filter((caseId) => {
-        const linkedCase = testCases.find((testCase) => String(testCase._id) === caseId);
+        const linkedCase = testCases.find((testCase) => getId(testCase) === caseId);
 
         return linkedCase && nextGroupSet.has(String(getId(linkedCase.group)));
       });
@@ -404,7 +454,7 @@ export default function TestCaseManagementApp() {
   }
 
   const selectedRun = useMemo(
-    () => runs.find((run) => String(run._id) === selectedRunId),
+    () => runs.find((run) => getId(run) === selectedRunId),
     [runs, selectedRunId],
   );
   const canEndRun = useCallback(
@@ -418,16 +468,15 @@ export default function TestCaseManagementApp() {
       }
 
       return (
-        String(run.startedBy?._id || run.startedBy) ===
-        String(currentUser?._id || "")
+        String(getId(run.startedBy) || getId(run.startedBy)) === String(currentUserId || "")
       );
     },
-    [currentUser?._id, isAdmin],
+    [currentUserId, isAdmin],
   );
 
   const resetWorkspaceDrafts = useCallback(() => {
     setEditingProjectId("");
-    setProjectForm({ name: "", code: "", pid: "", jiraProductKey: "", description: "" });
+    setProjectForm({ name: "", code: "", pid: "", jiraProjectKey: "", description: "" });
     setVersionForm({ projectId: "", name: "", idjira: "", releaseDate: "" });
     setIssueTypeForm({ name: "", idjira: "" });
     setGroupForm({ projectId: "", name: "", description: "" });
@@ -513,14 +562,15 @@ export default function TestCaseManagementApp() {
   const isRefreshingRef = useRef(false);
   const pendingRefreshNeededRef = useRef(false);
   const refreshControllerRef = useRef<AbortController | null>(null);
+  const hasLoadedWorkspaceDataRef = useRef(false);
   const tokenRef = useRef<string>(token);
   const currentUserRef = useRef<RecordAny | null>(currentUser);
 
   // use a ref-backed implementation so the function identity stays stable
-  const refreshAllRef = useRef<((currentToken: string, role?: string, projectId?: string) => Promise<void>) | null>(null);
+  const refreshAllRef = useRef<((currentToken: string, role?: string, projectId?: string, forceRefresh?: boolean) => Promise<void>) | null>(null);
 
   useEffect(() => {
-    refreshAllRef.current = async (currentToken: string, role?: string, projectId?: string) => {
+    refreshAllRef.current = async (currentToken: string, role?: string, projectId?: string, forceRefresh = false) => {
       if (isRefreshingRef.current) {
         pendingRefreshNeededRef.current = true;
         return;
@@ -545,7 +595,7 @@ export default function TestCaseManagementApp() {
       isRefreshingRef.current = true;
 
       try {
-        const projectQuery = projectId ? `?projectId=${projectId}` : "";
+        const projectQuery = projectId ? `?projectId=${projectId}${forceRefresh ? `&_cb=${Date.now()}` : ``}` : (forceRefresh ? `?_cb=${Date.now()}` : "");
         const opts = { signal: controller.signal } as RequestInit;
 
         // helper to run tasks with limited concurrency
@@ -591,14 +641,15 @@ export default function TestCaseManagementApp() {
 
         const [versionResp, groupResp, caseResp, planResp, runResp, issueTypeResp, dashboardResp] = await runWithConcurrency(taskFns, 2);
 
-        setProjects(projectResp.projects || []);
-        setVersions((versionResp && versionResp.versions) || []);
-        setGroups((groupResp && groupResp.groups) || []);
-        setTestCases((caseResp && caseResp.testCases) || []);
-        setPlans((planResp && planResp.testPlans) || []);
-        setRuns((runResp && runResp.testRuns) || []);
-        setIssueTypes((issueTypeResp && issueTypeResp.issueTypes) || []);
+        setProjects(Array.isArray(projectResp.projects) ? projectResp.projects : []);
+        setVersions(Array.isArray(versionResp?.versions) ? versionResp.versions : []);
+        setGroups(Array.isArray(groupResp?.groups) ? groupResp.groups : []);
+        setTestCases(Array.isArray(caseResp?.testCases) ? caseResp.testCases : []);
+        setPlans(Array.isArray(planResp?.testPlans) ? planResp.testPlans : []);
+        setRuns(Array.isArray(runResp?.testRuns) ? runResp.testRuns : []);
+        setIssueTypes(Array.isArray(issueTypeResp?.issueTypes) ? issueTypeResp.issueTypes : []);
         setDashboard(dashboardResp || null);
+        hasLoadedWorkspaceDataRef.current = true;
 
         if ((role || currentUser?.role) === "admin") {
           const userResp = await apiRequest<{ users: RecordAny[] }>(
@@ -606,7 +657,7 @@ export default function TestCaseManagementApp() {
             currentToken,
             opts,
           );
-          setUsers(userResp.users || []);
+          setUsers(Array.isArray(userResp.users) ? userResp.users : []);
         }
       } catch (error: any) {
         // ignore abort errors as they're expected when cancelling
@@ -664,7 +715,7 @@ export default function TestCaseManagementApp() {
     currentUserRef.current = currentUser;
   }, [currentUser]);
 
-  const refreshAll = useCallback((currentToken: string, role?: string, projectId?: string) => {
+  const refreshAll = useCallback((currentToken: string, role?: string, projectId?: string, forceRefresh = false) => {
     if (!refreshAllRef.current) return Promise.resolve();
     try {
       if (typeof window !== 'undefined' && (window as any).__tcm_navigationPending) {
@@ -674,7 +725,7 @@ export default function TestCaseManagementApp() {
       }
     } catch {}
 
-    return refreshAllRef.current(currentToken, role, projectId);
+    return refreshAllRef.current(currentToken, role, projectId, forceRefresh);
   }, []);
 
   useEffect(() => {
@@ -782,12 +833,24 @@ export default function TestCaseManagementApp() {
       return;
     }
 
+    if (!hasLoadedWorkspaceDataRef.current) {
+      return;
+    }
+
+    if (selectedProjectId && !selectedProject) {
+      window.localStorage.removeItem("tcm_selected_project_id");
+      queueMicrotask(() => {
+        setSelectedProjectId("");
+      });
+      return;
+    }
+
     if (selectedProjectId) {
       window.localStorage.setItem("tcm_selected_project_id", selectedProjectId);
     } else {
       window.localStorage.removeItem("tcm_selected_project_id");
     }
-  }, [selectedProjectId]);
+  }, [selectedProject, selectedProjectId]);
 
   useEffect(() => {
     if (!token || !currentUser) {
@@ -897,7 +960,7 @@ export default function TestCaseManagementApp() {
     (planId: string) => {
       setSelectedPlanId(planId);
 
-      const selectedPlan = plans.find((plan) => String(plan._id) === planId);
+      const selectedPlan = plans.find((plan) => getId(plan) === planId);
       if (!selectedPlan) {
         setAssignDraft({ ownerId: "", assigneeIds: [] });
         return;
@@ -920,7 +983,7 @@ export default function TestCaseManagementApp() {
       setMessage("");
       await action();
       if (token) {
-        await refreshAll(token, currentUser?.role, selectedProjectId);
+        await refreshAll(token, currentUser?.role, selectedProjectId, true);
       }
       return true;
     } catch (error: any) {
@@ -930,12 +993,12 @@ export default function TestCaseManagementApp() {
   }, [currentUser, refreshAll, selectedProjectId, token]);
 
   function startProjectEdit(project: RecordAny) {
-    setEditingProjectId(String(project._id));
+    setEditingProjectId(getId(project));
     setProjectForm({
       name: project.name || "",
       code: project.code || "",
       pid: project.pid || "",
-      jiraProductKey: getProjectJiraProductKey(project),
+      jiraProjectKey: getProjectJiraProjectKey(project),
       description: project.description || "",
     });
     setActiveTab("projects");
@@ -943,7 +1006,7 @@ export default function TestCaseManagementApp() {
 
   function cancelProjectEdit() {
     setEditingProjectId("");
-    setProjectForm({ name: "", code: "", pid: "", jiraProductKey: "", description: "" });
+    setProjectForm({ name: "", code: "", pid: "", jiraProjectKey: "", description: "" });
   }
 
   async function saveProject(event: FormEvent) {
@@ -959,7 +1022,7 @@ export default function TestCaseManagementApp() {
         body: JSON.stringify(projectForm),
       });
 
-      setProjectForm({ name: "", code: "", pid: "", jiraProductKey: "", description: "" });
+      setProjectForm({ name: "", code: "", pid: "", jiraProjectKey: "", description: "" });
       setEditingProjectId("");
       setMessage(editingProjectId ? "Da cap nhat project" : "Da tao project");
     });
@@ -1014,7 +1077,7 @@ export default function TestCaseManagementApp() {
 
   const openJiraBugDialog = useCallback(async (run: RecordAny, result: RecordAny) => {
     const projectId = getId(run?.project);
-    const project = projects.find((item) => String(item._id) === String(projectId));
+    const project = projects.find((item) => getId(item) === String(projectId));
 
     if (!project || !projectId) {
       setMessage("Run project is missing Jira configuration");
@@ -1025,9 +1088,9 @@ export default function TestCaseManagementApp() {
     let runVersionIdJira = "";
 
     // If run.version is an object or id, try to find matching loaded version
-    const runVersionRef = run?.version && (run.version._id || run.version);
+    const runVersionRef = run?.version && (getId(run.version) || run.version);
     if (runVersionRef) {
-      const matched = versions.find((v) => String(v._id) === String(runVersionRef));
+      const matched = versions.find((v) => getId(v) === String(runVersionRef));
       if (matched) runVersionIdJira = String(matched.idjira || '').trim();
     }
 
@@ -1038,13 +1101,13 @@ export default function TestCaseManagementApp() {
       ).trim();
     }
 
-    const defaultIssueType = jiraIssueTypeOptions && jiraIssueTypeOptions.length ? (jiraIssueTypeOptions[0].idjira || String(jiraIssueTypeOptions[0]._id || '')) : '';
+    const defaultIssueType = jiraIssueTypeOptions && jiraIssueTypeOptions.length ? (jiraIssueTypeOptions[0].idjira || getId(jiraIssueTypeOptions[0]) || '') : '';
 
     setJiraBugDialog({
       projectId,
       projectName: project.name || "",
-      runId: String(run?._id || ""),
-      resultId: String(result?._id || ""),
+      runId: getId(run) || "",
+      resultId: getId(result) || "",
       caseKey: result?.testCase?.caseKey || "TC",
       caseTitle: result?.testCase?.title || "Untitled",
       issueType: defaultIssueType,
@@ -1071,8 +1134,8 @@ export default function TestCaseManagementApp() {
   useEffect(() => {
     if (!jiraBugDialog?.projectId || !assigneeDropdownOpen) return;
 
-    const project = projects.find((p) => String(p._id) === String(jiraBugDialog.projectId));
-    const projectKey = getProjectJiraProductKey(project);
+    const project = projects.find((p) => getId(p) === String(jiraBugDialog.projectId));
+    const projectKey = getProjectJiraProjectKey(project);
 
     if (!projectKey) {
       queueMicrotask(() => {
@@ -1175,7 +1238,7 @@ export default function TestCaseManagementApp() {
     }
 
     function startIssueTypeEdit(issueType: RecordAny) {
-      setEditingIssueTypeId(String(issueType._id));
+      setEditingIssueTypeId(getId(issueType));
       setIssueTypeForm({ name: issueType.name || "", idjira: issueType.idjira || "" });
       setActiveTab("issue-types");
     }
@@ -1206,7 +1269,7 @@ export default function TestCaseManagementApp() {
     }
 
   function startVersionEdit(version: RecordAny) {
-    setEditingVersionId(String(version._id));
+    setEditingVersionId(getId(version));
     setVersionForm({
       projectId: getId(version.project),
       name: version.name || "",
@@ -1262,7 +1325,7 @@ export default function TestCaseManagementApp() {
   }
 
   function startGroupEdit(group: RecordAny) {
-    setEditingGroupId(String(group._id));
+    setEditingGroupId(getId(group));
     setGroupForm({
       projectId: getId(group.project),
       name: group.name || "",
@@ -1297,7 +1360,7 @@ export default function TestCaseManagementApp() {
   }
 
   function startTestCaseEdit(testCase: RecordAny) {
-    setEditingTestCaseId(String(testCase._id));
+    setEditingTestCaseId(getId(testCase));
     const automationSteps = Array.isArray(testCase.automation?.steps)
       ? testCase.automation.steps.map((step: RecordAny) => ({
           action: step.action || "goto",
@@ -1318,16 +1381,23 @@ export default function TestCaseManagementApp() {
           },
         ];
 
+      const resolvedProject = resolveScopedValueItem(testCase.project, projects);
+      const resolvedProjectId = resolvedProject ? getId(resolvedProject) : resolveScopedValueId(testCase.project, projects);
+      const scopedGroupsForProject = resolvedProjectId
+        ? groups.filter((group) => resolveScopedValueId(group.project, projects) === resolvedProjectId)
+        : groups;
+      const resolvedGroup = resolveScopedValueItem(testCase.group, scopedGroupsForProject);
+
     setTestCaseForm({
-      projectId: getId(testCase.project),
-      groupId: getId(testCase.group),
+        projectId: resolvedProjectId,
+        groupId: resolvedGroup ? getId(resolvedGroup) : resolveScopedValueId(testCase.group, scopedGroupsForProject),
       caseKey: testCase.caseKey || "",
       title: testCase.title || "",
       priority: testCase.priority || "medium",
       severity: testCase.severity || "major",
       type: testCase.type || "functional",
       description: testCase.description || "",
-      expected: testCase.expected || "",
+      expected: testCase.expected || testCase.steps?.[0]?.expected || "",
       steps:
         Array.isArray(testCase.steps) && testCase.steps.length > 0
           ? testCase.steps.map((step: RecordAny) => ({
@@ -1382,7 +1452,6 @@ export default function TestCaseManagementApp() {
         .filter((step) => step.action.trim())
         .map((step) => ({
           action: step.action,
-          expected: testCaseForm.expected,
         }));
 
       if (steps.length === 0 || !testCaseForm.expected.trim()) {
@@ -1425,6 +1494,7 @@ export default function TestCaseManagementApp() {
           severity: testCaseForm.severity,
           type: testCaseForm.type,
           description: testCaseForm.description,
+          expected: testCaseForm.expected,
           steps,
           automation: {
             enabled: automationForm.enabled,
@@ -1570,6 +1640,7 @@ export default function TestCaseManagementApp() {
           severity: testCase.severity || "major",
           type: testCase.type || "functional",
           description: testCase.description || "",
+          expected: expectedValue,
           steps,
           automation: {
             enabled: Boolean(testCase.automation?.enabled),
@@ -1827,8 +1898,8 @@ export default function TestCaseManagementApp() {
         method: "POST",
         body: JSON.stringify(runForm),
       });
-      if (response.testRun?._id) {
-        await loadMyItems(String(response.testRun._id));
+      if (response.testRun) {
+        await loadMyItems(getId(response.testRun));
         setActiveTab("execution");
       }
       setRunForm({ testPlanId: "", name: "", baseUrl: "" });
@@ -2103,7 +2174,7 @@ export default function TestCaseManagementApp() {
   }
 
   function startUserEdit(user: RecordAny) {
-    setEditingUserId(String(user._id));
+    setEditingUserId(getId(user));
     setNewUserForm({
       name: user.name || "",
       email: user.email || "",
@@ -2368,7 +2439,7 @@ export default function TestCaseManagementApp() {
                       <select value={jiraBugDialog.issueType} onChange={(e) => updateJiraBugDialog({ issueType: e.target.value })}>
                         <option value="">Select issue type</option>
                         {jiraIssueTypeOptions.map((it) => (
-                          <option key={String(it._id)} value={it.idjira || it._id}>{it.name}</option>
+                          <option key={getId(it)} value={it.idjira || getId(it)}>{it.name}</option>
                         ))}
                       </select>
                     </label>

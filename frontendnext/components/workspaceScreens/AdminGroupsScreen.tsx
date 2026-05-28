@@ -5,6 +5,7 @@
 import { useCallback, useMemo, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { ActionButton, SectionCard } from "./shared";
+import { getId } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
 
@@ -58,7 +59,7 @@ export default function AdminGroupsScreen({
 
   const filteredGroups = useMemo(() => {
     return groups.filter((group: RecordAny) => {
-      const groupProjectId = String(group.project?._id || group.project || "");
+      const groupProjectId = getId(group.project) || "";
       if (projectFilter && groupProjectId !== projectFilter) {
         return false;
       }
@@ -70,11 +71,11 @@ export default function AdminGroupsScreen({
   const groupsByProject = useMemo(() => {
     return scopedProjects
       .map((project: RecordAny) => {
-        if (projectFilter && String(project._id) !== projectFilter) {
+        if (projectFilter && getId(project) !== projectFilter) {
           return null;
         }
 
-        const projectGroups = filteredGroups.filter((group: RecordAny) => String(group.project?._id || group.project) === String(project._id));
+        const projectGroups = filteredGroups.filter((group: RecordAny) => getId(group.project) === getId(project));
         const projectMatches = matchesSearch(project.name) && matchesLocalSearch(project.name);
 
         if (!projectMatches && projectGroups.length === 0) {
@@ -95,6 +96,51 @@ export default function AdminGroupsScreen({
     (safeHierarchyPage - 1) * hierarchyPageSize,
     (safeHierarchyPage - 1) * hierarchyPageSize + hierarchyPageSize,
   );
+
+  const renderProjectGroup = (group: RecordAny) => {
+    const groupId = getId(group);
+    const groupCases = testCases.filter((testCase: RecordAny) => getId(testCase.group) === groupId);
+    const shouldScrollCases = groupCases.length >= 4;
+
+    return (
+      <details key={getId(group)} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+          <div className="min-w-0">
+            <div className="font-semibold text-slate-900">{group.name}</div>
+            <div className="truncate text-xs text-slate-500">{group.description || "No description"}</div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="workspace-pill bg-white">{groupCases.length} cases</span>
+            <ActionButton label="Edit" icon="✎" onClick={() => startGroupEdit(group)} />
+            <ActionButton label="Delete" icon="🗑" variant="danger" onClick={() => void deleteGroup(getId(group))} />
+          </div>
+        </summary>
+
+        <div className="mt-3 border-l border-slate-200 pl-3">
+          {groupCases.length === 0 ? (
+            <div className="workspace-empty">No test cases in this group</div>
+          ) : (
+            <div className={`space-y-2 ${shouldScrollCases ? "max-h-[240px] overflow-y-auto pr-1" : ""}`}>
+              {groupCases.map((testCase: RecordAny) => (
+                <button
+                  key={getId(testCase)}
+                  type="button"
+                  className="w-full rounded-lg border border-white bg-white px-3 py-2 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    startTestCaseEdit(testCase);
+                  }}
+                >
+                  <div className="font-semibold text-slate-900">{testCase.caseKey} - {testCase.title}</div>
+                  <div className="text-xs text-slate-500">{testCase.description || "No description"}</div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </details>
+    );
+  };
 
   const filterBar = (
     <div className="flex flex-wrap items-end gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
@@ -122,8 +168,8 @@ export default function AdminGroupsScreen({
           className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-slate-200"
         >
           <option value="">All projects</option>
-          {scopedProjects.map((project: RecordAny) => (
-            <option key={project._id} value={String(project._id)}>
+                {scopedProjects.map((project: RecordAny) => (
+            <option key={getId(project)} value={getId(project)}>
               {project.name}
             </option>
           ))}
@@ -162,7 +208,7 @@ export default function AdminGroupsScreen({
               >
                 <option value="">Select</option>
                 {scopedProjects.map((project: RecordAny) => (
-                  <option key={project._id} value={project._id}>
+                  <option key={getId(project)} value={getId(project)}>
                     {project.name}
                   </option>
                 ))}
@@ -196,7 +242,7 @@ export default function AdminGroupsScreen({
             />
           </label>
           <div className="workspace-inline-actions">
-            <ActionButton label={isEditing ? "Update group" : "Create group"} icon={isEditing ? "💾" : "＋"} variant="primary" />
+            <ActionButton type="submit" label={isEditing ? "Update group" : "Create group"} icon={isEditing ? "💾" : "＋"} variant="primary" />
             {isEditing && (
               <ActionButton label="Cancel" icon="↩" onClick={cancelGroupEdit} tooltip="Cancel editing" />
             )}
@@ -224,7 +270,7 @@ export default function AdminGroupsScreen({
             ) : (
               <div className="space-y-3">
                 {visibleHierarchyProjects.map(({ project, groups: projectGroups }) => (
-                  <details key={`list-${project._id}`} className="group rounded-2xl border border-slate-200 bg-white/90 shadow-sm transition hover:border-slate-300" open>
+                  <details key={`list-${getId(project)}`} className="group rounded-2xl border border-slate-200 bg-white/90 shadow-sm transition hover:border-slate-300" open>
                     <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-900 transition group-open:rounded-b-none group-open:border-b group-open:border-slate-200">
                       <span className="flex items-center gap-3">
                         <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-indigo-600 text-xs font-semibold text-white">
@@ -244,50 +290,7 @@ export default function AdminGroupsScreen({
                       {projectGroups.length === 0 ? (
                         <div className="workspace-empty">No groups under this project</div>
                       ) : (
-                        projectGroups.map((group: RecordAny) => {
-                          const groupId = String(group._id);
-                          const groupCases = testCases.filter((testCase: RecordAny) => String(testCase.group?._id || testCase.group) === groupId);
-                          const shouldScrollCases = groupCases.length >= 4;
-
-                          return (
-                            <details key={group._id} className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5">
-                              <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-                                <div className="min-w-0">
-                                  <div className="font-semibold text-slate-900">{group.name}</div>
-                                  <div className="truncate text-xs text-slate-500">{group.description || "No description"}</div>
-                                </div>
-                                <div className="flex shrink-0 items-center gap-2">
-                                  <span className="workspace-pill bg-white">{groupCases.length} cases</span>
-                                  <ActionButton label="Edit" icon="✎" onClick={() => startGroupEdit(group)} />
-                                  <ActionButton label="Delete" icon="🗑" variant="danger" onClick={() => void deleteGroup(group._id)} />
-                                </div>
-                              </summary>
-
-                              <div className="mt-3 border-l border-slate-200 pl-3">
-                                {groupCases.length === 0 ? (
-                                  <div className="workspace-empty">No test cases in this group</div>
-                                ) : (
-                                  <div className={`space-y-2 ${shouldScrollCases ? "max-h-[240px] overflow-y-auto pr-1" : ""}`}>
-                                    {groupCases.map((testCase: RecordAny) => (
-                                      <button
-                                        key={testCase._id}
-                                        type="button"
-                                        className="w-full rounded-lg border border-white bg-white px-3 py-2 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
-                                        onClick={(event) => {
-                                          event.stopPropagation();
-                                          startTestCaseEdit(testCase);
-                                        }}
-                                      >
-                                        <div className="font-semibold text-slate-900">{testCase.caseKey} - {testCase.title}</div>
-                                        <div className="text-xs text-slate-500">{testCase.description || "No description"}</div>
-                                      </button>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            </details>
-                          );
-                        })
+                        projectGroups.map(renderProjectGroup)
                       )}
                     </div>
                   </details>

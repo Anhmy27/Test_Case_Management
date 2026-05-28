@@ -43,13 +43,13 @@ export default function AdminVersionsScreen({
       <SectionCard title="Versions" subtitle="Tao version trong workspace rieng">
         <form className="workspace-form" onSubmit={createVersion}>
           <div className="workspace-form__grid workspace-form__grid--three">
-            <label><span>Project</span><select value={versionForm.projectId} onChange={(e) => setVersionForm((prev) => ({ ...prev, projectId: e.target.value }))} required><option value="">Select</option>{scopedProjects.map((project: RecordAny) => <option key={project._id} value={project._id}>{project.name}</option>)}</select></label>
+            <label><span>Project</span><select value={versionForm.projectId} onChange={(e) => setVersionForm((prev) => ({ ...prev, projectId: e.target.value }))} required><option value="">Select</option>{scopedProjects.map((project: RecordAny) => <option key={getId(project)} value={getId(project)}>{project.name}</option>)}</select></label>
             <label><span>Name</span><input value={versionForm.name} onChange={(e) => setVersionForm((prev) => ({ ...prev, name: e.target.value }))} required /></label>
             <label><span>Jira id</span><input value={(versionForm as any).idjira || ''} onChange={(e) => setVersionForm((prev) => ({ ...prev, idjira: e.target.value }))} placeholder="e.g. 10010" /></label>
             <label><span>Release date</span><input type="date" value={versionForm.releaseDate} onChange={(e) => setVersionForm((prev) => ({ ...prev, releaseDate: e.target.value }))} /></label>
           </div>
           <div className="workspace-inline-actions">
-            <ActionButton label={isEditing ? "Update version" : "Create version"} icon={isEditing ? "💾" : "＋"} variant="primary" />
+            <ActionButton type="submit" label={isEditing ? "Update version" : "Create version"} icon={isEditing ? "💾" : "＋"} variant="primary" />
             {isEditing && <ActionButton label="Cancel" icon="↩" onClick={cancelVersionEdit} tooltip="Cancel editing" />}
           </div>
         </form>
@@ -61,7 +61,7 @@ export default function AdminVersionsScreen({
           rows={versions
             .map((version: RecordAny) => {
               const pid = getId(version.project);
-              const proj = projects.find((p: RecordAny) => String(p._id) === pid);
+              const proj = projects.find((p: RecordAny) => getId(p) === pid);
               const projectName = proj?.name || pid || "-";
 
               return { version, projectName };
@@ -77,7 +77,7 @@ export default function AdminVersionsScreen({
                 <div>{projectName}</div>
                 <div className="workspace-inline-actions">
                   <ActionButton label="Edit" icon="✎" onClick={() => startVersionEdit(version)} />
-                  <ActionButton label="Delete" icon="🗑" variant="danger" onClick={() => void deleteVersion(version._id)} />
+                  <ActionButton label="Delete" icon="🗑" variant="danger" onClick={() => void deleteVersion(getId(version))} />
                 </div>
               </>
             ))}

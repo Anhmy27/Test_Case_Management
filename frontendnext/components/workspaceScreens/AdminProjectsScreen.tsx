@@ -4,13 +4,14 @@
 
 import type { Dispatch, SetStateAction } from "react";
 import { ActionButton, DataTable, SectionCard } from "./shared";
+import { getId } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
 
 type AdminProjectsScreenProps = {
   editingProjectId: string;
-  projectForm: { name: string; code: string; pid: string; jiraProductKey: string; description: string };
-  setProjectForm: Dispatch<SetStateAction<{ name: string; code: string; pid: string; jiraProductKey: string; description: string }>>;
+  projectForm: { name: string; code: string; pid: string; jiraProjectKey: string; description: string };
+  setProjectForm: Dispatch<SetStateAction<{ name: string; code: string; pid: string; jiraProjectKey: string; description: string }>>;
   saveProject: (event: React.FormEvent) => Promise<void>;
   cancelProjectEdit: () => void;
   projects: RecordAny[];
@@ -75,13 +76,13 @@ export default function AdminProjectsScreen({
               />
             </label>
             <label>
-              <span>Jira Product Key</span>
+              <span>Jira Project Key</span>
               <input
-                value={projectForm.jiraProductKey}
+                value={projectForm.jiraProjectKey}
                 onChange={(e) =>
                   setProjectForm((prev) => ({
                     ...prev,
-                    jiraProductKey: e.target.value,
+                    jiraProjectKey: e.target.value,
                   }))
                 }
                 placeholder="CED"
@@ -103,6 +104,7 @@ export default function AdminProjectsScreen({
           </label>
           <div className="workspace-inline-actions">
             <ActionButton
+              type="submit"
               label={editingProjectId ? "Save project" : "Create project"}
               icon={editingProjectId ? "💾" : "＋"}
               variant="primary"
@@ -127,7 +129,7 @@ export default function AdminProjectsScreen({
                 <div>{project.jiraProjectKey || project.jiraProductKey || project.Jiraproduckeys || project.JiraProductKey || "-"}</div>
                 <div className="workspace-inline-actions">
                   <ActionButton label="Edit" icon="✎" onClick={() => startProjectEdit(project)} />
-                  <ActionButton label="Delete" icon="🗑" variant="danger" onClick={() => void deleteProject(project._id)} />
+                  <ActionButton label="Delete" icon="🗑" variant="danger" onClick={() => void deleteProject(getId(project))} />
                 </div>
               </>
             ))}

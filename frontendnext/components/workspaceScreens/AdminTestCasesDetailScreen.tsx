@@ -4,6 +4,7 @@
 
 import { useMemo, useState } from "react";
 import { DataTable, SectionCard } from "./shared";
+import { getId } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
 
@@ -59,7 +60,7 @@ export default function AdminTestCasesDetailScreen({ selectedProjectId, detailGr
               <label className="workspace-filterbar__control">
                 <select value={detailGroupId} onChange={(e) => setDetailGroupId(e.target.value)}>
                   <option value="">All groups</option>
-                  {scopedGroups.map((group: RecordAny) => <option key={group._id} value={group._id}>{group.name}</option>)}
+                  {scopedGroups.map((group: RecordAny) => <option key={getId(group)} value={getId(group)}>{group.name}</option>)}
                 </select>
               </label>
             </div>

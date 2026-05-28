@@ -114,8 +114,13 @@ export function getId(value: unknown): string {
     return value;
   }
 
-  if (typeof value === 'object' && value !== null && '_id' in value) {
-    return String((value as { _id?: unknown })._id || '');
+  if (typeof value === 'object' && value !== null) {
+    const obj = value as { entityId?: unknown; _id?: unknown; id?: unknown };
+    // prefer entityId, then _id, then id
+    if (obj.entityId) return String(obj.entityId);
+    if (obj._id) return String(obj._id);
+    if (obj.id) return String(obj.id);
+    return '';
   }
 
   return '';

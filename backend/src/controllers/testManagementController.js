@@ -53,11 +53,15 @@ const createProject = asyncHandler(async (req, res) => {
     throw httpError(409, `Project code "${code}" already exists`);
   }
 
+  const normalizedJiraProjectKey = String(jiraProjectKey || '').trim();
+  const normalizedJiraProductKey = String(jiraProductKey || Jiraproduckeys || JiraProductKey || jiraProjectKey || '').trim();
+
   const project = await Project.create({
     name,
     code,
     description: description || '',
-    jiraProjectKey: String(jiraProjectKey || jiraProductKey || Jiraproduckeys || JiraProductKey || '').trim(),
+    jiraProjectKey: normalizedJiraProjectKey,
+    jiraProductKey: normalizedJiraProductKey,
     createdBy: req.user.id,
   });
 
@@ -68,7 +72,11 @@ const updateProject = asyncHandler(async (req, res) => {
   const { projectId } = req.params;
   const { name, code, description, status, jiraProjectKey, jiraProductKey, Jiraproduckeys, JiraProductKey } = req.body;
 
-  const project = await Project.findById(toObjectId(projectId, 'projectId'));
+  const project = await Project.findOne({
+    entityId: toObjectId(projectId, 'projectId'),
+    $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+    deletedAt: null,
+  });
   if (!project) {
     throw httpError(404, 'Project not found');
   }
@@ -84,8 +92,11 @@ const updateProject = asyncHandler(async (req, res) => {
   if (name) project.name = name;
   if (code) project.code = code;
   if (description !== undefined) project.description = description || '';
-  if (jiraProjectKey !== undefined || jiraProductKey !== undefined || Jiraproduckeys !== undefined || JiraProductKey !== undefined) {
-    project.jiraProjectKey = String(jiraProjectKey || jiraProductKey || Jiraproduckeys || JiraProductKey || '').trim();
+  if (jiraProjectKey !== undefined) {
+    project.jiraProjectKey = String(jiraProjectKey || '').trim();
+  }
+  if (jiraProductKey !== undefined || Jiraproduckeys !== undefined || JiraProductKey !== undefined || jiraProjectKey !== undefined) {
+    project.jiraProductKey = String(jiraProductKey || Jiraproduckeys || JiraProductKey || jiraProjectKey || '').trim();
   }
   if (status && ['active', 'archived'].includes(status)) project.status = status;
 
@@ -119,7 +130,12 @@ const deleteProject = asyncHandler(async (req, res) => {
 });
 
 const listProjects = asyncHandler(async (req, res) => {
-  const projects = await Project.find().sort({ createdAt: -1 }).lean();
+  const projects = await Project.find({
+    deletedAt: null,
+    $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+  })
+    .sort({ createdAt: -1 })
+    .lean();
   res.json({ projects });
 });
 
@@ -129,7 +145,11 @@ const createVersion = asyncHandler(async (req, res) => {
     throw httpError(400, 'projectId and name are required');
   }
 
-  const project = await Project.findById(toObjectId(projectId, 'projectId')).lean();
+  const project = await Project.findOne({
+    entityId: toObjectId(projectId, 'projectId'),
+    $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+    deletedAt: null,
+  }).lean();
   if (!project) {
     throw httpError(404, 'Project not found');
   }
@@ -163,7 +183,16 @@ const listVersions = asyncHandler(async (req, res) => {
   const { projectId } = req.query;
   const query = {};
   if (projectId) {
-    query.project = toObjectId(projectId, 'projectId');
+    const projectDoc = await Project.findOne({
+      entityId: toObjectId(projectId, 'projectId'),
+      $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+      deletedAt: null,
+    }).lean();
+    if (!projectDoc) {
+      res.json({ versions: [] });
+      return;
+    }
+    query.project = projectDoc._id;
   }
 
   const versions = await Version.find(query).sort({ createdAt: -1 }).lean();
@@ -177,7 +206,11 @@ const createTestCaseGroup = asyncHandler(async (req, res) => {
     throw httpError(400, 'projectId and name are required');
   }
 
-  const project = await Project.findById(toObjectId(projectId, 'projectId')).lean();
+  const project = await Project.findOne({
+    entityId: toObjectId(projectId, 'projectId'),
+    $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+    deletedAt: null,
+  }).lean();
   if (!project) {
     throw httpError(404, 'Project not found');
   }
@@ -206,7 +239,16 @@ const listTestCaseGroups = asyncHandler(async (req, res) => {
   const query = {};
 
   if (projectId) {
-    query.project = toObjectId(projectId, 'projectId');
+    const projectDoc = await Project.findOne({
+      entityId: toObjectId(projectId, 'projectId'),
+      $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+      deletedAt: null,
+    }).lean();
+    if (!projectDoc) {
+      res.json({ groups: [] });
+      return;
+    }
+    query.project = projectDoc._id;
   }
 
   const groups = await TestCaseGroup.find(query)
@@ -234,12 +276,21 @@ const createTestCase = asyncHandler(async (req, res) => {
     throw httpError(400, 'projectId, groupId, caseKey and title are required');
   }
 
-  const project = await Project.findById(toObjectId(projectId, 'projectId')).lean();
+  const project = await Project.findOne({
+    entityId: toObjectId(projectId, 'projectId'),
+    $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+    deletedAt: null,
+  }).lean();
   if (!project) {
     throw httpError(404, 'Project not found');
   }
 
-  const group = await TestCaseGroup.findById(toObjectId(groupId, 'groupId')).lean();
+  const group = await TestCaseGroup.findOne({
+    entityId: toObjectId(groupId, 'groupId'),
+    project: project._id,
+    $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+    deletedAt: null,
+  }).lean();
   if (!group || String(group.project) !== String(project._id)) {
     throw httpError(404, 'Test case group not found in selected project');
   }
@@ -256,20 +307,21 @@ const createTestCase = asyncHandler(async (req, res) => {
 
   const normalizedSteps = Array.isArray(steps)
     ? steps
-        .filter((step) => step && step.action && step.expected)
+        .filter((step) => step && step.action)
         .map((step, index) => ({
           order: index + 1,
           action: String(step.action),
-          expected: String(step.expected),
+          expected: String(req.body.expected || step.expected || '').trim(),
         }))
     : [];
 
   const testCase = await TestCase.create({
-    project: project._id,
-    group: group._id,
+    project: project.entityId ? project.entityId : project._id,
+    group: group.entityId ? group.entityId : group._id,
     caseKey,
     title,
     description: description || '',
+    expected: String(req.body.expected || '').trim(),
     steps: normalizedSteps,
     priority,
     severity,
@@ -295,13 +347,41 @@ const updateTestCase = asyncHandler(async (req, res) => {
     status,
   } = req.body;
 
-  const testCase = await TestCase.findById(toObjectId(testCaseId, 'testCaseId'));
+  const testCase = await TestCase.findOne({
+    entityId: toObjectId(testCaseId, 'testCaseId'),
+    $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+    deletedAt: null,
+  });
   if (!testCase) {
     throw httpError(404, 'Test case not found');
   }
 
-  const nextProjectId = projectId ? toObjectId(projectId, 'projectId') : testCase.project;
-  const nextGroupId = groupId ? toObjectId(groupId, 'groupId') : testCase.group;
+  let nextProjectId;
+  if (projectId) {
+    const projectDoc = await Project.findOne({
+      entityId: toObjectId(projectId, 'projectId'),
+      $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+      deletedAt: null,
+    }).lean();
+    if (!projectDoc) throw httpError(404, 'Project not found');
+    nextProjectId = projectDoc._id;
+  } else {
+    nextProjectId = testCase.project;
+  }
+
+  let nextGroupId;
+  if (groupId) {
+    const groupDoc = await TestCaseGroup.findOne({
+      entityId: toObjectId(groupId, 'groupId'),
+      $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+      deletedAt: null,
+    }).lean();
+    if (!groupDoc) throw httpError(404, 'Test case group not found');
+    nextGroupId = groupDoc._id;
+  } else {
+    nextGroupId = testCase.group;
+  }
+
   const nextCaseKey = caseKey || testCase.caseKey;
 
   const group = await TestCaseGroup.findById(nextGroupId).lean();
@@ -331,22 +411,23 @@ const updateTestCase = asyncHandler(async (req, res) => {
   if (severity) testCase.severity = severity;
   if (type) testCase.type = type;
   if (status && ['active', 'deprecated'].includes(status)) testCase.status = status;
+  if (req.body.expected !== undefined) testCase.expected = String(req.body.expected || '').trim();
 
   if (Array.isArray(steps)) {
     testCase.steps = steps
-      .filter((step) => step && step.action && step.expected)
+      .filter((step) => step && step.action)
       .map((step, index) => ({
         order: index + 1,
         action: String(step.action),
-        expected: String(step.expected),
+        expected: String(req.body.expected || step.expected || '').trim(),
       }));
   }
 
   await testCase.save();
 
   const updated = await TestCase.findById(testCase._id)
-    .populate('project', 'name code')
-    .populate('group', 'name description')
+    .populate('project', 'entityId name code')
+    .populate('group', 'entityId name description')
     .lean();
 
   res.json({ testCase: updated });
@@ -354,7 +435,9 @@ const updateTestCase = asyncHandler(async (req, res) => {
 
 const deleteTestCase = asyncHandler(async (req, res) => {
   const { testCaseId } = req.params;
-  const objectId = toObjectId(testCaseId, 'testCaseId');
+  // Resolve entityId -> document _id if necessary
+  const foundCase = await TestCase.findOne({ entityId: toObjectId(testCaseId, 'testCaseId') }).lean();
+  const objectId = foundCase ? foundCase._id : toObjectId(testCaseId, 'testCaseId');
 
   const [planCount, runCount] = await Promise.all([
     TestPlan.countDocuments({ 'items.testCase': objectId }),
@@ -377,7 +460,16 @@ const listTestCases = asyncHandler(async (req, res) => {
   const { projectId } = req.query;
   const query = {};
   if (projectId) {
-    query.project = toObjectId(projectId, 'projectId');
+    const projectDoc = await Project.findOne({
+      entityId: toObjectId(projectId, 'projectId'),
+      $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+      deletedAt: null,
+    }).lean();
+    if (!projectDoc) {
+      res.json({ testCases: [] });
+      return;
+    }
+    query.project = projectDoc._id;
   }
 
   const testCases = await TestCase.find(query)
@@ -396,12 +488,21 @@ const createTestPlan = asyncHandler(async (req, res) => {
     throw httpError(400, 'name, projectId, versionId and caseIds[] are required');
   }
 
-  const project = await Project.findById(toObjectId(projectId, 'projectId')).lean();
+  const project = await Project.findOne({
+    entityId: toObjectId(projectId, 'projectId'),
+    $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+    deletedAt: null,
+  }).lean();
   if (!project) {
     throw httpError(404, 'Project not found');
   }
 
-  const version = await Version.findById(toObjectId(versionId, 'versionId')).lean();
+  const version = await Version.findOne({
+    entityId: toObjectId(versionId, 'versionId'),
+    project: project._id,
+    $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+    deletedAt: null,
+  }).lean();
   if (!version || String(version.project) !== String(project._id)) {
     throw httpError(404, 'Version not found in selected project');
   }
@@ -449,11 +550,29 @@ const listTestPlans = asyncHandler(async (req, res) => {
   const query = {};
 
   if (projectId) {
-    query.project = toObjectId(projectId, 'projectId');
+    const projectDoc = await Project.findOne({
+      entityId: toObjectId(projectId, 'projectId'),
+      $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+      deletedAt: null,
+    }).lean();
+    if (!projectDoc) {
+      res.json({ testPlans: [] });
+      return;
+    }
+    query.project = projectDoc._id;
   }
 
   if (versionId) {
-    query.version = toObjectId(versionId, 'versionId');
+    const versionDoc = await Version.findOne({
+      entityId: toObjectId(versionId, 'versionId'),
+      $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+      deletedAt: null,
+    }).lean();
+    if (!versionDoc) {
+      res.json({ testPlans: [] });
+      return;
+    }
+    query.version = versionDoc._id;
   }
 
   const testPlans = await TestPlan.find(query)
@@ -480,7 +599,11 @@ const assignTestPlanItems = asyncHandler(async (req, res) => {
     throw httpError(400, 'assigneeIds[] is required');
   }
 
-  const testPlan = await TestPlan.findById(toObjectId(testPlanId, 'testPlanId'));
+  const testPlan = await TestPlan.findOne({
+    entityId: toObjectId(testPlanId, 'testPlanId'),
+    $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+    deletedAt: null,
+  });
   if (!testPlan) {
     throw httpError(404, 'Test plan not found');
   }
@@ -491,7 +614,7 @@ const assignTestPlanItems = asyncHandler(async (req, res) => {
 
   await testPlan.save();
 
-  const populated = await TestPlan.findById(testPlan._id)
+  const populated = await TestPlan.findOne({ _id: testPlan._id })
     .populate('owner', 'name email role')
     .populate('assignees', 'name email role')
     .populate('items.testCase', 'caseKey title')
@@ -508,7 +631,11 @@ const updateTestPlan = asyncHandler(async (req, res) => {
     throw httpError(400, 'executionMode must be "manual" or "automation"');
   }
 
-  const testPlan = await TestPlan.findById(toObjectId(testPlanId, 'testPlanId'));
+  const testPlan = await TestPlan.findOne({
+    entityId: toObjectId(testPlanId, 'testPlanId'),
+    $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+    deletedAt: null,
+  });
   if (!testPlan) {
     throw httpError(404, 'Test plan not found');
   }
@@ -516,7 +643,7 @@ const updateTestPlan = asyncHandler(async (req, res) => {
   testPlan.executionMode = executionMode;
   await testPlan.save();
 
-  const populated = await TestPlan.findById(testPlan._id)
+  const populated = await TestPlan.findOne({ _id: testPlan._id })
     .populate('owner', 'name email role')
     .populate('assignees', 'name email role')
     .populate('items.testCase', 'caseKey title')
@@ -690,11 +817,29 @@ const listTestRuns = asyncHandler(async (req, res) => {
   const query = {};
 
   if (projectId) {
-    query.project = toObjectId(projectId, 'projectId');
+    const projectDoc = await Project.findOne({
+      entityId: toObjectId(projectId, 'projectId'),
+      $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+      deletedAt: null,
+    }).lean();
+    if (!projectDoc) {
+      res.json({ testRuns: [] });
+      return;
+    }
+    query.project = projectDoc._id;
   }
 
   if (versionId) {
-    query.version = toObjectId(versionId, 'versionId');
+    const versionDoc = await Version.findOne({
+      entityId: toObjectId(versionId, 'versionId'),
+      $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+      deletedAt: null,
+    }).lean();
+    if (!versionDoc) {
+      res.json({ testRuns: [] });
+      return;
+    }
+    query.version = versionDoc._id;
   }
 
   if (status) {
@@ -742,7 +887,8 @@ const getMyRunItems = asyncHandler(async (req, res) => {
     .lean();
 
   if (!testRun) {
-    throw httpError(404, 'Test run not found');
+    res.json({ testRun: null, results: [] });
+    return;
   }
 
   const isAdmin = req.user.role === 'admin';
@@ -842,11 +988,45 @@ const getDashboard = asyncHandler(async (req, res) => {
   const match = {};
 
   if (projectId) {
-    match.project = toObjectId(projectId, 'projectId');
+    const projectDoc = await Project.findOne({
+      entityId: toObjectId(projectId, 'projectId'),
+      $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+      deletedAt: null,
+    }).lean();
+    if (!projectDoc) {
+      // Return empty dashboard when project not found
+      return res.json({
+        summary: { totalRuns: 0, runningRuns: 0, totalCases: 0, pass: 0, fail: 0, blocked: 0, untested: 0, executed: 0, passRate: 0, completionRate: 0 },
+        runs: [],
+        runningTestRuns: [],
+        delayedTestPlans: [],
+        mostFailedTestCases: [],
+        testerActivity: [],
+        projectOverview: [],
+      });
+    }
+    match.project = projectDoc._id;
   }
 
   if (versionId) {
-    match.version = toObjectId(versionId, 'versionId');
+    const versionDoc = await Version.findOne({
+      entityId: toObjectId(versionId, 'versionId'),
+      $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+      deletedAt: null,
+    }).lean();
+    if (!versionDoc) {
+      // Return empty dashboard when version not found
+      return res.json({
+        summary: { totalRuns: 0, runningRuns: 0, totalCases: 0, pass: 0, fail: 0, blocked: 0, untested: 0, executed: 0, passRate: 0, completionRate: 0 },
+        runs: [],
+        runningTestRuns: [],
+        delayedTestPlans: [],
+        mostFailedTestCases: [],
+        testerActivity: [],
+        projectOverview: [],
+      });
+    }
+    match.version = versionDoc._id;
   }
 
   const runs = await TestRun.aggregate([
@@ -1100,7 +1280,11 @@ const getDashboard = asyncHandler(async (req, res) => {
 
 // Dashboard API endpoints
 const getProjectDashboard = asyncHandler(async (req, res) => {
-  const projects = await Project.find({ status: 'active', deletedAt: null }).lean();
+  const projects = await Project.find({
+    status: 'active',
+    deletedAt: null,
+    $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+  }).lean();
   
   const projectStats = await Promise.all(
     projects.map(async (project) => {
@@ -1172,7 +1356,17 @@ const getVersionDashboard = asyncHandler(async (req, res) => {
     throw httpError(400, 'projectId is required');
   }
 
-  const versions = await Version.find({ project: toObjectId(projectId, 'projectId'), deletedAt: null })
+  const projectDoc = await Project.findOne({
+    entityId: toObjectId(projectId, 'projectId'),
+    $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+    deletedAt: null,
+  }).lean();
+  if (!projectDoc) {
+    res.json({ versions: [] });
+    return;
+  }
+
+  const versions = await Version.find({ project: projectDoc._id, deletedAt: null })
     .sort({ createdAt: -1 })
     .lean();
 
@@ -1250,9 +1444,18 @@ const getTestPlanStats = asyncHandler(async (req, res) => {
   if (!versionId) {
     throw httpError(400, 'versionId is required');
   }
+  const versionDoc = await Version.findOne({
+    entityId: toObjectId(versionId, 'versionId'),
+    $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+    deletedAt: null,
+  }).lean();
+  if (!versionDoc) {
+    res.json({ testPlans: [] });
+    return;
+  }
 
   const testPlans = await TestPlan.find({
-    version: toObjectId(versionId, 'versionId'),
+    version: versionDoc._id,
     deletedAt: null,
     $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
   })
@@ -1300,13 +1503,23 @@ const getTestPlanStats = asyncHandler(async (req, res) => {
 const getTestPlanDetail = asyncHandler(async (req, res) => {
   const { testPlanId } = req.params;
   
-  const testPlan = await TestPlan.findById(toObjectId(testPlanId, 'testPlanId'))
+  const testPlan = await TestPlan.findOne({ entityId: toObjectId(testPlanId, 'testPlanId') })
     .populate('project', 'name code')
     .populate('version', 'name')
     .lean();
 
   if (!testPlan) {
-    throw httpError(404, 'Test plan not found');
+    // Return empty detail when not found instead of 404
+    return res.json({
+      testPlanId: null,
+      testPlanName: null,
+      version: null,
+      project: null,
+      summary: { totalTests: 0, passCount: 0, failCount: 0, notRunCount: 0, passRate: 0, progress: 0 },
+      runHistory: [],
+      insights: { stillFailing: [], failedThenPassed: [], flakyTests: [], notRun: [] },
+      testCases: [],
+    });
   }
 
   const runs = await TestRun.find({ testPlan: testPlan._id })
@@ -1374,7 +1587,7 @@ const getTestPlanDetail = asyncHandler(async (req, res) => {
     notRun: [],
   };
 
-  const testCases = await TestPlan.findById(testPlan._id)
+  const testCases = await TestPlan.findOne({ _id: testPlan._id })
     .populate('items.testCase', 'caseKey title priority')
     .populate('items.owner', 'name email')
     .populate('items.assignees', 'name email')

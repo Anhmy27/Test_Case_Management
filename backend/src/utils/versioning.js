@@ -35,11 +35,13 @@ const baseVersionFields = {
   entityId: {
     type: mongoose.Schema.Types.ObjectId,
     required: true,
+    default: createEntityId,
     index: true,
   },
   versionNumber: {
     type: Number,
     required: true,
+    default: 1,
     min: 1,
     index: true,
   },
@@ -75,7 +77,18 @@ const applyVersioning = (schema, { scopeIndexes = [] } = {}) => {
   );
 
   scopeIndexes.forEach((indexSpec) => {
+    // Avoid adding an index if the schema already declares the same index keys
+    const existing = schema.indexes().map(([fields]) => fields || {});
+    const normalize = (obj) => Object.keys(obj).sort().map((k) => `${k}:${obj[k]}`).join(',');
+    const specKey = normalize(indexSpec.fields || {});
+    const alreadyDeclared = existing.some((f) => normalize(f) === specKey);
+    if (alreadyDeclared) return; // skip to avoid duplicate schema index warnings
+
+    // Use an explicit name to avoid auto-generated name collisions in MongoDB
+    const name = `v_${Object.keys(indexSpec.fields).join('_')}_latest`;
+
     schema.index(indexSpec.fields, {
+      name,
       unique: true,
       partialFilterExpression: {
         deletedAt: null,

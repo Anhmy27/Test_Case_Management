@@ -7,6 +7,7 @@ type ActionButtonProps = {
   label: string;
   icon?: string;
   onClick?: () => void;
+  type?: "button" | "submit" | "reset";
   disabled?: boolean;
   loading?: boolean;
   variant?: "primary" | "secondary" | "danger" | "ghost";
@@ -124,6 +125,7 @@ export function ActionButton({
   loading,
   variant = "secondary",
   tooltip,
+  type,
   className,
 }: ActionButtonProps) {
   const base = "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition";
@@ -138,7 +140,7 @@ export function ActionButton({
 
   return (
     <button
-      type="button"
+      type={type || "button"}
       onClick={onClick}
       disabled={disabled || loading}
       title={tooltip || label}

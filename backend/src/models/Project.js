@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { applyVersioning } = require('../utils/versioning');
 
 const projectSchema = new mongoose.Schema(
   {
@@ -57,14 +58,15 @@ const projectSchema = new mongoose.Schema(
   }
 );
 
-projectSchema.index({ code: 1 }, {
-  unique: true,
-  partialFilterExpression: { deletedAt: null },
-});
+// Indexes for uniqueness are created by applyVersioning() to include `isLatest` scope.
+// Removed explicit schema-level unique partial indexes to avoid duplicate index conflicts
+// when versioning adds its own scoped indexes.
 
-projectSchema.index({ name: 1 }, {
-  unique: true,
-  partialFilterExpression: { deletedAt: null },
+applyVersioning(projectSchema, {
+  scopeIndexes: [
+    { fields: { code: 1 } },
+    { fields: { name: 1 } },
+  ],
 });
 
 module.exports = mongoose.model('Project', projectSchema);

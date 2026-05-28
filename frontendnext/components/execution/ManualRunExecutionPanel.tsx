@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { getId } from "@/lib/api";
 import type { Dispatch, SetStateAction } from "react";
 
 type RecordAny = Record<string, any>;
@@ -58,7 +59,7 @@ export default function ManualRunExecutionPanel({
     return testCase?.expected || "N/A";
   };
 
-  const currentIndex = myItems.findIndex((item: RecordAny) => item._id === selectedItemId);
+  const currentIndex = myItems.findIndex((item: RecordAny) => getId(item) === selectedItemId);
   const nextItem = currentIndex >= 0
     ? myItems.slice(currentIndex + 1).find((item: RecordAny) => item.status !== "pass") || myItems[currentIndex + 1]
     : undefined;
@@ -109,7 +110,7 @@ export default function ManualRunExecutionPanel({
       return;
     }
 
-    setSelectedItemId(nextItem._id);
+    setSelectedItemId(getId(nextItem));
   }, [nextItem, setSelectedItemId]);
 
   useEffect(() => {
@@ -123,11 +124,11 @@ export default function ManualRunExecutionPanel({
       if (!selectedItemId) return;
 
       if (event.key === "j" || event.key === "ArrowDown") {
-        if (nextItem) setSelectedItemId(nextItem._id);
+          if (nextItem) setSelectedItemId(getId(nextItem));
         return;
       }
       if (event.key === "k" || event.key === "ArrowUp") {
-        if (previousItem) setSelectedItemId(previousItem._id);
+          if (previousItem) setSelectedItemId(getId(previousItem));
         return;
       }
 
@@ -193,15 +194,15 @@ export default function ManualRunExecutionPanel({
             <div className="p-4 text-sm text-slate-500">No cases found</div>
           ) : (
             queueItems.map((item: RecordAny) => {
-              const active = item._id === selectedItemId;
+              const active = getId(item) === selectedItemId;
               return (
                 <button
-                  key={item._id}
+                  key={getId(item)}
                   type="button"
                   className={`flex w-full items-center gap-3 border-b border-slate-200 px-4 py-3 text-left transition hover:bg-slate-50 ${
                     active ? "bg-slate-50" : ""
                   }`}
-                  onClick={() => setSelectedItemId(item._id)}
+                  onClick={() => setSelectedItemId(getId(item))}
                 >
                   <span className="text-xs font-semibold text-slate-500">{item.status}</span>
                   <div>
@@ -277,13 +278,13 @@ export default function ManualRunExecutionPanel({
               <label className="text-xs font-semibold text-slate-500">Actual result
                 <textarea
                   rows={4}
-                  value={notes[selectedItem._id] ?? selectedItem.note ?? ""}
+                  value={notes[getId(selectedItem)] ?? selectedItem.note ?? ""}
                   readOnly={!canEditRun}
                   onChange={(e) =>
                     canEditRun &&
                     setNotes((prev) => ({
                       ...prev,
-                      [selectedItem._id]: e.target.value,
+                      [getId(selectedItem)]: e.target.value,
                     }))
                   }
                   className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
@@ -292,13 +293,13 @@ export default function ManualRunExecutionPanel({
               <label className="text-xs font-semibold text-slate-500">Notes
                 <textarea
                   rows={3}
-                  value={notes[`${selectedItem._id}:notes`] ?? selectedItem.notes ?? ""}
+                  value={notes[`${getId(selectedItem)}:notes`] ?? selectedItem.notes ?? ""}
                   readOnly={!canEditRun}
                   onChange={(e) =>
                     canEditRun &&
                     setNotes((prev) => ({
                       ...prev,
-                      [`${selectedItem._id}:notes`]: e.target.value,
+                      [`${getId(selectedItem)}:notes`]: e.target.value,
                     }))
                   }
                   className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
@@ -345,7 +346,7 @@ export default function ManualRunExecutionPanel({
                 <div className="text-xs text-slate-500">No recent updates.</div>
               ) : (
                 recentActivity.map((item: RecordAny) => (
-                  <div key={String(item._id)} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                  <div key={String(getId(item))} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
                     <div className="text-xs font-semibold text-slate-700">
                       {item.testCase?.caseKey || "TC"}
                     </div>
@@ -366,7 +367,7 @@ export default function ManualRunExecutionPanel({
                 type="button"
                 className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600"
                 disabled={!previousItem}
-                onClick={() => previousItem && setSelectedItemId(previousItem._id)}
+                  onClick={() => previousItem && setSelectedItemId(getId(previousItem))}
               >
                 Previous
               </button>
@@ -374,7 +375,7 @@ export default function ManualRunExecutionPanel({
                 type="button"
                 className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600"
                 disabled={!nextItem}
-                onClick={() => nextItem && setSelectedItemId(nextItem._id)}
+                onClick={() => nextItem && setSelectedItemId(getId(nextItem))}
               >
                 Next
               </button>

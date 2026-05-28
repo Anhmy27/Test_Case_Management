@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { applyVersioning } = require('../utils/versioning');
 
 const versionSchema = new mongoose.Schema(
   {
@@ -43,9 +44,10 @@ const versionSchema = new mongoose.Schema(
   }
 );
 
-versionSchema.index({ project: 1, name: 1 }, {
-  unique: true,
-  partialFilterExpression: { deletedAt: null },
+applyVersioning(versionSchema, {
+  scopeIndexes: [
+    { fields: { project: 1, name: 1 } },
+  ],
 });
 
 module.exports = mongoose.model('Version', versionSchema);

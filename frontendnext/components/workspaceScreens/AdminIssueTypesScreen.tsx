@@ -4,6 +4,7 @@
 
 import type { Dispatch, SetStateAction } from "react";
 import { DataTable, SectionCard } from "./shared";
+import { getId } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
 
@@ -66,7 +67,7 @@ export default function AdminIssueTypesScreen({
                   <button type="button" className="workspace-secondary" onClick={() => startIssueTypeEdit(it)}>
                     Edit
                   </button>
-                  <button type="button" className="workspace-danger" onClick={() => void deleteIssueType(it._id)}>
+                  <button type="button" className="workspace-danger" onClick={() => void deleteIssueType(getId(it))}>
                     Delete
                   </button>
                 </div>

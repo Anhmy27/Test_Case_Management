@@ -4,6 +4,7 @@
 
 import { useMemo, useState } from "react";
 import { ActionButton, DataTable, SectionCard } from "./shared";
+import { getId } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
 
@@ -13,7 +14,7 @@ export default function EmployeeMyTestPlansScreen({ scopedPlans, matchesSearch, 
   const [focusedPlanId, setFocusedPlanId] = useState<string>("");
   const filteredPlans = scopedPlans.filter((plan: RecordAny) => matchesSearch(plan.name, plan.project?.name, plan.version?.name));
   const focusedPlan = useMemo(
-    () => filteredPlans.find((plan: RecordAny) => String(plan._id) === String(focusedPlanId)) || filteredPlans[0] || null,
+    () => filteredPlans.find((plan: RecordAny) => getId(plan) === String(focusedPlanId)) || filteredPlans[0] || null,
     [filteredPlans, focusedPlanId],
   );
 
@@ -25,10 +26,10 @@ export default function EmployeeMyTestPlansScreen({ scopedPlans, matchesSearch, 
             columns={["Test Plan", "Project", "Version", "Action"]}
             rows={filteredPlans.map((plan: RecordAny) => (
               <>
-                <button type="button" className="text-left underline-offset-2 hover:underline" onClick={() => setFocusedPlanId(String(plan._id))}>{plan.name}</button>
+                <button type="button" className="text-left underline-offset-2 hover:underline" onClick={() => setFocusedPlanId(getId(plan))}>{plan.name}</button>
                 <div>{plan.project?.name || "-"}</div>
                 <div>{plan.version?.name || "-"}</div>
-                <div><ActionButton label="Run" icon="▶" variant="primary" onClick={() => { setRunForm((prev: RecordAny) => ({ ...prev, testPlanId: plan._id })); setActiveTab("execution"); }} /></div>
+                <div><ActionButton label="Run" icon="▶" variant="primary" onClick={() => { setRunForm((prev: RecordAny) => ({ ...prev, testPlanId: getId(plan) })); setActiveTab("execution"); }} /></div>
               </>
             ))}
             emptyText="No assigned plans"

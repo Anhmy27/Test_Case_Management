@@ -2,7 +2,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any, react-hooks/set-state-in-effect */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { getId, userName } from "@/lib/api";
 import AppShell from "./AppShell";
@@ -164,30 +164,39 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
   const [detailGroupId, setDetailGroupId] = useState<string>("");
   const [detailRows, setDetailRows] = useState<RecordAny[]>([]);
   const [detailLoading, setDetailLoading] = useState<boolean>(false);
+  const safeProjects = useMemo(() => (Array.isArray(projects) ? projects : []), [projects]);
+  const safeVersions = useMemo(() => (Array.isArray(versions) ? versions : []), [versions]);
+  const safeGroups = useMemo(() => (Array.isArray(groups) ? groups : []), [groups]);
+  const safeTestCases = useMemo(() => (Array.isArray(testCases) ? testCases : []), [testCases]);
+  const safePlans = useMemo(() => (Array.isArray(plans) ? plans : []), [plans]);
+  const safeRuns = useMemo(() => (Array.isArray(runs) ? runs : []), [runs]);
+  const safeUsers = useMemo(() => (Array.isArray(users) ? users : []), [users]);
+  const safeMyItems = useMemo(() => (Array.isArray(myItems) ? myItems : []), [myItems]);
+  const safeIssueTypes = useMemo(() => (Array.isArray(issueTypes) ? issueTypes : []), [issueTypes]);
 
   useEffect(() => {
-    if (!myItems.length) {
+    if (!safeMyItems.length) {
       setSelectedItemId("");
       return;
     }
 
     if (
       !selectedItemId ||
-      !myItems.some((item: RecordAny) => item._id === selectedItemId)
+      !safeMyItems.some((item: RecordAny) => getId(item) === selectedItemId)
     ) {
-      setSelectedItemId(myItems[0]._id);
+      setSelectedItemId(getId(safeMyItems[0]));
     }
-  }, [myItems, selectedItemId]);
+  }, [safeMyItems, selectedItemId]);
 
-  const selectedItem = myItems.find(
-    (item: RecordAny) => item._id === selectedItemId,
+  const selectedItem = safeMyItems.find(
+    (item: RecordAny) => getId(item) === selectedItemId,
   );
-  const currentUserId = String(currentUser?._id || "");
+  const currentUserId = getId(currentUser);
   const isAutomationRun = Boolean(
     selectedRun && selectedRun.testPlan && String(selectedRun.testPlan.executionMode) === "automation",
   );
   const selectedRunStartedByCurrentUser =
-    String(selectedRun?.startedBy?._id || selectedRun?.startedBy || "") ===
+    String(getId(selectedRun?.startedBy) || getId(selectedRun?.startedBy) || "") ===
     currentUserId;
   const currentUserLabel = userName(currentUser);
   const canEditSelectedRun = Boolean(
@@ -200,46 +209,47 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
   const dashboardData = dashboard || {};
   const dashboardSummary = dashboardData.summary || {};
   const projectOverview = dashboardData.projectOverview || [];
-  const selectedProject = projects.find(
-    (project: RecordAny) => project._id === selectedProjectId,
+  const selectedProject = safeProjects.find(
+    (project: RecordAny) => getId(project) === selectedProjectId,
   );
+  const hasValidProjectScope = Boolean(selectedProjectId && selectedProject);
+  const effectiveProjectId = hasValidProjectScope ? selectedProjectId : "";
   const scopeLabel = selectedProject ? selectedProject.name : "All projects";
-  const isGlobalScope = !selectedProjectId;
+  const isGlobalScope = !effectiveProjectId;
   const scopedProjects = isGlobalScope
-    ? projects
+    ? safeProjects
     : selectedProject
       ? [selectedProject]
       : [];
   const scopedVersions = isGlobalScope
-    ? versions
-    : versions.filter(
-        (version: RecordAny) => getId(version.project) === selectedProjectId,
+    ? safeVersions
+    : safeVersions.filter(
+        (version: RecordAny) => getId(version.project) === effectiveProjectId,
       );
   const scopedGroups = isGlobalScope
-    ? groups
-    : groups.filter(
-        (group: RecordAny) => getId(group.project) === selectedProjectId,
+    ? safeGroups
+    : safeGroups.filter(
+        (group: RecordAny) => getId(group.project) === effectiveProjectId,
       );
   const scopedPlans = isGlobalScope
-    ? plans
-    : plans.filter(
-        (plan: RecordAny) => getId(plan.project) === selectedProjectId,
+    ? safePlans
+    : safePlans.filter(
+        (plan: RecordAny) => getId(plan.project) === effectiveProjectId,
       );
   const selectedRunPlan = scopedPlans.find(
-    (plan: RecordAny) => String(plan._id) === String(runForm.testPlanId),
+    (plan: RecordAny) => getId(plan) === String(runForm.testPlanId),
   );
   const selectedRunPlanIsAutomation =
     String(selectedRunPlan?.executionMode || "manual") === "automation";
   const scopedRuns = isGlobalScope
-    ? runs
-    : runs.filter(
-        (run: RecordAny) => getId(run.testPlan?.project ?? run.project) === selectedProjectId,
+    ? safeRuns
+    : safeRuns.filter(
+        (run: RecordAny) => getId(run.testPlan?.project ?? run.project) === effectiveProjectId,
       );
   const myScopedRuns = scopedRuns.filter(
-    (run: RecordAny) =>
-      String(run.startedBy?._id || run.startedBy || "") === currentUserId,
+    (run: RecordAny) => String(getId(run.startedBy) || getId(run.startedBy) || "") === currentUserId,
   );
-  const adminRuns = isAdmin ? runs : scopedRuns;
+  const adminRuns = isAdmin ? safeRuns : scopedRuns;
   const navItems = (() => {
     if (!isAdmin) return employeeNav;
 
@@ -317,33 +327,33 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
     loadTestCaseDetails,
   ]);
 
-  const totalProjects = projects.length;
-  const totalPlans = plans.length;
-  const totalCases = testCases.length;
-  const totalUsers = users.length;
-  const runningRuns = runs.filter((run: RecordAny) => run.status === "running");
+  const totalProjects = safeProjects.length;
+  const totalPlans = safePlans.length;
+  const totalCases = safeTestCases.length;
+  const totalUsers = safeUsers.length;
+  const runningRuns = safeRuns.filter((run: RecordAny) => run.status === "running");
   const runningRunsCount = runningRuns.length;
   const planProjectGroups = planForm.projectId
-    ? groups.filter(
+    ? safeGroups.filter(
         (group: RecordAny) => getId(group.project) === planForm.projectId,
       )
     : [];
   const planProjectCases = planForm.projectId
-    ? testCases.filter(
+    ? safeTestCases.filter(
         (testCase: RecordAny) => getId(testCase.project) === planForm.projectId,
       )
     : [];
   const selectedPlanGroupIds = new Set(planForm.selectedGroupIds || []);
   const selectedPlanCaseIds = new Set(planForm.caseIds || []);
   const selectedPlanGroups = planProjectGroups.filter((group: RecordAny) =>
-    selectedPlanGroupIds.has(String(group._id)),
+    selectedPlanGroupIds.has(getId(group)),
   );
   const selectedPlanCasesByGroup = selectedPlanGroups.map((group: RecordAny) => {
-    const groupId = String(group._id);
+    const groupId = getId(group);
     return {
       group,
       cases: planProjectCases.filter(
-        (testCase: RecordAny) => String(getId(testCase.group)) === groupId,
+        (testCase: RecordAny) => getId(testCase.group) === groupId,
       ),
     };
   });
@@ -356,10 +366,10 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
       const nextGroupSet = new Set(nextGroupIds);
       const nextCaseIds = prev.caseIds.filter((caseId: string) => {
         const linkedCase = testCases.find(
-          (testCase: RecordAny) => String(testCase._id) === caseId,
+          (testCase: RecordAny) => getId(testCase) === caseId,
         );
 
-        return linkedCase && nextGroupSet.has(String(getId(linkedCase.group)));
+        return linkedCase && nextGroupSet.has(getId(linkedCase.group));
       });
 
       return {
@@ -500,8 +510,8 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
             className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 shadow-sm focus:border-slate-300 focus:outline-none focus:ring-2 focus:ring-slate-200"
           >
             <option value="">All projects</option>
-            {projects.map((project: RecordAny) => (
-              <option key={project._id} value={project._id}>
+            {safeProjects.map((project: RecordAny) => (
+              <option key={getId(project)} value={getId(project)}>
                 {project.name}
               </option>
             ))}
@@ -630,7 +640,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
             dashboardSummary={dashboardSummary}
             dashboardData={dashboardData}
             projectOverview={projectOverview}
-            projects={projects}
+            projects={safeProjects}
             matchesSearch={matchesSearch}
             userName={userName}
             getId={getId}
@@ -650,7 +660,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
             setProjectForm={setProjectForm}
             saveProject={saveProject}
             cancelProjectEdit={cancelProjectEdit}
-            projects={projects}
+            projects={safeProjects}
             matchesSearch={matchesSearch}
             startProjectEdit={startProjectEdit}
             deleteProject={deleteProject}
@@ -667,8 +677,8 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
             deleteGroup={deleteGroup}
             createGroup={createGroup}
             scopedProjects={scopedProjects}
-            groups={groups}
-            testCases={testCases}
+            groups={safeGroups}
+            testCases={safeTestCases}
             startTestCaseEdit={startTestCaseEdit}
             matchesSearch={matchesSearch}
           />
@@ -691,7 +701,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
             moveAutomationStep={moveAutomationStep}
             saveTestCase={saveTestCase}
             cancelTestCaseEdit={cancelTestCaseEdit}
-            testCases={testCases}
+            testCases={safeTestCases}
             matchesSearch={matchesSearch}
             startTestCaseEdit={startTestCaseEdit}
             deleteTestCase={deleteTestCase}
@@ -729,8 +739,8 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
             deleteVersion={deleteVersion}
             createVersion={createVersion}
             scopedProjects={scopedProjects}
-            versions={versions}
-            projects={projects}
+            versions={safeVersions}
+            projects={safeProjects}
             matchesSearch={matchesSearch}
             getId={getId}
           />
@@ -745,7 +755,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
             startIssueTypeEdit={startIssueTypeEdit}
             cancelIssueTypeEdit={cancelIssueTypeEdit}
             deleteIssueType={deleteIssueType}
-            issueTypes={issueTypes}
+            issueTypes={safeIssueTypes}
             matchesSearch={matchesSearch}
           />
         )}
@@ -765,7 +775,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
             selectedPlanCasesByGroup={selectedPlanCasesByGroup}
             togglePlanGroup={togglePlanGroup}
             togglePlanCase={togglePlanCase}
-            users={users}
+            users={safeUsers}
             currentUser={currentUser}
             selectedPlanId={selectedPlanId}
             selectPlanForAssignment={selectPlanForAssignment}
@@ -780,7 +790,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
             updatePlanExecutionMode={updatePlanExecutionMode}
             deletePlan={deletePlan}
             duplicatePlan={duplicatePlan}
-            runs={runs}
+            runs={safeRuns}
             setRunForm={setRunForm}
             setActiveTab={setActiveTab}
             userName={userName}
@@ -815,7 +825,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
             cancelUserEdit={cancelUserEdit}
             createUser={createUser}
             deleteUser={deleteUser}
-            users={users}
+            users={safeUsers}
             matchesSearch={matchesSearch}
             currentUserId={currentUserId}
           />
@@ -860,7 +870,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
             scopedPlans={scopedPlans}
             selectedRunPlanIsAutomation={selectedRunPlanIsAutomation}
             selectedRun={selectedRun}
-            myItems={myItems}
+            myItems={safeMyItems}
             selectedItemId={selectedItemId}
             setSelectedItemId={setSelectedItemId}
             selectedItem={selectedItem}

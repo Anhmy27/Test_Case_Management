@@ -97,7 +97,7 @@ export default function AdminTestPlansScreen(props: Props) {
   const visibleCaseIds = useMemo(
     () =>
       selectedPlanCasesByGroup.flatMap(({ cases }) =>
-        cases.map((testCase) => String(testCase._id)),
+        cases.map((testCase) => getId(testCase)),
       ),
     [selectedPlanCasesByGroup],
   );
@@ -108,7 +108,7 @@ export default function AdminTestPlansScreen(props: Props) {
     }
 
     return (
-      scopedProjects.find((project: RecordAny) => String(getId(project) || project._id) === String(planForm.projectId)) ||
+      scopedProjects.find((project: RecordAny) => String(getId(project) || getId(project)) === String(planForm.projectId)) ||
       planProjectGroups[0]?.project ||
       null
     );
@@ -157,7 +157,7 @@ export default function AdminTestPlansScreen(props: Props) {
   }, [assigneeSearch, users]);
 
   const selectedAssignees = useMemo(
-    () => users.filter((user: RecordAny) => assignDraft.assigneeIds.includes(String(user._id))),
+    () => users.filter((user: RecordAny) => assignDraft.assigneeIds.includes(getId(user))),
     [assignDraft.assigneeIds, users],
   );
 
@@ -185,7 +185,7 @@ export default function AdminTestPlansScreen(props: Props) {
 
       return {
         ...prev,
-        selectedGroupIds: planProjectGroups.map((group: RecordAny) => String(group._id)),
+        selectedGroupIds: planProjectGroups.map((group: RecordAny) => getId(group)),
       };
     });
   }, [editingPlanId, planForm.selectedGroupIds, planProjectGroups, setPlanForm, showCreateModal]);
@@ -200,17 +200,17 @@ export default function AdminTestPlansScreen(props: Props) {
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const allVisibleSelected =
-    filteredPlans.length > 0 && filteredPlans.every((plan: RecordAny) => selectedSet.has(String(plan._id)));
+    filteredPlans.length > 0 && filteredPlans.every((plan: RecordAny) => selectedSet.has(getId(plan)));
 
   const activePlan =
-    scopedPlans.find((plan: RecordAny) => String(plan._id) === String(activePlanId)) ||
+    scopedPlans.find((plan: RecordAny) => getId(plan) === String(activePlanId)) ||
     filteredPlans[0] ||
     null;
 
   const relatedRuns = useMemo(() => {
     if (!activePlan) return [];
     return runs
-      .filter((run: RecordAny) => String(getId(run.testPlan)) === String(activePlan._id))
+      .filter((run: RecordAny) => getId(run.testPlan) === getId(activePlan))
       .sort(
         (a: RecordAny, b: RecordAny) =>
           new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(),
@@ -236,7 +236,7 @@ export default function AdminTestPlansScreen(props: Props) {
       .slice(0, 5);
   }, [scopedPlans]);
 
-  const selectedPlans = filteredPlans.filter((plan: RecordAny) => selectedSet.has(String(plan._id)));
+  const selectedPlans = filteredPlans.filter((plan: RecordAny) => selectedSet.has(getId(plan)));
 
   function togglePlanSelection(planId: string) {
     setSelectedIds((prev) =>
@@ -246,13 +246,13 @@ export default function AdminTestPlansScreen(props: Props) {
 
   function startQuickRun(plan: RecordAny) {
     const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
-    setRunForm((prev) => ({ ...prev, testPlanId: String(plan._id), name: `${plan.name} - ${stamp}` }));
+    setRunForm((prev) => ({ ...prev, testPlanId: getId(plan), name: `${plan.name} - ${stamp}` }));
     setActiveTab("execution");
   }
 
   async function bulkUpdateExecutionMode() {
     for (const plan of selectedPlans) {
-      await updatePlanExecutionMode(String(plan._id), statusBulkMode);
+      await updatePlanExecutionMode(getId(plan), statusBulkMode);
     }
     setSelectedIds([]);
   }
@@ -269,7 +269,7 @@ export default function AdminTestPlansScreen(props: Props) {
       ? plan.items.map((item: RecordAny) => String(getId(item.testCase) || item.testCase)).filter(Boolean)
       : [];
 
-    setEditingPlanId(String(plan._id));
+    setEditingPlanId(getId(plan));
     setEditingExecutionMode(String(plan.executionMode || "manual"));
     setPlanForm({
       name: plan.name || "",
@@ -334,8 +334,8 @@ export default function AdminTestPlansScreen(props: Props) {
             label="Assign"
             icon="👥"
             onClick={() => {
-              if (activePlan?._id) {
-                openAssignModal(String(activePlan._id));
+              if (getId(activePlan)) {
+                openAssignModal(getId(activePlan));
               }
             }}
             disabled={!activePlan}
@@ -386,16 +386,16 @@ export default function AdminTestPlansScreen(props: Props) {
             <table className="min-w-full text-left text-sm">
               <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                 <tr>
-                  <th className="px-4 py-3"><input type="checkbox" checked={allVisibleSelected} onChange={() => setSelectedIds(allVisibleSelected ? [] : filteredPlans.map((item: RecordAny) => String(item._id)))} /></th>
+                  <th className="px-4 py-3"><input type="checkbox" checked={allVisibleSelected} onChange={() => setSelectedIds(allVisibleSelected ? [] : filteredPlans.map((item: RecordAny) => getId(item)))} /></th>
                   <th className="px-4 py-3">Plan</th><th className="px-4 py-3">Scope</th><th className="px-4 py-3">Owner</th><th className="px-4 py-3">Mode</th><th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {filteredPlans.length === 0 ? <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">No plans</td></tr> : filteredPlans.map((plan: RecordAny) => {
-                  const planId = String(plan._id);
+                  const planId = getId(plan);
                   const selected = selectedSet.has(planId);
-                  const active = String(activePlan?._id || "") === planId;
-                  const hasRuns = runs.some((run: RecordAny) => String(getId(run.testPlan)) === planId);
+                  const active = getId(activePlan) === planId;
+                  const hasRuns = runs.some((run: RecordAny) => getId(run.testPlan) === planId);
                   return <tr key={planId} onClick={() => setActivePlanId(planId)} className={`cursor-pointer transition hover:bg-slate-50 ${active ? "bg-indigo-50/60" : ""}`}>
                     <td className="px-4 py-3"><input type="checkbox" checked={selected} onChange={(e) => { e.stopPropagation(); togglePlanSelection(planId); }} /></td>
                     <td className="px-4 py-3"><div className="font-semibold text-slate-900">{plan.name}</div><div className="text-xs text-slate-500">{(plan.items || []).length} case(s)</div></td>
@@ -418,11 +418,11 @@ export default function AdminTestPlansScreen(props: Props) {
         <aside className="space-y-4 xl:sticky xl:top-24">
           <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="text-sm font-semibold text-slate-900">Plan detail</div>
-            {!activePlan ? <div className="mt-3 text-sm text-slate-500">Select a plan to inspect details</div> : <div className="mt-3 space-y-3 text-sm">
-              <div><div className="text-xs uppercase tracking-wide text-slate-500">Name</div><div className="font-semibold text-slate-900">{activePlan.name}</div></div>
+              {!activePlan ? <div className="mt-3 text-sm text-slate-500">Select a plan to inspect details</div> : <div className="mt-3 space-y-3 text-sm">
+                <div><div className="text-xs uppercase tracking-wide text-slate-500">Name</div><div className="font-semibold text-slate-900">{activePlan.name}</div></div>
               <div className="grid grid-cols-2 gap-2 text-xs"><div className="rounded-lg bg-slate-50 p-2"><div className="text-slate-500">Project</div><div className="font-semibold text-slate-800">{activePlan.project?.name || "-"}</div></div><div className="rounded-lg bg-slate-50 p-2"><div className="text-slate-500">Version</div><div className="font-semibold text-slate-800">{activePlan.version?.name || "-"}</div></div></div>
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">{activePlan.description || "No description"}</div>
-              <div className="flex gap-2"><button type="button" className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white" onClick={() => startQuickRun(activePlan)}>Run this plan</button><button type="button" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600" onClick={() => openAssignModal(String(activePlan._id))}>Assign cases</button></div>
+              <div className="flex gap-2"><button type="button" className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white" onClick={() => startQuickRun(activePlan)}>Run this plan</button><button type="button" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600" onClick={() => openAssignModal(getId(activePlan))}>Assign cases</button></div>
             </div>}
           </section>
 
@@ -432,7 +432,7 @@ export default function AdminTestPlansScreen(props: Props) {
               <button type="button" className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold" onClick={() => {}}>View all</button>
             </div>
             <div className="mt-3 space-y-2">
-              {recentActivity.map((item: RecordAny) => <button key={String(item._id)} type="button" onClick={() => setActivePlanId(String(item._id))} className="flex w-full items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-left hover:border-slate-300"><span><span className="block text-xs text-slate-500">{item.project?.name || "-"}</span><span className="block text-sm font-semibold text-slate-900">{item.name}</span></span><span className="text-xs text-slate-400">{new Date(item.updatedAt || item.createdAt || 0).toLocaleDateString()}</span></button>)}
+              {recentActivity.map((item: RecordAny) => <button key={getId(item)} type="button" onClick={() => setActivePlanId(getId(item))} className="flex w-full items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-left hover:border-slate-300"><span><span className="block text-xs text-slate-500">{item.project?.name || "-"}</span><span className="block text-sm font-semibold text-slate-900">{item.name}</span></span><span className="text-xs text-slate-400">{new Date(item.updatedAt || item.createdAt || 0).toLocaleDateString()}</span></button>)}
             </div>
           </section>
 
@@ -442,7 +442,7 @@ export default function AdminTestPlansScreen(props: Props) {
               <button type="button" className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold" onClick={() => setActiveTab("test-runs")}>View all</button>
             </div>
             <div className="mt-3 space-y-2 text-sm">
-              {relatedRuns.length === 0 ? <div className="text-slate-500">No related runs</div> : relatedRuns.map((run: RecordAny) => <div key={String(run._id)} className="rounded-lg border border-slate-200 p-3"><div className="flex items-center justify-between"><strong className="text-slate-900">{run.name || "Run"}</strong><span className={run.status === "completed" ? "text-emerald-700" : run.status === "running" ? "text-amber-700" : "text-slate-500"}>{run.status || "pending"}</span></div><div className="text-xs text-slate-500">{new Date(run.createdAt || 0).toLocaleString()}</div></div>)}
+              {relatedRuns.length === 0 ? <div className="text-slate-500">No related runs</div> : relatedRuns.map((run: RecordAny) => <div key={String(getId(run))} className="rounded-lg border border-slate-200 p-3"><div className="flex items-center justify-between"><strong className="text-slate-900">{run.name || "Run"}</strong><span className={run.status === "completed" ? "text-emerald-700" : run.status === "running" ? "text-amber-700" : "text-slate-500"}>{run.status || "pending"}</span></div><div className="text-xs text-slate-500">{new Date(run.createdAt || 0).toLocaleString()}</div></div>)}
             </div>
           </section>
         </aside>
@@ -484,7 +484,7 @@ export default function AdminTestPlansScreen(props: Props) {
               >
                 <option value="">Select</option>
                 {scopedProjects.map((project: RecordAny) => (
-                  <option key={project._id} value={project._id}>
+                  <option key={getId(project)} value={getId(project)}>
                     {project.name}
                   </option>
                 ))}
@@ -506,7 +506,7 @@ export default function AdminTestPlansScreen(props: Props) {
                 {scopedVersions
                   .filter((version: RecordAny) => getId(version.project) === planForm.projectId)
                   .map((version: RecordAny) => (
-                    <option key={version._id} value={version._id}>
+                    <option key={getId(version)} value={getId(version)}>
                       {version.name}
                     </option>
                   ))}
@@ -589,7 +589,7 @@ export default function AdminTestPlansScreen(props: Props) {
                       </div>
                     ) : (
                       planProjectGroups.map((group: RecordAny) => {
-                        const groupId = String(group._id);
+                        const groupId = getId(group);
                         const checked = selectedPlanGroupIds.has(groupId);
                         const groupCases = planProjectCases.filter(
                           (testCase: RecordAny) => String(getId(testCase.group)) === groupId,
@@ -623,7 +623,7 @@ export default function AdminTestPlansScreen(props: Props) {
                               ) : (
                                 <div className={`space-y-2 ${shouldScrollCases ? "max-h-[240px] overflow-y-auto pr-1" : ""}`}>
                                   {groupCases.map((testCase: RecordAny) => {
-                                    const caseId = String(testCase._id);
+                                    const caseId = getId(testCase);
                                     const checkedCase = selectedPlanCaseIds.has(caseId);
 
                                     return (
@@ -687,7 +687,7 @@ export default function AdminTestPlansScreen(props: Props) {
             ) : (
               <div className="workspace-checklist__scroll workspace-checklist__scroll--cases">
                 {selectedPlanCasesByGroup.map(({ group, cases }) => {
-                const groupId = String(group._id);
+                const groupId = getId(group);
 
                 return (
                   <div key={groupId} className="workspace-checklist__group">
@@ -702,7 +702,7 @@ export default function AdminTestPlansScreen(props: Props) {
                         </div>
                       ) : (
                         cases.map((testCase: RecordAny) => {
-                          const caseId = String(testCase._id);
+                          const caseId = getId(testCase);
                           const checked = selectedPlanCaseIds.has(caseId);
 
                           return (
@@ -766,7 +766,7 @@ export default function AdminTestPlansScreen(props: Props) {
                   <select value={selectedPlanId} onChange={(e) => selectPlanForAssignment(e.target.value)} required>
                     <option value="">Select plan</option>
                     {scopedPlans.map((plan: RecordAny) => (
-                      <option key={plan._id} value={plan._id}>
+                      <option key={getId(plan)} value={getId(plan)}>
                         {plan.name}
                       </option>
                     ))}
@@ -793,7 +793,7 @@ export default function AdminTestPlansScreen(props: Props) {
                       </div>
                     ) : (
                       filteredUsers.map((user: RecordAny) => {
-                        const userId = String(user._id);
+                        const userId = getId(user);
                         const checked = assignDraft.assigneeIds.includes(userId);
 
                         return (

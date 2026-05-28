@@ -4,6 +4,7 @@
 
 import { useMemo, useState } from "react";
 import type { Dispatch, DragEvent, MutableRefObject, SetStateAction } from "react";
+import { getId } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
 
@@ -103,6 +104,42 @@ export default function AdminTestCasesScreen(props: Props) {
   const [draggingStep, setDraggingStep] = useState<DragPayload | null>(null);
   const [showRecentModal, setShowRecentModal] = useState(false);
 
+  const resolveScopedValue = (value: RecordAny, items: RecordAny[]) => {
+    const candidateIds = new Set(
+      [getId(value), typeof value === "string" ? value : ""]
+        .concat(
+          typeof value === "object" && value !== null
+            ? [
+                String(value._id || ""),
+                String(value.entityId || ""),
+                String(value.id || ""),
+              ]
+            : [],
+        )
+        .map((item) => String(item || "").trim())
+        .filter(Boolean),
+    );
+
+    return items.find((item) => {
+      const itemIds = [
+        getId(item),
+        String(item?._id || ""),
+        String(item?.entityId || ""),
+        String(item?.id || ""),
+      ]
+        .map((itemId) => String(itemId || "").trim())
+        .filter(Boolean);
+
+      return itemIds.some((itemId) => candidateIds.has(itemId));
+    }) || null;
+  };
+
+  const resolveScopedName = (value: RecordAny, items: RecordAny[]) => {
+    const match = resolveScopedValue(value, items);
+    const fallbackValue = typeof value === "string" ? value : getId(value);
+    return String(match?.name || value?.name || value?.title || fallbackValue || "-");
+  };
+
   const effectiveActiveId = editingTestCaseId || activeId;
 
   const filteredCases = useMemo(() => {
@@ -111,12 +148,12 @@ export default function AdminTestCasesScreen(props: Props) {
         matchesSearch(
           testCase.caseKey,
           testCase.title,
-          testCase.project?.name,
-          testCase.group?.name,
+          resolveScopedName(testCase.project, scopedProjects),
+          resolveScopedName(testCase.group, scopedGroups),
         ),
       )
       .filter((testCase) => {
-        if (groupFilter && String(testCase.group?._id || "") !== groupFilter) {
+        if (groupFilter && getId(testCase.group) !== groupFilter) {
           return false;
         }
         if (preset === "all") return true;
@@ -136,8 +173,8 @@ export default function AdminTestCasesScreen(props: Props) {
 
   const activeCase = useMemo(
     () =>
-      testCases.find((testCase) => String(testCase._id) === String(activeId)) ||
-      testCases.find((testCase) => String(testCase._id) === String(effectiveActiveId)) ||
+      testCases.find((testCase) => getId(testCase) === String(activeId)) ||
+      testCases.find((testCase) => getId(testCase) === String(effectiveActiveId)) ||
       (filteredCases.length > 0 ? filteredCases[0] : null),
     [activeId, effectiveActiveId, filteredCases, testCases],
   );
@@ -145,7 +182,7 @@ export default function AdminTestCasesScreen(props: Props) {
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const allVisibleSelected =
     filteredCases.length > 0 &&
-    filteredCases.every((testCase) => selectedSet.has(String(testCase._id)));
+    filteredCases.every((testCase) => selectedSet.has(getId(testCase)));
 
   const recentCases = useMemo(() => {
     return [...testCases]
@@ -294,7 +331,7 @@ export default function AdminTestCasesScreen(props: Props) {
             >
               <option value="">All groups</option>
               {scopedGroups.map((group) => (
-                <option key={group._id} value={String(group._id)}>
+                <option key={getId(group)} value={getId(group)}>
                   {group.name}
                 </option>
               ))}
@@ -316,7 +353,7 @@ export default function AdminTestCasesScreen(props: Props) {
                   type="button"
                   className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
                   onClick={async () => {
-                    const selected = filteredCases.filter((item) => selectedSet.has(String(item._id)));
+                    const selected = filteredCases.filter((item) => selectedSet.has(getId(item)));
                     if (selected.length === 0) return;
                     await duplicateTestCases(selected);
                   }}
@@ -350,7 +387,7 @@ export default function AdminTestCasesScreen(props: Props) {
                         if (allVisibleSelected) {
                           setSelectedIds([]);
                         } else {
-                          setSelectedIds(filteredCases.map((item) => String(item._id)));
+                          setSelectedIds(filteredCases.map((item) => getId(item)));
                         }
                       }}
                     />
@@ -372,7 +409,7 @@ export default function AdminTestCasesScreen(props: Props) {
                   </tr>
                 ) : (
                   filteredCases.map((testCase) => {
-                    const caseId = String(testCase._id);
+                    const caseId = getId(testCase);
                     const selected = selectedSet.has(caseId);
                     return (
                       <tr
@@ -402,9 +439,9 @@ export default function AdminTestCasesScreen(props: Props) {
                         </td>
                         <td className="px-4 py-3 text-xs text-slate-600">
                           <div className="font-semibold text-slate-700">
-                            {testCase.project?.name || "-"}
+                            {resolveScopedName(testCase.project, scopedProjects)}
                           </div>
-                          <div>{testCase.group?.name || "-"}</div>
+                          <div>{resolveScopedName(testCase.group, scopedGroups)}</div>
                         </td>
                         <td className="px-4 py-3">
                           <span className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">
@@ -576,7 +613,7 @@ export default function AdminTestCasesScreen(props: Props) {
                   >
                     <option value="">Select</option>
                     {scopedProjects.map((project) => (
-                      <option key={project._id} value={project._id}>
+                      <option key={getId(project)} value={getId(project)}>
                         {project.name}
                       </option>
                     ))}
@@ -593,7 +630,7 @@ export default function AdminTestCasesScreen(props: Props) {
                   >
                     <option value="">Select</option>
                     {scopedGroups.map((group) => (
-                      <option key={group._id} value={group._id}>
+                      <option key={getId(group)} value={getId(group)}>
                         {group.name}
                       </option>
                     ))}
@@ -930,9 +967,9 @@ export default function AdminTestCasesScreen(props: Props) {
             <div className="mt-3 space-y-3 text-sm text-slate-600">
               {recentCases.map((item) => (
                 <button
-                  key={String(item._id)}
+                  key={getId(item)}
                   type="button"
-                  onClick={() => setActiveId(String(item._id))}
+                  onClick={() => setActiveId(getId(item))}
                   className="flex w-full items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-left hover:border-slate-300"
                 >
                   <span>
@@ -978,10 +1015,10 @@ export default function AdminTestCasesScreen(props: Props) {
                   const stepCount = Array.isArray(item.steps) ? item.steps.length : 0;
                   return (
                     <button
-                      key={String(item._id)}
+                      key={getId(item)}
                       type="button"
                       onClick={() => {
-                        setActiveId(String(item._id));
+                        setActiveId(getId(item));
                         setPanelMode("view");
                         setShowRecentModal(false);
                       }}

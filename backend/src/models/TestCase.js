@@ -56,6 +56,11 @@ const testCaseSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
+    expected: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     steps: {
       type: [stepSchema],
       default: [],

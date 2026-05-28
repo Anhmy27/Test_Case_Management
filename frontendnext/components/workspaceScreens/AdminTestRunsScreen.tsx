@@ -5,6 +5,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import { useMemo, useState } from "react";
 import { ActionButton, DataTable, SectionCard } from "./shared";
+import { getId } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
 
@@ -32,7 +33,7 @@ export default function AdminTestRunsScreen({ runForm, setRunForm, startRun, sco
   const planOptions = useMemo(
     () =>
       scopedPlans
-        .map((plan: RecordAny) => ({ id: String(plan._id), name: plan.name || "-" }))
+        .map((plan: RecordAny) => ({ id: getId(plan), name: plan.name || "-" }))
         .sort((a: { id: string; name: string }, b: { id: string; name: string }) => a.name.localeCompare(b.name)),
     [scopedPlans],
   );
@@ -41,7 +42,7 @@ export default function AdminTestRunsScreen({ runForm, setRunForm, startRun, sco
     const seen = new Map<string, string>();
 
     adminRuns.forEach((run: RecordAny) => {
-      const id = String(run.startedBy?._id || run.startedBy || "");
+      const id = getId(run.startedBy) || "";
       if (!id) return;
       if (!seen.has(id)) {
         seen.set(id, userName(run.startedBy));
@@ -58,8 +59,8 @@ export default function AdminTestRunsScreen({ runForm, setRunForm, startRun, sco
       const query = searchTerm.trim();
 
       return adminRuns.filter((run: RecordAny) => {
-        const runPlanId = String(run.testPlan?._id || run.testPlan || "");
-        const startedById = String(run.startedBy?._id || run.startedBy || "");
+        const runPlanId = getId(run.testPlan) || "";
+        const startedById = getId(run.startedBy) || "";
 
         if (planFilter && runPlanId !== planFilter) return false;
         if (startedByFilter && startedById !== startedByFilter) return false;
@@ -83,12 +84,12 @@ export default function AdminTestRunsScreen({ runForm, setRunForm, startRun, sco
       <SectionCard title="Test Runs" subtitle="Theo doi execution va start/end run rieng">
         <form className="workspace-form" onSubmit={startRun}>
           <div className="workspace-form__grid workspace-form__grid--two">
-            <label><span>Test Plan</span><select value={runForm.testPlanId} onChange={(e) => setRunForm((prev) => ({ ...prev, testPlanId: e.target.value }))} required><option value="">Select plan</option>{scopedPlans.map((plan: RecordAny) => <option key={plan._id} value={plan._id}>{plan.name}</option>)}</select></label>
+            <label><span>Test Plan</span><select value={runForm.testPlanId} onChange={(e) => setRunForm((prev) => ({ ...prev, testPlanId: e.target.value }))} required><option value="">Select plan</option>{scopedPlans.map((plan: RecordAny) => <option key={getId(plan)} value={getId(plan)}>{plan.name}</option>)}</select></label>
             <label><span>Run name</span><input value={runForm.name} onChange={(e) => setRunForm((prev) => ({ ...prev, name: e.target.value }))} required /></label>
           </div>
           <label><span>Automation base URL</span><input value={runForm.baseUrl || ""} onChange={(e) => setRunForm((prev) => ({ ...prev, baseUrl: e.target.value }))} placeholder="https://app.example.com" /></label>
           {selectedRunPlanIsAutomation && <div className="workspace-banner">Automation plan đã được chọn. Khi bạn start run, Playwright sẽ chạy ngay với base URL này.</div>}
-          <ActionButton label="Start test run" icon="▶" variant="primary" />
+          <ActionButton type="submit" label="Start test run" icon="▶" variant="primary" />
         </form>
       </SectionCard>
 
@@ -140,7 +141,26 @@ export default function AdminTestRunsScreen({ runForm, setRunForm, startRun, sco
             </label>
           </div>
         </div>
-        <DataTable columns={["Run", "Plan", "Progress", "Started by", "Status", "Action"]} rows={filteredRuns.map((run: RecordAny) => <><div className="font-medium text-slate-900">{run.name}</div><div>{run.testPlan?.name || "-"}</div><div>{typeof run.progress === "number" ? `${run.progress.toFixed(1)}%` : "0%"}</div><div>{userName(run.startedBy)}</div><div className={run.status === "running" ? "workspace-pill bg-amber-50 text-amber-700" : run.status === "completed" ? "workspace-pill bg-emerald-50 text-emerald-700" : "workspace-pill"}>{run.status}</div><div><ActionButton label={run.status === "running" && String(run.startedBy?._id || run.startedBy || "") === currentUserId ? "Open" : "View"} icon="↗" onClick={() => void (async () => { setSelectedRunId(run._id); await loadMyItems(run._id); setActiveTab("execution"); })()} /></div></>)} emptyText="No runs" />
+        <DataTable
+          columns={["Run", "Plan", "Progress", "Started by", "Status", "Action"]}
+          rows={filteredRuns.map((run: RecordAny) => (
+            <>
+              <div className="font-medium text-slate-900">{run.name}</div>
+              <div>{run.testPlan?.name || "-"}</div>
+              <div>{typeof run.progress === "number" ? `${run.progress.toFixed(1)}%` : "0%"}</div>
+              <div>{userName(run.startedBy)}</div>
+              <div className={run.status === "running" ? "workspace-pill bg-amber-50 text-amber-700" : run.status === "completed" ? "workspace-pill bg-emerald-50 text-emerald-700" : "workspace-pill"}>{run.status}</div>
+              <div>
+                <ActionButton
+                  label={run.status === "running" && (getId(run.startedBy) === currentUserId) ? "Open" : "View"}
+                  icon="↗"
+                  onClick={() => void (async () => { const runId = getId(run); setSelectedRunId(runId); await loadMyItems(runId); setActiveTab("execution"); })()}
+                />
+              </div>
+            </>
+          ))}
+          emptyText="No runs"
+        />
       </SectionCard>
     </div>
   );

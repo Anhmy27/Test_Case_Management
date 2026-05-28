@@ -5,6 +5,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import ManualRunExecutionPanel from "../execution/ManualRunExecutionPanel";
 import AutomationRunExecutionPanel from "../execution/AutomationRunExecutionPanel";
+import { getId } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
 
@@ -42,7 +43,7 @@ export default function ExecutionScreen(props: Props) {
       );
     }
 
-    await endRun(selectedRun._id);
+    await endRun(getId(selectedRun));
   };
   const totalItems = myItems.length;
   const completedItems = myItems.filter((item) => ["pass", "fail", "blocked", "skip"].includes(String(item.status))).length;
@@ -109,7 +110,7 @@ export default function ExecutionScreen(props: Props) {
               >
                 <option value="">Select plan</option>
                 {scopedPlans.map((plan: RecordAny) => (
-                  <option key={plan._id} value={plan._id}>
+                  <option key={getId(plan)} value={getId(plan)}>
                     {plan.name}
                   </option>
                 ))}

@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useMemo, useState } from "react";
+import { getId } from "@/lib/api";
 import type { Dispatch, SetStateAction } from "react";
 
 type RecordAny = Record<string, any>;
@@ -109,15 +110,15 @@ export default function AutomationRunExecutionPanel({
             <div className="p-4 text-sm text-slate-500">No cases found</div>
           ) : (
             queueItems.map((item: RecordAny) => {
-              const active = item._id === selectedItemId;
+              const active = getId(item) === selectedItemId;
               return (
                 <button
-                  key={item._id}
+                  key={getId(item)}
                   type="button"
                   className={`flex w-full items-center gap-3 border-b border-slate-200 px-4 py-3 text-left transition hover:bg-slate-50 ${
                     active ? "bg-slate-50" : ""
                   }`}
-                  onClick={() => setSelectedItemId(item._id)}
+                  onClick={() => setSelectedItemId(getId(item))}
                 >
                   <span className="text-xs font-semibold text-slate-500">{item.status}</span>
                   <div>
@@ -188,7 +189,7 @@ export default function AutomationRunExecutionPanel({
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
               <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Execution note</div>
               <div className="mt-2 text-sm text-slate-700">
-                {selectedItem.note || notes[selectedItem._id] || "No execution note yet"}
+                {selectedItem.note || notes[getId(selectedItem)] || "No execution note yet"}
               </div>
             </div>
 
@@ -196,7 +197,7 @@ export default function AutomationRunExecutionPanel({
               <label className="text-xs font-semibold text-slate-500">Current result note
                 <textarea
                   rows={4}
-                  value={notes[selectedItem._id] ?? selectedItem.note ?? ""}
+                  value={notes[getId(selectedItem)] ?? selectedItem.note ?? ""}
                   readOnly
                   className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                 />
@@ -204,7 +205,7 @@ export default function AutomationRunExecutionPanel({
               <label className="text-xs font-semibold text-slate-500">Notes
                 <textarea
                   rows={3}
-                  value={selectedItem.notes || notes[`${selectedItem._id}:notes`] || ""}
+                  value={selectedItem.notes || notes[`${getId(selectedItem)}:notes`] || ""}
                   readOnly
                   className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                 />
@@ -260,7 +261,7 @@ export default function AutomationRunExecutionPanel({
                 <div className="text-xs text-slate-500">No recent updates.</div>
               ) : (
                 recentActivity.map((item: RecordAny) => (
-                  <div key={String(item._id)} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                  <div key={String(getId(item))} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
                     <div className="text-xs font-semibold text-slate-700">
                       {item.testCase?.caseKey || "TC"}
                     </div>
