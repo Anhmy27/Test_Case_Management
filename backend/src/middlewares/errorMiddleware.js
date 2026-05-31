@@ -48,6 +48,8 @@ function errorMiddleware(err, req, res, next) {
 
   res.status(statusCode).json({
     message,
+    ...(err.conflict && { conflict: err.conflict }),
+    ...(err.details && { details: err.details }),
     stack: process.env.NODE_ENV === 'production' ? undefined : err.stack,
   });
 }

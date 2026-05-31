@@ -3,7 +3,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useMemo, useState } from "react";
-import type { Dispatch, DragEvent, MutableRefObject, SetStateAction } from "react";
+import type {
+  Dispatch,
+  DragEvent,
+  MutableRefObject,
+  SetStateAction,
+} from "react";
 import { getId } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
@@ -34,8 +39,20 @@ type Props = {
   editingTestCaseId: string;
   testCaseForm: TestCaseForm;
   setTestCaseForm: Dispatch<SetStateAction<TestCaseForm>>;
-  automationForm: { enabled: boolean; baseUrl: string; userKey: string; steps: AutomationStep[] };
-  setAutomationForm: Dispatch<SetStateAction<{ enabled: boolean; baseUrl: string; userKey: string; steps: AutomationStep[] }>>;
+  automationForm: {
+    enabled: boolean;
+    baseUrl: string;
+    userKey: string;
+    steps: AutomationStep[];
+  };
+  setAutomationForm: Dispatch<
+    SetStateAction<{
+      enabled: boolean;
+      baseUrl: string;
+      userKey: string;
+      steps: AutomationStep[];
+    }>
+  >;
   addTestCaseStep: () => void;
   updateTestCaseStep: (index: number, key: string, value: string) => void;
   removeTestCaseStep: (index: number) => void;
@@ -47,7 +64,9 @@ type Props = {
   saveTestCase: (event: React.FormEvent) => Promise<void>;
   cancelTestCaseEdit: () => void;
   testCases: RecordAny[];
-  matchesSearch: (...values: Array<string | number | undefined | null>) => boolean;
+  matchesSearch: (
+    ...values: Array<string | number | undefined | null>
+  ) => boolean;
   startTestCaseEdit: (testCase: RecordAny) => void;
   deleteTestCase: (testCaseId: string) => void;
   duplicateTestCase: (testCase: RecordAny) => Promise<void>;
@@ -98,11 +117,19 @@ export default function AdminTestCasesScreen(props: Props) {
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [activeId, setActiveId] = useState<string>("");
-  const [panelMode, setPanelMode] = useState<"view" | "edit" | "create">("view");
+  const [panelMode, setPanelMode] = useState<"view" | "edit" | "create">(
+    "view",
+  );
   const [preset, setPreset] = useState<FilterPreset>("all");
   const [groupFilter, setGroupFilter] = useState<string>("");
   const [draggingStep, setDraggingStep] = useState<DragPayload | null>(null);
   const [showRecentModal, setShowRecentModal] = useState(false);
+  const selectedGroupName = useMemo(() => {
+    const selectedGroup = scopedGroups.find(
+      (group) => getId(group) === testCaseForm.groupId,
+    );
+    return selectedGroup ? String(selectedGroup.name || "").trim() : "";
+  }, [scopedGroups, testCaseForm.groupId]);
 
   const resolveScopedValue = (value: RecordAny, items: RecordAny[]) => {
     const candidateIds = new Set(
@@ -120,24 +147,28 @@ export default function AdminTestCasesScreen(props: Props) {
         .filter(Boolean),
     );
 
-    return items.find((item) => {
-      const itemIds = [
-        getId(item),
-        String(item?._id || ""),
-        String(item?.entityId || ""),
-        String(item?.id || ""),
-      ]
-        .map((itemId) => String(itemId || "").trim())
-        .filter(Boolean);
+    return (
+      items.find((item) => {
+        const itemIds = [
+          getId(item),
+          String(item?._id || ""),
+          String(item?.entityId || ""),
+          String(item?.id || ""),
+        ]
+          .map((itemId) => String(itemId || "").trim())
+          .filter(Boolean);
 
-      return itemIds.some((itemId) => candidateIds.has(itemId));
-    }) || null;
+        return itemIds.some((itemId) => candidateIds.has(itemId));
+      }) || null
+    );
   };
 
   const resolveScopedName = (value: RecordAny, items: RecordAny[]) => {
     const match = resolveScopedValue(value, items);
     const fallbackValue = typeof value === "string" ? value : getId(value);
-    return String(match?.name || value?.name || value?.title || fallbackValue || "-");
+    return String(
+      match?.name || value?.name || value?.title || fallbackValue || "-",
+    );
   };
 
   const effectiveActiveId = editingTestCaseId || activeId;
@@ -157,14 +188,19 @@ export default function AdminTestCasesScreen(props: Props) {
           return false;
         }
         if (preset === "all") return true;
-        if (preset === "automation") return Boolean(testCase.automation?.enabled);
+        if (preset === "automation")
+          return Boolean(testCase.automation?.enabled);
         if (preset === "manual") return !testCase.automation?.enabled;
         if (preset === "high-risk") {
-          return ["high", "critical"].includes(String(testCase.priority || "")) ||
-            String(testCase.severity || "") === "critical";
+          return (
+            ["high", "critical"].includes(String(testCase.priority || "")) ||
+            String(testCase.severity || "") === "critical"
+          );
         }
         if (preset === "recent") {
-          const updated = new Date(testCase.updatedAt || testCase.createdAt || 0).getTime();
+          const updated = new Date(
+            testCase.updatedAt || testCase.createdAt || 0,
+          ).getTime();
           return updated > 0;
         }
         return true;
@@ -174,7 +210,9 @@ export default function AdminTestCasesScreen(props: Props) {
   const activeCase = useMemo(
     () =>
       testCases.find((testCase) => getId(testCase) === String(activeId)) ||
-      testCases.find((testCase) => getId(testCase) === String(effectiveActiveId)) ||
+      testCases.find(
+        (testCase) => getId(testCase) === String(effectiveActiveId),
+      ) ||
       (filteredCases.length > 0 ? filteredCases[0] : null),
     [activeId, effectiveActiveId, filteredCases, testCases],
   );
@@ -186,9 +224,10 @@ export default function AdminTestCasesScreen(props: Props) {
 
   const recentCases = useMemo(() => {
     return [...testCases]
-      .sort((a, b) =>
-        new Date(b.updatedAt || b.createdAt || 0).getTime() -
-        new Date(a.updatedAt || a.createdAt || 0).getTime(),
+      .sort(
+        (a, b) =>
+          new Date(b.updatedAt || b.createdAt || 0).getTime() -
+          new Date(a.updatedAt || a.createdAt || 0).getTime(),
       )
       .slice(0, 5);
   }, [testCases]);
@@ -242,7 +281,9 @@ export default function AdminTestCasesScreen(props: Props) {
     event: DragEvent<HTMLElement>,
   ) => {
     event.preventDefault();
-    const payload = draggingStep || parseDragPayload(event.dataTransfer.getData("text/plain"));
+    const payload =
+      draggingStep ||
+      parseDragPayload(event.dataTransfer.getData("text/plain"));
     if (!payload || payload.type !== type) return;
     if (payload.index === index) return;
     if (type === "manual") {
@@ -258,8 +299,12 @@ export default function AdminTestCasesScreen(props: Props) {
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
           <div>
-            <div className="text-sm font-semibold text-slate-900">Test Case Workbench</div>
-            <div className="text-xs text-slate-500">Nhanh chong tim, xem, tao va duplicate test case</div>
+            <div className="text-sm font-semibold text-slate-900">
+              Test Case Workbench
+            </div>
+            <div className="text-xs text-slate-500">
+              Nhanh chong tim, xem, tao va duplicate test case
+            </div>
           </div>
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <button
@@ -347,13 +392,17 @@ export default function AdminTestCasesScreen(props: Props) {
         <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-200 px-4 py-3">
             <div className="flex flex-wrap items-center gap-3">
-              <div className="text-sm font-semibold text-slate-900">Test case list</div>
+              <div className="text-sm font-semibold text-slate-900">
+                Test case list
+              </div>
               <div className="ml-auto flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
                   onClick={async () => {
-                    const selected = filteredCases.filter((item) => selectedSet.has(getId(item)));
+                    const selected = filteredCases.filter((item) =>
+                      selectedSet.has(getId(item)),
+                    );
                     if (selected.length === 0) return;
                     await duplicateTestCases(selected);
                   }}
@@ -375,7 +424,7 @@ export default function AdminTestCasesScreen(props: Props) {
             </div>
           </div>
 
-          <div className="max-h-[620px] overflow-auto">
+          <div className="max-h-155 overflow-auto">
             <table className="min-w-full text-left text-sm">
               <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                 <tr>
@@ -387,7 +436,9 @@ export default function AdminTestCasesScreen(props: Props) {
                         if (allVisibleSelected) {
                           setSelectedIds([]);
                         } else {
-                          setSelectedIds(filteredCases.map((item) => getId(item)));
+                          setSelectedIds(
+                            filteredCases.map((item) => getId(item)),
+                          );
                         }
                       }}
                     />
@@ -403,7 +454,10 @@ export default function AdminTestCasesScreen(props: Props) {
               <tbody className="divide-y divide-slate-200">
                 {filteredCases.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-500">
+                    <td
+                      colSpan={7}
+                      className="px-4 py-6 text-center text-sm text-slate-500"
+                    >
                       No test cases found
                     </td>
                   </tr>
@@ -415,7 +469,9 @@ export default function AdminTestCasesScreen(props: Props) {
                       <tr
                         key={caseId}
                         className={`cursor-pointer transition hover:bg-slate-50 ${
-                          String(effectiveActiveId) === caseId ? "bg-slate-50" : ""
+                          String(effectiveActiveId) === caseId
+                            ? "bg-slate-50"
+                            : ""
                         }`}
                         onClick={() => setActiveId(caseId)}
                       >
@@ -434,14 +490,23 @@ export default function AdminTestCasesScreen(props: Props) {
                           />
                         </td>
                         <td className="px-4 py-3">
-                          <div className="font-semibold text-slate-900">{testCase.caseKey}</div>
-                          <div className="text-xs text-slate-500">{testCase.title}</div>
+                          <div className="font-semibold text-slate-900">
+                            {testCase.caseKey}
+                          </div>
+                          <div className="text-xs text-slate-500">
+                            {testCase.title}
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-xs text-slate-600">
                           <div className="font-semibold text-slate-700">
-                            {resolveScopedName(testCase.project, scopedProjects)}
+                            {resolveScopedName(
+                              testCase.project,
+                              scopedProjects,
+                            )}
                           </div>
-                          <div>{resolveScopedName(testCase.group, scopedGroups)}</div>
+                          <div>
+                            {resolveScopedName(testCase.group, scopedGroups)}
+                          </div>
                         </td>
                         <td className="px-4 py-3">
                           <span className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">
@@ -452,12 +517,16 @@ export default function AdminTestCasesScreen(props: Props) {
                           {testCase.type || "functional"}
                         </td>
                         <td className="px-4 py-3">
-                          <span className={
-                            testCase.automation?.enabled
-                              ? "rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700"
-                              : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500"
-                          }>
-                            {testCase.automation?.enabled ? "Enabled" : "Manual"}
+                          <span
+                            className={
+                              testCase.automation?.enabled
+                                ? "rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700"
+                                : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500"
+                            }
+                          >
+                            {testCase.automation?.enabled
+                              ? "Enabled"
+                              : "Manual"}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-right">
@@ -520,10 +589,16 @@ export default function AdminTestCasesScreen(props: Props) {
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-sm font-semibold text-slate-900">
-                  {panelMode === "edit" ? "Edit test case" : panelMode === "create" ? "New test case" : "Case details"}
+                  {panelMode === "edit"
+                    ? "Edit test case"
+                    : panelMode === "create"
+                      ? "New test case"
+                      : "Case details"}
                 </div>
                 <div className="text-xs text-slate-500">
-                  {panelMode === "view" ? "Quick context and actions" : "Edit fields and save"}
+                  {panelMode === "view"
+                    ? "Quick context and actions"
+                    : "Edit fields and save"}
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -554,9 +629,15 @@ export default function AdminTestCasesScreen(props: Props) {
             {panelMode === "view" && activeCase ? (
               <div className="mt-4 space-y-4">
                 <div>
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Case</div>
-                  <div className="text-lg font-semibold text-slate-900">{activeCase.caseKey}</div>
-                  <div className="text-sm text-slate-600">{activeCase.title}</div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Case
+                  </div>
+                  <div className="text-lg font-semibold text-slate-900">
+                    {activeCase.caseKey}
+                  </div>
+                  <div className="text-sm text-slate-600">
+                    {activeCase.title}
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
@@ -569,11 +650,13 @@ export default function AdminTestCasesScreen(props: Props) {
                   <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
                     {activeCase.type || "functional"}
                   </span>
-                  <span className={
-                    activeCase.automation?.enabled
-                      ? "rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700"
-                      : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500"
-                  }>
+                  <span
+                    className={
+                      activeCase.automation?.enabled
+                        ? "rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700"
+                        : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500"
+                    }
+                  >
                     {activeCase.automation?.enabled ? "Automation" : "Manual"}
                   </span>
                 </div>
@@ -583,30 +666,49 @@ export default function AdminTestCasesScreen(props: Props) {
                 </div>
 
                 <div>
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Expected</div>
-                  <div className="text-sm text-slate-700">{activeCase.expected || "-"}</div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Expected
+                  </div>
+                  <div className="text-sm text-slate-700">
+                    {activeCase.expected || "-"}
+                  </div>
                 </div>
 
                 <div>
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Steps</div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Steps
+                  </div>
                   <ol className="mt-2 space-y-2 text-sm text-slate-700">
-                    {(activeCase.steps || []).slice(0, 6).map((step: RecordAny, index: number) => (
-                      <li key={index} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                        <span className="mr-2 text-xs text-slate-400">#{index + 1}</span>
-                        {step.action}
-                      </li>
-                    ))}
+                    {(activeCase.steps || [])
+                      .slice(0, 6)
+                      .map((step: RecordAny, index: number) => (
+                        <li
+                          key={index}
+                          className="rounded-lg border border-slate-200 bg-white px-3 py-2"
+                        >
+                          <span className="mr-2 text-xs text-slate-400">
+                            #{index + 1}
+                          </span>
+                          {step.action}
+                        </li>
+                      ))}
                   </ol>
                 </div>
               </div>
             ) : (
               <form className="mt-4 space-y-4" onSubmit={saveTestCase}>
                 <div className="grid gap-3">
-                  <label className="text-xs font-semibold text-slate-500">Project</label>
+                  <label className="text-xs font-semibold text-slate-500">
+                    Project
+                  </label>
                   <select
                     value={testCaseForm.projectId}
                     onChange={(e) =>
-                      setTestCaseForm((prev) => ({ ...prev, projectId: e.target.value, groupId: "" }))
+                      setTestCaseForm((prev) => ({
+                        ...prev,
+                        projectId: e.target.value,
+                        groupId: "",
+                      }))
                     }
                     className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
                     required
@@ -621,10 +723,17 @@ export default function AdminTestCasesScreen(props: Props) {
                 </div>
 
                 <div className="grid gap-3">
-                  <label className="text-xs font-semibold text-slate-500">Group</label>
+                  <label className="text-xs font-semibold text-slate-500">
+                    Group
+                  </label>
                   <select
                     value={testCaseForm.groupId}
-                    onChange={(e) => setTestCaseForm((prev) => ({ ...prev, groupId: e.target.value }))}
+                    onChange={(e) =>
+                      setTestCaseForm((prev) => ({
+                        ...prev,
+                        groupId: e.target.value,
+                      }))
+                    }
                     className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
                     required
                   >
@@ -638,30 +747,50 @@ export default function AdminTestCasesScreen(props: Props) {
                 </div>
 
                 <div className="grid gap-3">
-                  <label className="text-xs font-semibold text-slate-500">Case key</label>
+                  <label className="text-xs font-semibold text-slate-500">
+                    Case key
+                  </label>
                   <input
                     value={testCaseForm.caseKey}
-                    onChange={(e) => setTestCaseForm((prev) => ({ ...prev, caseKey: e.target.value }))}
+                    onChange={(e) =>
+                      setTestCaseForm((prev) => ({
+                        ...prev,
+                        caseKey: e.target.value,
+                      }))
+                    }
                     className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
                     required
                   />
                 </div>
 
                 <div className="grid gap-3">
-                  <label className="text-xs font-semibold text-slate-500">Title</label>
+                  <label className="text-xs font-semibold text-slate-500">
+                    Title
+                  </label>
                   <input
                     value={testCaseForm.title}
-                    onChange={(e) => setTestCaseForm((prev) => ({ ...prev, title: e.target.value }))}
+                    onChange={(e) =>
+                      setTestCaseForm((prev) => ({
+                        ...prev,
+                        title: e.target.value,
+                      }))
+                    }
                     className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
                     required
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">
-                  <label className="text-xs font-semibold text-slate-500">Priority
+                  <label className="text-xs font-semibold text-slate-500">
+                    Priority
                     <select
                       value={testCaseForm.priority || "medium"}
-                      onChange={(e) => setTestCaseForm((prev) => ({ ...prev, priority: e.target.value }))}
+                      onChange={(e) =>
+                        setTestCaseForm((prev) => ({
+                          ...prev,
+                          priority: e.target.value,
+                        }))
+                      }
                       className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                     >
                       <option value="low">low</option>
@@ -670,10 +799,16 @@ export default function AdminTestCasesScreen(props: Props) {
                       <option value="critical">critical</option>
                     </select>
                   </label>
-                  <label className="text-xs font-semibold text-slate-500">Severity
+                  <label className="text-xs font-semibold text-slate-500">
+                    Severity
                     <select
                       value={testCaseForm.severity || "major"}
-                      onChange={(e) => setTestCaseForm((prev) => ({ ...prev, severity: e.target.value }))}
+                      onChange={(e) =>
+                        setTestCaseForm((prev) => ({
+                          ...prev,
+                          severity: e.target.value,
+                        }))
+                      }
                       className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                     >
                       <option value="minor">minor</option>
@@ -684,10 +819,17 @@ export default function AdminTestCasesScreen(props: Props) {
                 </div>
 
                 <div className="grid gap-3">
-                  <label className="text-xs font-semibold text-slate-500">Type</label>
+                  <label className="text-xs font-semibold text-slate-500">
+                    Type
+                  </label>
                   <select
                     value={testCaseForm.type || "functional"}
-                    onChange={(e) => setTestCaseForm((prev) => ({ ...prev, type: e.target.value }))}
+                    onChange={(e) =>
+                      setTestCaseForm((prev) => ({
+                        ...prev,
+                        type: e.target.value,
+                      }))
+                    }
                     className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
                   >
                     <option value="functional">functional</option>
@@ -700,11 +842,18 @@ export default function AdminTestCasesScreen(props: Props) {
                 </div>
 
                 <div className="grid gap-3">
-                  <label className="text-xs font-semibold text-slate-500">Description</label>
+                  <label className="text-xs font-semibold text-slate-500">
+                    Description
+                  </label>
                   <textarea
                     rows={3}
                     value={testCaseForm.description}
-                    onChange={(e) => setTestCaseForm((prev) => ({ ...prev, description: e.target.value }))}
+                    onChange={(e) =>
+                      setTestCaseForm((prev) => ({
+                        ...prev,
+                        description: e.target.value,
+                      }))
+                    }
                     className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
                   />
                 </div>
@@ -712,8 +861,12 @@ export default function AdminTestCasesScreen(props: Props) {
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-xs font-semibold text-slate-600">Steps</div>
-                      <div className="text-[11px] text-slate-500">Drag the handle to reorder</div>
+                      <div className="text-xs font-semibold text-slate-600">
+                        Steps
+                      </div>
+                      <div className="text-[11px] text-slate-500">
+                        Drag the handle to reorder
+                      </div>
                     </div>
                     <button
                       type="button"
@@ -729,23 +882,31 @@ export default function AdminTestCasesScreen(props: Props) {
                         key={index}
                         className="flex items-center gap-2 rounded-lg border border-dashed border-transparent p-1"
                         onDragOver={handleStepDragOver}
-                        onDrop={(event) => handleStepDrop("manual", index, event)}
+                        onDrop={(event) =>
+                          handleStepDrop("manual", index, event)
+                        }
                       >
                         <button
                           type="button"
                           className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-500 hover:border-slate-400 hover:text-slate-700"
                           draggable
-                          onDragStart={(event) => handleStepDragStart("manual", index, event)}
+                          onDragStart={(event) =>
+                            handleStepDragStart("manual", index, event)
+                          }
                           onDragEnd={handleStepDragEnd}
                           aria-label="Drag to reorder step"
                           title="Drag to reorder"
                         >
                           ::
                         </button>
-                        <span className="text-xs text-slate-400">#{index + 1}</span>
+                        <span className="text-xs text-slate-400">
+                          #{index + 1}
+                        </span>
                         <input
                           value={step.action}
-                          onChange={(e) => updateTestCaseStep(index, "action", e.target.value)}
+                          onChange={(e) =>
+                            updateTestCaseStep(index, "action", e.target.value)
+                          }
                           placeholder="Step action"
                           className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm"
                         />
@@ -762,40 +923,67 @@ export default function AdminTestCasesScreen(props: Props) {
                 </div>
 
                 <div className="grid gap-3">
-                  <label className="text-xs font-semibold text-slate-500">Expected result</label>
+                  <label className="text-xs font-semibold text-slate-500">
+                    Expected result
+                  </label>
                   <input
                     value={testCaseForm.expected}
-                    onChange={(e) => setTestCaseForm((prev) => ({ ...prev, expected: e.target.value }))}
+                    onChange={(e) =>
+                      setTestCaseForm((prev) => ({
+                        ...prev,
+                        expected: e.target.value,
+                      }))
+                    }
                     className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
                     required
                   />
                 </div>
 
                 <div className="rounded-xl border border-slate-200 bg-white p-3">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Automation</div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Automation
+                  </div>
                   <div className="mt-2 grid gap-3">
-                    <label className="text-xs font-semibold text-slate-500">Enabled
+                    <label className="text-xs font-semibold text-slate-500">
+                      Enabled
                       <select
                         value={automationForm.enabled ? "true" : "false"}
-                        onChange={(e) => setAutomationForm((prev) => ({ ...prev, enabled: e.target.value === "true" }))}
+                        onChange={(e) =>
+                          setAutomationForm((prev) => ({
+                            ...prev,
+                            enabled: e.target.value === "true",
+                          }))
+                        }
                         className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                       >
                         <option value="false">No</option>
                         <option value="true">Yes</option>
                       </select>
                     </label>
-                    <label className="text-xs font-semibold text-slate-500">Base URL
+                    <label className="text-xs font-semibold text-slate-500">
+                      Base URL
                       <input
                         value={automationForm.baseUrl}
-                        onChange={(e) => setAutomationForm((prev) => ({ ...prev, baseUrl: e.target.value }))}
+                        onChange={(e) =>
+                          setAutomationForm((prev) => ({
+                            ...prev,
+                            baseUrl: e.target.value,
+                          }))
+                        }
                         className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                         placeholder="https://app.example.com"
                       />
                     </label>
-                    <label className="text-xs font-semibold text-slate-500">User
+                    <label className="text-xs font-semibold text-slate-500">
+                      User
                       <input
                         value={automationForm.userKey}
-                        onChange={(e) => setAutomationForm((prev) => ({ ...prev, userKey: e.target.value }))}
+                        onChange={(e) =>
+                          setAutomationForm((prev) => ({
+                            ...prev,
+                            userKey: e.target.value,
+                          }))
+                        }
                         className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                         placeholder="tester@company.com"
                       />
@@ -805,8 +993,12 @@ export default function AdminTestCasesScreen(props: Props) {
                   <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
                     <div className="flex items-center justify-between">
                       <div>
-                        <div className="text-xs font-semibold text-slate-600">Playwright steps</div>
-                        <div className="text-[11px] text-slate-500">Drag the handle to reorder</div>
+                        <div className="text-xs font-semibold text-slate-600">
+                          Playwright steps
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          Drag the handle to reorder
+                        </div>
                       </div>
                       <button
                         type="button"
@@ -822,7 +1014,9 @@ export default function AdminTestCasesScreen(props: Props) {
                           key={index}
                           className="rounded-lg border border-slate-200 bg-white p-3"
                           onDragOver={handleStepDragOver}
-                          onDrop={(event) => handleStepDrop("automation", index, event)}
+                          onDrop={(event) =>
+                            handleStepDrop("automation", index, event)
+                          }
                         >
                           <div className="flex items-center justify-between text-xs text-slate-500">
                             <span>Step {index + 1}</span>
@@ -830,7 +1024,9 @@ export default function AdminTestCasesScreen(props: Props) {
                               type="button"
                               className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-500 hover:border-slate-400 hover:text-slate-700"
                               draggable
-                              onDragStart={(event) => handleStepDragStart("automation", index, event)}
+                              onDragStart={(event) =>
+                                handleStepDragStart("automation", index, event)
+                              }
                               onDragEnd={handleStepDragEnd}
                               aria-label="Drag to reorder automation step"
                               title="Drag to reorder"
@@ -839,10 +1035,17 @@ export default function AdminTestCasesScreen(props: Props) {
                             </button>
                           </div>
                           <div className="grid grid-cols-3 gap-2 text-xs">
-                            <label className="font-semibold text-slate-500">Action
+                            <label className="font-semibold text-slate-500">
+                              Action
                               <select
                                 value={step.action}
-                                onChange={(e) => updateAutomationStep(index, "action", e.target.value)}
+                                onChange={(e) =>
+                                  updateAutomationStep(
+                                    index,
+                                    "action",
+                                    e.target.value,
+                                  )
+                                }
                                 className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1 text-sm"
                               >
                                 <option value="goto">goto</option>
@@ -851,22 +1054,37 @@ export default function AdminTestCasesScreen(props: Props) {
                                 <option value="select">select</option>
                                 <option value="waitFor">waitFor</option>
                                 <option value="assertText">assertText</option>
-                                <option value="assertVisible">assertVisible</option>
+                                <option value="assertVisible">
+                                  assertVisible
+                                </option>
                                 <option value="assertUrl">assertUrl</option>
                                 <option value="assertTitle">assertTitle</option>
-                                <option value="assertHidden">assertHidden</option>
-                                <option value="assertEnabled">assertEnabled</option>
-                                <option value="assertChecked">assertChecked</option>
+                                <option value="assertHidden">
+                                  assertHidden
+                                </option>
+                                <option value="assertEnabled">
+                                  assertEnabled
+                                </option>
+                                <option value="assertChecked">
+                                  assertChecked
+                                </option>
                                 <option value="hover">hover</option>
                                 <option value="press">press</option>
                                 <option value="upload">upload</option>
                                 <option value="dragTo">dragTo</option>
                               </select>
                             </label>
-                            <label className="font-semibold text-slate-500">Target type
+                            <label className="font-semibold text-slate-500">
+                              Target type
                               <select
                                 value={step.targetType}
-                                onChange={(e) => updateAutomationStep(index, "targetType", e.target.value)}
+                                onChange={(e) =>
+                                  updateAutomationStep(
+                                    index,
+                                    "targetType",
+                                    e.target.value,
+                                  )
+                                }
                                 className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1 text-sm"
                               >
                                 <option value="css">css</option>
@@ -878,35 +1096,63 @@ export default function AdminTestCasesScreen(props: Props) {
                                 <option value="url">url</option>
                               </select>
                             </label>
-                            <label className="font-semibold text-slate-500">Timeout ms
+                            <label className="font-semibold text-slate-500">
+                              Timeout ms
                               <input
                                 type="number"
                                 min="0"
                                 value={step.timeoutMs}
-                                onChange={(e) => updateAutomationStep(index, "timeoutMs", e.target.value)}
+                                onChange={(e) =>
+                                  updateAutomationStep(
+                                    index,
+                                    "timeoutMs",
+                                    e.target.value,
+                                  )
+                                }
                                 className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1 text-sm"
                               />
                             </label>
                           </div>
                           <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                            <label className="font-semibold text-slate-500">Target
+                            <label className="font-semibold text-slate-500">
+                              Target
                               <input
                                 value={step.target}
-                                onChange={(e) => updateAutomationStep(index, "target", e.target.value)}
+                                onChange={(e) =>
+                                  updateAutomationStep(
+                                    index,
+                                    "target",
+                                    e.target.value,
+                                  )
+                                }
                                 className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1 text-sm"
                               />
                             </label>
-                            <label className="font-semibold text-slate-500">Value
+                            <label className="font-semibold text-slate-500">
+                              Value
                               <input
                                 value={step.value}
-                                onChange={(e) => updateAutomationStep(index, "value", e.target.value)}
+                                onChange={(e) =>
+                                  updateAutomationStep(
+                                    index,
+                                    "value",
+                                    e.target.value,
+                                  )
+                                }
                                 className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1 text-sm"
                               />
                             </label>
-                            <label className="font-semibold text-slate-500">Expected
+                            <label className="font-semibold text-slate-500">
+                              Expected
                               <input
                                 value={step.expected}
-                                onChange={(e) => updateAutomationStep(index, "expected", e.target.value)}
+                                onChange={(e) =>
+                                  updateAutomationStep(
+                                    index,
+                                    "expected",
+                                    e.target.value,
+                                  )
+                                }
                                 className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1 text-sm"
                               />
                             </label>
@@ -931,7 +1177,9 @@ export default function AdminTestCasesScreen(props: Props) {
                     type="submit"
                     className="flex-1 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-slate-800"
                   >
-                    {panelMode === "edit" ? "+ Save changes" : "+ Create test case"}
+                    {panelMode === "edit"
+                      ? "+ Save changes"
+                      : "+ Create test case"}
                   </button>
                   {panelMode === "edit" && (
                     <button
@@ -953,8 +1201,12 @@ export default function AdminTestCasesScreen(props: Props) {
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-sm font-semibold text-slate-900">Recent activity</div>
-                <div className="text-xs text-slate-500">5 test case gan nhat</div>
+                <div className="text-sm font-semibold text-slate-900">
+                  Recent activity
+                </div>
+                <div className="text-xs text-slate-500">
+                  5 test case gan nhat
+                </div>
               </div>
               <button
                 type="button"
@@ -973,11 +1225,17 @@ export default function AdminTestCasesScreen(props: Props) {
                   className="flex w-full items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-left hover:border-slate-300"
                 >
                   <span>
-                    <span className="block text-xs text-slate-500">{item.caseKey}</span>
-                    <span className="block text-sm font-semibold text-slate-900">{item.title}</span>
+                    <span className="block text-xs text-slate-500">
+                      {item.caseKey}
+                    </span>
+                    <span className="block text-sm font-semibold text-slate-900">
+                      {item.title}
+                    </span>
                   </span>
                   <span className="text-xs text-slate-400">
-                    {new Date(item.updatedAt || item.createdAt || 0).toLocaleDateString()}
+                    {new Date(
+                      item.updatedAt || item.createdAt || 0,
+                    ).toLocaleDateString()}
                   </span>
                 </button>
               ))}
@@ -998,10 +1256,15 @@ export default function AdminTestCasesScreen(props: Props) {
             </button>
 
             <div className="mb-4">
-              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Recent activity</div>
-              <h3 className="text-xl font-semibold text-slate-900">All test cases by recency</h3>
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Recent activity
+              </div>
+              <h3 className="text-xl font-semibold text-slate-900">
+                All test cases by recency
+              </h3>
               <div className="text-sm text-slate-600">
-                Showing {allRecentCases.length} test cases with details, last update time, and automation context.
+                Showing {allRecentCases.length} test cases with details, last
+                update time, and automation context.
               </div>
             </div>
 
@@ -1012,7 +1275,9 @@ export default function AdminTestCasesScreen(props: Props) {
                 </div>
               ) : (
                 allRecentCases.map((item) => {
-                  const stepCount = Array.isArray(item.steps) ? item.steps.length : 0;
+                  const stepCount = Array.isArray(item.steps)
+                    ? item.steps.length
+                    : 0;
                   return (
                     <button
                       key={getId(item)}
@@ -1026,10 +1291,20 @@ export default function AdminTestCasesScreen(props: Props) {
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">{item.caseKey || item.key}</div>
-                          <div className="text-base font-semibold text-slate-900">{item.title || item.name}</div>
+                          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                            {item.caseKey || item.key}
+                          </div>
+                          <div className="text-base font-semibold text-slate-900">
+                            {item.title || item.name}
+                          </div>
                         </div>
-                        <span className={item.automation?.enabled ? "rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700" : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600"}>
+                        <span
+                          className={
+                            item.automation?.enabled
+                              ? "rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700"
+                              : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600"
+                          }
+                        >
                           {item.automation?.enabled ? "Automation" : "Manual"}
                         </span>
                       </div>
@@ -1049,20 +1324,28 @@ export default function AdminTestCasesScreen(props: Props) {
                       <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600">
                         <div className="rounded-lg bg-slate-50 p-2">
                           <div className="text-slate-500">Project</div>
-                          <div className="font-semibold text-slate-800">{item.project?.name || "-"}</div>
+                          <div className="font-semibold text-slate-800">
+                            {item.project?.name || "-"}
+                          </div>
                         </div>
                         <div className="rounded-lg bg-slate-50 p-2">
                           <div className="text-slate-500">Group</div>
-                          <div className="font-semibold text-slate-800">{item.group?.name || "-"}</div>
+                          <div className="font-semibold text-slate-800">
+                            {item.group?.name || "-"}
+                          </div>
                         </div>
                         <div className="rounded-lg bg-slate-50 p-2">
                           <div className="text-slate-500">Steps</div>
-                          <div className="font-semibold text-slate-800">{stepCount}</div>
+                          <div className="font-semibold text-slate-800">
+                            {stepCount}
+                          </div>
                         </div>
                         <div className="rounded-lg bg-slate-50 p-2">
                           <div className="text-slate-500">Updated</div>
                           <div className="font-semibold text-slate-800">
-                            {new Date(item.updatedAt || item.createdAt || 0).toLocaleString()}
+                            {new Date(
+                              item.updatedAt || item.createdAt || 0,
+                            ).toLocaleString()}
                           </div>
                         </div>
                       </div>

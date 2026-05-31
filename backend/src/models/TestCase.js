@@ -19,10 +19,22 @@ const testCaseSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    projectVersionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Project',
+      default: null,
+      index: true,
+    },
     group: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'TestCaseGroup',
       required: true,
+      index: true,
+    },
+    groupVersionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'TestCaseGroup',
+      default: null,
       index: true,
     },
     key: {
@@ -131,8 +143,7 @@ const testCaseSchema = new mongoose.Schema(
 
 applyVersioning(testCaseSchema, {
   scopeIndexes: [
-    { fields: { project: 1, group: 1, key: 1 } },
-    { fields: { project: 1, group: 1, name: 1 } },
+    { fields: { group: 1, key: 1 } },
   ],
 });
 

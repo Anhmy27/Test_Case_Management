@@ -167,6 +167,17 @@ const ensureProjectExists = async (projectId, { includeDeleted = false } = {}) =
   return project;
 };
 
+const resolveLatestProjectSnapshot = async (projectId, { includeDeleted = false } = {}) => {
+  const resolvedProject = await ensureProjectExists(projectId, { includeDeleted });
+  const latestProject = await Project.findOne({
+    entityId: resolvedProject.entityId || resolvedProject._id,
+    $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+    deletedAt: null,
+  }).lean();
+
+  return latestProject || resolvedProject;
+};
+
 const ensureVersionExists = async (versionId, projectId, { includeDeleted = false } = {}) => {
   const project = await ensureProjectExists(projectId, { includeDeleted });
 
@@ -207,17 +218,25 @@ const ensureGroupExists = async (groupId, projectId, { includeDeleted = false } 
       .map((value) => String(value)),
   );
 
-  const group = await TestCaseGroup.findOne({
+  const groupMatch = {
     $or: [
       { entityId: toObjectId(groupId, 'groupId') },
       { _id: toObjectId(groupId, 'groupId') },
     ],
-    ...(includeDeleted
-      ? {}
-      : {
-          $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
-          deletedAt: null,
-        }),
+  };
+
+  const group = await TestCaseGroup.findOne({
+    $and: [
+      groupMatch,
+      ...(includeDeleted
+        ? []
+        : [
+            {
+              $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+              deletedAt: null,
+            },
+          ]),
+    ],
   }).lean();
 
   if (!group) {
@@ -230,6 +249,37 @@ const ensureGroupExists = async (groupId, projectId, { includeDeleted = false } 
   }
 
   return group;
+};
+
+const buildTestCaseConflict = async (duplicate, fallbackGroupId) => {
+  const duplicateGroupRef = duplicate?.group || fallbackGroupId || null;
+  let duplicateGroup = null;
+  if (duplicateGroupRef) {
+    const groupDoc = await TestCaseGroup.findOne({
+      $or: [
+        { _id: duplicateGroupRef },
+        { entityId: duplicateGroupRef },
+      ],
+    }).select('entityId _id name key').lean();
+
+    const latestGroupEntityId = groupDoc?.entityId || groupDoc?._id || duplicateGroupRef;
+    duplicateGroup = await TestCaseGroup.findOne({
+      entityId: latestGroupEntityId,
+      deletedAt: null,
+      $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+    }).select('entityId _id name key').lean() || groupDoc;
+  }
+
+  return {
+    testCaseId: String(duplicate?._id || ''),
+    entityId: String(duplicate?.entityId || ''),
+    key: duplicate?.key || '',
+    title: duplicate?.title || duplicate?.name || '',
+    groupId: String(duplicateGroup?._id || duplicateGroupRef || ''),
+    groupEntityId: String(duplicateGroup?.entityId || ''),
+    groupName: String(duplicateGroup?.name || ''),
+    groupKey: String(duplicateGroup?.key || ''),
+  };
 };
 
 const ensureTestCaseExists = async (testCaseId, projectId, { includeDeleted = false } = {}) => {
@@ -1038,10 +1088,11 @@ const createTestCaseGroup = asyncHandler(async (req, res) => {
     throw httpError(400, 'projectId and name are required');
   }
 
-  const project = await ensureProjectExists(projectId);
+  const project = await resolveLatestProjectSnapshot(projectId);
   const normalizedName = normalizeName(name);
   const normalizedKey = normalizeKey(key || name);
   const projectRef = project.entityId || project._id;
+  const projectVersionId = project._id;
 
   const duplicate = await TestCaseGroup.findOne({
     project: { $in: [project._id, project.entityId].filter(Boolean) },
@@ -1059,6 +1110,7 @@ const createTestCaseGroup = asyncHandler(async (req, res) => {
     isLatest: true,
     deletedAt: null,
     project: projectRef,
+    projectVersionId,
     key: normalizedKey,
     name: normalizedName,
     description: description || '',
@@ -1073,7 +1125,7 @@ const listTestCaseGroups = asyncHandler(async (req, res) => {
   const baseFilters = {};
 
   if (projectId) {
-    const project = await ensureProjectExists(projectId);
+    const project = await resolveLatestProjectSnapshot(projectId);
     try {
       const projectVersionIds = await Project.find({ entityId: project.entityId }).distinct('_id');
       const projectIds = Array.from(new Set([...(projectVersionIds || []), String(project.entityId || project._id)]));
@@ -1165,21 +1217,22 @@ const updateTestCaseGroup = asyncHandler(async (req, res) => {
   const { projectId, key, name, description } = req.body;
 
   const nextGroup = await updateVersionedDocument(TestCaseGroup, groupId, async (current) => {
-    let nextProjectId;
+    let nextProject;
     if (projectId) {
-      const resolved = await ensureProjectExists(projectId, { includeDeleted: false });
-      nextProjectId = resolved.entityId || resolved._id;
+      nextProject = await resolveLatestProjectSnapshot(projectId, { includeDeleted: false });
     } else {
-      const currentProject = await ensureProjectExists(current.project, { includeDeleted: false });
-      nextProjectId = currentProject.entityId || currentProject._id;
+      nextProject = await resolveLatestProjectSnapshot(current.project, { includeDeleted: false });
     }
+
+    const nextProjectRef = nextProject.entityId || nextProject._id;
+    const nextProjectVersionId = nextProject._id;
 
     const normalizedName = name ? normalizeName(name) : current.name;
     const normalizedKey = normalizeKey(key || current.key || current.name);
 
     const duplicate = await TestCaseGroup.findOne({
       _id: { $ne: current._id },
-      project: nextProjectId,
+      project: { $in: [nextProjectRef, nextProjectVersionId].filter(Boolean) },
       deletedAt: null,
       isLatest: true,
       $or: [{ key: normalizedKey }, { name: normalizedName }],
@@ -1189,7 +1242,8 @@ const updateTestCaseGroup = asyncHandler(async (req, res) => {
     }
 
     return {
-      project: nextProjectId,
+      project: nextProjectRef,
+      projectVersionId: nextProjectVersionId,
       key: normalizedKey,
       name: normalizedName,
       description: description !== undefined ? description || '' : current.description,
@@ -1243,18 +1297,18 @@ const createTestCase = asyncHandler(async (req, res) => {
     throw httpError(400, 'automation.steps[] are required when automation is enabled');
   }
 
-  const projectRefs = [String(project._id), String(project.entityId || '')].filter(Boolean);
-  const groupRefs = [String(group._id), String(group.entityId || '')].filter(Boolean);
+  const groupRef = group.entityId || group._id;
 
   const duplicate = await TestCase.findOne({
-    project: { $in: projectRefs.map((value) => toObjectId(value, 'projectId')) },
-    group: { $in: groupRefs.map((value) => toObjectId(value, 'groupId')) },
+    group: toObjectId(groupRef, 'groupId'),
     deletedAt: null,
     isLatest: true,
-    $or: [{ key: normalizedKey }, { name: normalizedName }],
+    key: normalizedKey,
   }).lean();
   if (duplicate) {
-    throw httpError(409, 'Test case key or name already exists in this group');
+    throw httpError(409, 'Test case key already exists in this group', {
+      conflict: await buildTestCaseConflict(duplicate, groupRef),
+    });
   }
 
   const testCase = await TestCase.create({
@@ -1263,7 +1317,9 @@ const createTestCase = asyncHandler(async (req, res) => {
     isLatest: true,
     deletedAt: null,
     project: project.entityId ? project.entityId : project._id,
+    projectVersionId: project._id,
     group: group.entityId ? group.entityId : group._id,
+    groupVersionId: group._id,
     key: normalizedKey,
     name: normalizedName,
     caseKey: normalizedKey,
@@ -1705,21 +1761,22 @@ const updateTestCase = asyncHandler(async (req, res) => {
     // otherwise fall back to the document _id. This keeps create/update consistent.
     const storeProjectRef = resolvedProject.entityId ? resolvedProject.entityId : resolvedProject._id;
     const storeGroupRef = resolvedGroup.entityId ? resolvedGroup.entityId : resolvedGroup._id;
+    const groupRef = resolvedGroup.entityId || resolvedGroup._id;
 
     const normalizedKey = normalizeKey(key || caseKey || current.key || current.caseKey);
     const normalizedName = normalizeName(name || title || current.name || current.title);
 
     const duplicate = await TestCase.findOne({
       _id: { $ne: current._id },
-      // duplicate detection should use the project/group version _id
-      project: resolvedProject._id,
-      group: resolvedGroup._id,
+      group: toObjectId(groupRef, 'groupId'),
       deletedAt: null,
       isLatest: true,
-      $or: [{ key: normalizedKey }, { name: normalizedName }],
+      key: normalizedKey,
     }).lean();
     if (duplicate) {
-      throw httpError(409, 'Test case key or name already exists in this group');
+      throw httpError(409, 'Test case key already exists in this group', {
+        conflict: await buildTestCaseConflict(duplicate, groupRef),
+      });
     }
 
     const nextExpected = String(expected || current.expected || (Array.isArray(current.steps) && current.steps[0] && current.steps[0].expected) || '').trim();
@@ -1756,7 +1813,9 @@ const updateTestCase = asyncHandler(async (req, res) => {
 
     return {
       project: storeProjectRef,
+      projectVersionId: resolvedProject._id,
       group: storeGroupRef,
+      groupVersionId: resolvedGroup._id,
       key: normalizedKey,
       name: normalizedName,
       caseKey: normalizedKey,
@@ -1927,17 +1986,19 @@ const importTestCases = asyncHandler(async (req, res) => {
         const normalizedKey = normalizeKey(caseKey);
         const normalizedName = normalizeName(title);
 
+        const groupRef = group.entityId || group._id;
+
         const duplicate = await TestCase.findOne({
-          project: { $in: projectRefs.map((value) => toObjectId(value, 'projectId')) },
-          group: { $in: [String(group._id), String(group.entityId || '')].filter(Boolean).map((value) => toObjectId(value, 'groupId')) },
+          group: toObjectId(groupRef, 'groupId'),
           deletedAt: null,
           isLatest: true,
-          $or: [{ key: normalizedKey }, { name: normalizedName }],
+          key: normalizedKey,
         }).lean();
         if (duplicate) {
           errors.push({
             row: i + 2,
             error: `Test case '${normalizedKey}' already exists in group '${group.name}'`,
+            conflict: await buildTestCaseConflict(duplicate, groupRef),
           });
           continue;
         }
@@ -1966,7 +2027,9 @@ const importTestCases = asyncHandler(async (req, res) => {
           isLatest: true,
           deletedAt: null,
           project: project.entityId ? project.entityId : project._id,
+          projectVersionId: project._id,
           group: group.entityId ? group.entityId : group._id,
+          groupVersionId: group._id,
           key: normalizedKey,
           name: normalizedName,
           caseKey: normalizedKey,
