@@ -748,6 +748,7 @@ const createVersion = asyncHandler(async (req, res) => {
 
   const version = await Version.create({
     project: projectRef,
+    projectVersionId: project._id,
     name: normalizedName,
     idjira: normalizedIdJira,
     releaseDate,
@@ -888,6 +889,8 @@ const updateVersion = asyncHandler(async (req, res) => {
       throw httpError(409, 'Restore the version before editing it');
     }
 
+    const latestProject = await resolveLatestProjectSnapshot(current.project, { includeDeleted: false });
+
     const nextName = name ? normalizeName(name) : current.name;
     const nextIdJira = idjira !== undefined ? String(idjira || '').trim() : current.idjira;
     const nextReleaseDate = releaseDate !== undefined ? (releaseDate || null) : current.releaseDate;
@@ -912,6 +915,7 @@ const updateVersion = asyncHandler(async (req, res) => {
 
     return {
       project: current.project,
+      projectVersionId: latestProject._id,
       name: nextName,
       idjira: nextIdJira,
       releaseDate: nextReleaseDate,
@@ -2115,7 +2119,7 @@ const createTestPlan = asyncHandler(async (req, res) => {
   const allowedProjectRefs = new Set(projectRefs);
   const validCaseIds = [];
   for (let index = 0; index < caseIds.length; index += 1) {
-    const testCase = await resolveTestCaseByReference(caseIds[index], { includeDeleted: true });
+    const testCase = await resolveTestCaseByReference(caseIds[index], { includeDeleted: false });
     if (!testCase) {
       throw httpError(400, 'Some caseIds do not exist in selected project');
     }
@@ -2127,6 +2131,7 @@ const createTestPlan = asyncHandler(async (req, res) => {
 
     validCaseIds.push({
       testCase: testCase.entityId || testCase._id,
+      testCaseVersionId: testCase._id,
       order: index + 1,
       owner: ownerId ? toObjectId(ownerId, 'ownerId') : undefined,
       assignees: Array.isArray(assigneeIds)
@@ -2144,7 +2149,9 @@ const createTestPlan = asyncHandler(async (req, res) => {
     name: normalizedName,
     description: description || '',
     project: project.entityId ? project.entityId : project._id,
+    projectVersionId: project._id,
     version: releaseVersion.entityId ? releaseVersion.entityId : releaseVersion._id,
+    versionVersionId: releaseVersion._id,
     createdBy: req.user.id,
     owner: ownerId ? toObjectId(ownerId, 'ownerId') : undefined,
     assignees: Array.isArray(assigneeIds)
@@ -2395,7 +2402,7 @@ const updateTestPlan = asyncHandler(async (req, res) => {
         String((await ensureProjectExists(nextProjectId, { includeDeleted: false })).entityId || ''),
       ].filter(Boolean));
       for (let index = 0; index < caseIds.length; index += 1) {
-        const testCase = await resolveTestCaseByReference(caseIds[index], { includeDeleted: true });
+        const testCase = await resolveTestCaseByReference(caseIds[index], { includeDeleted: false });
         if (!testCase) {
           throw httpError(400, 'Some caseIds do not exist in selected project');
         }
@@ -2407,6 +2414,7 @@ const updateTestPlan = asyncHandler(async (req, res) => {
 
         items.push({
           testCase: testCase.entityId || testCase._id,
+          testCaseVersionId: testCase._id,
           order: index + 1,
           owner: ownerId ? toObjectId(ownerId, 'ownerId') : current.owner,
           assignees: Array.isArray(assigneeIds)
@@ -2421,7 +2429,9 @@ const updateTestPlan = asyncHandler(async (req, res) => {
       name: resolvedName,
       description: description !== undefined ? description || '' : current.description,
       project: nextProjectId,
+      projectVersionId: project._id,
       version: nextVersionId,
+      versionVersionId: version._id,
       executionMode: executionMode && ['manual', 'automation'].includes(executionMode) ? executionMode : current.executionMode,
       owner: ownerId ? toObjectId(ownerId, 'ownerId') : current.owner,
       assignees: Array.isArray(assigneeIds)

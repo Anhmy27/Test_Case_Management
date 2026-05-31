@@ -8,6 +8,12 @@ const planItemSchema = new mongoose.Schema(
       ref: 'TestCase',
       required: true,
     },
+    testCaseVersionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'TestCase',
+      default: null,
+      index: true,
+    },
     order: {
       type: Number,
       required: true,
@@ -54,10 +60,22 @@ const testPlanSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    projectVersionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Project',
+      default: null,
+      index: true,
+    },
     version: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Version',
       required: true,
+      index: true,
+    },
+    versionVersionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Version',
+      default: null,
       index: true,
     },
     createdBy: {

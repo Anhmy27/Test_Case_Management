@@ -9,6 +9,12 @@ const versionSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    projectVersionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Project',
+      default: null,
+      index: true,
+    },
     name: {
       type: String,
       required: true,
