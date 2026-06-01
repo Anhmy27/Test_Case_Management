@@ -34,11 +34,6 @@ const versionSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
-    deletedAt: {
-      type: Date,
-      default: null,
-      index: true,
-    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

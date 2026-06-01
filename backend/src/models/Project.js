@@ -42,11 +42,6 @@ const projectSchema = new mongoose.Schema(
       default: 'active',
       index: true,
     },
-    deletedAt: {
-      type: Date,
-      default: null,
-      index: true,
-    },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

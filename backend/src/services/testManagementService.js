@@ -406,6 +406,27 @@ const createVersionedDocument = async (Model, payload, session) => {
   return doc;
 };
 
+const findVersionedCurrentDocument = async (Model, currentId, { includeDeleted = false } = {}) => {
+  const objectId = toObjectId(currentId, 'entityId');
+  const query = {
+    $and: [
+      {
+        $or: [
+          { entityId: objectId },
+          { _id: objectId },
+        ],
+      },
+    ],
+  };
+
+  if (!includeDeleted) {
+    query.$and.push({ $or: [{ isLatest: true }, { isLatest: { $exists: false } }] });
+    query.$and.push({ deletedAt: null });
+  }
+
+  return Model.findOne(query);
+};
+
 const resolveTestCaseByReference = async (testCaseRef, { includeDeleted = false } = {}) => {
   if (!testCaseRef) {
     return null;
@@ -459,11 +480,7 @@ const attachTestPlanCases = async (testPlan) => {
 };
 
 const updateVersionedDocument = async (Model, currentId, buildNextPayload) => {
-  const current = await Model.findOne({
-    entityId: toObjectId(currentId, 'entityId'),
-    $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
-    deletedAt: null,
-  });
+  const current = await findVersionedCurrentDocument(Model, currentId);
   if (!current) {
     throw httpError(404, 'Entity not found');
   }
@@ -501,7 +518,7 @@ const updateVersionedDocument = async (Model, currentId, buildNextPayload) => {
 };
 
 const softDeleteVersionSeries = async (Model, id) => {
-  const current = await Model.findOne({ entityId: toObjectId(id, 'entityId') }).lean();
+  const current = await findVersionedCurrentDocument(Model, id, { includeDeleted: true }).lean();
   if (!current) {
     throw httpError(404, 'Entity not found');
   }
@@ -513,7 +530,7 @@ const softDeleteVersionSeries = async (Model, id) => {
 };
 
 const restoreVersionSeries = async (Model, id) => {
-  const current = await Model.findOne({ entityId: toObjectId(id, 'entityId') }).lean();
+  const current = await findVersionedCurrentDocument(Model, id, { includeDeleted: true }).lean();
   if (!current) {
     throw httpError(404, 'Entity not found');
   }
@@ -523,7 +540,7 @@ const restoreVersionSeries = async (Model, id) => {
 };
 
 const getVersionHistory = async (Model, id) => {
-  const current = await Model.findOne({ entityId: toObjectId(id, 'entityId') }).lean();
+  const current = await findVersionedCurrentDocument(Model, id, { includeDeleted: true }).lean();
   if (!current) {
     throw httpError(404, 'Entity not found');
   }
@@ -580,8 +597,10 @@ const createProject = asyncHandler(async (req, res) => {
   const incomingJiraProjectKey = jiraProjectKey !== undefined ? jiraProjectKey : jiraProductKey;
 
   const existingProject = await Project.findOne({
-    deletedAt: null,
-    $or: [{ code: normalizedCode }, { name: normalizedName }],
+    $and: [
+      activeLatestFilter(),
+      { $or: [{ code: normalizedCode }, { name: normalizedName }] },
+    ],
   }).lean();
   if (existingProject) {
     throw httpError(409, 'Project name or code already exists');
@@ -648,8 +667,10 @@ const updateProject = asyncHandler(async (req, res) => {
     const duplicate = await Project.findOne({
       _id: { $ne: current._id },
       entityId: { $ne: current.entityId },
-      deletedAt: null,
-      $or: [{ code: nextCode }, { name: nextName }],
+      $and: [
+        activeLatestFilter(),
+        { $or: [{ code: nextCode }, { name: nextName }] },
+      ],
     }).lean();
     if (duplicate) {
       throw httpError(409, 'Project name or code already exists');
@@ -676,15 +697,17 @@ const deleteProject = asyncHandler(async (req, res) => {
     throw httpError(404, 'Project not found');
   }
 
-  // Collect all version _ids for this project entity
-  const versionIds = await Project.find({ entityId: project.entityId }).distinct('_id');
+  const projectRefs = await Project.find({ entityId: project.entityId }).distinct('_id');
+  const projectIdRefs = Array.from(
+    new Set([...(projectRefs || []), project.entityId].filter(Boolean).map((value) => String(value))),
+  ).map((value) => toObjectId(value, 'projectId'));
 
   const [versionCount, groupCount, caseCount, planCount, runCount] = await Promise.all([
-    Version.countDocuments({ project: { $in: versionIds } }),
-    TestCaseGroup.countDocuments({ project: { $in: versionIds } }),
-    TestCase.countDocuments({ project: { $in: versionIds } }),
-    TestPlan.countDocuments({ project: { $in: versionIds } }),
-    TestRun.countDocuments({ project: { $in: versionIds } }),
+    Version.countDocuments({ project: { $in: projectIdRefs } }),
+    TestCaseGroup.countDocuments({ project: { $in: projectIdRefs } }),
+    TestCase.countDocuments({ project: { $in: projectIdRefs } }),
+    TestPlan.countDocuments({ project: { $in: projectIdRefs } }),
+    TestRun.countDocuments({ project: { $in: projectIdRefs } }),
   ]);
 
   if (versionCount || groupCount || caseCount || planCount || runCount) {
@@ -704,8 +727,10 @@ const restoreProject = asyncHandler(async (req, res) => {
 
   const duplicate = await Project.findOne({
     entityId: { $ne: project.entityId },
-    deletedAt: null,
-    $or: [{ code: project.code }, { name: project.name }],
+    $and: [
+      activeLatestFilter(),
+      { $or: [{ code: project.code }, { name: project.name }] },
+    ],
   }).lean();
   if (duplicate) {
     throw httpError(409, 'Another active project already uses the same name or code');
@@ -884,7 +909,24 @@ const updateVersion = asyncHandler(async (req, res) => {
   const { versionId } = req.params;
   const { name, releaseDate, notes, idjira } = req.body;
 
-  const nextVersion = await updateVersionedDocument(Version, versionId, async (current) => {
+  const versionLookupId = toObjectId(versionId, 'versionId');
+  const currentVersion = await Version.findOne({
+    $and: [
+      {
+        $or: [
+          { entityId: versionLookupId },
+          { _id: versionLookupId },
+        ],
+      },
+      activeLatestFilter(),
+      { deletedAt: null },
+    ],
+  }).lean();
+  if (!currentVersion) {
+    throw httpError(404, 'Version not found');
+  }
+
+  const nextVersion = await updateVersionedDocument(Version, String(currentVersion.entityId || currentVersion._id), async (current) => {
     if (current.deletedAt) {
       throw httpError(409, 'Restore the version before editing it');
     }
@@ -899,15 +941,20 @@ const updateVersion = asyncHandler(async (req, res) => {
     const orMatchers = [{ name: nextName }];
     if (nextIdJira) orMatchers.push({ idjira: nextIdJira });
 
-    const currentProjectRefs = [String(current.project || '')].filter(Boolean).map((value) => toObjectId(value, 'projectId'));
+    const project = await ensureProjectExists(current.project, { includeDeleted: false });
+    const projectVersionIds = await Project.find({ entityId: project.entityId }).distinct('_id');
+    const currentProjectRefs = Array.from(
+      new Set([...(projectVersionIds || []), project.entityId, project._id].filter(Boolean).map((value) => String(value))),
+    ).map((value) => toObjectId(value, 'projectId'));
 
     const duplicate = await Version.findOne({
       _id: { $ne: current._id },
       entityId: { $ne: current.entityId },
-      deletedAt: null,
-      isLatest: true,
       project: { $in: currentProjectRefs },
-      $or: orMatchers,
+      $and: [
+        activeLatestFilter(),
+        { $or: orMatchers },
+      ],
     }).lean();
     if (duplicate) {
       throw httpError(409, `Version "${nextName}" or Jira id already exists in this project`);
@@ -968,8 +1015,10 @@ const restoreVersion = asyncHandler(async (req, res) => {
   const duplicate = await Version.findOne({
     _id: { $ne: version._id },
     project: version.project,
-    deletedAt: null,
-    $or: [{ name: version.name }, ...(version.idjira ? [{ idjira: version.idjira }] : [])],
+    $and: [
+      activeLatestFilter(),
+      { $or: [{ name: version.name }, ...(version.idjira ? [{ idjira: version.idjira }] : [])] },
+    ],
   }).lean();
   if (duplicate) {
     throw httpError(409, `Version "${version.name}" or Jira id already exists in this project`);
@@ -1264,6 +1313,29 @@ const deleteTestCaseGroup = asyncHandler(async (req, res) => {
 });
 
 const restoreTestCaseGroup = asyncHandler(async (req, res) => {
+  const current = await TestCaseGroup.findOne({ entityId: toObjectId(req.params.groupId, 'groupId') }).lean();
+  if (!current) {
+    throw httpError(404, 'Test case group not found');
+  }
+
+  const project = await ensureProjectExists(current.project, { includeDeleted: true });
+  const projectVersionIds = await Project.find({ entityId: project.entityId }).distinct('_id');
+  const projectRefs = Array.from(
+    new Set([...(projectVersionIds || []), project.entityId, project._id].filter(Boolean).map((value) => String(value))),
+  ).map((value) => toObjectId(value, 'projectId'));
+
+  const duplicate = await TestCaseGroup.findOne({
+    _id: { $ne: current._id },
+    project: { $in: projectRefs },
+    $and: [
+      activeLatestFilter(),
+      { $or: [{ key: current.key }, { name: current.name }] },
+    ],
+  }).lean();
+  if (duplicate) {
+    throw httpError(409, 'Test case group name or key already exists in this project');
+  }
+
   await restoreVersionSeries(TestCaseGroup, req.params.groupId);
   const group = await TestCaseGroup.findOne({ entityId: toObjectId(req.params.groupId, 'groupId') }).lean();
   res.json({ group });
@@ -1747,10 +1819,18 @@ const updateTestCase = asyncHandler(async (req, res) => {
     status,
   } = req.body;
 
-  const currentCase = await TestCase.findOne({ entityId: toObjectId(testCaseId, 'testCaseId') }).lean();
+  const currentCaseId = toObjectId(testCaseId, 'testCaseId');
+  const currentCase = await TestCase.findOne({
+    $or: [
+      { entityId: currentCaseId },
+      { _id: currentCaseId },
+    ],
+  }).lean();
   if (!currentCase) {
     throw httpError(404, 'Test case not found');
   }
+
+  const currentCaseRefs = [currentCase.entityId || currentCase._id, currentCase._id].filter(Boolean);
 
   const updated = await updateVersionedDocument(TestCase, testCaseId, async (current) => {
     const requestedProjectRef = projectId ? toObjectId(projectId, 'projectId') : current.project;
@@ -1840,10 +1920,21 @@ const updateTestCase = asyncHandler(async (req, res) => {
     {
       deletedAt: null,
       $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
-      'items.testCase': currentCase._id,
+      'items.testCase': { $in: currentCaseRefs },
     },
-    { $set: { 'items.$[item].testCase': updated._id } },
-    { arrayFilters: [{ 'item.testCase': currentCase._id }] },
+    {
+      $set: {
+        'items.$[item].testCase': updated.entityId || updated._id,
+        'items.$[item].testCaseVersionId': updated._id,
+      },
+    },
+    {
+      arrayFilters: [
+        {
+          'item.testCase': { $in: currentCaseRefs },
+        },
+      ],
+    },
   );
 
   // Load the updated doc and attach project/group objects whether the TestCase stores
@@ -2082,6 +2173,45 @@ const deleteTestCase = asyncHandler(async (req, res) => {
 });
 
 const restoreTestCase = asyncHandler(async (req, res) => {
+  const current = await TestCase.findOne({ entityId: toObjectId(req.params.testCaseId, 'testCaseId') }).lean();
+  if (!current) {
+    throw httpError(404, 'Test case not found');
+  }
+
+  const project = await ensureProjectExists(current.project, { includeDeleted: true });
+  const group = await TestCaseGroup.findOne({
+    $or: [
+      { entityId: current.group },
+      { _id: current.group },
+    ],
+  }).lean();
+  if (!group) {
+    throw httpError(404, 'Test case group not found');
+  }
+
+  const projectVersionIds = await Project.find({ entityId: project.entityId }).distinct('_id');
+  const projectRefs = Array.from(
+    new Set([...(projectVersionIds || []), project.entityId, project._id].filter(Boolean).map((value) => String(value))),
+  ).map((value) => toObjectId(value, 'projectId'));
+
+  const groupVersionIds = await TestCaseGroup.find({ entityId: group.entityId }).distinct('_id');
+  const groupRefs = Array.from(
+    new Set([...(groupVersionIds || []), group.entityId, group._id].filter(Boolean).map((value) => String(value))),
+  ).map((value) => toObjectId(value, 'groupId'));
+
+  const duplicate = await TestCase.findOne({
+    _id: { $ne: current._id },
+    project: { $in: projectRefs },
+    group: { $in: groupRefs },
+    $and: [
+      activeLatestFilter(),
+      { key: current.key },
+    ],
+  }).lean();
+  if (duplicate) {
+    throw httpError(409, 'Test case key already exists in this group');
+  }
+
   await restoreVersionSeries(TestCase, req.params.testCaseId);
   const testCase = await TestCase.findOne({ entityId: toObjectId(req.params.testCaseId, 'testCaseId') })
     .populate('project', 'entityId name code deletedAt')
@@ -2458,6 +2588,37 @@ const deleteTestPlan = asyncHandler(async (req, res) => {
 });
 
 const restoreTestPlan = asyncHandler(async (req, res) => {
+  const current = await TestPlan.findOne({ entityId: toObjectId(req.params.testPlanId, 'testPlanId') }).lean();
+  if (!current) {
+    throw httpError(404, 'Test plan not found');
+  }
+
+  const project = await ensureProjectExists(current.project, { includeDeleted: true });
+  const version = await ensureVersionExists(current.version, project._id, { includeDeleted: true });
+
+  const projectVersionIds = await Project.find({ entityId: project.entityId }).distinct('_id');
+  const projectRefs = Array.from(
+    new Set([...(projectVersionIds || []), project.entityId, project._id].filter(Boolean).map((value) => String(value))),
+  ).map((value) => toObjectId(value, 'projectId'));
+
+  const versionVersionIds = await Version.find({ entityId: version.entityId }).distinct('_id');
+  const versionRefs = Array.from(
+    new Set([...(versionVersionIds || []), version.entityId, version._id].filter(Boolean).map((value) => String(value))),
+  ).map((value) => toObjectId(value, 'versionId'));
+
+  const duplicate = await TestPlan.findOne({
+    _id: { $ne: current._id },
+    project: { $in: projectRefs },
+    version: { $in: versionRefs },
+    $and: [
+      activeLatestFilter(),
+      { $or: [{ key: current.key }, { name: current.name }] },
+    ],
+  }).lean();
+  if (duplicate) {
+    throw httpError(409, 'Test plan name or key already exists in this release version');
+  }
+
   await restoreVersionSeries(TestPlan, req.params.testPlanId);
   const testPlan = await TestPlan.findOne({ entityId: toObjectId(req.params.testPlanId, 'testPlanId') })
     .populate('project', 'entityId name code deletedAt')
