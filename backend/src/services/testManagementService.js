@@ -518,7 +518,7 @@ const updateVersionedDocument = async (Model, currentId, buildNextPayload) => {
 };
 
 const softDeleteVersionSeries = async (Model, id) => {
-  const current = await findVersionedCurrentDocument(Model, id, { includeDeleted: true }).lean();
+  const current = await findVersionedCurrentDocument(Model, id, { includeDeleted: true });
   if (!current) {
     throw httpError(404, 'Entity not found');
   }
@@ -530,7 +530,7 @@ const softDeleteVersionSeries = async (Model, id) => {
 };
 
 const restoreVersionSeries = async (Model, id) => {
-  const current = await findVersionedCurrentDocument(Model, id, { includeDeleted: true }).lean();
+  const current = await findVersionedCurrentDocument(Model, id, { includeDeleted: true });
   if (!current) {
     throw httpError(404, 'Entity not found');
   }
