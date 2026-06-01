@@ -38,7 +38,7 @@ type Props = {
   deletePlan: (planId: string) => Promise<void>;
   duplicatePlan: (plan: RecordAny) => Promise<void>;
   runs: RecordAny[];
-  setRunForm: Dispatch<SetStateAction<{ testPlanId: string; name: string; baseUrl: string }>>;
+  openExecutionForPlan: (plan: RecordAny) => void;
   setActiveTab: Dispatch<SetStateAction<string>>;
   userName: (value: unknown) => string;
   getId: (value: unknown) => string;
@@ -75,7 +75,7 @@ export default function AdminTestPlansScreen(props: Props) {
     deletePlan,
     duplicatePlan,
     runs,
-    setRunForm,
+    openExecutionForPlan,
     setActiveTab,
     userName,
     getId,
@@ -244,12 +244,6 @@ export default function AdminTestPlansScreen(props: Props) {
     );
   }
 
-  function startQuickRun(plan: RecordAny) {
-    const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
-    setRunForm((prev) => ({ ...prev, testPlanId: getId(plan), name: `${plan.name} - ${stamp}` }));
-    setActiveTab("execution");
-  }
-
   async function bulkUpdateExecutionMode() {
     for (const plan of selectedPlans) {
       await updatePlanExecutionMode(getId(plan), statusBulkMode);
@@ -344,7 +338,7 @@ export default function AdminTestPlansScreen(props: Props) {
           <ActionButton
             label="Run"
             icon="▶"
-            onClick={() => activePlan && startQuickRun(activePlan)}
+            onClick={() => activePlan && openExecutionForPlan(activePlan)}
             disabled={!activePlan}
             tooltip={activePlan ? "Start a run from selected plan" : "Select a plan first"}
           />
@@ -406,7 +400,7 @@ export default function AdminTestPlansScreen(props: Props) {
                       <button title={hasRuns ? "Plan da co run, khong the edit" : "Edit"} type="button" disabled={hasRuns} className="rounded-lg border border-slate-200 px-2 py-1 text-xs disabled:cursor-not-allowed disabled:opacity-50" onClick={(e) => { e.stopPropagation(); openEditPlanModal(plan); }}>✎</button>
                       <button title="Duplicate" type="button" className="rounded-lg border border-slate-200 px-2 py-1 text-xs" onClick={(e) => { e.stopPropagation(); void duplicatePlan(plan); }}>⧉</button>
                       <button title={hasRuns ? "Plan da co run, khong the xoa" : "Delete"} type="button" disabled={hasRuns} className="rounded-lg border border-rose-200 px-2 py-1 text-xs text-rose-700 disabled:cursor-not-allowed disabled:opacity-50" onClick={(e) => { e.stopPropagation(); void deletePlan(planId); }}>🗑</button>
-                      <button title="Run" type="button" className="rounded-lg border border-emerald-200 px-2 py-1 text-xs text-emerald-700" onClick={(e) => { e.stopPropagation(); startQuickRun(plan); }}>▶</button>
+                      <button title="Run" type="button" className="rounded-lg border border-emerald-200 px-2 py-1 text-xs text-emerald-700" onClick={(e) => { e.stopPropagation(); openExecutionForPlan(plan); }}>▶</button>
                     </div></td>
                   </tr>;
                 })}
@@ -422,7 +416,7 @@ export default function AdminTestPlansScreen(props: Props) {
                 <div><div className="text-xs uppercase tracking-wide text-slate-500">Name</div><div className="font-semibold text-slate-900">{activePlan.name}</div></div>
               <div className="grid grid-cols-2 gap-2 text-xs"><div className="rounded-lg bg-slate-50 p-2"><div className="text-slate-500">Project</div><div className="font-semibold text-slate-800">{activePlan.project?.name || "-"}</div></div><div className="rounded-lg bg-slate-50 p-2"><div className="text-slate-500">Version</div><div className="font-semibold text-slate-800">{activePlan.version?.name || "-"}</div></div></div>
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">{activePlan.description || "No description"}</div>
-              <div className="flex gap-2"><button type="button" className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white" onClick={() => startQuickRun(activePlan)}>Run this plan</button><button type="button" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600" onClick={() => openAssignModal(getId(activePlan))}>Assign cases</button></div>
+              <div className="flex gap-2"><button type="button" className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white" onClick={() => openExecutionForPlan(activePlan)}>Run this plan</button><button type="button" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600" onClick={() => openAssignModal(getId(activePlan))}>Assign cases</button></div>
             </div>}
           </section>
 

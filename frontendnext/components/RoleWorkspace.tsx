@@ -55,6 +55,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
     isAdmin,
     activeTab,
     setActiveTab,
+    openExecutionForPlan,
     logout,
     dashboard,
     projects,
@@ -422,11 +423,17 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
   }, [isAdmin, isGlobalScope, activeTab, setActiveTab]);
 
   useEffect(() => {
-    selectPlanForAssignment("");
-    setRunForm((prev: any) => ({
-      ...prev,
-      testPlanId: "",
-    }));
+    const hasExecutionPrefill =
+      typeof window !== "undefined" &&
+      Boolean(new URLSearchParams(window.location.search).get("testPlanId"));
+
+    if (!hasExecutionPrefill) {
+      selectPlanForAssignment("");
+      setRunForm((prev: any) => ({
+        ...prev,
+        testPlanId: "",
+      }));
+    }
     setSearchPreset("all");
 
     if (!selectedProjectId) {
@@ -791,7 +798,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
             deletePlan={deletePlan}
             duplicatePlan={duplicatePlan}
             runs={safeRuns}
-            setRunForm={setRunForm}
+            openExecutionForPlan={openExecutionForPlan}
             setActiveTab={setActiveTab}
             userName={userName}
             getId={getId}
@@ -835,8 +842,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
           <EmployeeMyTestPlansScreen
             scopedPlans={scopedPlans}
             matchesSearch={matchesSearch}
-            setRunForm={setRunForm}
-            setActiveTab={setActiveTab}
+            openExecutionForPlan={openExecutionForPlan}
           />
         )}
 
