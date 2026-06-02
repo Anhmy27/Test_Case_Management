@@ -154,7 +154,11 @@ export default function AdminTestRunsScreen({ runForm, setRunForm, startRun, sco
                 <ActionButton
                   label={run.status === "running" && (getId(run.startedBy) === currentUserId) ? "Open" : "View"}
                   icon="↗"
-                  onClick={() => void (async () => { const runId = getId(run); setSelectedRunId(runId); await loadMyItems(runId); setActiveTab("execution"); })()}
+                  onClick={() => {
+                    const runId = getId(run);
+                    if (!runId) return;
+                    void loadMyItems(runId);
+                  }}
                 />
               </div>
             </>

@@ -21,8 +21,9 @@ interface ManualRunExecutionPanelProps {
     note: string,
     notes: string,
   ) => void;
-  onEndRun: () => void;
+  onEndRun: () => void | Promise<void>;
   canEditRun: boolean;
+  canEndRun?: boolean;
   onLogBug?: (run: RecordAny, result: RecordAny) => void;
 }
 
@@ -37,6 +38,7 @@ export default function ManualRunExecutionPanel({
   onUpdateResult,
   onEndRun,
   canEditRun,
+  canEndRun = false,
   onLogBug,
 }: ManualRunExecutionPanelProps) {
   const [queueFilter, setQueueFilter] = useState<"all" | "pending" | "failed" | "passed" | "blocked">("all");
@@ -442,8 +444,10 @@ export default function ManualRunExecutionPanel({
               ) : null}
               <button
                 type="button"
-                className="flex-1 rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600"
-                onClick={onEndRun}
+                className="flex-1 rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
+                onClick={() => void onEndRun()}
+                disabled={!canEndRun}
+                title={canEndRun ? "End this test run" : "Only an active manual run you can edit can be ended"}
               >
                 End run
               </button>

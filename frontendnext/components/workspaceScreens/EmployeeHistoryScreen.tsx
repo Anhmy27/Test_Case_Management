@@ -111,7 +111,7 @@ export default function EmployeeHistoryScreen({ myScopedRuns, matchesSearch, set
               <div>{userName(run.startedBy)}</div>
               <div>{run.completedAt || run.endedAt || run.updatedAt || run.createdAt ? new Date(run.completedAt || run.endedAt || run.updatedAt || run.createdAt).toLocaleString() : "-"}</div>
               <div>
-                <ActionButton label="View" icon="↗" onClick={() => void (async () => { const runId = String(run?._id || run?.id || ""); setSelectedRunId(runId); await loadMyItems(runId); setActiveTab("execution"); })()} />
+                <ActionButton label="View" icon="↗" onClick={() => { const runId = String(run?._id || run?.id || ""); if (!runId) return; void loadMyItems(runId); }} />
               </div>
             </>
           ))}

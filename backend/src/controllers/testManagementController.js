@@ -56,6 +56,25 @@ const findTestPlanByReference = async (testPlanRef) => {
   }).lean();
 };
 
+/** All plan document _ids for the same logical test plan (version lineage). */
+const getTestPlanVersionIds = async (testPlan) => {
+  if (!testPlan) {
+    return [];
+  }
+
+  const planEntityId = testPlan.entityId || testPlan._id;
+  const versionIds = await TestPlan.distinct('_id', {
+    entityId: planEntityId,
+    deletedAt: null,
+  });
+
+  if (versionIds.length > 0) {
+    return versionIds;
+  }
+
+  return testPlan._id ? [testPlan._id] : [];
+};
+
 const findLatestTestCaseByReference = async (testCaseRef) => {
   if (!testCaseRef) {
     return null;
@@ -828,11 +847,13 @@ const startTestRun = asyncHandler(async (req, res) => {
     throw httpError(404, 'Version not found');
   }
 
-  // Check if a run with the same name already exists for this test plan
+  // Check duplicate run name only within this logical test plan (same entityId lineage).
+  // Do not match testPlan.entityId directly — it can equal another plan document's _id.
   const testPlanRef = testPlan._id;
+  const relatedPlanIds = await getTestPlanVersionIds(testPlan);
 
   const existingRun = await TestRun.findOne({
-    testPlan: { $in: [testPlan._id, testPlan.entityId].filter(Boolean) },
+    testPlan: { $in: relatedPlanIds },
     name: name.trim(),
   }).lean();
   if (existingRun) {
@@ -1155,8 +1176,9 @@ const updateRunResult = asyncHandler(async (req, res) => {
   }
 
   const isStarter = String(testRun.startedBy) === req.user.id;
+  const isAdmin = req.user.role === 'admin';
 
-  if (!isStarter) {
+  if (!isStarter && !isAdmin) {
     throw httpError(403, 'You do not have permission to update this test run');
   }
 
@@ -1179,8 +1201,9 @@ const endTestRun = asyncHandler(async (req, res) => {
   }
 
   const isStarter = String(testRun.startedBy) === req.user.id;
+  const isAdmin = req.user.role === 'admin';
 
-  if (!isStarter) {
+  if (!isStarter && !isAdmin) {
     throw httpError(403, 'You do not have permission to end this test run');
   }
 

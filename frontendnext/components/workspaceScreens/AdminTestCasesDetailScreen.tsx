@@ -47,7 +47,7 @@ export default function AdminTestCasesDetailScreen({ selectedProjectId, detailGr
 
   return (
     <div className="workspace-stack">
-      {!selectedProjectId ? (
+      {(selectedProjectId === undefined || selectedProjectId === null) ? (
         <div className="workspace-banner">Hay chon project trong Project scope de xem Test Cases Detail.</div>
       ) : (
         <>

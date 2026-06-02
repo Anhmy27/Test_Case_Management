@@ -1,7 +1,7 @@
 "use client";
 
-import TestCaseManagementApp from "@/components/TestCaseManagementApp";
+import AdminTestPlansRoute from "@/components/workspaceScreens/AdminTestPlansRoute";
 
 export default function AdminTestPlansPage() {
-  return <TestCaseManagementApp />;
+  return <AdminTestPlansRoute />;
 }

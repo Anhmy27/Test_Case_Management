@@ -105,6 +105,59 @@ export async function apiRequest<T>(
   return response as T;
 }
 
+export function collectEntityIds(value: unknown): Set<string> {
+  const ids = new Set<string>();
+
+  const add = (candidate: unknown) => {
+    const normalized = String(candidate || "").trim();
+    if (normalized) {
+      ids.add(normalized);
+    }
+  };
+
+  if (!value) {
+    return ids;
+  }
+
+  if (typeof value === "string") {
+    add(value);
+    return ids;
+  }
+
+  if (typeof value === "object" && value !== null) {
+    const obj = value as { entityId?: unknown; _id?: unknown; id?: unknown };
+    add(obj.entityId);
+    add(obj._id);
+    add(obj.id);
+    add(getId(value));
+  }
+
+  return ids;
+}
+
+export function matchesSelectedEntity(value: unknown, selectedId: string) {
+  const normalizedSelectedId = String(selectedId || "").trim();
+  if (!normalizedSelectedId) {
+    return true;
+  }
+
+  return collectEntityIds(value).has(normalizedSelectedId);
+}
+
+export function createTextMatcher(searchTerm = "") {
+  const normalizedSearch = String(searchTerm || "").trim().toLowerCase();
+
+  return (...values: Array<string | number | undefined | null>) => {
+    if (!normalizedSearch) {
+      return true;
+    }
+
+    return values.some((value) =>
+      String(value || "").toLowerCase().includes(normalizedSearch),
+    );
+  };
+}
+
 export function getId(value: unknown): string {
   if (!value) {
     return '';

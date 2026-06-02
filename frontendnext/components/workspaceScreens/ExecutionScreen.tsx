@@ -32,19 +32,33 @@ export default function ExecutionScreen(props: Props) {
   const { runForm, setRunForm, startRun, scopedPlans, selectedRunPlanIsAutomation, selectedRun, myItems, selectedItemId, setSelectedItemId, selectedItem, notes, setNotes, updateResult, endRun, canEditSelectedRun, onLogBug } = props;
   
   const handleEndRun = async () => {
-    if (!selectedRun) return;
+    if (!selectedRun || String(selectedRun.status || "") !== "running") {
+      return;
+    }
 
-    if (selectedItemId && selectedItem) {
-      await updateResult(
-        selectedItemId,
-        selectedItem.status as "pass" | "fail" | "blocked" | "skip",
-        notes[selectedItemId] || selectedItem.note || "",
-        notes[`${selectedItemId}:notes`] || selectedItem.notes || "",
-      );
+    if (canEditSelectedRun && selectedItemId && selectedItem) {
+      const status = String(selectedItem.status || "");
+      if (["pass", "fail", "blocked", "skip"].includes(status)) {
+        await updateResult(
+          selectedItemId,
+          status as "pass" | "fail" | "blocked" | "skip",
+          notes[selectedItemId] || selectedItem.note || "",
+          notes[`${selectedItemId}:notes`] || selectedItem.notes || "",
+        );
+      }
     }
 
     await endRun(getId(selectedRun));
   };
+
+  const isAutomationRun =
+    selectedRunPlanIsAutomation ||
+    String(selectedRun?.testPlan?.executionMode || "") === "automation";
+  const canEndRun =
+    Boolean(selectedRun) &&
+    String(selectedRun?.status || "") === "running" &&
+    !isAutomationRun &&
+    canEditSelectedRun;
   const totalItems = myItems.length;
   const completedItems = myItems.filter((item) => ["pass", "fail", "blocked", "skip"].includes(String(item.status))).length;
   const activeRunCounts = myItems.reduce(
@@ -150,7 +164,7 @@ export default function ExecutionScreen(props: Props) {
       </section>
 
       {selectedRun ? (
-        selectedRun.testPlan && String(selectedRun.testPlan.executionMode) === "automation" ? (
+        isAutomationRun ? (
           <AutomationRunExecutionPanel
             selectedRun={selectedRun}
             myItems={myItems}
@@ -173,6 +187,7 @@ export default function ExecutionScreen(props: Props) {
             onUpdateResult={updateResult}
             onEndRun={handleEndRun}
             canEditRun={canEditSelectedRun}
+            canEndRun={canEndRun}
             onLogBug={onLogBug}
           />
         )

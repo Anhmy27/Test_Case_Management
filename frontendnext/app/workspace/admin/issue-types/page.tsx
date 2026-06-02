@@ -1,7 +1,7 @@
 "use client";
 
-import TestCaseManagementApp from "@/components/TestCaseManagementApp";
+import AdminIssueTypesRoute from "@/components/workspaceScreens/AdminIssueTypesRoute";
 
 export default function AdminIssueTypesPage() {
-  return <TestCaseManagementApp />;
+  return <AdminIssueTypesRoute />;
 }

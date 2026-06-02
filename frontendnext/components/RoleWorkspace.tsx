@@ -258,12 +258,10 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
       "dashboard",
       "projects",
       "issue-types",
-      "execution",
       "users",
     ];
 
     const allowedForProject = [
-      "dashboard",
       "groups",
       "test-cases",
       "test-cases-detail",
@@ -271,7 +269,6 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
       "test-plans",
       "test-runs",
       "execution",
-      "users",
     ];
 
     const allowed = isGlobalScope ? allowedForGlobal : allowedForProject;
@@ -404,9 +401,8 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
     }
 
     const allowedTabs = isGlobalScope
-      ? ["dashboard", "projects", "issue-types", "execution", "users"]
+      ? ["dashboard", "projects", "issue-types", "users"]
       : [
-          "dashboard",
           "groups",
           "test-cases",
           "test-cases-detail",
@@ -414,11 +410,10 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
           "test-plans",
           "test-runs",
           "execution",
-          "users",
         ];
 
     if (!allowedTabs.includes(activeTab)) {
-      setActiveTab("dashboard");
+      setActiveTab(isGlobalScope ? "dashboard" : "groups");
     }
   }, [isAdmin, isGlobalScope, activeTab, setActiveTab]);
 

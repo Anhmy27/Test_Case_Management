@@ -34,7 +34,7 @@ export default function EmployeeRunningTestsScreen({ myScopedRuns, matchesSearch
                 <div>{run.testPlan?.name || "-"}</div>
                 <div>{typeof run.progress === "number" ? `${run.progress.toFixed(1)}%` : "0%"}</div>
                 <div>{run.status}</div>
-                <div><ActionButton label="Open" icon="↗" onClick={() => void (async () => { const runId = String(run?._id || run?.id || ""); setSelectedRunId(runId); await loadMyItems(runId); setActiveTab("execution"); })()} /></div>
+                <div><ActionButton label="Open" icon="↗" onClick={() => { const runId = String(run?._id || run?.id || ""); if (!runId) return; void loadMyItems(runId); }} /></div>
               </>
             ))}
             emptyText="No running tests"
