@@ -8,9 +8,13 @@ import { getId } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
 
-type Props = { scopedPlans: RecordAny[]; matchesSearch: (...values: Array<string | number | undefined | null>) => boolean; setRunForm: (updater: any) => void; setActiveTab: (tab: string) => void; };
+type Props = {
+  scopedPlans: RecordAny[];
+  matchesSearch: (...values: Array<string | number | undefined | null>) => boolean;
+  openExecutionForPlan: (plan: RecordAny) => void;
+};
 
-export default function EmployeeMyTestPlansScreen({ scopedPlans, matchesSearch, setRunForm, setActiveTab }: Props) {
+export default function EmployeeMyTestPlansScreen({ scopedPlans, matchesSearch, openExecutionForPlan }: Props) {
   const [focusedPlanId, setFocusedPlanId] = useState<string>("");
   const filteredPlans = scopedPlans.filter((plan: RecordAny) => matchesSearch(plan.name, plan.project?.name, plan.version?.name));
   const focusedPlan = useMemo(
@@ -29,7 +33,7 @@ export default function EmployeeMyTestPlansScreen({ scopedPlans, matchesSearch, 
                 <button type="button" className="text-left underline-offset-2 hover:underline" onClick={() => setFocusedPlanId(getId(plan))}>{plan.name}</button>
                 <div>{plan.project?.name || "-"}</div>
                 <div>{plan.version?.name || "-"}</div>
-                <div><ActionButton label="Run" icon="▶" variant="primary" onClick={() => { setRunForm((prev: RecordAny) => ({ ...prev, testPlanId: getId(plan) })); setActiveTab("execution"); }} /></div>
+                <div><ActionButton label="Run" icon="▶" variant="primary" onClick={() => openExecutionForPlan(plan)} /></div>
               </>
             ))}
             emptyText="No assigned plans"

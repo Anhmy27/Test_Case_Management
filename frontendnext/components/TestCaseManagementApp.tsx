@@ -77,6 +77,23 @@ function resolveWorkspacePath(role?: string, tab?: string) {
   return `/workspace/${safeRole}/${safeTab}`;
 }
 
+function readExecutionPrefillFromUrl() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const params = new URLSearchParams(window.location.search);
+  const testPlanId = String(params.get("testPlanId") || "").trim();
+  if (!testPlanId) {
+    return null;
+  }
+
+  return {
+    testPlanId,
+    runName: String(params.get("runName") || "").trim(),
+  };
+}
+
 function getProjectJiraProjectKey(project?: RecordAny | null) {
   return String(
     project?.jiraProjectKey ||
@@ -355,7 +372,7 @@ export default function TestCaseManagementApp() {
     (nextTab: string) => {
       setActiveTabState(nextTab);
 
-      if (typeof window !== 'undefined') {
+      if (typeof window !== "undefined") {
         const nextPath = resolveWorkspacePath(currentUser?.role, nextTab);
         if (window.location.pathname !== nextPath) {
           window.history.pushState({}, "", nextPath);
@@ -363,6 +380,34 @@ export default function TestCaseManagementApp() {
       }
     },
     [currentUser],
+  );
+
+  const openExecutionForPlan = useCallback(
+    (plan: RecordAny) => {
+      const planId = getId(plan);
+      if (!planId) {
+        return;
+      }
+
+      const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
+      const runName = `${plan.name || "Test plan"} - ${stamp}`;
+      const role = currentUser?.role === "employee" ? "employee" : "admin";
+      const params = new URLSearchParams({
+        testPlanId: planId,
+        runName,
+      });
+      const nextPath = `/workspace/${role}/execution?${params.toString()}`;
+
+      setRunForm((prev) => ({
+        ...prev,
+        testPlanId: planId,
+        name: runName,
+        baseUrl: prev.baseUrl || "",
+      }));
+      setActiveTabState("execution");
+      router.push(nextPath);
+    },
+    [currentUser?.role, router],
   );
 
   const isAdmin = currentUser?.role === "admin";
@@ -807,6 +852,23 @@ export default function TestCaseManagementApp() {
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
+
+  useEffect(() => {
+    if (activeTab !== "execution") {
+      return;
+    }
+
+    const prefill = readExecutionPrefillFromUrl();
+    if (!prefill) {
+      return;
+    }
+
+    setRunForm((prev) => ({
+      ...prev,
+      testPlanId: prefill.testPlanId,
+      name: prefill.runName || prev.name,
+    }));
+  }, [activeTab, plans.length]);
 
   useEffect(() => {
     if (!selectedProjectId) {
@@ -2286,6 +2348,7 @@ export default function TestCaseManagementApp() {
     isAdmin,
     activeTab,
     setActiveTab,
+    openExecutionForPlan,
     logout,
     dashboard,
     projects,
