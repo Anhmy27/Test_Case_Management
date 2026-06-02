@@ -25,7 +25,7 @@ function getStoredToken() {
 
 export default function EmployeeMyTestPlansRoute() {
   const router = useRouter();
-  const [token, setToken] = useState<string>(() => getStoredToken());
+  const [token] = useState<string>(() => getStoredToken());
   const [currentUser, setCurrentUser] = useState<RecordAny | null>(null);
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [plans, setPlans] = useState<RecordAny[]>([]);

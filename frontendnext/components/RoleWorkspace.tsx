@@ -812,9 +812,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
             matchesSearch={matchesSearch}
             userName={userName}
             currentUserId={currentUserId}
-            setSelectedRunId={setSelectedRunId}
             loadMyItems={loadMyItems}
-            setActiveTab={setActiveTab}
           />
         )}
 
@@ -845,9 +843,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
           <EmployeeRunningTestsScreen
             myScopedRuns={myScopedRuns}
             matchesSearch={matchesSearch}
-            setSelectedRunId={setSelectedRunId}
             loadMyItems={loadMyItems}
-            setActiveTab={setActiveTab}
             userName={userName}
           />
         )}
@@ -856,9 +852,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
           <EmployeeHistoryScreen
             myScopedRuns={myScopedRuns}
             matchesSearch={matchesSearch}
-            setSelectedRunId={setSelectedRunId}
             loadMyItems={loadMyItems}
-            setActiveTab={setActiveTab}
             userName={userName}
           />
         )}

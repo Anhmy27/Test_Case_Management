@@ -2,7 +2,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import AdminProjectsScreen from "@/components/workspaceScreens/AdminProjectsScreen";
@@ -36,7 +36,7 @@ export default function AdminProjectsRoute() {
   const router = useRouter();
   const [selectedProjectId] = useState<string>(() => storedProject());
   const navItems = useAdminSidebarNav(selectedProjectId, "projects", router);
-  const [token, setToken] = useState<string>(() => storedToken());
+  const [token] = useState<string>(() => storedToken());
   const [currentUser, setCurrentUser] = useState<RecordAny | null>(null);
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [editingProjectId, setEditingProjectId] = useState<string>("");

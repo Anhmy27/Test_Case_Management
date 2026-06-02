@@ -124,13 +124,6 @@ export default function AdminTestCasesScreen(props: Props) {
   const [groupFilter, setGroupFilter] = useState<string>("");
   const [draggingStep, setDraggingStep] = useState<DragPayload | null>(null);
   const [showRecentModal, setShowRecentModal] = useState(false);
-  const selectedGroupName = useMemo(() => {
-    const selectedGroup = scopedGroups.find(
-      (group) => getId(group) === testCaseForm.groupId,
-    );
-    return selectedGroup ? String(selectedGroup.name || "").trim() : "";
-  }, [scopedGroups, testCaseForm.groupId]);
-
   const resolveScopedValue = (value: RecordAny, items: RecordAny[]) => {
     const candidateIds = new Set(
       [getId(value), typeof value === "string" ? value : ""]
@@ -205,7 +198,8 @@ export default function AdminTestCasesScreen(props: Props) {
         }
         return true;
       });
-  }, [groupFilter, matchesSearch, preset, testCases]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- resolveScopedName reads scopedProjects/scopedGroups already listed
+  }, [groupFilter, matchesSearch, preset, scopedGroups, scopedProjects, testCases]);
 
   const activeCase = useMemo(
     () =>

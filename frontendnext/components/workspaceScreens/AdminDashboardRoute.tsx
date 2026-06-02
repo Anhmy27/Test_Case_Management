@@ -25,7 +25,7 @@ function resolveWorkspacePath(tab: string) {
 
 export default function AdminDashboardRoute() {
   const router = useRouter();
-  const [token, setToken] = useState<string>(() => getStoredValue("tcm_token"));
+  const [token] = useState<string>(() => getStoredValue("tcm_token"));
   const [currentUser, setCurrentUser] = useState<RecordAny | null>(null);
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [plans, setPlans] = useState<RecordAny[]>([]);

@@ -81,10 +81,6 @@ export default function AdminTestRunsRoute() {
     }
   };
 
-  const setSelectedRunId = (runId: string) => {
-    router.push(`/workspace/admin/execution?runId=${encodeURIComponent(runId)}`);
-  };
-
   const loadMyItems = async (runId: string) => {
     router.push(`/workspace/admin/execution?runId=${encodeURIComponent(runId)}`);
   };
@@ -94,5 +90,5 @@ export default function AdminTestRunsRoute() {
   const topbar = <div className="flex flex-wrap items-center gap-3"><div><div className="text-sm font-semibold text-slate-900">Test Runs</div><div className="text-xs text-slate-500">Route-local test run list</div></div><div className="ml-auto flex flex-wrap items-center gap-3"><button type="button" onClick={handleLogout} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">Log out</button></div></div>;
   if (loading && !currentUser) return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-600">Loading test runs...</div>;
   if (!currentUser) return null;
-  return <AppShell brand={{ title: "Test Case Management", subtitle: "Admin workspace" }} user={{ name: userName(currentUser), email: currentUser.email, role: currentUser.role }} navItems={navItems} activeKey="test-runs" onNavChange={handleNavigate} topbar={topbar}>{message ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{message}</div> : null}<AdminTestRunsScreen runForm={runForm} setRunForm={setRunForm} startRun={startRun} scopedPlans={scopedPlans} selectedRunPlanIsAutomation={selectedRunPlanIsAutomation} adminRuns={runs} matchesSearch={matchesSearch} userName={userName} currentUserId={currentUserId} setSelectedRunId={setSelectedRunId} loadMyItems={loadMyItems} setActiveTab={handleNavigate} /></AppShell>;
+  return <AppShell brand={{ title: "Test Case Management", subtitle: "Admin workspace" }} user={{ name: userName(currentUser), email: currentUser.email, role: currentUser.role }} navItems={navItems} activeKey="test-runs" onNavChange={handleNavigate} topbar={topbar}>{message ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{message}</div> : null}<AdminTestRunsScreen runForm={runForm} setRunForm={setRunForm} startRun={startRun} scopedPlans={scopedPlans} selectedRunPlanIsAutomation={selectedRunPlanIsAutomation} adminRuns={runs} matchesSearch={matchesSearch} userName={userName} currentUserId={currentUserId} loadMyItems={loadMyItems} /></AppShell>;
 }

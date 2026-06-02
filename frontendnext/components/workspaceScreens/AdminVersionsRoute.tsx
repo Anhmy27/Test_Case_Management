@@ -2,7 +2,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import AdminVersionsScreen from "@/components/workspaceScreens/AdminVersionsScreen";
@@ -22,7 +22,7 @@ export default function AdminVersionsRoute() {
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [versions, setVersions] = useState<RecordAny[]>([]);
   const [editingVersionId, setEditingVersionId] = useState("");
-  const [versionForm, setVersionForm] = useState({ projectId: "", name: "", idjira: "", releaseDate: "" });
+  const [versionForm, setVersionForm] = useState<{ projectId: string; name: string; idjira?: string; releaseDate: string }>({ projectId: "", name: "", idjira: "", releaseDate: "" });
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");

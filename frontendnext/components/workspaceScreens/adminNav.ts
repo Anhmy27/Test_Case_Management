@@ -61,7 +61,10 @@ export function useAdminSidebarNav(
 ) {
   const enabled = options?.enabled ?? true;
   const enabledRef = useRef(enabled);
-  enabledRef.current = enabled;
+
+  useEffect(() => {
+    enabledRef.current = enabled;
+  }, [enabled]);
 
   const navItems = useMemo(
     () => getAdminNavItems(selectedProjectId),

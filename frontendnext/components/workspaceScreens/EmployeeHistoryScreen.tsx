@@ -8,9 +8,9 @@ import { ActionButton, DataTable, SectionCard } from "./shared";
 
 type RecordAny = Record<string, any>;
 
-type Props = { myScopedRuns: RecordAny[]; matchesSearch: (...values: Array<string | number | undefined | null>) => boolean; setSelectedRunId: (id: string) => void; loadMyItems: (runId: string) => Promise<void>; setActiveTab: (tab: string) => void; userName: (value: unknown) => string; };
+type Props = { myScopedRuns: RecordAny[]; matchesSearch: (...values: Array<string | number | undefined | null>) => boolean; loadMyItems: (runId: string) => Promise<void>; userName: (value: unknown) => string; };
 
-export default function EmployeeHistoryScreen({ myScopedRuns, matchesSearch, setSelectedRunId, loadMyItems, setActiveTab, userName }: Props) {
+export default function EmployeeHistoryScreen({ myScopedRuns, matchesSearch, loadMyItems, userName }: Props) {
   const [focusedRunId, setFocusedRunId] = useState<string>("");
 
   const completedRuns = myScopedRuns

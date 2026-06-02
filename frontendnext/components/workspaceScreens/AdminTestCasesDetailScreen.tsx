@@ -22,7 +22,11 @@ export default function AdminTestCasesDetailScreen({ selectedProjectId, detailGr
   const safeDetailRows = Array.isArray(detailRows) ? detailRows : [];
   const [focusedCase, setFocusedCase] = useState<RecordAny | null>(null);
 
-  const focusedHistory = Array.isArray(focusedCase?.executionHistory) ? focusedCase.executionHistory : [];
+  const focusedHistory = useMemo(
+    () =>
+      Array.isArray(focusedCase?.executionHistory) ? focusedCase.executionHistory : [],
+    [focusedCase],
+  );
 
   const focusedSummary = useMemo(() => {
     return focusedHistory.reduce(

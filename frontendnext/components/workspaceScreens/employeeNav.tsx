@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import type { AppShellNavItem } from "@/components/AppShell";
 import { getId, matchesSelectedEntity } from "@/lib/api";
 
-type RecordAny = Record<string, any>;
+type RecordAny = Record<string, unknown>;
 
 export const EMPLOYEE_NAV_ITEMS: ReadonlyArray<AppShellNavItem> = [
   { key: "my-test-plans", label: "My Test Plans" },
@@ -53,7 +53,9 @@ export function useEmployeeProjectScope(projects: RecordAny[]) {
   );
   const hasValidProjectScope = Boolean(selectedProjectId && selectedProject);
   const effectiveProjectId = hasValidProjectScope ? selectedProjectId : "";
-  const scopeLabel = selectedProject ? String(selectedProject.name || "") : "All projects";
+  const scopeLabel = selectedProject
+    ? String((selectedProject as { name?: string }).name || "")
+    : "All projects";
   const isGlobalScope = !effectiveProjectId;
 
   const filterPlans = (plans: RecordAny[]) => {
@@ -63,7 +65,7 @@ export function useEmployeeProjectScope(projects: RecordAny[]) {
     }
 
     return safePlans.filter((plan) =>
-      matchesSelectedEntity(plan.project, effectiveProjectId),
+      matchesSelectedEntity((plan as { project?: unknown }).project, effectiveProjectId),
     );
   };
 
@@ -73,9 +75,13 @@ export function useEmployeeProjectScope(projects: RecordAny[]) {
       return safeRuns;
     }
 
-    return safeRuns.filter((run) =>
-      matchesSelectedEntity(run.testPlan?.project ?? run.project, effectiveProjectId),
-    );
+    return safeRuns.filter((run) => {
+      const typedRun = run as { project?: unknown; testPlan?: { project?: unknown } };
+      return matchesSelectedEntity(
+        typedRun.testPlan?.project ?? typedRun.project,
+        effectiveProjectId,
+      );
+    });
   };
 
   const filterMyRuns = (runs: RecordAny[], currentUserId: string) => {
@@ -152,7 +158,7 @@ export function buildEmployeeTopbar({
             <option value="">All projects</option>
             {projects.map((project) => (
               <option key={getId(project)} value={getId(project)}>
-                {project.name}
+                {String((project as { name?: string }).name || "")}
               </option>
             ))}
           </select>

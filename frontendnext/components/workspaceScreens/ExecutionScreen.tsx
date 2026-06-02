@@ -61,19 +61,6 @@ export default function ExecutionScreen(props: Props) {
     canEditSelectedRun;
   const totalItems = myItems.length;
   const completedItems = myItems.filter((item) => ["pass", "fail", "blocked", "skip"].includes(String(item.status))).length;
-  const activeRunCounts = myItems.reduce(
-    (acc, item) => {
-      const status = String(item.status || "");
-      if (status === "pass") acc.pass += 1;
-      else if (status === "fail") acc.fail += 1;
-      else if (status === "blocked") acc.blocked += 1;
-      else if (status === "skip") acc.skip += 1;
-      else acc.pending += 1;
-      return acc;
-    },
-    { pass: 0, fail: 0, blocked: 0, skip: 0, pending: 0 },
-  );
-
   return (
     <div className="space-y-6">
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

@@ -25,7 +25,7 @@ function getStoredToken() {
 
 export default function EmployeeHistoryRoute() {
   const router = useRouter();
-  const [token, setToken] = useState<string>(() => getStoredToken());
+  const [token] = useState<string>(() => getStoredToken());
   const [currentUser, setCurrentUser] = useState<RecordAny | null>(null);
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [runs, setRuns] = useState<RecordAny[]>([]);
@@ -108,14 +108,6 @@ export default function EmployeeHistoryRoute() {
     return values.some((value) => String(value || "").toLowerCase().includes(normalizedSearch));
   };
 
-  const setSelectedRunId = (runId: string) => {
-    if (!runId) {
-      return;
-    }
-
-    router.push(`/workspace/employee/execution?runId=${encodeURIComponent(runId)}`);
-  };
-
   const loadMyItems = async (runId: string) => {
     if (!runId) {
       return;
@@ -179,9 +171,7 @@ export default function EmployeeHistoryRoute() {
       <EmployeeHistoryScreen
         myScopedRuns={myScopedRuns}
         matchesSearch={matchesSearch}
-        setSelectedRunId={setSelectedRunId}
         loadMyItems={loadMyItems}
-        setActiveTab={handleNavigate}
         userName={userName}
       />
     </AppShell>

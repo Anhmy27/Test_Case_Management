@@ -35,7 +35,7 @@ export default function WorkspaceExecutionRoute({ role }: { role: "admin" | "emp
   const adminNavItems = useAdminSidebarNav(selectedProjectId, "execution", router, {
     enabled: role === "admin",
   });
-  const [token, setToken] = useState<string>(() => getStoredToken());
+  const [token] = useState<string>(() => getStoredToken());
   const [currentUser, setCurrentUser] = useState<RecordAny | null>(null);
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [plans, setPlans] = useState<RecordAny[]>([]);
@@ -128,9 +128,6 @@ export default function WorkspaceExecutionRoute({ role }: { role: "admin" | "emp
     }
 
     if (!runIdFromUrl) {
-      setSelectedRun(null);
-      setMyItems([]);
-      setSelectedItemId("");
       return;
     }
 
@@ -184,25 +181,18 @@ export default function WorkspaceExecutionRoute({ role }: { role: "admin" | "emp
 
     return safePlans;
   }, [employeeProjectScope, plans, role]);
-  const selectedRunPlan = scopedPlans.find((plan) => getId(plan) === runForm.testPlanId) || selectedRun?.testPlan || null;
+  const activeRun = runIdFromUrl ? selectedRun : null;
+  const activeMyItems = runIdFromUrl ? myItems : [];
+  const selectedRunPlan = scopedPlans.find((plan) => getId(plan) === runForm.testPlanId) || activeRun?.testPlan || null;
   const selectedRunPlanIsAutomation = String(selectedRunPlan?.executionMode || "manual") === "automation";
-  const selectedItem = myItems.find((item) => getId(item) === selectedItemId);
+  const selectedItem = activeMyItems.find((item) => getId(item) === selectedItemId);
   const canEditSelectedRun = Boolean(
-    selectedRun &&
-      selectedRun.status === "running" &&
+    activeRun &&
+      activeRun.status === "running" &&
       !selectedRunPlanIsAutomation &&
-      (String(getId(selectedRun.startedBy) || "") === String(getId(currentUser) || "") ||
+      (String(getId(activeRun.startedBy) || "") === String(getId(currentUser) || "") ||
         currentUser?.role === "admin"),
   );
-
-  const openExecutionForPlan = async (plan: RecordAny) => {
-    const planId = getId(plan);
-    if (!planId) return;
-    const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
-    const runName = `${plan.name || "Test plan"} - ${stamp}`;
-    setRunForm((prev) => ({ ...prev, testPlanId: planId, name: runName, baseUrl: prev.baseUrl || "" }));
-    router.push(`${role === "admin" ? "/workspace/admin/execution" : "/workspace/employee/execution"}?testPlanId=${encodeURIComponent(planId)}&runName=${encodeURIComponent(runName)}`);
-  };
 
   const startRun = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -305,8 +295,8 @@ export default function WorkspaceExecutionRoute({ role }: { role: "admin" | "emp
         startRun={startRun}
         scopedPlans={scopedPlans}
         selectedRunPlanIsAutomation={selectedRunPlanIsAutomation}
-        selectedRun={selectedRun}
-        myItems={myItems}
+        selectedRun={activeRun}
+        myItems={activeMyItems}
         selectedItemId={selectedItemId}
         setSelectedItemId={setSelectedItemId}
         selectedItem={selectedItem || undefined}

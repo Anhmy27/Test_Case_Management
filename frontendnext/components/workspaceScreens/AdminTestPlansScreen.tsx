@@ -99,7 +99,7 @@ export default function AdminTestPlansScreen(props: Props) {
       selectedPlanCasesByGroup.flatMap(({ cases }) =>
         cases.map((testCase) => getId(testCase)),
       ),
-    [selectedPlanCasesByGroup],
+    [getId, selectedPlanCasesByGroup],
   );
 
   const selectedPlanProject = useMemo(() => {
@@ -158,7 +158,7 @@ export default function AdminTestPlansScreen(props: Props) {
 
   const selectedAssignees = useMemo(
     () => users.filter((user: RecordAny) => assignDraft.assigneeIds.includes(getId(user))),
-    [assignDraft.assigneeIds, users],
+    [assignDraft.assigneeIds, getId, users],
   );
 
   const ownerName = currentUser?.name || "Current admin";
@@ -178,17 +178,22 @@ export default function AdminTestPlansScreen(props: Props) {
       return;
     }
 
-    setPlanForm((prev: any) => {
-      if ((prev.selectedGroupIds || []).length > 0) {
-        return prev;
-      }
+    const defaultGroupIds = planProjectGroups.map((group: RecordAny) => getId(group));
+    const timeoutId = window.setTimeout(() => {
+      setPlanForm((prev: RecordAny) => {
+        if ((prev.selectedGroupIds || []).length > 0) {
+          return prev;
+        }
 
-      return {
-        ...prev,
-        selectedGroupIds: planProjectGroups.map((group: RecordAny) => getId(group)),
-      };
-    });
-  }, [editingPlanId, planForm.selectedGroupIds, planProjectGroups, setPlanForm, showCreateModal]);
+        return {
+          ...prev,
+          selectedGroupIds: defaultGroupIds,
+        };
+      });
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [editingPlanId, getId, planForm.selectedGroupIds, planProjectGroups, setPlanForm, showCreateModal]);
 
   const filteredPlans = useMemo(
     () =>

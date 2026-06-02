@@ -98,19 +98,6 @@ export default function AdminTestCasesDetailRoute() {
     };
   }, [detailGroupId, router, selectedProjectId, token]);
 
-  const refreshDetails = async () => {
-    const response = await apiRequest<{ testCases: RecordAny[] }>(selectedProjectId ? `/api/test-cases/detail?projectId=${encodeURIComponent(selectedProjectId)}${detailGroupId ? `&groupId=${encodeURIComponent(detailGroupId)}` : ""}` : "/api/test-cases/detail", token);
-    setDetailRows(Array.isArray(response.testCases) ? response.testCases : []);
-  };
-
-  useEffect(() => {
-    if (!currentUser) {
-      return;
-    }
-
-    void refreshDetails();
-  }, [currentUser, detailGroupId, selectedProjectId]);
-
   const handleNavigate = (tab: string) => router.push(`/workspace/admin/${tab}`);
   const handleLogout = () => {
     if (typeof window !== "undefined") {

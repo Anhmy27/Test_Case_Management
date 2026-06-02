@@ -19,12 +19,10 @@ type Props = {
   matchesSearch: (...values: Array<string | number | undefined | null>) => boolean;
   userName: (value: unknown) => string;
   currentUserId: string;
-  setSelectedRunId: Dispatch<SetStateAction<string>>;
   loadMyItems: (runId: string) => Promise<void>;
-  setActiveTab: (tab: string) => void;
 };
 
-export default function AdminTestRunsScreen({ runForm, setRunForm, startRun, scopedPlans, selectedRunPlanIsAutomation, adminRuns, matchesSearch, userName, currentUserId, setSelectedRunId, loadMyItems, setActiveTab }: Props) {
+export default function AdminTestRunsScreen({ runForm, setRunForm, startRun, scopedPlans, selectedRunPlanIsAutomation, adminRuns, matchesSearch, userName, currentUserId, loadMyItems }: Props) {
   const [searchTerm, setSearchTerm] = useState("");
   const [planFilter, setPlanFilter] = useState("");
   const [startedByFilter, setStartedByFilter] = useState("");

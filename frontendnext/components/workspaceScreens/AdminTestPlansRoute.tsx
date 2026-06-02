@@ -2,7 +2,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import AdminTestPlansScreen from "@/components/workspaceScreens/AdminTestPlansScreen";
@@ -54,17 +54,12 @@ export default function AdminTestPlansRoute() {
     }
   }, [selectedProjectId]);
 
-  useEffect(() => {
-    if (!selectedProjectId) {
-      return;
+  const handleProjectScopeChange = (projectId: string) => {
+    setSelectedProjectId(projectId);
+    if (projectId) {
+      setPlanForm((prev: RecordAny) => ({ ...prev, projectId }));
     }
-
-    setPlanForm((prev: any) =>
-      prev.projectId === selectedProjectId
-        ? prev
-        : { ...prev, projectId: selectedProjectId },
-    );
-  }, [selectedProjectId]);
+  };
 
   useEffect(() => {
     if (!token) { router.replace("/"); return; }
@@ -136,7 +131,6 @@ export default function AdminTestPlansRoute() {
   const planProjectCases = selectedProjectId
     ? testCases.filter((testCase) => matchesSelectedEntity(testCase.project, selectedProjectId))
     : testCases;
-  const selectedPlan = plans.find((plan) => getId(plan) === selectedPlanId) || null;
   const selectedPlanGroupIds = new Set<string>(Array.isArray(planForm.selectedGroupIds) ? planForm.selectedGroupIds : []);
   const selectedPlanCaseIds = new Set<string>(Array.isArray(planForm.caseIds) ? planForm.caseIds : []);
   const selectedPlanGroups = groupCasesByGroup(planProjectGroups.filter((group) => selectedPlanGroupIds.has(getId(group))), planProjectCases);
@@ -206,7 +200,7 @@ export default function AdminTestPlansRoute() {
   const handleNavigate = (tab: string) => router.push(`/workspace/admin/${tab}`);
   const handleLogout = () => { if (typeof window !== "undefined") { window.localStorage.removeItem("tcm_token"); window.localStorage.removeItem("tcm_selected_project_id"); } router.replace("/"); };
   const matchesSearch = createTextMatcher();
-  const topbar = <div className="flex flex-wrap items-center gap-3"><div><div className="text-sm font-semibold text-slate-900">Test Plans</div><div className="text-xs text-slate-500">Route-local plan workbench</div></div><div className="ml-auto flex flex-wrap items-center gap-3"><select value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"><option value="">All projects</option>{projects.map((project) => <option key={getId(project)} value={getId(project)}>{project.name}</option>)}</select><button type="button" onClick={handleLogout} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">Log out</button></div></div>;
+  const topbar = <div className="flex flex-wrap items-center gap-3"><div><div className="text-sm font-semibold text-slate-900">Test Plans</div><div className="text-xs text-slate-500">Route-local plan workbench</div></div><div className="ml-auto flex flex-wrap items-center gap-3"><select value={selectedProjectId} onChange={(event) => handleProjectScopeChange(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"><option value="">All projects</option>{projects.map((project) => <option key={getId(project)} value={getId(project)}>{project.name}</option>)}</select><button type="button" onClick={handleLogout} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">Log out</button></div></div>;
   if (loading && !currentUser) return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-600">Loading test plans...</div>;
   if (!currentUser) return null;
   return <AppShell brand={{ title: "Test Case Management", subtitle: "Admin workspace" }} user={{ name: userName(currentUser), email: currentUser.email, role: currentUser.role }} navItems={navItems} activeKey="test-plans" onNavChange={handleNavigate} topbar={topbar}>{message ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{message}</div> : null}<AdminTestPlansScreen planForm={planForm} setPlanForm={setPlanForm} createPlan={createPlan} scopedProjects={scopedProjects} scopedVersions={scopedVersions} planProjectGroups={planProjectGroups} planProjectCases={planProjectCases} selectedPlanGroupIds={selectedPlanGroupIds} selectedPlanCaseIds={selectedPlanCaseIds} selectedPlanGroups={selectedPlanGroups} selectedPlanCasesByGroup={selectedPlanCasesByGroup} togglePlanGroup={togglePlanGroup} togglePlanCase={togglePlanCase} users={users} currentUser={currentUser} selectedPlanId={selectedPlanId} selectPlanForAssignment={selectPlanForAssignment} assignDraft={assignDraft} setAssignDraft={setAssignDraft} saveAssignments={saveAssignments} scopedPlans={plans} editingPlanId={editingPlanId} editingExecutionMode={editingExecutionMode} setEditingPlanId={setEditingPlanId} setEditingExecutionMode={setEditingExecutionMode} updatePlanExecutionMode={updatePlanExecutionMode} deletePlan={deletePlan} duplicatePlan={duplicatePlan} runs={runs} openExecutionForPlan={openExecutionForPlan} setActiveTab={setActiveTab as any} userName={userName} getId={getId} matchesSearch={matchesSearch} /></AppShell>;
