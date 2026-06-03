@@ -11,6 +11,9 @@ async function seedAdminIfNeeded() {
 
   const existing = await User.findOne({ email: adminEmail.toLowerCase() });
   if (existing) {
+    console.log(
+      `Admin user ${adminEmail.toLowerCase()} already exists; not modifying existing credentials.`,
+    );
     return;
   }
 

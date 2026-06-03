@@ -10,6 +10,8 @@ import { apiRequest, createTextMatcher, getId, matchesSelectedEntity, userName }
 import { useAdminSidebarNav } from "@/components/workspaceScreens/adminNav";
 
 type RecordAny = Record<string, any>;
+const MAX_EXCEL_IMPORT_BYTES = 50 * 1024 * 1024;
+const EXCEL_IMPORT_EXTENSIONS = [".xls", ".xlsx"];
 
 function storedToken() {
   return typeof window === "undefined" ? "" : window.localStorage.getItem("tcm_token") || "";
@@ -155,7 +157,25 @@ export default function AdminTestCasesRoute() {
   const removeAutomationStep = (index: number) => setAutomationForm((prev) => ({ ...prev, steps: prev.steps.filter((_, stepIndex) => stepIndex !== index) }));
   const moveAutomationStep = (fromIndex: number, toIndex: number) => setAutomationForm((prev) => ({ ...prev, steps: prev.steps.slice().map((step, index, list) => { if (index !== fromIndex) return step; const copy = list.slice(); const [item] = copy.splice(fromIndex, 1); copy.splice(toIndex, 0, item); return copy[index]; }).filter(Boolean) }));
   const downloadTestCaseTemplate = () => { setMessage("Use import template from backend if available"); };
-  const importTestCases = async (file: File) => { const formData = new FormData(); formData.append("file", file); await apiRequest(`/api/test-cases/import`, token, { method: "POST", body: formData }); await refreshAll(); };
+  const importTestCases = async (file: File) => {
+    const normalizedName = String(file?.name || "").toLowerCase();
+    const hasValidExtension = EXCEL_IMPORT_EXTENSIONS.some((ext) => normalizedName.endsWith(ext));
+    if (!hasValidExtension) {
+      setMessage("Only Excel files (.xls, .xlsx) are allowed");
+      return;
+    }
+
+    if (file.size > MAX_EXCEL_IMPORT_BYTES) {
+      setMessage("File size exceeds 50MB limit");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+    await apiRequest(`/api/test-cases/import`, token, { method: "POST", body: formData });
+    setMessage("Excel import completed");
+    await refreshAll();
+  };
 
   const scopedProjects = selectedProjectId
     ? projects.filter((project) => matchesSelectedEntity(project, selectedProjectId))

@@ -46,6 +46,16 @@ function errorMiddleware(err, req, res, next) {
     message = `Validation failed: ${errors}`;
   }
 
+  // Handle Multer file upload errors
+  if (err.name === 'MulterError') {
+    statusCode = 400;
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      message = 'File size exceeds 50MB limit';
+    } else {
+      message = err.message || 'Invalid upload file';
+    }
+  }
+
   res.status(statusCode).json({
     message,
     ...(err.conflict && { conflict: err.conflict }),

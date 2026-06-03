@@ -474,3 +474,29 @@ Keep these patterns. Push back on the §2 / §3 items first; the rest is increme
 ---
 
 *End of review.*
+
+---
+
+## 11. Progress Notes (updated 2026-06-03)
+
+Status is verified against current code in this repo.
+
+### ✅ Completed from this review
+
+- **§3.1 Frontend monolith split (major progress):** `frontendnext/components/TestCaseManagementApp.tsx` is no longer present, and App Router pages now point to route-local components (`Admin*Route`, `Employee*Route`, `WorkspaceExecutionRoute`) under `frontendnext/components/workspaceScreens/`.
+- **§7 Cleanup item:** removed one-shot codemod script `scripts/convert-ids.js` from repo root.
+- **Workspace screens quality pass:** TypeScript + ESLint issues in `frontendnext/components/workspaceScreens/` were cleaned up during route migration follow-up.
+- **§2.2 Jira auth gap:** `backend/src/routes/jiraRoutes.js` now mounts `router.use(authenticate)` before `GET /assignable-users`.
+- **§2.3 Automation ingest route exposure (partial fix):** `POST /test-runs/:runId/automation-results` is now mounted after `router.use(authenticate)` in `backend/src/routes/testManagementRoutes.js`.
+- **§4.7 Upload guardrails:** `multer` import route now enforces Excel-only upload (`.xls`, `.xlsx` with matching MIME) and 50MB max size; frontend also validates extension/size before sending.
+- **Seed admin bootstrap behavior improved:** backend startup no longer auto-runs admin seeding; seeding is now manual via `node src/runSeedAdmin.js` (or `npm run seed:admin`), which prevents accidental admin creation on every app boot.
+- **§4.10 seedAdmin operator feedback:** `seedAdminIfNeeded` now logs explicit info when admin already exists (`already exists; not modifying existing credentials`), so operators do not assume password was rotated.
+
+### ⚠️ Still open / not completed yet (high priority)
+
+- **§2.1 Secrets hygiene:** `backend/.gitignore` still only contains `node_modules/` (no `.env` ignore), so env-secret hardening work is not fully completed.
+- **§2.3 Automation ingest auth model (remaining part):** controller still contains inline shared-secret authorization logic; route order is fixed, but recommended dedicated automation auth middleware/token model is not yet completed.
+
+### ℹ️ Note
+
+- `frontendnext/components/RoleWorkspace.tsx` is kept intentionally as a legacy reference for behavior comparison during route-split debugging. It is currently not mounted by App Router pages.

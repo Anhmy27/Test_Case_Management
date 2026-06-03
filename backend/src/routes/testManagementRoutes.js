@@ -57,13 +57,37 @@ const {
   applyAutomationResults,
 } = require('../controllers/testManagementController');
 const { authenticate, authorize } = require('../middlewares/authMiddleware');
+const { httpError } = require('../utils/httpError');
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage() });
-// Allow automation systems to POST results using a secret header without normal auth
-router.post('/test-runs/:runId/automation-results', applyAutomationResults);
+const MAX_IMPORT_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+const ALLOWED_IMPORT_MIME_TYPES = new Set([
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+]);
+const ALLOWED_IMPORT_EXTENSIONS = new Set(['.xls', '.xlsx']);
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_IMPORT_FILE_SIZE },
+  fileFilter: (req, file, cb) => {
+    const normalizedName = String(file?.originalname || '').toLowerCase();
+    const extension = normalizedName.slice(normalizedName.lastIndexOf('.'));
+    const hasValidExtension = ALLOWED_IMPORT_EXTENSIONS.has(extension);
+    const hasValidMimeType = ALLOWED_IMPORT_MIME_TYPES.has(String(file?.mimetype || ''));
+
+    if (hasValidExtension && hasValidMimeType) {
+      cb(null, true);
+      return;
+    }
+
+    cb(httpError(400, 'Only Excel files (.xls, .xlsx) are allowed'));
+  },
+});
 
 router.use(authenticate);
+
+router.post('/test-runs/:runId/automation-results', applyAutomationResults);
 
 router.get('/projects', listProjects);
 router.get('/projects/:projectId', getProject);

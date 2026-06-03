@@ -339,6 +339,9 @@ export default function AdminTestCasesScreen(props: Props) {
                 input.value = "";
               }}
             />
+            <span className="text-xs text-slate-500">
+              Excel only (.xls, .xlsx), max 50MB
+            </span>
           </div>
         </div>
 
