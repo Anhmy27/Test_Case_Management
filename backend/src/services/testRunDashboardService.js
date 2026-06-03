@@ -67,26 +67,42 @@ const findLatestTestCaseByReference = async (testCaseRef) => {
 
 const findProjectByReference = async (projectRef) => {
   if (!projectRef) return null;
+
   const objectId = toObjectId(projectRef, 'projectId');
-  return Project.findOne({
-    $and: [
-      { $or: [{ entityId: objectId }, { _id: objectId }] },
-      { deletedAt: null },
-      { $or: [{ isLatest: true }, { isLatest: { $exists: false } }] },
-    ],
+  const referencedProject = await Project.findOne({
+    $or: [{ entityId: objectId }, { _id: objectId }],
   }).lean();
+
+  if (!referencedProject) return null;
+
+  const entityId = referencedProject.entityId || referencedProject._id;
+  const latestProject = await Project.findOne({
+    entityId,
+    deletedAt: null,
+    $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+  }).lean();
+
+  return latestProject || (referencedProject.deletedAt ? null : referencedProject);
 };
 
 const findVersionByReference = async (versionRef) => {
   if (!versionRef) return null;
+
   const objectId = toObjectId(versionRef, 'versionId');
-  return Version.findOne({
-    $and: [
-      { $or: [{ entityId: objectId }, { _id: objectId }] },
-      { deletedAt: null },
-      { $or: [{ isLatest: true }, { isLatest: { $exists: false } }] },
-    ],
+  const referencedVersion = await Version.findOne({
+    $or: [{ entityId: objectId }, { _id: objectId }],
   }).lean();
+
+  if (!referencedVersion) return null;
+
+  const entityId = referencedVersion.entityId || referencedVersion._id;
+  const latestVersion = await Version.findOne({
+    entityId,
+    deletedAt: null,
+    $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+  }).lean();
+
+  return latestVersion || (referencedVersion.deletedAt ? null : referencedVersion);
 };
 
 const attachRunTestPlan = async (testRun) => {
@@ -289,11 +305,6 @@ const applyAutomationResultsService = async ({
 
   const testRun = await TestRun.findById(toObjectId(runId, 'runId'));
   if (!testRun) throw httpError(404, 'Test run not found');
-
-  const parentPlan = await findTestPlanByReference(testRun.testPlan);
-  if (parentPlan && parentPlan.executionMode === 'automation') {
-    throw httpError(403, 'Manual updates are not allowed for automation test runs');
-  }
 
   const testPlan = await findTestPlanByReference(testRun.testPlan);
   if (!testPlan) throw httpError(404, 'Test plan not found');
