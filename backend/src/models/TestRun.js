@@ -49,6 +49,11 @@ const runResultSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    failureScreenshot: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     executedAt: {
       type: Date,
     },

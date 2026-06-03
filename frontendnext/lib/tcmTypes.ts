@@ -22,10 +22,35 @@ export interface VersionRecord {
   project: string | ProjectRecord;
 }
 
+export interface AutomationStepRecord {
+  stepId?: string;
+  stepName?: string;
+  order?: number;
+  action: string;
+  targetType?: string;
+  target?: string;
+  value?: string;
+  expected?: string;
+  timeoutMs?: number;
+}
+
+export interface TestCaseAutomationRecord {
+  enabled?: boolean;
+  runner?: string;
+  webId?: string;
+  baseUrl?: string;
+  userKey?: string;
+  timeoutMs?: number;
+  steps?: AutomationStepRecord[];
+}
+
 export interface TestCaseRecord {
   _id: string;
   caseKey: string;
   title: string;
+  description?: string;
+  expected?: string;
+  automation?: TestCaseAutomationRecord;
   project: string | ProjectRecord;
 }
 
@@ -56,6 +81,17 @@ export interface TestRunRecord {
         name?: string;
         executionMode?: "manual" | "automation";
       };
+}
+
+export interface TestRunResultRecord {
+  _id: string;
+  status: TestStatus | string;
+  note?: string;
+  notes?: string;
+  automationLogs?: string[];
+  failureScreenshot?: string;
+  executedAt?: string;
+  testCase?: TestCaseRecord;
 }
 
 export interface DashboardSummary {

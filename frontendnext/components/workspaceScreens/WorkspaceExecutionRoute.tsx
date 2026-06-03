@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import ExecutionScreen from "@/components/workspaceScreens/ExecutionScreen";
-import { apiRequest, getId, userName } from "@/lib/api";
+import { apiRequest, formatAutomationRunMessage, getId, userName } from "@/lib/api";
 import { useAdminSidebarNav } from "@/components/workspaceScreens/adminNav";
 import {
   EMPLOYEE_NAV_ITEMS,
@@ -46,6 +46,7 @@ export default function WorkspaceExecutionRoute({ role }: { role: "admin" | "emp
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [runForm, setRunForm] = useState({ testPlanId: "", name: "", baseUrl: "" });
   const [loading, setLoading] = useState(true);
+  const [startingRun, setStartingRun] = useState(false);
   const [message, setMessage] = useState("");
   const { openJiraBugDialog, jiraBugDialogNode } = useJiraBugDialog({
     token,
@@ -185,20 +186,50 @@ export default function WorkspaceExecutionRoute({ role }: { role: "admin" | "emp
   const activeMyItems = runIdFromUrl ? myItems : [];
   const selectedRunPlan = scopedPlans.find((plan) => getId(plan) === runForm.testPlanId) || activeRun?.testPlan || null;
   const selectedRunPlanIsAutomation = String(selectedRunPlan?.executionMode || "manual") === "automation";
+  const isActiveRunAutomation =
+    String(activeRun?.testPlan?.executionMode || selectedRunPlan?.executionMode || "manual") === "automation";
   const selectedItem = activeMyItems.find((item) => getId(item) === selectedItemId);
+
+  useEffect(() => {
+    if (!activeMyItems.length) {
+      setSelectedItemId("");
+      return;
+    }
+
+    if (!selectedItemId || !activeMyItems.some((item) => getId(item) === selectedItemId)) {
+      const preferred =
+        activeMyItems.find((item) => item.status === "fail") ||
+        activeMyItems.find((item) => item.status === "blocked") ||
+        activeMyItems[0];
+      setSelectedItemId(getId(preferred));
+    }
+  }, [activeMyItems, selectedItemId]);
+
   const canEditSelectedRun = Boolean(
     activeRun &&
       activeRun.status === "running" &&
-      !selectedRunPlanIsAutomation &&
+      !isActiveRunAutomation &&
       (String(getId(activeRun.startedBy) || "") === String(getId(currentUser) || "") ||
         currentUser?.role === "admin"),
   );
 
   const startRun = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!runForm.testPlanId) return;
+    if (!runForm.testPlanId || startingRun) return;
+    setStartingRun(true);
+    setMessage("");
     try {
-      const response = await apiRequest<{ testRun?: RecordAny | null }>("/api/test-runs", token, { method: "POST", body: JSON.stringify({ testPlanId: runForm.testPlanId, name: runForm.name, baseUrl: runForm.baseUrl || "" }) });
+      const response = await apiRequest<{
+        testRun?: RecordAny | null;
+        automationSummary?: RecordAny;
+      }>("/api/test-runs", token, {
+        method: "POST",
+        body: JSON.stringify({
+          testPlanId: runForm.testPlanId,
+          name: runForm.name,
+          baseUrl: runForm.baseUrl || "",
+        }),
+      });
       if (response.testRun) {
         setSelectedRun(response.testRun);
         setRuns((prev) => [response.testRun as RecordAny, ...prev.filter((run) => getId(run) !== getId(response.testRun))]);
@@ -207,11 +238,18 @@ export default function WorkspaceExecutionRoute({ role }: { role: "admin" | "emp
           const itemsResponse = await apiRequest<{ testRun?: RecordAny | null; results: RecordAny[] }>(`/api/test-runs/${runId}/my-items`, token);
           setMyItems(Array.isArray(itemsResponse.results) ? itemsResponse.results : []);
           if (itemsResponse.testRun) setSelectedRun(itemsResponse.testRun);
+          if (response.automationSummary) {
+            setMessage(formatAutomationRunMessage(response.automationSummary));
+          } else {
+            setMessage("Test run started");
+          }
           router.push(`${role === "admin" ? "/workspace/admin/execution" : "/workspace/employee/execution"}?runId=${encodeURIComponent(runId)}`);
         }
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to start run");
+    } finally {
+      setStartingRun(false);
     }
   };
 
@@ -293,6 +331,7 @@ export default function WorkspaceExecutionRoute({ role }: { role: "admin" | "emp
         runForm={runForm}
         setRunForm={setRunForm}
         startRun={startRun}
+        startingRun={startingRun}
         scopedPlans={scopedPlans}
         selectedRunPlanIsAutomation={selectedRunPlanIsAutomation}
         selectedRun={activeRun}
@@ -305,6 +344,7 @@ export default function WorkspaceExecutionRoute({ role }: { role: "admin" | "emp
         updateResult={updateResult}
         endRun={endRun}
         canEditSelectedRun={canEditSelectedRun}
+        token={token}
         onLogBug={openJiraBugDialog}
       />
       {jiraBugDialogNode}

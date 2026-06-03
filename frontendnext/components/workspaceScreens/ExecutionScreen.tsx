@@ -13,6 +13,7 @@ type Props = {
   runForm: { testPlanId: string; name: string; baseUrl: string };
   setRunForm: (updater: any) => void;
   startRun: (event: React.FormEvent) => Promise<void>;
+  startingRun?: boolean;
   scopedPlans: RecordAny[];
   selectedRunPlanIsAutomation: boolean;
   selectedRun: RecordAny | null;
@@ -25,11 +26,12 @@ type Props = {
   updateResult: (resultId: string, status: "pass" | "fail" | "blocked" | "skip", note: string, notes: string) => Promise<void>;
   endRun: (runId: string) => Promise<void>;
   canEditSelectedRun: boolean;
+  token: string;
   onLogBug?: (run: RecordAny, result: RecordAny) => void;
 };
 
 export default function ExecutionScreen(props: Props) {
-  const { runForm, setRunForm, startRun, scopedPlans, selectedRunPlanIsAutomation, selectedRun, myItems, selectedItemId, setSelectedItemId, selectedItem, notes, setNotes, updateResult, endRun, canEditSelectedRun, onLogBug } = props;
+  const { runForm, setRunForm, startRun, startingRun = false, scopedPlans, selectedRunPlanIsAutomation, selectedRun, myItems, selectedItemId, setSelectedItemId, selectedItem, notes, setNotes, updateResult, endRun, canEditSelectedRun, token, onLogBug } = props;
   
   const handleEndRun = async () => {
     if (!selectedRun || String(selectedRun.status || "") !== "running") {
@@ -108,11 +110,12 @@ export default function ExecutionScreen(props: Props) {
                 onChange={(e) => setRunForm((prev: any) => ({ ...prev, testPlanId: e.target.value }))}
                 className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                 required
+                disabled={startingRun}
               >
                 <option value="">Select plan</option>
                 {scopedPlans.map((plan: RecordAny) => (
                   <option key={getId(plan)} value={getId(plan)}>
-                    {plan.name}
+                    {plan.name} ({plan.executionMode || "manual"})
                   </option>
                 ))}
               </select>
@@ -124,28 +127,39 @@ export default function ExecutionScreen(props: Props) {
                 onChange={(e) => setRunForm((prev: any) => ({ ...prev, name: e.target.value }))}
                 className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                 required
+                disabled={startingRun}
               />
             </label>
-            <label className="block text-xs font-semibold text-slate-500">
-              Automation base URL
-              <input
-                value={runForm.baseUrl || ""}
-                onChange={(e) => setRunForm((prev: any) => ({ ...prev, baseUrl: e.target.value }))}
-                className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                placeholder="https://app.example.com"
-              />
-            </label>
+            {selectedRunPlanIsAutomation ? (
+              <label className="block text-xs font-semibold text-slate-500">
+                Automation base URL
+                <input
+                  value={runForm.baseUrl || ""}
+                  onChange={(e) => setRunForm((prev: any) => ({ ...prev, baseUrl: e.target.value }))}
+                  className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                  placeholder="https://app.example.com"
+                  disabled={startingRun}
+                />
+              </label>
+            ) : (
+              <div className="hidden lg:block" aria-hidden="true" />
+            )}
             <button
               type="submit"
-              className="h-10 self-end rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800"
+              disabled={startingRun}
+              className="h-10 self-end rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
             >
-              Start run
+              {startingRun
+                ? selectedRunPlanIsAutomation
+                  ? "Đang chạy Playwright..."
+                  : "Đang start run..."
+                : "Start run"}
             </button>
           </form>
         )}
         {selectedRunPlanIsAutomation && !selectedRun && (
           <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            Playwright se tu dong chay ngay khi start run cho plan automation.
+            Plan automation: Playwright sẽ chạy ngay khi bạn bấm Start run. Quá trình có thể mất vài phút — vui lòng chờ đến khi hoàn tất.
           </div>
         )}
       </section>
@@ -160,6 +174,7 @@ export default function ExecutionScreen(props: Props) {
             selectedItem={selectedItem}
             notes={notes}
             setNotes={setNotes}
+            token={token}
             onLogBug={onLogBug}
           />
         ) : (

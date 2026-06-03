@@ -3,4 +3,8 @@ node_modules/
 # Playwright storageState (cookies/tokens) — local only, never commit
 .sessions/
 backend/.sessions/
+
+# Automation run artifacts (failure screenshots, traces)
+uploads/
+backend/uploads/
 .env/

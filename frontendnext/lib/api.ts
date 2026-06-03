@@ -196,4 +196,20 @@ export function userName(value: unknown): string {
   return 'Unknown';
 }
 
+export type AutomationRunSummary = {
+  total?: number;
+  pass?: number;
+  fail?: number;
+  blocked?: number;
+  skip?: number;
+};
+
+export function formatAutomationRunMessage(summary?: AutomationRunSummary | null): string {
+  if (!summary) {
+    return 'Automation run completed.';
+  }
+
+  return `Automation hoàn tất: ${summary.pass ?? 0} pass, ${summary.fail ?? 0} fail, ${summary.blocked ?? 0} blocked, ${summary.skip ?? 0} skip / ${summary.total ?? 0} cases.`;
+}
+
 

@@ -404,7 +404,7 @@ const listTestRunsService = async ({ projectId, versionId, status }, user) => {
 
 const getMyRunItemsService = async (runId, user) => {
   const testRun = await TestRun.findById(toObjectId(runId, 'runId'))
-    .populate('results.testCase', 'caseKey title description steps priority severity')
+    .populate('results.testCase', 'caseKey title description expected steps priority severity automation')
     .populate('results.owner', 'name email role')
     .populate('results.assignees', 'name email role')
     .populate('results.tester', 'name email role')
@@ -472,6 +472,11 @@ const updateRunResultService = async (runId, resultId, payload, user) => {
   const testRun = await TestRun.findById(toObjectId(runId, 'runId'));
   if (!testRun) throw httpError(404, 'Test run not found');
   if (testRun.status !== 'running') throw httpError(400, 'Only running test run can be updated');
+
+  const parentPlan = await findTestPlanByReference(testRun.testPlan);
+  if (parentPlan && parentPlan.executionMode === 'automation') {
+    throw httpError(403, 'Automation run results cannot be updated manually');
+  }
 
   const result = testRun.results.id(resultId);
   if (!result) throw httpError(404, 'Run result not found');

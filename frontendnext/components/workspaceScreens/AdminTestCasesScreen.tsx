@@ -204,6 +204,7 @@ type Props = {
   setTestCaseForm: Dispatch<SetStateAction<TestCaseForm>>;
   automationForm: {
     enabled: boolean;
+    webId: string;
     baseUrl: string;
     userKey: string;
     timeoutMs: string;
@@ -212,6 +213,7 @@ type Props = {
   setAutomationForm: Dispatch<
     SetStateAction<{
       enabled: boolean;
+      webId: string;
       baseUrl: string;
       userKey: string;
       timeoutMs: string;
@@ -877,6 +879,9 @@ export default function AdminTestCasesScreen(props: Props) {
                       Automation ({(activeCase.automation?.steps || []).length} bước)
                     </div>
                     <div className="mt-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                      {activeCase.automation?.webId && (
+                        <div>Web ID: {activeCase.automation.webId}</div>
+                      )}
                       {activeCase.automation?.baseUrl && (
                         <div>URL: {activeCase.automation.baseUrl}</div>
                       )}
@@ -1205,6 +1210,23 @@ export default function AdminTestCasesScreen(props: Props) {
                           </span>
                         </label>
                         <div className="grid grid-cols-2 gap-3">
+                          <label className="text-xs font-semibold text-slate-500">
+                            Web ID (tùy chọn)
+                            <input
+                              value={automationForm.webId}
+                              onChange={(e) =>
+                                setAutomationForm((prev) => ({
+                                  ...prev,
+                                  webId: e.target.value,
+                                }))
+                              }
+                              className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                              placeholder="my-app-staging"
+                            />
+                            <span className="mt-1 block text-[11px] font-normal text-slate-400">
+                              Khóa nhóm session đăng nhập. Dùng khi cùng URL nhưng nhiều môi trường hoặc nhiều app khác nhau.
+                            </span>
+                          </label>
                           <label className="text-xs font-semibold text-slate-500">
                             Profile người dùng (tùy chọn)
                             <input

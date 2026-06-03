@@ -153,10 +153,20 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
     openJiraBugDialog,
     resetWorkspaceDrafts,
     message,
+    token: workspaceToken = "",
   } = workspace;
 
   const [selectedItemId, setSelectedItemId] = useState<string>("");
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [token] = useState<string>(() => {
+    if (workspaceToken) {
+      return String(workspaceToken);
+    }
+    if (typeof window === "undefined") {
+      return "";
+    }
+    return window.localStorage.getItem("tcm_token") || "";
+  });
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [searchPreset, setSearchPreset] = useState<
     "all" | "risk" | "running" | "my-items"
@@ -874,6 +884,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
             updateResult={updateResult}
             endRun={endRun}
             canEditSelectedRun={canEditSelectedRun}
+            token={token}
             onLogBug={openJiraBugDialog}
           />
         )}

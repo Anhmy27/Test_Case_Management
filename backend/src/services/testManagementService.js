@@ -1302,6 +1302,7 @@ const createTestCaseService = async ({
     ? {
         enabled: Boolean(automation.enabled),
         runner: 'playwright',
+        webId: String(automation.webId || '').trim(),
         baseUrl: String(automation.baseUrl || '').trim(),
         userKey: String(automation.userKey || '').trim(),
         timeoutMs: Number(automation.timeoutMs || 30000),
@@ -1310,6 +1311,7 @@ const createTestCaseService = async ({
     : {
         enabled: false,
         runner: 'playwright',
+        webId: '',
         baseUrl: '',
         userKey: '',
         timeoutMs: 30000,
@@ -1819,6 +1821,7 @@ const updateTestCaseService = async (testCaseId, payload = {}) => {
       ? {
           enabled: Boolean(automation.enabled),
           runner: 'playwright',
+          webId: String(automation.webId || '').trim(),
           baseUrl: String(automation.baseUrl || '').trim(),
           userKey: String(automation.userKey || '').trim(),
           timeoutMs: Number(automation.timeoutMs || 30000),
@@ -1827,6 +1830,7 @@ const updateTestCaseService = async (testCaseId, payload = {}) => {
       : current.automation || {
           enabled: false,
           runner: 'playwright',
+          webId: '',
           baseUrl: '',
           userKey: '',
           timeoutMs: 30000,

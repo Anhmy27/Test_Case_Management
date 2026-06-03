@@ -1,4 +1,5 @@
 const { asyncHandler } = require('../utils/asyncHandler');
+const fs = require('fs');
 const {
   startTestRunService,
   applyAutomationResultsService,
@@ -12,6 +13,7 @@ const {
   getTestPlanStatsService,
   getTestPlanDetailService,
 } = require('../services/testRunDashboardService');
+const { getRunResultFailureScreenshotService } = require('../services/testRunArtifactService');
 
 const startTestRun = asyncHandler(async (req, res) => {
   const result = await startTestRunService({
@@ -81,6 +83,17 @@ const getTestPlanDetail = asyncHandler(async (req, res) => {
   res.json(result);
 });
 
+const getRunResultFailureScreenshot = asyncHandler(async (req, res) => {
+  const { absolutePath, contentType } = await getRunResultFailureScreenshotService(
+    req.params.runId,
+    req.params.resultId,
+  );
+
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Cache-Control', 'private, max-age=3600');
+  fs.createReadStream(absolutePath).pipe(res);
+});
+
 module.exports = {
   startTestRun,
   listTestRuns,
@@ -93,4 +106,5 @@ module.exports = {
   getVersionDashboard,
   getTestPlanStats,
   getTestPlanDetail,
+  getRunResultFailureScreenshot,
 };

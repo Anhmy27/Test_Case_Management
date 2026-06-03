@@ -63,6 +63,7 @@ const {
   getTestPlanStats,
   getTestPlanDetail,
   applyAutomationResults,
+  getRunResultFailureScreenshot,
 } = require('../controllers/testManagementController');
 const { authenticate, authorize } = require('../middlewares/authMiddleware');
 const { httpError } = require('../utils/httpError');
@@ -149,6 +150,7 @@ router.post('/test-runs', authorize('admin', 'employee'), startTestRun);
 router.patch('/test-runs/:runId/end', authorize('admin', 'employee'), endTestRun);
 
 router.get('/test-runs/:runId/my-items', getMyRunItems);
+router.get('/test-runs/:runId/results/:resultId/failure-screenshot', getRunResultFailureScreenshot);
 router.patch('/test-runs/:runId/results/:resultId', updateRunResult);
 
 router.get('/dashboard', getDashboard);

@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useMemo, useState } from "react";
+import FailureScreenshot from "./FailureScreenshot";
 import { getId } from "@/lib/api";
 import type { Dispatch, SetStateAction } from "react";
 
@@ -15,6 +16,7 @@ interface AutomationRunExecutionPanelProps {
   selectedItem?: RecordAny;
   notes: Record<string, string>;
   setNotes: Dispatch<SetStateAction<Record<string, string>>>;
+  token: string;
   onLogBug?: (run: RecordAny, result: RecordAny) => void;
 }
 
@@ -26,11 +28,22 @@ export default function AutomationRunExecutionPanel({
   selectedItem,
   notes,
   setNotes,
+  token,
   onLogBug,
 }: AutomationRunExecutionPanelProps) {
   const [queueFilter, setQueueFilter] = useState<"all" | "pending" | "failed" | "passed" | "blocked">("all");
   const [queueSearch, setQueueSearch] = useState("");
   const canLogBug = selectedRun?.status === "completed" && selectedItem?.status === "fail";
+  const runIsCompleted = String(selectedRun?.status || "") === "completed";
+  const runIsRunning = String(selectedRun?.status || "") === "running";
+
+  const statusBadgeClass = (status: string) => {
+    if (status === "pass") return "bg-emerald-50 text-emerald-700";
+    if (status === "fail") return "bg-rose-50 text-rose-700";
+    if (status === "blocked") return "bg-amber-50 text-amber-700";
+    if (status === "skip") return "bg-slate-100 text-slate-600";
+    return "bg-slate-100 text-slate-500";
+  };
 
   const summary = myItems.reduce(
     (acc, item: RecordAny) => {
@@ -74,14 +87,14 @@ export default function AutomationRunExecutionPanel({
     <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)_320px]">
       <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-4 py-4">
-          <div className="text-sm font-semibold text-slate-900">Execution queue</div>
-          <div className="text-xs text-slate-500">Automation run view</div>
+          <div className="text-sm font-semibold text-slate-900">Hàng đợi chạy</div>
+          <div className="text-xs text-slate-500">Xem kết quả automation (chỉ đọc)</div>
           <div className="mt-3 flex flex-wrap gap-2">
             {[
-              { key: "all", label: "All" },
-              { key: "pending", label: "Pending" },
-              { key: "failed", label: "Failed" },
-              { key: "passed", label: "Passed" },
+              { key: "all", label: "Tất cả" },
+              { key: "pending", label: "Chưa chạy" },
+              { key: "failed", label: "Fail" },
+              { key: "passed", label: "Pass" },
               { key: "blocked", label: "Blocked" },
             ].map((tab) => (
               <button
@@ -101,13 +114,13 @@ export default function AutomationRunExecutionPanel({
           <input
             value={queueSearch}
             onChange={(e) => setQueueSearch(e.target.value)}
-            placeholder="Search case"
+            placeholder="Tìm case key hoặc title"
             className="mt-3 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
           />
         </div>
         <div className="max-h-[520px] overflow-auto">
           {queueItems.length === 0 ? (
-            <div className="p-4 text-sm text-slate-500">No cases found</div>
+            <div className="p-4 text-sm text-slate-500">Không tìm thấy case nào</div>
           ) : (
             queueItems.map((item: RecordAny) => {
               const active = getId(item) === selectedItemId;
@@ -120,7 +133,9 @@ export default function AutomationRunExecutionPanel({
                   }`}
                   onClick={() => setSelectedItemId(getId(item))}
                 >
-                  <span className="text-xs font-semibold text-slate-500">{item.status}</span>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${statusBadgeClass(String(item.status || "untested"))}`}>
+                    {item.status}
+                  </span>
                   <div>
                     <div className="text-sm font-semibold text-slate-900">
                       {item.testCase?.caseKey || "TC"}
@@ -138,12 +153,12 @@ export default function AutomationRunExecutionPanel({
 
       <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-5 py-4">
-          <div className="text-sm font-semibold text-slate-900">Case detail</div>
-          <div className="text-xs text-slate-500">Read-only automation view</div>
+          <div className="text-sm font-semibold text-slate-900">Chi tiết case</div>
+          <div className="text-xs text-slate-500">Chế độ xem automation (chỉ đọc)</div>
         </div>
 
         {!selectedItem ? (
-          <div className="p-6 text-sm text-slate-500">Select a test case from the queue.</div>
+          <div className="p-6 text-sm text-slate-500">Chọn một test case từ hàng đợi bên trái.</div>
         ) : (
           <div className="space-y-6 p-6">
             <div>
@@ -157,8 +172,11 @@ export default function AutomationRunExecutionPanel({
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-                Automation review
+              <span className="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700">
+                Automation
+              </span>
+              <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusBadgeClass(String(selectedItem.status || "untested"))}`}>
+                {selectedItem.status}
               </span>
               <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
                 Plan: {selectedRun?.testPlan?.name || selectedRun?.name || "-"}
@@ -219,6 +237,16 @@ export default function AutomationRunExecutionPanel({
               </div>
             </div>
 
+            {selectedRun && getId(selectedRun) && getId(selectedItem) ? (
+              <FailureScreenshot
+                runId={getId(selectedRun)}
+                resultId={getId(selectedItem)}
+                failureScreenshot={selectedItem.failureScreenshot}
+                status={String(selectedItem.status || "")}
+                token={token}
+              />
+            ) : null}
+
             {Array.isArray(selectedItem.automationLogs) && selectedItem.automationLogs.length > 0 && (
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                 <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Log chi tiết từng bước</div>
@@ -248,8 +276,10 @@ export default function AutomationRunExecutionPanel({
 
       <section className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-4 py-4">
-          <div className="text-sm font-semibold text-slate-900">Execution summary</div>
-          <div className="text-xs text-slate-500">Automation status</div>
+          <div className="text-sm font-semibold text-slate-900">Tổng kết</div>
+          <div className="text-xs text-slate-500">
+            {runIsCompleted ? "Run đã hoàn tất" : runIsRunning ? "Run đang chạy" : "Trạng thái run"}
+          </div>
         </div>
         <div className="flex-1 space-y-4 px-4 py-4">
           <div className="grid grid-cols-2 gap-3">
@@ -271,15 +301,25 @@ export default function AutomationRunExecutionPanel({
             </div>
           </div>
 
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
-            Automation run is read-only. Results update when automation completes.
+          <div className={`rounded-xl border p-3 text-xs ${
+            runIsCompleted
+              ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+              : runIsRunning
+                ? "border-amber-200 bg-amber-50 text-amber-900"
+                : "border-slate-200 bg-slate-50 text-slate-700"
+          }`}>
+            {runIsCompleted
+              ? "Run automation đã hoàn tất. Bạn có thể xem log từng case và Log Bug cho các case fail."
+              : runIsRunning
+                ? "Run automation đang chạy hoặc chưa được tải đầy đủ. Tải lại trang nếu trạng thái không cập nhật."
+                : "Chế độ xem automation — không thể chỉnh sửa kết quả thủ công."}
           </div>
 
           <div>
-            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Recent activity</div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Hoạt động gần đây</div>
             <div className="mt-3 space-y-2">
               {recentActivity.length === 0 ? (
-                <div className="text-xs text-slate-500">No recent updates.</div>
+                <div className="text-xs text-slate-500">Chưa có cập nhật nào.</div>
               ) : (
                 recentActivity.map((item: RecordAny) => (
                   <div key={String(getId(item))} className="rounded-lg border border-slate-200 bg-white px-3 py-2">

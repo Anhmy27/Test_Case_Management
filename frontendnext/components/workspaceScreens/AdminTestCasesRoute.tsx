@@ -31,7 +31,7 @@ export default function AdminTestCasesRoute() {
   const [groups, setGroups] = useState<RecordAny[]>([]);
   const [testCases, setTestCases] = useState<RecordAny[]>([]);
   const [testCaseForm, setTestCaseForm] = useState({ projectId: "", groupId: "", caseKey: "", title: "", priority: "medium", severity: "major", type: "functional", description: "", expected: "", steps: [{ action: "", expected: "" }] });
-  const [automationForm, setAutomationForm] = useState({ enabled: false, baseUrl: "", userKey: "", timeoutMs: "30", steps: [{ stepId: "1", stepName: "", action: "goto", targetType: "css", target: "", value: "", expected: "", timeoutMs: "15" }] });
+  const [automationForm, setAutomationForm] = useState({ enabled: false, webId: "", baseUrl: "", userKey: "", timeoutMs: "30", steps: [{ stepId: "1", stepName: "", action: "goto", targetType: "css", target: "", value: "", expected: "", timeoutMs: "15" }] });
   const [editingTestCaseId, setEditingTestCaseId] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -108,7 +108,7 @@ export default function AdminTestCasesRoute() {
         target: String(step.target || ""),
         value: String(step.value || ""),
         expected: String(step.expected || ""),
-        timeoutMs: String(Number(step.timeoutMs || 15) * 1000),
+        timeoutMs: Number(step.timeoutMs || 15) * 1000,
       }));
 
   const saveTestCase = async (event: React.FormEvent) => {
@@ -135,7 +135,7 @@ export default function AdminTestCasesRoute() {
       }
       setEditingTestCaseId("");
       setTestCaseForm({ projectId: "", groupId: "", caseKey: "", title: "", priority: "medium", severity: "major", type: "functional", description: "", expected: "", steps: [{ action: "", expected: "" }] });
-      setAutomationForm({ enabled: false, baseUrl: "", userKey: "", timeoutMs: "30", steps: [{ stepId: generateStepId(), stepName: "", action: "goto", targetType: "css", target: "", value: "", expected: "", timeoutMs: "15" }] });
+      setAutomationForm({ enabled: false, webId: "", baseUrl: "", userKey: "", timeoutMs: "30", steps: [{ stepId: generateStepId(), stepName: "", action: "goto", targetType: "css", target: "", value: "", expected: "", timeoutMs: "15" }] });
       await refreshAll();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to save test case");
@@ -145,7 +145,7 @@ export default function AdminTestCasesRoute() {
   const cancelTestCaseEdit = () => {
     setEditingTestCaseId("");
     setTestCaseForm({ projectId: "", groupId: "", caseKey: "", title: "", priority: "medium", severity: "major", type: "functional", description: "", expected: "", steps: [{ action: "", expected: "" }] });
-    setAutomationForm({ enabled: false, baseUrl: "", userKey: "", timeoutMs: "30", steps: [{ stepId: generateStepId(), stepName: "", action: "goto", targetType: "css", target: "", value: "", expected: "", timeoutMs: "15" }] });
+    setAutomationForm({ enabled: false, webId: "", baseUrl: "", userKey: "", timeoutMs: "30", steps: [{ stepId: generateStepId(), stepName: "", action: "goto", targetType: "css", target: "", value: "", expected: "", timeoutMs: "15" }] });
   };
 
   const startTestCaseEdit = (testCase: RecordAny) => {
@@ -181,6 +181,7 @@ export default function AdminTestCasesRoute() {
 
     setAutomationForm({
       enabled: Boolean(automation.enabled),
+      webId: String(automation.webId || ""),
       baseUrl: String(automation.baseUrl || ""),
       userKey: String(automation.userKey || ""),
       timeoutMs: String(Math.round(Number(automation.timeoutMs || 30000) / 1000)),

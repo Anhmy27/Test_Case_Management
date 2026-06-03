@@ -10,6 +10,7 @@ const TestRun = require('../models/TestRun');
 const { httpError } = require('../utils/httpError');
 const { createAuthManager } = require('./auth/authManager');
 const { runAutomationSteps, DEFAULT_TIMEOUT } = require('./automation/playwrightExecutor');
+const { captureFailureScreenshot } = require('./automation/failureScreenshotCapture');
 
 const authManager = createAuthManager();
 
@@ -107,6 +108,7 @@ const executeAutomationRun = async ({ testRunId, baseUrl = '', executedBy }) => 
       const logLines = [];
       let finalStatus = 'blocked';
       let finalNote = 'Automation spec is missing';
+      let failureScreenshot = '';
 
       try {
         if (!automation.enabled || caseSteps.length === 0) {
@@ -132,6 +134,18 @@ const executeAutomationRun = async ({ testRunId, baseUrl = '', executedBy }) => 
           ...logLines,
         ].join('\n');
         logLines.push(error?.message || 'Unknown error');
+
+        const screenshotCapture = await captureFailureScreenshot({
+          page,
+          runId: testRun._id,
+          resultId: result._id,
+        });
+        if (screenshotCapture.relativePath) {
+          failureScreenshot = screenshotCapture.relativePath;
+          logLines.push(`Failure screenshot saved: ${failureScreenshot}`);
+        } else if (screenshotCapture.error) {
+          logLines.push(`Failure screenshot capture failed: ${screenshotCapture.error}`);
+        }
       } finally {
         await authManager
           .persistContext({
@@ -147,6 +161,7 @@ const executeAutomationRun = async ({ testRunId, baseUrl = '', executedBy }) => 
       result.status = finalStatus;
       result.note = finalNote.slice(0, 5000);
       result.automationLogs = logLines.slice(0, 200);
+      result.failureScreenshot = failureScreenshot;
       result.executedAt = new Date();
       result.tester = executedBy;
 

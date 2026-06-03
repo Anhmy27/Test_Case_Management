@@ -13,6 +13,7 @@ type Props = {
   runForm: { testPlanId: string; name: string; baseUrl: string };
   setRunForm: Dispatch<SetStateAction<{ testPlanId: string; name: string; baseUrl: string }>>;
   startRun: (event: React.FormEvent) => Promise<void>;
+  startingRun?: boolean;
   scopedPlans: RecordAny[];
   selectedRunPlanIsAutomation: boolean;
   adminRuns: RecordAny[];
@@ -22,7 +23,7 @@ type Props = {
   loadMyItems: (runId: string) => Promise<void>;
 };
 
-export default function AdminTestRunsScreen({ runForm, setRunForm, startRun, scopedPlans, selectedRunPlanIsAutomation, adminRuns, matchesSearch, userName, currentUserId, loadMyItems }: Props) {
+export default function AdminTestRunsScreen({ runForm, setRunForm, startRun, startingRun = false, scopedPlans, selectedRunPlanIsAutomation, adminRuns, matchesSearch, userName, currentUserId, loadMyItems }: Props) {
   const [searchTerm, setSearchTerm] = useState("");
   const [planFilter, setPlanFilter] = useState("");
   const [startedByFilter, setStartedByFilter] = useState("");
@@ -82,12 +83,14 @@ export default function AdminTestRunsScreen({ runForm, setRunForm, startRun, sco
       <SectionCard title="Test Runs" subtitle="Theo doi execution va start/end run rieng">
         <form className="workspace-form" onSubmit={startRun}>
           <div className="workspace-form__grid workspace-form__grid--two">
-            <label><span>Test Plan</span><select value={runForm.testPlanId} onChange={(e) => setRunForm((prev) => ({ ...prev, testPlanId: e.target.value }))} required><option value="">Select plan</option>{scopedPlans.map((plan: RecordAny) => <option key={getId(plan)} value={getId(plan)}>{plan.name}</option>)}</select></label>
-            <label><span>Run name</span><input value={runForm.name} onChange={(e) => setRunForm((prev) => ({ ...prev, name: e.target.value }))} required /></label>
+            <label><span>Test Plan</span><select value={runForm.testPlanId} onChange={(e) => setRunForm((prev) => ({ ...prev, testPlanId: e.target.value }))} required disabled={startingRun}><option value="">Select plan</option>{scopedPlans.map((plan: RecordAny) => <option key={getId(plan)} value={getId(plan)}>{plan.name} ({plan.executionMode || "manual"})</option>)}</select></label>
+            <label><span>Run name</span><input value={runForm.name} onChange={(e) => setRunForm((prev) => ({ ...prev, name: e.target.value }))} required disabled={startingRun} /></label>
           </div>
-          <label><span>Automation base URL</span><input value={runForm.baseUrl || ""} onChange={(e) => setRunForm((prev) => ({ ...prev, baseUrl: e.target.value }))} placeholder="https://app.example.com" /></label>
-          {selectedRunPlanIsAutomation && <div className="workspace-banner">Automation plan đã được chọn. Khi bạn start run, Playwright sẽ chạy ngay với base URL này.</div>}
-          <ActionButton type="submit" label="Start test run" icon="▶" variant="primary" />
+          {selectedRunPlanIsAutomation ? (
+            <label><span>Automation base URL</span><input value={runForm.baseUrl || ""} onChange={(e) => setRunForm((prev) => ({ ...prev, baseUrl: e.target.value }))} placeholder="https://app.example.com" disabled={startingRun} /></label>
+          ) : null}
+          {selectedRunPlanIsAutomation && <div className="workspace-banner">Plan automation: Playwright chạy ngay khi Start run. Quá trình có thể mất vài phút — vui lòng chờ.</div>}
+          <ActionButton type="submit" label={startingRun ? (selectedRunPlanIsAutomation ? "Đang chạy Playwright..." : "Đang start run...") : "Start test run"} icon="▶" variant="primary" disabled={startingRun} loading={startingRun} />
         </form>
       </SectionCard>
 
