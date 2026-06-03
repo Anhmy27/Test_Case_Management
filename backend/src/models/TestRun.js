@@ -45,6 +45,10 @@ const runResultSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
+    automationLogs: {
+      type: [String],
+      default: [],
+    },
     executedAt: {
       type: Date,
     },

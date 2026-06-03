@@ -114,7 +114,7 @@ const executeAutomationRun = async ({ testRunId, baseUrl = '', executedBy }) => 
           finalNote = 'Automation spec is not configured for this test case';
           logLines.push(finalNote);
         } else {
-          page.setDefaultTimeout(Number(automation.timeoutMs || DEFAULT_TIMEOUT));
+          page.setDefaultTimeout(Number(automation.timeoutMs) > 0 ? Number(automation.timeoutMs) : DEFAULT_TIMEOUT);
           await page.setViewportSize({ width: 1440, height: 900 });
 
           const stepLogs = await runAutomationSteps({ page, steps: caseSteps, baseUrl: caseBaseUrl });
@@ -145,7 +145,8 @@ const executeAutomationRun = async ({ testRunId, baseUrl = '', executedBy }) => 
       }
 
       result.status = finalStatus;
-      result.note = finalNote.slice(0, 2000);
+      result.note = finalNote.slice(0, 5000);
+      result.automationLogs = logLines.slice(0, 200);
       result.executedAt = new Date();
       result.tester = executedBy;
 
@@ -171,7 +172,8 @@ const executeAutomationRun = async ({ testRunId, baseUrl = '', executedBy }) => 
     for (const result of testRun.results) {
       if (!result.executedAt) {
         result.status = 'blocked';
-        result.note = fatalNote.slice(0, 2000);
+        result.note = fatalNote.slice(0, 5000);
+        result.automationLogs = [fatalNote];
         result.executedAt = new Date();
         result.tester = executedBy;
         summary.blocked += 1;

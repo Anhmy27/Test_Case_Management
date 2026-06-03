@@ -102,6 +102,11 @@ const testCaseSchema = new mongoose.Schema(
         default: '',
         trim: true,
       },
+      timeoutMs: {
+        type: Number,
+        default: 30000,
+        min: 0,
+      },
       steps: {
         type: [automationStepSchema],
         default: [],

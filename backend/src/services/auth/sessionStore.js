@@ -1,7 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const DEFAULT_SESSION_DIR = path.resolve(process.cwd(), 'backend', '.sessions');
+const DEFAULT_SESSION_DIR = path.resolve(process.cwd(), '.sessions');
 
 const normalizeKey = (value, fallback = 'default') => {
   const raw = String(value || '').trim();

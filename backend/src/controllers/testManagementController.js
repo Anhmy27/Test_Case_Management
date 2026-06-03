@@ -127,13 +127,23 @@ const findProjectByReference = async (projectRef) => {
   }
 
   const objectId = toObjectId(projectRef, 'projectId');
-  return Project.findOne({
-    $and: [
-      { $or: [{ entityId: objectId }, { _id: objectId }] },
-      { deletedAt: null },
-      { $or: [{ isLatest: true }, { isLatest: { $exists: false } }] },
-    ],
+
+  const referencedProject = await Project.findOne({
+    $or: [{ entityId: objectId }, { _id: objectId }],
   }).lean();
+
+  if (!referencedProject) {
+    return null;
+  }
+
+  const entityId = referencedProject.entityId || referencedProject._id;
+  const latestProject = await Project.findOne({
+    entityId,
+    deletedAt: null,
+    $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+  }).lean();
+
+  return latestProject || (referencedProject.deletedAt ? null : referencedProject);
 };
 
 const findVersionByReference = async (versionRef) => {
@@ -142,13 +152,28 @@ const findVersionByReference = async (versionRef) => {
   }
 
   const objectId = toObjectId(versionRef, 'versionId');
-  return Version.findOne({
-    $and: [
-      { $or: [{ entityId: objectId }, { _id: objectId }] },
-      { deletedAt: null },
-      { $or: [{ isLatest: true }, { isLatest: { $exists: false } }] },
-    ],
+
+  // First pass: find any document matching this ref, regardless of deletedAt/isLatest,
+  // so we can get the entityId needed to find the current live version.
+  const referencedVersion = await Version.findOne({
+    $or: [{ entityId: objectId }, { _id: objectId }],
   }).lean();
+
+  if (!referencedVersion) {
+    return null;
+  }
+
+  const entityId = referencedVersion.entityId || referencedVersion._id;
+
+  // Second pass: find the live latest version using entityId.
+  const latestVersion = await Version.findOne({
+    entityId,
+    deletedAt: null,
+    $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+  }).lean();
+
+  // Fall back to the referenced version if no live latest exists (e.g. old data without entityId).
+  return latestVersion || (referencedVersion.deletedAt ? null : referencedVersion);
 };
 
 const attachRunProjectAndVersion = async (testRun) => {
@@ -650,12 +675,24 @@ const createTestPlan = asyncHandler(async (req, res) => {
     throw httpError(404, 'Project not found');
   }
 
-  const version = await Version.findOne({
-    entityId: toObjectId(versionId, 'versionId'),
-    project: project._id,
-    $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+  const versionObjectId = toObjectId(versionId, 'versionId');
+  const referencedVersion = await Version.findOne({
+    $or: [{ entityId: versionObjectId }, { _id: versionObjectId }],
     deletedAt: null,
   }).lean();
+
+  if (!referencedVersion) {
+    throw httpError(404, 'Version not found in selected project');
+  }
+
+  const versionEntityId = referencedVersion.entityId || referencedVersion._id;
+  const version = await Version.findOne({
+    entityId: versionEntityId,
+    project: project._id,
+    deletedAt: null,
+    $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+  }).lean();
+
   if (!version || String(version.project) !== String(project._id)) {
     throw httpError(404, 'Version not found in selected project');
   }
@@ -703,35 +740,32 @@ const listTestPlans = asyncHandler(async (req, res) => {
   const query = {};
 
   if (projectId) {
-    const projectDoc = await Project.findOne({
-      entityId: toObjectId(projectId, 'projectId'),
-      $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
-      deletedAt: null,
-    }).lean();
+    const projectDoc = await findProjectByReference(projectId);
     if (!projectDoc) {
       res.json({ testPlans: [] });
       return;
     }
-    query.project = projectDoc._id;
+    const projectRefs = [projectDoc._id, projectDoc.entityId].filter(Boolean);
+    query.project = projectRefs.length > 1 ? { $in: projectRefs } : projectRefs[0];
   }
 
   if (versionId) {
-    const versionDoc = await Version.findOne({
-      entityId: toObjectId(versionId, 'versionId'),
-      $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
-      deletedAt: null,
-    }).lean();
+    const versionDoc = await findVersionByReference(versionId);
     if (!versionDoc) {
       res.json({ testPlans: [] });
       return;
     }
-    query.version = versionDoc._id;
+    const versionRefs = [
+      versionDoc._id,
+      versionDoc.entityId,
+    ].filter(Boolean);
+    query.version = versionRefs.length > 1 ? { $in: versionRefs } : versionRefs[0];
   }
 
   const testPlans = await TestPlan.find(query)
     .sort({ createdAt: -1 })
-    .populate('project', 'name code')
-    .populate('version', 'name')
+    .populate('project', 'name code entityId')
+    .populate('version', 'name entityId')
     .populate('owner', 'name email role')
     .populate('assignees', 'name email role')
     .populate('items.testCase', 'caseKey title')
@@ -962,12 +996,6 @@ const applyAutomationResults = asyncHandler(async (req, res) => {
   const testRun = await TestRun.findById(toObjectId(runId, 'runId'));
   if (!testRun) {
     throw httpError(404, 'Test run not found');
-  }
-
-  // Prevent manual updates for automation runs
-  const parentPlan = await findTestPlanByReference(testRun.testPlan);
-  if (parentPlan && parentPlan.executionMode === 'automation') {
-    throw httpError(403, 'Manual updates are not allowed for automation test runs');
   }
 
   const testPlan = await findTestPlanByReference(testRun.testPlan);

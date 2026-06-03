@@ -1,1 +1,6 @@
 node_modules/
+
+# Playwright storageState (cookies/tokens) — local only, never commit
+.sessions/
+backend/.sessions/
+.env/

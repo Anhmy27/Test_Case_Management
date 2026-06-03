@@ -2,6 +2,8 @@ const mongoose = require('mongoose');
 
 const automationStepSchema = new mongoose.Schema(
   {
+    stepId: { type: String, default: '', trim: true },
+    stepName: { type: String, default: '', trim: true },
     order: { type: Number, required: true },
     action: {
       type: String,

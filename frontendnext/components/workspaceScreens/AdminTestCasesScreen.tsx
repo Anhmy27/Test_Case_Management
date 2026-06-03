@@ -23,10 +23,12 @@ type TestCaseForm = {
   type: string;
   description: string;
   expected: string;
-  steps: Array<{ action: string }>;
+  steps: Array<{ action: string; expected?: string }>;
 };
 
 type AutomationStep = {
+  stepId: string;
+  stepName: string;
   action: string;
   targetType: string;
   target: string;
@@ -34,6 +36,167 @@ type AutomationStep = {
   expected: string;
   timeoutMs: string;
 };
+
+type ActionMeta = {
+  label: string;
+  description: string;
+  targetTypes: string[];
+  needsTarget: boolean;
+  needsValue: boolean;
+  needsExpected: boolean;
+  targetPlaceholder: string;
+  valuePlaceholder: string;
+  expectedPlaceholder: string;
+};
+
+const ACTION_META: Record<string, ActionMeta> = {
+  goto: {
+    label: "Đi đến trang",
+    description: "Điều hướng đến một URL. Ví dụ: /login hoặc https://...",
+    needsTarget: false, needsValue: true, needsExpected: false,
+    targetTypes: [],
+    targetPlaceholder: "",
+    valuePlaceholder: "/login hoặc https://app.example.com/dashboard",
+    expectedPlaceholder: "",
+  },
+  click: {
+    label: "Nhấn vào phần tử",
+    description: "Click vào nút, link hoặc bất kỳ phần tử nào",
+    needsTarget: true, needsValue: false, needsExpected: false,
+    targetTypes: ["css", "id", "text", "label", "testid"],
+    targetPlaceholder: "Đăng nhập (text) · #submit-btn (css) · login-btn (testid)",
+    valuePlaceholder: "",
+    expectedPlaceholder: "",
+  },
+  type: {
+    label: "Nhập văn bản",
+    description: "Điền nội dung vào ô input hoặc textarea",
+    needsTarget: true, needsValue: true, needsExpected: false,
+    targetTypes: ["css", "id", "placeholder", "label", "testid"],
+    targetPlaceholder: "Email (placeholder) · #username (css) · Họ tên (label)",
+    valuePlaceholder: "Nội dung cần nhập vào ô",
+    expectedPlaceholder: "",
+  },
+  select: {
+    label: "Chọn dropdown",
+    description: "Chọn một option trong thẻ select box",
+    needsTarget: true, needsValue: true, needsExpected: false,
+    targetTypes: ["css", "id", "label", "testid"],
+    targetPlaceholder: "#status-select (css) · Trạng thái (label)",
+    valuePlaceholder: "Giá trị option: active · completed",
+    expectedPlaceholder: "",
+  },
+  waitFor: {
+    label: "Chờ phần tử / thời gian",
+    description: "Chờ phần tử hiện ra, hoặc để trống để chờ theo giây đặt ở Timeout",
+    needsTarget: false, needsValue: false, needsExpected: false,
+    targetTypes: ["css", "id", "text", "testid"],
+    targetPlaceholder: "#loading-spinner (để trống = chờ đủ thời gian timeout)",
+    valuePlaceholder: "",
+    expectedPlaceholder: "",
+  },
+  assertText: {
+    label: "Kiểm tra văn bản trên trang",
+    description: "Xác nhận trang có chứa đoạn text nhất định",
+    needsTarget: false, needsValue: false, needsExpected: true,
+    targetTypes: ["css", "id", "testid"],
+    targetPlaceholder: "(để trống = kiểm tra toàn bộ trang)",
+    valuePlaceholder: "",
+    expectedPlaceholder: "Đăng nhập thành công · Xin chào Admin",
+  },
+  assertVisible: {
+    label: "Kiểm tra phần tử hiển thị",
+    description: "Xác nhận phần tử đang nhìn thấy được trên màn hình",
+    needsTarget: true, needsValue: false, needsExpected: false,
+    targetTypes: ["css", "id", "text", "testid"],
+    targetPlaceholder: "#dashboard (css) · Chào mừng (text)",
+    valuePlaceholder: "",
+    expectedPlaceholder: "",
+  },
+  assertUrl: {
+    label: "Kiểm tra URL trang",
+    description: "Xác nhận URL hiện tại có chứa chuỗi mong đợi",
+    needsTarget: false, needsValue: false, needsExpected: true,
+    targetTypes: [],
+    targetPlaceholder: "",
+    valuePlaceholder: "",
+    expectedPlaceholder: "/dashboard · ?logged=true",
+  },
+  assertTitle: {
+    label: "Kiểm tra tiêu đề tab",
+    description: "Xác nhận tiêu đề tab trình duyệt có chứa chuỗi mong đợi",
+    needsTarget: false, needsValue: false, needsExpected: true,
+    targetTypes: [],
+    targetPlaceholder: "",
+    valuePlaceholder: "",
+    expectedPlaceholder: "Trang chủ | Hệ thống",
+  },
+  assertHidden: {
+    label: "Kiểm tra phần tử bị ẩn",
+    description: "Xác nhận phần tử không hiển thị (đã bị ẩn hoặc không tồn tại)",
+    needsTarget: true, needsValue: false, needsExpected: false,
+    targetTypes: ["css", "id", "testid"],
+    targetPlaceholder: "#error-message (css)",
+    valuePlaceholder: "",
+    expectedPlaceholder: "",
+  },
+  assertEnabled: {
+    label: "Kiểm tra phần tử không bị khóa",
+    description: "Xác nhận nút hoặc input không ở trạng thái disabled",
+    needsTarget: true, needsValue: false, needsExpected: false,
+    targetTypes: ["css", "id", "testid"],
+    targetPlaceholder: "#submit-btn (css)",
+    valuePlaceholder: "",
+    expectedPlaceholder: "",
+  },
+  assertChecked: {
+    label: "Kiểm tra checkbox đã tích",
+    description: "Xác nhận checkbox hoặc radio đang được chọn",
+    needsTarget: true, needsValue: false, needsExpected: false,
+    targetTypes: ["css", "id", "testid", "label"],
+    targetPlaceholder: "#agree-terms (css) · Đồng ý điều khoản (label)",
+    valuePlaceholder: "",
+    expectedPlaceholder: "",
+  },
+  hover: {
+    label: "Di chuột vào phần tử",
+    description: "Hover chuột để hiện tooltip hoặc menu dropdown",
+    needsTarget: true, needsValue: false, needsExpected: false,
+    targetTypes: ["css", "id", "text", "testid"],
+    targetPlaceholder: "#user-avatar (css) · Tài khoản (text)",
+    valuePlaceholder: "",
+    expectedPlaceholder: "",
+  },
+  press: {
+    label: "Nhấn phím",
+    description: "Nhấn phím tắt như Enter, Tab, Escape... Để trống Target = nhấn toàn trang",
+    needsTarget: false, needsValue: true, needsExpected: false,
+    targetTypes: ["css", "id", "testid"],
+    targetPlaceholder: "(để trống = nhấn phím trên toàn trang)",
+    valuePlaceholder: "Enter · Tab · Escape · ArrowDown · Control+A",
+    expectedPlaceholder: "",
+  },
+  upload: {
+    label: "Upload file",
+    description: "Chọn file để upload qua ô input[type=file]",
+    needsTarget: true, needsValue: true, needsExpected: false,
+    targetTypes: ["css", "id", "testid"],
+    targetPlaceholder: "input[type=file] (css) · #file-input (id)",
+    valuePlaceholder: "C:/path/to/file.pdf · /home/user/img.png",
+    expectedPlaceholder: "",
+  },
+  dragTo: {
+    label: "Kéo thả phần tử",
+    description: "Kéo phần tử nguồn (Target) và thả vào phần tử đích (Value). Cả hai dùng cùng Target type.",
+    needsTarget: true, needsValue: true, needsExpected: false,
+    targetTypes: ["css", "id", "testid"],
+    targetPlaceholder: "#item-1 (phần tử nguồn)",
+    valuePlaceholder: "#drop-zone (phần tử đích — cùng loại với Target type)",
+    expectedPlaceholder: "",
+  },
+};
+
+const ALL_TARGET_TYPES = ["css", "id", "placeholder", "text", "label", "testid", "url"];
 
 type Props = {
   editingTestCaseId: string;
@@ -43,6 +206,7 @@ type Props = {
     enabled: boolean;
     baseUrl: string;
     userKey: string;
+    timeoutMs: string;
     steps: AutomationStep[];
   };
   setAutomationForm: Dispatch<
@@ -50,6 +214,7 @@ type Props = {
       enabled: boolean;
       baseUrl: string;
       userKey: string;
+      timeoutMs: string;
       steps: AutomationStep[];
     }>
   >;
@@ -581,9 +746,9 @@ export default function AdminTestCasesScreen(props: Props) {
           </div>
         </section>
 
-        <aside className="space-y-6 xl:sticky xl:top-24">
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-start justify-between gap-3">
+        <aside className="space-y-6 xl:sticky xl:top-6">
+          <section className="flex max-h-[calc(100vh-96px)] flex-col rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
               <div>
                 <div className="text-sm font-semibold text-slate-900">
                   {panelMode === "edit"
@@ -623,8 +788,9 @@ export default function AdminTestCasesScreen(props: Props) {
               </div>
             </div>
 
+            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
             {panelMode === "view" && activeCase ? (
-              <div className="mt-4 space-y-4">
+              <div className="space-y-4">
                 <div>
                   <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                     Case
@@ -658,126 +824,156 @@ export default function AdminTestCasesScreen(props: Props) {
                   </span>
                 </div>
 
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-                  {activeCase.description || "No description"}
-                </div>
+                {activeCase.description && (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+                    {activeCase.description}
+                  </div>
+                )}
 
-                <div>
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Expected
+                {activeCase.expected && (
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Expected result
+                    </div>
+                    <div className="mt-1 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                      {activeCase.expected}
+                    </div>
                   </div>
-                  <div className="text-sm text-slate-700">
-                    {activeCase.expected || "-"}
-                  </div>
-                </div>
+                )}
 
-                <div>
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Steps
-                  </div>
-                  <ol className="mt-2 space-y-2 text-sm text-slate-700">
-                    {(activeCase.steps || [])
-                      .slice(0, 6)
-                      .map((step: RecordAny, index: number) => (
+                {Array.isArray(activeCase.steps) && activeCase.steps.length > 0 && (
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Manual Steps ({activeCase.steps.length})
+                    </div>
+                    <ol className="mt-2 space-y-2">
+                      {(activeCase.steps as RecordAny[]).map((step, index) => (
                         <li
                           key={index}
-                          className="rounded-lg border border-slate-200 bg-white px-3 py-2"
+                          className="rounded-lg border border-slate-200 bg-white p-3"
                         >
-                          <span className="mr-2 text-xs text-slate-400">
-                            #{index + 1}
-                          </span>
-                          {step.action}
+                          <div className="flex items-start gap-2">
+                            <span className="shrink-0 text-[11px] font-semibold text-slate-400">
+                              #{index + 1}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm text-slate-800">{step.action}</div>
+                              {step.expected && (
+                                <div className="mt-1 text-[11px] text-emerald-700">
+                                  → {step.expected}
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </li>
                       ))}
-                  </ol>
-                </div>
+                    </ol>
+                  </div>
+                )}
+
+                {activeCase.automation?.enabled && (
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Automation ({(activeCase.automation?.steps || []).length} bước)
+                    </div>
+                    <div className="mt-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                      {activeCase.automation?.baseUrl && (
+                        <div>URL: {activeCase.automation.baseUrl}</div>
+                      )}
+                      {activeCase.automation?.userKey && (
+                        <div>Profile: {activeCase.automation.userKey}</div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
-              <form className="mt-4 space-y-4" onSubmit={saveTestCase}>
-                <div className="grid gap-3">
+              <form className="space-y-4" onSubmit={saveTestCase}>
+                <div className="grid grid-cols-2 gap-3">
                   <label className="text-xs font-semibold text-slate-500">
                     Project
+                    <select
+                      value={testCaseForm.projectId}
+                      onChange={(e) =>
+                        setTestCaseForm((prev) => ({
+                          ...prev,
+                          projectId: e.target.value,
+                          groupId: "",
+                        }))
+                      }
+                      className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                      required
+                    >
+                      <option value="">Chọn project</option>
+                      {scopedProjects.map((project) => (
+                        <option key={getId(project)} value={getId(project)}>
+                          {project.name}
+                        </option>
+                      ))}
+                    </select>
                   </label>
-                  <select
-                    value={testCaseForm.projectId}
-                    onChange={(e) =>
-                      setTestCaseForm((prev) => ({
-                        ...prev,
-                        projectId: e.target.value,
-                        groupId: "",
-                      }))
-                    }
-                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                    required
-                  >
-                    <option value="">Select</option>
-                    {scopedProjects.map((project) => (
-                      <option key={getId(project)} value={getId(project)}>
-                        {project.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="grid gap-3">
                   <label className="text-xs font-semibold text-slate-500">
                     Group
+                    <select
+                      value={testCaseForm.groupId}
+                      onChange={(e) =>
+                        setTestCaseForm((prev) => ({
+                          ...prev,
+                          groupId: e.target.value,
+                        }))
+                      }
+                      className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                      required
+                    >
+                      <option value="">Chọn group</option>
+                      {scopedGroups
+                        .filter((g) =>
+                          !testCaseForm.projectId ||
+                          String(getId(g.project) || "") === testCaseForm.projectId,
+                        )
+                        .map((group) => (
+                          <option key={getId(group)} value={getId(group)}>
+                            {group.name}
+                          </option>
+                        ))}
+                    </select>
                   </label>
-                  <select
-                    value={testCaseForm.groupId}
-                    onChange={(e) =>
-                      setTestCaseForm((prev) => ({
-                        ...prev,
-                        groupId: e.target.value,
-                      }))
-                    }
-                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                    required
-                  >
-                    <option value="">Select</option>
-                    {scopedGroups.map((group) => (
-                      <option key={getId(group)} value={getId(group)}>
-                        {group.name}
-                      </option>
-                    ))}
-                  </select>
                 </div>
 
-                <div className="grid gap-3">
+                <div className="grid grid-cols-[110px_1fr] gap-3">
                   <label className="text-xs font-semibold text-slate-500">
                     Case key
+                    <input
+                      value={testCaseForm.caseKey}
+                      onChange={(e) =>
+                        setTestCaseForm((prev) => ({
+                          ...prev,
+                          caseKey: e.target.value.toUpperCase(),
+                        }))
+                      }
+                      className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 font-mono text-sm uppercase"
+                      placeholder="TC-001"
+                      required
+                    />
                   </label>
-                  <input
-                    value={testCaseForm.caseKey}
-                    onChange={(e) =>
-                      setTestCaseForm((prev) => ({
-                        ...prev,
-                        caseKey: e.target.value,
-                      }))
-                    }
-                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                    required
-                  />
-                </div>
-
-                <div className="grid gap-3">
                   <label className="text-xs font-semibold text-slate-500">
-                    Title
+                    Tiêu đề
+                    <input
+                      value={testCaseForm.title}
+                      onChange={(e) =>
+                        setTestCaseForm((prev) => ({
+                          ...prev,
+                          title: e.target.value,
+                        }))
+                      }
+                      className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                      placeholder="Mô tả ngắn về test case..."
+                      required
+                    />
                   </label>
-                  <input
-                    value={testCaseForm.title}
-                    onChange={(e) =>
-                      setTestCaseForm((prev) => ({
-                        ...prev,
-                        title: e.target.value,
-                      }))
-                    }
-                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                    required
-                  />
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <label className="text-xs font-semibold text-slate-500">
                     Priority
                     <select
@@ -788,12 +984,12 @@ export default function AdminTestCasesScreen(props: Props) {
                           priority: e.target.value,
                         }))
                       }
-                      className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                      className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                     >
-                      <option value="low">low</option>
-                      <option value="medium">medium</option>
-                      <option value="high">high</option>
-                      <option value="critical">critical</option>
+                      <option value="low">Low</option>
+                      <option value="medium">Medium</option>
+                      <option value="high">High</option>
+                      <option value="critical">Critical</option>
                     </select>
                   </label>
                   <label className="text-xs font-semibold text-slate-500">
@@ -806,44 +1002,39 @@ export default function AdminTestCasesScreen(props: Props) {
                           severity: e.target.value,
                         }))
                       }
-                      className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                      className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                     >
-                      <option value="minor">minor</option>
-                      <option value="major">major</option>
-                      <option value="critical">critical</option>
+                      <option value="minor">Minor</option>
+                      <option value="major">Major</option>
+                      <option value="critical">Critical</option>
+                    </select>
+                  </label>
+                  <label className="text-xs font-semibold text-slate-500">
+                    Type
+                    <select
+                      value={testCaseForm.type || "functional"}
+                      onChange={(e) =>
+                        setTestCaseForm((prev) => ({
+                          ...prev,
+                          type: e.target.value,
+                        }))
+                      }
+                      className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                    >
+                      <option value="functional">Functional</option>
+                      <option value="api">API</option>
+                      <option value="ui">UI</option>
+                      <option value="regression">Regression</option>
+                      <option value="security">Security</option>
+                      <option value="other">Other</option>
                     </select>
                   </label>
                 </div>
 
-                <div className="grid gap-3">
-                  <label className="text-xs font-semibold text-slate-500">
-                    Type
-                  </label>
-                  <select
-                    value={testCaseForm.type || "functional"}
-                    onChange={(e) =>
-                      setTestCaseForm((prev) => ({
-                        ...prev,
-                        type: e.target.value,
-                      }))
-                    }
-                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                  >
-                    <option value="functional">functional</option>
-                    <option value="api">api</option>
-                    <option value="ui">ui</option>
-                    <option value="regression">regression</option>
-                    <option value="security">security</option>
-                    <option value="other">other</option>
-                  </select>
-                </div>
-
-                <div className="grid gap-3">
-                  <label className="text-xs font-semibold text-slate-500">
-                    Description
-                  </label>
+                <label className="text-xs font-semibold text-slate-500">
+                  Mô tả
                   <textarea
-                    rows={3}
+                    rows={2}
                     value={testCaseForm.description}
                     onChange={(e) =>
                       setTestCaseForm((prev) => ({
@@ -851,18 +1042,19 @@ export default function AdminTestCasesScreen(props: Props) {
                         description: e.target.value,
                       }))
                     }
-                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                    className="mt-1.5 w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                    placeholder="Mô tả thêm về mục đích test case này..."
                   />
-                </div>
+                </label>
 
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <div className="flex items-center justify-between">
                     <div>
                       <div className="text-xs font-semibold text-slate-600">
-                        Steps
+                        Các bước thực hiện
                       </div>
                       <div className="text-[11px] text-slate-500">
-                        Drag the handle to reorder
+                        Kéo nút ≡ để sắp xếp lại thứ tự
                       </div>
                     </div>
                     <button
@@ -870,60 +1062,87 @@ export default function AdminTestCasesScreen(props: Props) {
                       className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
                       onClick={addTestCaseStep}
                     >
-                      + Add step
+                      + Thêm bước
                     </button>
                   </div>
                   <div className="mt-3 space-y-2">
                     {testCaseForm.steps.map((step, index) => (
                       <div
                         key={index}
-                        className="flex items-center gap-2 rounded-lg border border-dashed border-transparent p-1"
+                        className="rounded-lg border border-slate-200 bg-white p-3"
                         onDragOver={handleStepDragOver}
                         onDrop={(event) =>
                           handleStepDrop("manual", index, event)
                         }
                       >
-                        <button
-                          type="button"
-                          className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-500 hover:border-slate-400 hover:text-slate-700"
-                          draggable
-                          onDragStart={(event) =>
-                            handleStepDragStart("manual", index, event)
-                          }
-                          onDragEnd={handleStepDragEnd}
-                          aria-label="Drag to reorder step"
-                          title="Drag to reorder"
-                        >
-                          ::
-                        </button>
-                        <span className="text-xs text-slate-400">
-                          #{index + 1}
-                        </span>
-                        <input
-                          value={step.action}
-                          onChange={(e) =>
-                            updateTestCaseStep(index, "action", e.target.value)
-                          }
-                          placeholder="Step action"
-                          className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                        />
-                        <button
-                          type="button"
-                          className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:border-rose-300 hover:bg-rose-100"
-                          onClick={() => removeTestCaseStep(index)}
-                        >
-                          x Remove
-                        </button>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              className="cursor-grab rounded border border-slate-200 px-1.5 py-1 text-xs text-slate-400 hover:border-slate-300 hover:text-slate-600"
+                              draggable
+                              onDragStart={(event) =>
+                                handleStepDragStart("manual", index, event)
+                              }
+                              onDragEnd={handleStepDragEnd}
+                              aria-label="Kéo để sắp xếp lại"
+                              title="Kéo để sắp xếp lại"
+                            >
+                              ≡
+                            </button>
+                            <span className="text-[11px] font-semibold text-slate-400">
+                              Bước {index + 1}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            className="rounded-lg border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-600 hover:border-rose-300 hover:bg-rose-100"
+                            onClick={() => removeTestCaseStep(index)}
+                          >
+                            Xóa
+                          </button>
+                        </div>
+                        <div className="mt-2">
+                          <label className="text-[11px] font-semibold text-slate-500">
+                            Mô tả thao tác
+                            <textarea
+                              rows={2}
+                              value={step.action}
+                              onChange={(e) =>
+                                updateTestCaseStep(index, "action", e.target.value)
+                              }
+                              placeholder="Nhập thao tác cần thực hiện..."
+                              className="mt-1 w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                            />
+                          </label>
+                        </div>
+                        <div className="mt-2">
+                          <label className="text-[11px] font-semibold text-slate-500">
+                            Kết quả mong đợi của bước này (tùy chọn)
+                            <input
+                              value={step.expected || ""}
+                              onChange={(e) =>
+                                updateTestCaseStep(index, "expected", e.target.value)
+                              }
+                              placeholder="Ví dụ: Hiển thị thông báo thành công..."
+                              className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                            />
+                          </label>
+                        </div>
                       </div>
                     ))}
                   </div>
+                  {testCaseForm.steps.length === 0 && (
+                    <div className="mt-2 rounded-lg border border-dashed border-slate-300 p-4 text-center text-xs text-slate-500">
+                      Chưa có bước nào. Nhấn &quot;+ Thêm bước&quot; để bắt đầu.
+                    </div>
+                  )}
                 </div>
 
-                <div className="grid gap-3">
-                  <label className="text-xs font-semibold text-slate-500">
-                    Expected result
-                  </label>
-                  <input
+                <label className="text-xs font-semibold text-slate-500">
+                  Kết quả mong đợi (tổng quan)
+                  <textarea
+                    rows={2}
                     value={testCaseForm.expected}
                     onChange={(e) =>
                       setTestCaseForm((prev) => ({
@@ -931,18 +1150,26 @@ export default function AdminTestCasesScreen(props: Props) {
                         expected: e.target.value,
                       }))
                     }
-                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                    className="mt-1.5 w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                    placeholder="Mô tả kết quả mong đợi sau khi thực hiện test case..."
                     required
                   />
-                </div>
+                </label>
 
                 <div className="rounded-xl border border-slate-200 bg-white p-3">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Automation
+                  <div className="flex items-center gap-2">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Automation
+                    </div>
+                    {automationForm.enabled && (
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                        Bật
+                      </span>
+                    )}
                   </div>
                   <div className="mt-2 grid gap-3">
                     <label className="text-xs font-semibold text-slate-500">
-                      Enabled
+                      Bật automation cho test case này?
                       <select
                         value={automationForm.enabled ? "true" : "false"}
                         onChange={(e) =>
@@ -953,220 +1180,311 @@ export default function AdminTestCasesScreen(props: Props) {
                         }
                         className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
                       >
-                        <option value="false">No</option>
-                        <option value="true">Yes</option>
+                        <option value="false">Không — chạy thủ công</option>
+                        <option value="true">Có — chạy tự động bằng Playwright</option>
                       </select>
                     </label>
-                    <label className="text-xs font-semibold text-slate-500">
-                      Base URL
-                      <input
-                        value={automationForm.baseUrl}
-                        onChange={(e) =>
-                          setAutomationForm((prev) => ({
-                            ...prev,
-                            baseUrl: e.target.value,
-                          }))
-                        }
-                        className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                        placeholder="https://app.example.com"
-                      />
-                    </label>
-                    <label className="text-xs font-semibold text-slate-500">
-                      User
-                      <input
-                        value={automationForm.userKey}
-                        onChange={(e) =>
-                          setAutomationForm((prev) => ({
-                            ...prev,
-                            userKey: e.target.value,
-                          }))
-                        }
-                        className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                        placeholder="tester@company.com"
-                      />
-                    </label>
+
+                    {automationForm.enabled && (
+                      <>
+                        <label className="text-xs font-semibold text-slate-500">
+                          URL gốc của ứng dụng
+                          <input
+                            value={automationForm.baseUrl}
+                            onChange={(e) =>
+                              setAutomationForm((prev) => ({
+                                ...prev,
+                                baseUrl: e.target.value,
+                              }))
+                            }
+                            className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                            placeholder="https://app.example.com"
+                          />
+                          <span className="mt-1 block text-[11px] font-normal text-slate-400">
+                            Địa chỉ trang web cần test. Các bước goto sẽ ghép với URL này nếu chỉ nhập đường dẫn tương đối như /login.
+                          </span>
+                        </label>
+                        <div className="grid grid-cols-2 gap-3">
+                          <label className="text-xs font-semibold text-slate-500">
+                            Profile người dùng (tùy chọn)
+                            <input
+                              value={automationForm.userKey}
+                              onChange={(e) =>
+                                setAutomationForm((prev) => ({
+                                  ...prev,
+                                  userKey: e.target.value,
+                                }))
+                              }
+                              className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                              placeholder="admin · tester@company.com"
+                            />
+                            <span className="mt-1 block text-[11px] font-normal text-slate-400">
+                              Tên định danh phiên đăng nhập. Nếu đã đăng nhập trước, Playwright sẽ tái sử dụng session.
+                            </span>
+                          </label>
+                          <label className="text-xs font-semibold text-slate-500">
+                            Thời gian chờ mặc định (giây)
+                            <input
+                              type="number"
+                              min="1"
+                              value={automationForm.timeoutMs}
+                              onChange={(e) =>
+                                setAutomationForm((prev) => ({
+                                  ...prev,
+                                  timeoutMs: e.target.value,
+                                }))
+                              }
+                              className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                              placeholder="30"
+                            />
+                            <span className="mt-1 block text-[11px] font-normal text-slate-400">
+                              Tổng thời gian chờ tối đa cho toàn bộ test case này (giây). Mặc định: 30.
+                            </span>
+                          </label>
+                        </div>
+                      </>
+                    )}
                   </div>
 
-                  <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="text-xs font-semibold text-slate-600">
-                          Playwright steps
+                  {automationForm.enabled && (
+                    <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-xs font-semibold text-slate-600">
+                            Các bước tự động
+                          </div>
+                          <div className="text-[11px] text-slate-500">
+                            Kéo nút ≡ để sắp xếp lại thứ tự bước
+                          </div>
                         </div>
-                        <div className="text-[11px] text-slate-500">
-                          Drag the handle to reorder
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
-                        onClick={addAutomationStep}
-                      >
-                        + Add step
-                      </button>
-                    </div>
-                    <div className="mt-3 space-y-3">
-                      {automationForm.steps.map((step, index) => (
-                        <div
-                          key={index}
-                          className="rounded-lg border border-slate-200 bg-white p-3"
-                          onDragOver={handleStepDragOver}
-                          onDrop={(event) =>
-                            handleStepDrop("automation", index, event)
-                          }
+                        <button
+                          type="button"
+                          className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
+                          onClick={addAutomationStep}
                         >
-                          <div className="flex items-center justify-between text-xs text-slate-500">
-                            <span>Step {index + 1}</span>
-                            <button
-                              type="button"
-                              className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-500 hover:border-slate-400 hover:text-slate-700"
-                              draggable
-                              onDragStart={(event) =>
-                                handleStepDragStart("automation", index, event)
+                          + Thêm bước
+                        </button>
+                      </div>
+                      <div className="mt-3 space-y-3">
+                        {automationForm.steps.map((step, index) => {
+                          const meta = ACTION_META[step.action] ?? ACTION_META["goto"];
+                          const allowedTargetTypes = meta.targetTypes.length > 0 ? meta.targetTypes : ALL_TARGET_TYPES;
+                          const showTarget = meta.needsTarget || Boolean(step.target);
+                          const showValue = meta.needsValue || Boolean(step.value);
+                          const showExpected = meta.needsExpected || Boolean(step.expected);
+                          return (
+                            <div
+                              key={step.stepId || index}
+                              className="rounded-lg border border-slate-200 bg-white p-3"
+                              onDragOver={handleStepDragOver}
+                              onDrop={(event) =>
+                                handleStepDrop("automation", index, event)
                               }
-                              onDragEnd={handleStepDragEnd}
-                              aria-label="Drag to reorder automation step"
-                              title="Drag to reorder"
                             >
-                              :: Drag
-                            </button>
-                          </div>
-                          <div className="grid grid-cols-3 gap-2 text-xs">
-                            <label className="font-semibold text-slate-500">
-                              Action
-                              <select
-                                value={step.action}
-                                onChange={(e) =>
-                                  updateAutomationStep(
-                                    index,
-                                    "action",
-                                    e.target.value,
-                                  )
-                                }
-                                className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1 text-sm"
-                              >
-                                <option value="goto">goto</option>
-                                <option value="click">click</option>
-                                <option value="type">type</option>
-                                <option value="select">select</option>
-                                <option value="waitFor">waitFor</option>
-                                <option value="assertText">assertText</option>
-                                <option value="assertVisible">
-                                  assertVisible
-                                </option>
-                                <option value="assertUrl">assertUrl</option>
-                                <option value="assertTitle">assertTitle</option>
-                                <option value="assertHidden">
-                                  assertHidden
-                                </option>
-                                <option value="assertEnabled">
-                                  assertEnabled
-                                </option>
-                                <option value="assertChecked">
-                                  assertChecked
-                                </option>
-                                <option value="hover">hover</option>
-                                <option value="press">press</option>
-                                <option value="upload">upload</option>
-                                <option value="dragTo">dragTo</option>
-                              </select>
-                            </label>
-                            <label className="font-semibold text-slate-500">
-                              Target type
-                              <select
-                                value={step.targetType}
-                                onChange={(e) =>
-                                  updateAutomationStep(
-                                    index,
-                                    "targetType",
-                                    e.target.value,
-                                  )
-                                }
-                                className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1 text-sm"
-                              >
-                                <option value="css">css</option>
-                                <option value="id">id</option>
-                                <option value="placeholder">placeholder</option>
-                                <option value="text">text</option>
-                                <option value="label">label</option>
-                                <option value="testid">testid</option>
-                                <option value="url">url</option>
-                              </select>
-                            </label>
-                            <label className="font-semibold text-slate-500">
-                              Timeout ms
-                              <input
-                                type="number"
-                                min="0"
-                                value={step.timeoutMs}
-                                onChange={(e) =>
-                                  updateAutomationStep(
-                                    index,
-                                    "timeoutMs",
-                                    e.target.value,
-                                  )
-                                }
-                                className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1 text-sm"
-                              />
-                            </label>
-                          </div>
-                          <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                            <label className="font-semibold text-slate-500">
-                              Target
-                              <input
-                                value={step.target}
-                                onChange={(e) =>
-                                  updateAutomationStep(
-                                    index,
-                                    "target",
-                                    e.target.value,
-                                  )
-                                }
-                                className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1 text-sm"
-                              />
-                            </label>
-                            <label className="font-semibold text-slate-500">
-                              Value
-                              <input
-                                value={step.value}
-                                onChange={(e) =>
-                                  updateAutomationStep(
-                                    index,
-                                    "value",
-                                    e.target.value,
-                                  )
-                                }
-                                className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1 text-sm"
-                              />
-                            </label>
-                            <label className="font-semibold text-slate-500">
-                              Expected
-                              <input
-                                value={step.expected}
-                                onChange={(e) =>
-                                  updateAutomationStep(
-                                    index,
-                                    "expected",
-                                    e.target.value,
-                                  )
-                                }
-                                className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1 text-sm"
-                              />
-                            </label>
-                          </div>
-                          <div className="mt-3 text-right">
-                            <button
-                              type="button"
-                              className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:border-rose-300 hover:bg-rose-100"
-                              onClick={() => removeAutomationStep(index)}
-                            >
-                              x Remove step
-                            </button>
-                          </div>
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    className="cursor-grab rounded border border-slate-200 px-1.5 py-1 text-xs text-slate-400 hover:border-slate-300 hover:text-slate-600"
+                                    draggable
+                                    onDragStart={(event) =>
+                                      handleStepDragStart("automation", index, event)
+                                    }
+                                    onDragEnd={handleStepDragEnd}
+                                    aria-label="Kéo để sắp xếp lại"
+                                    title="Kéo để sắp xếp lại"
+                                  >
+                                    ≡
+                                  </button>
+                                  <span className="text-[11px] font-semibold text-slate-400">
+                                    Bước {index + 1}
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  className="rounded-lg border border-rose-200 bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-600 hover:border-rose-300 hover:bg-rose-100"
+                                  onClick={() => removeAutomationStep(index)}
+                                >
+                                  Xóa
+                                </button>
+                              </div>
+
+                              <div className="mt-2">
+                                <label className="text-[11px] font-semibold text-slate-500">
+                                  Tên bước (ghi chú cho dễ nhớ)
+                                  <input
+                                    value={step.stepName}
+                                    onChange={(e) =>
+                                      updateAutomationStep(index, "stepName", e.target.value)
+                                    }
+                                    placeholder={`Ví dụ: ${meta.label}`}
+                                    className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+                                  />
+                                </label>
+                              </div>
+
+                              <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                                <label className="font-semibold text-slate-500">
+                                  Hành động
+                                  <select
+                                    value={step.action}
+                                    onChange={(e) =>
+                                      updateAutomationStep(index, "action", e.target.value)
+                                    }
+                                    className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1 text-sm"
+                                  >
+                                    <optgroup label="── Điều hướng ──">
+                                      <option value="goto">Đi đến trang (goto)</option>
+                                    </optgroup>
+                                    <optgroup label="── Tương tác ──">
+                                      <option value="click">Nhấn vào phần tử (click)</option>
+                                      <option value="type">Nhập văn bản (type)</option>
+                                      <option value="select">Chọn dropdown (select)</option>
+                                      <option value="hover">Di chuột vào (hover)</option>
+                                      <option value="press">Nhấn phím (press)</option>
+                                      <option value="upload">Upload file (upload)</option>
+                                      <option value="dragTo">Kéo thả (dragTo)</option>
+                                    </optgroup>
+                                    <optgroup label="── Chờ ──">
+                                      <option value="waitFor">Chờ phần tử / thời gian (waitFor)</option>
+                                    </optgroup>
+                                    <optgroup label="── Kiểm tra (Assert) ──">
+                                      <option value="assertText">Kiểm tra văn bản (assertText)</option>
+                                      <option value="assertVisible">Kiểm tra hiển thị (assertVisible)</option>
+                                      <option value="assertHidden">Kiểm tra bị ẩn (assertHidden)</option>
+                                      <option value="assertUrl">Kiểm tra URL (assertUrl)</option>
+                                      <option value="assertTitle">Kiểm tra tiêu đề tab (assertTitle)</option>
+                                      <option value="assertEnabled">Kiểm tra không bị khóa (assertEnabled)</option>
+                                      <option value="assertChecked">Kiểm tra checkbox đã tích (assertChecked)</option>
+                                    </optgroup>
+                                  </select>
+                                  <span className="mt-1 block text-[10px] font-normal text-slate-400">
+                                    {meta.description}
+                                  </span>
+                                </label>
+
+                                <label className="font-semibold text-slate-500">
+                                  Thời gian chờ bước này (giây)
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    value={step.timeoutMs}
+                                    onChange={(e) =>
+                                      updateAutomationStep(index, "timeoutMs", e.target.value)
+                                    }
+                                    className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1 text-sm"
+                                    placeholder="15"
+                                  />
+                                  <span className="mt-1 block text-[10px] font-normal text-slate-400">
+                                    Nếu bước không xong trong thời gian này (giây), coi là thất bại.
+                                  </span>
+                                </label>
+                              </div>
+
+                              {(showTarget || meta.targetTypes.length > 0) && (
+                                <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
+                                  <label className="font-semibold text-slate-500">
+                                    Loại xác định phần tử
+                                    <select
+                                      value={step.targetType}
+                                      onChange={(e) =>
+                                        updateAutomationStep(index, "targetType", e.target.value)
+                                      }
+                                      className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1 text-sm"
+                                    >
+                                      {allowedTargetTypes.map((t) => (
+                                        <option key={t} value={t}>
+                                          {t === "css" ? "CSS Selector (.class / #id)" :
+                                           t === "id" ? "ID thuộc tính (id=...)" :
+                                           t === "placeholder" ? "Placeholder ô input" :
+                                           t === "text" ? "Văn bản hiển thị" :
+                                           t === "label" ? "Nhãn (label)" :
+                                           t === "testid" ? "data-testid" :
+                                           t === "url" ? "URL" : t}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <span className="mt-1 block text-[10px] font-normal text-slate-400">
+                                      Cách tìm phần tử trên trang
+                                    </span>
+                                  </label>
+
+                                  {showTarget && (
+                                    <label className="font-semibold text-slate-500">
+                                      {step.action === "dragTo" ? "Phần tử nguồn" : "Tên / địa chỉ phần tử"}
+                                      <input
+                                        value={step.target}
+                                        onChange={(e) =>
+                                          updateAutomationStep(index, "target", e.target.value)
+                                        }
+                                        placeholder={meta.targetPlaceholder}
+                                        className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1 text-sm"
+                                      />
+                                      <span className="mt-1 block text-[10px] font-normal text-slate-400">
+                                        {meta.targetPlaceholder || "Nhập địa chỉ phần tử theo loại đã chọn"}
+                                      </span>
+                                    </label>
+                                  )}
+                                </div>
+                              )}
+
+                              {showValue && (
+                                <div className="mt-2 text-xs">
+                                  <label className="font-semibold text-slate-500">
+                                    {step.action === "goto" ? "URL hoặc đường dẫn" :
+                                     step.action === "press" ? "Phím cần nhấn" :
+                                     step.action === "dragTo" ? "Phần tử đích (thả vào đây)" :
+                                     step.action === "upload" ? "Đường dẫn file" :
+                                     "Nội dung / Giá trị"}
+                                    <input
+                                      value={step.value}
+                                      onChange={(e) =>
+                                        updateAutomationStep(index, "value", e.target.value)
+                                      }
+                                      placeholder={meta.valuePlaceholder}
+                                      className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1 text-sm"
+                                    />
+                                    {meta.valuePlaceholder && (
+                                      <span className="mt-1 block text-[10px] font-normal text-slate-400">
+                                        Ví dụ: {meta.valuePlaceholder}
+                                      </span>
+                                    )}
+                                  </label>
+                                </div>
+                              )}
+
+                              {showExpected && (
+                                <div className="mt-2 text-xs">
+                                  <label className="font-semibold text-slate-500">
+                                    Kết quả mong đợi (cần chứa chuỗi này)
+                                    <input
+                                      value={step.expected}
+                                      onChange={(e) =>
+                                        updateAutomationStep(index, "expected", e.target.value)
+                                      }
+                                      placeholder={meta.expectedPlaceholder}
+                                      className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1 text-sm"
+                                    />
+                                    {meta.expectedPlaceholder && (
+                                      <span className="mt-1 block text-[10px] font-normal text-slate-400">
+                                        Ví dụ: {meta.expectedPlaceholder}
+                                      </span>
+                                    )}
+                                  </label>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {automationForm.steps.length === 0 && (
+                        <div className="mt-2 rounded-lg border border-dashed border-slate-300 p-4 text-center text-xs text-slate-500">
+                          Chưa có bước nào. Nhấn &quot;+ Thêm bước&quot; để bắt đầu.
                         </div>
-                      ))}
+                      )}
                     </div>
-                  </div>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -1193,6 +1511,7 @@ export default function AdminTestCasesScreen(props: Props) {
                 </div>
               </form>
             )}
+            </div>
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">

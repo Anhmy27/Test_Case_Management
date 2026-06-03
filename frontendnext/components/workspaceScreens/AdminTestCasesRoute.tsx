@@ -30,8 +30,8 @@ export default function AdminTestCasesRoute() {
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [groups, setGroups] = useState<RecordAny[]>([]);
   const [testCases, setTestCases] = useState<RecordAny[]>([]);
-  const [testCaseForm, setTestCaseForm] = useState({ projectId: "", groupId: "", caseKey: "", title: "", priority: "medium", severity: "major", type: "manual", description: "", expected: "", steps: [{ action: "" }] });
-  const [automationForm, setAutomationForm] = useState({ enabled: false, baseUrl: "", userKey: "", steps: [{ action: "", targetType: "css", target: "", value: "", expected: "", timeoutMs: "15000" }] });
+  const [testCaseForm, setTestCaseForm] = useState({ projectId: "", groupId: "", caseKey: "", title: "", priority: "medium", severity: "major", type: "functional", description: "", expected: "", steps: [{ action: "", expected: "" }] });
+  const [automationForm, setAutomationForm] = useState({ enabled: false, baseUrl: "", userKey: "", timeoutMs: "30", steps: [{ stepId: "1", stepName: "", action: "goto", targetType: "css", target: "", value: "", expected: "", timeoutMs: "15" }] });
   const [editingTestCaseId, setEditingTestCaseId] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -83,8 +83,33 @@ export default function AdminTestCasesRoute() {
     setTestCases(Array.isArray(casesResponse.testCases) ? casesResponse.testCases : []);
   };
 
-  const normalizeSteps = (steps: Array<{ action: string }>) => steps.filter((step) => String(step.action || "").trim()).map((step) => ({ action: String(step.action || "").trim() }));
-  const normalizeAutomationSteps = (steps: any[]) => steps.filter((step) => String(step.action || "").trim()).map((step, index) => ({ order: index + 1, action: String(step.action || "").trim(), targetType: String(step.targetType || "css"), target: String(step.target || ""), value: String(step.value || ""), expected: String(step.expected || ""), timeoutMs: String(step.timeoutMs || "15000") }));
+  const normalizeSteps = (steps: Array<{ action: string; expected?: string }>) =>
+    steps
+      .filter((step) => String(step.action || "").trim())
+      .map((step, index) => ({
+        order: index + 1,
+        action: String(step.action || "").trim(),
+        expected: String(step.expected || "").trim(),
+      }));
+  const generateStepId = () =>
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  const normalizeAutomationSteps = (steps: any[]) =>
+    steps
+      .filter((step) => String(step.action || "").trim())
+      .map((step, index) => ({
+        stepId: String(step.stepId || "").trim() || String(index + 1),
+        stepName: String(step.stepName || "").trim(),
+        order: index + 1,
+        action: String(step.action || "goto").trim(),
+        targetType: String(step.targetType || "css"),
+        target: String(step.target || ""),
+        value: String(step.value || ""),
+        expected: String(step.expected || ""),
+        timeoutMs: String(Number(step.timeoutMs || 15) * 1000),
+      }));
 
   const saveTestCase = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -93,7 +118,13 @@ export default function AdminTestCasesRoute() {
         ...testCaseForm,
         projectId: testCaseForm.projectId || selectedProjectId,
         steps: normalizeSteps(testCaseForm.steps),
-        automation: automationForm.enabled ? { ...automationForm, steps: normalizeAutomationSteps(automationForm.steps) } : { enabled: false, steps: [] },
+        automation: automationForm.enabled
+        ? {
+            ...automationForm,
+            timeoutMs: Number(automationForm.timeoutMs || 30) * 1000,
+            steps: normalizeAutomationSteps(automationForm.steps),
+          }
+        : { enabled: false, timeoutMs: 30000, steps: [] },
       };
       if (editingTestCaseId) {
         await apiRequest(`/api/test-cases/${editingTestCaseId}`, token, { method: "PUT", body: JSON.stringify(payload) });
@@ -103,8 +134,8 @@ export default function AdminTestCasesRoute() {
         setMessage("Test case created");
       }
       setEditingTestCaseId("");
-      setTestCaseForm({ projectId: "", groupId: "", caseKey: "", title: "", priority: "medium", severity: "major", type: "manual", description: "", expected: "", steps: [{ action: "" }] });
-      setAutomationForm({ enabled: false, baseUrl: "", userKey: "", steps: [{ action: "", targetType: "css", target: "", value: "", expected: "", timeoutMs: "15000" }] });
+      setTestCaseForm({ projectId: "", groupId: "", caseKey: "", title: "", priority: "medium", severity: "major", type: "functional", description: "", expected: "", steps: [{ action: "", expected: "" }] });
+      setAutomationForm({ enabled: false, baseUrl: "", userKey: "", timeoutMs: "30", steps: [{ stepId: generateStepId(), stepName: "", action: "goto", targetType: "css", target: "", value: "", expected: "", timeoutMs: "15" }] });
       await refreshAll();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to save test case");
@@ -113,7 +144,8 @@ export default function AdminTestCasesRoute() {
 
   const cancelTestCaseEdit = () => {
     setEditingTestCaseId("");
-    setTestCaseForm({ projectId: "", groupId: "", caseKey: "", title: "", priority: "medium", severity: "major", type: "manual", description: "", expected: "", steps: [{ action: "" }] });
+    setTestCaseForm({ projectId: "", groupId: "", caseKey: "", title: "", priority: "medium", severity: "major", type: "functional", description: "", expected: "", steps: [{ action: "", expected: "" }] });
+    setAutomationForm({ enabled: false, baseUrl: "", userKey: "", timeoutMs: "30", steps: [{ stepId: generateStepId(), stepName: "", action: "goto", targetType: "css", target: "", value: "", expected: "", timeoutMs: "15" }] });
   };
 
   const startTestCaseEdit = (testCase: RecordAny) => {
@@ -128,34 +160,76 @@ export default function AdminTestCasesRoute() {
       type: testCase.type || "manual",
       description: testCase.description || "",
       expected: testCase.expected || "",
-      steps: Array.isArray(testCase.steps) && testCase.steps.length ? testCase.steps : [{ action: "" }],
+      steps: Array.isArray(testCase.steps) && testCase.steps.length
+        ? testCase.steps.map((s: RecordAny) => ({ action: String(s.action || ""), expected: String(s.expected || "") }))
+        : [{ action: "", expected: "" }],
+    });
+
+    const automation = testCase.automation || {};
+    const existingSteps = Array.isArray(automation.steps) && automation.steps.length
+      ? automation.steps.map((step: RecordAny, idx: number) => ({
+          stepId: String(step.stepId || "").trim() || generateStepId(),
+          stepName: String(step.stepName || ""),
+          action: String(step.action || "goto"),
+          targetType: String(step.targetType || "css"),
+          target: String(step.target || ""),
+          value: String(step.value || ""),
+          expected: String(step.expected || ""),
+          timeoutMs: String(Math.round(Number(step.timeoutMs || 15000) / 1000)),
+        }))
+      : [{ stepId: generateStepId(), stepName: "", action: "goto", targetType: "css", target: "", value: "", expected: "", timeoutMs: "15" }];
+
+    setAutomationForm({
+      enabled: Boolean(automation.enabled),
+      baseUrl: String(automation.baseUrl || ""),
+      userKey: String(automation.userKey || ""),
+      timeoutMs: String(Math.round(Number(automation.timeoutMs || 30000) / 1000)),
+      steps: existingSteps,
     });
   };
 
   const deleteTestCase = async (testCaseId: string) => { await apiRequest(`/api/test-cases/${testCaseId}`, token, { method: "DELETE" }); await refreshAll(); };
   const duplicateTestCase = async (testCase: RecordAny) => {
-    const rest = { ...testCase };
-    delete (rest as RecordAny)._id;
-    delete (rest as RecordAny).id;
-    delete (rest as RecordAny).entityId;
     const payload: RecordAny = {
-      ...rest,
+      projectId: getId(testCase.project) || getId(testCase.projectId) || testCase.projectId || "",
+      groupId: getId(testCase.group) || getId(testCase.groupId) || testCase.groupId || "",
       caseKey: `${testCase.caseKey || testCase.key || "CASE"}-COPY`,
       title: `${testCase.title || testCase.name || "Test case"} copy`,
+      description: testCase.description || "",
+      expected: testCase.expected || "",
+      priority: testCase.priority || "medium",
+      severity: testCase.severity || "major",
+      type: testCase.type || "functional",
+      steps: Array.isArray(testCase.steps) ? testCase.steps : [],
+      automation: testCase.automation || { enabled: false, steps: [] },
     };
     await apiRequest(`/api/test-cases`, token, { method: "POST", body: JSON.stringify(payload) });
     await refreshAll();
   };
   const deleteTestCases = async (testCaseIds: string[]) => { for (const id of testCaseIds) await deleteTestCase(id); };
   const duplicateTestCases = async (cases: RecordAny[]) => { for (const testCase of cases) await duplicateTestCase(testCase); };
-  const addTestCaseStep = () => setTestCaseForm((prev) => ({ ...prev, steps: [...prev.steps, { action: "" }] }));
+  const addTestCaseStep = () => setTestCaseForm((prev) => ({ ...prev, steps: [...prev.steps, { action: "", expected: "" }] }));
   const updateTestCaseStep = (index: number, key: string, value: string) => setTestCaseForm((prev) => ({ ...prev, steps: prev.steps.map((step, stepIndex) => stepIndex === index ? { ...step, [key]: value } : step) }));
   const removeTestCaseStep = (index: number) => setTestCaseForm((prev) => ({ ...prev, steps: prev.steps.filter((_, stepIndex) => stepIndex !== index) }));
-  const moveTestCaseStep = (fromIndex: number, toIndex: number) => setTestCaseForm((prev) => ({ ...prev, steps: prev.steps.slice().map((step, index, list) => { if (index !== fromIndex) return step; const copy = list.slice(); const [item] = copy.splice(fromIndex, 1); copy.splice(toIndex, 0, item); return copy[index]; }).filter(Boolean) }));
-  const addAutomationStep = () => setAutomationForm((prev) => ({ ...prev, steps: [...prev.steps, { action: "", targetType: "css", target: "", value: "", expected: "", timeoutMs: "15000" }] }));
+  const moveTestCaseStep = (fromIndex: number, toIndex: number) => {
+    setTestCaseForm((prev) => {
+      const copy = [...prev.steps];
+      const [item] = copy.splice(fromIndex, 1);
+      copy.splice(toIndex, 0, item);
+      return { ...prev, steps: copy };
+    });
+  };
+  const addAutomationStep = () => setAutomationForm((prev) => ({ ...prev, steps: [...prev.steps, { stepId: generateStepId(), stepName: "", action: "goto", targetType: "css", target: "", value: "", expected: "", timeoutMs: "15" }] }));
   const updateAutomationStep = (index: number, key: string, value: string) => setAutomationForm((prev) => ({ ...prev, steps: prev.steps.map((step, stepIndex) => stepIndex === index ? { ...step, [key]: value } : step) }));
   const removeAutomationStep = (index: number) => setAutomationForm((prev) => ({ ...prev, steps: prev.steps.filter((_, stepIndex) => stepIndex !== index) }));
-  const moveAutomationStep = (fromIndex: number, toIndex: number) => setAutomationForm((prev) => ({ ...prev, steps: prev.steps.slice().map((step, index, list) => { if (index !== fromIndex) return step; const copy = list.slice(); const [item] = copy.splice(fromIndex, 1); copy.splice(toIndex, 0, item); return copy[index]; }).filter(Boolean) }));
+  const moveAutomationStep = (fromIndex: number, toIndex: number) => {
+    setAutomationForm((prev) => {
+      const copy = [...prev.steps];
+      const [item] = copy.splice(fromIndex, 1);
+      copy.splice(toIndex, 0, item);
+      return { ...prev, steps: copy };
+    });
+  };
   const downloadTestCaseTemplate = () => { setMessage("Use import template from backend if available"); };
   const importTestCases = async (file: File) => {
     const normalizedName = String(file?.name || "").toLowerCase();

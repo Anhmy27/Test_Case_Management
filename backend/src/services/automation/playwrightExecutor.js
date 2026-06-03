@@ -200,8 +200,18 @@ const executeStep = async (page, step, baseUrl) => {
     }
 
     await page.goto(nextUrl, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
-    await page.waitForLoadState('load', { timeout: timeoutMs });
-    return `goto ${nextUrl}`;
+
+    const finalUrl = page.url();
+    const isAuthRedirect = /\/(auth\/login|login|signin|sign-in)([\/?#]|$)/i.test(finalUrl);
+    if (isAuthRedirect && !nextUrl.toLowerCase().includes('login') && !nextUrl.toLowerCase().includes('signin')) {
+      throw new Error(
+        `Authentication required: navigating to "${nextUrl}" redirected to login page "${finalUrl}".\n` +
+        `The saved session has no valid auth credentials. ` +
+        `Add login steps (goto login page → type username/password → click submit) at the beginning of your test case to authenticate first.`,
+      );
+    }
+
+    return `goto ${nextUrl} → landed on ${finalUrl}`;
   }
 
   if (action === 'click') {
@@ -283,7 +293,8 @@ const executeStep = async (page, step, baseUrl) => {
     }
 
     const source = resolveLocator(page, step).first();
-    const destination = page.locator(destinationSelector).first();
+    const destinationStep = { ...step, target: destinationSelector };
+    const destination = resolveLocator(page, destinationStep).first();
 
     await source.dragTo(destination, { timeout: timeoutMs });
     return `dragTo ${target} -> ${destinationSelector}`;

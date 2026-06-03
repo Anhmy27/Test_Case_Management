@@ -61,6 +61,8 @@ const normalizeAutomationSteps = (steps) => {
   return steps
     .filter((step) => step && step.action)
     .map((step, index) => ({
+      stepId: String(step.stepId || '').trim() || String(index + 1),
+      stepName: String(step.stepName || '').trim(),
       order: index + 1,
       action: String(step.action || 'goto').trim(),
       targetType: String(step.targetType || 'css').trim(),
@@ -1359,6 +1361,7 @@ const createTestCase = asyncHandler(async (req, res) => {
         runner: 'playwright',
         baseUrl: String(automation.baseUrl || '').trim(),
         userKey: String(automation.userKey || '').trim(),
+        timeoutMs: Number(automation.timeoutMs || 30000),
         steps: normalizeAutomationSteps(automation.steps),
       }
     : {
@@ -1366,6 +1369,7 @@ const createTestCase = asyncHandler(async (req, res) => {
         runner: 'playwright',
         baseUrl: '',
         userKey: '',
+        timeoutMs: 30000,
         steps: [],
       };
 
@@ -1881,6 +1885,7 @@ const updateTestCase = asyncHandler(async (req, res) => {
           runner: 'playwright',
           baseUrl: String(automation.baseUrl || '').trim(),
           userKey: String(automation.userKey || '').trim(),
+          timeoutMs: Number(automation.timeoutMs || 30000),
           steps: normalizeAutomationSteps(automation.steps),
         }
       : current.automation || {
@@ -1888,6 +1893,7 @@ const updateTestCase = asyncHandler(async (req, res) => {
           runner: 'playwright',
           baseUrl: '',
           userKey: '',
+          timeoutMs: 30000,
           steps: [],
         };
 

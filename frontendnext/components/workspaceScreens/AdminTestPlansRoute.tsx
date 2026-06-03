@@ -194,7 +194,25 @@ export default function AdminTestPlansRoute() {
 
   const updatePlanExecutionMode = async (planId: string, mode: string) => { await apiRequest(`/api/test-plans/${planId}`, token, { method: "PUT", body: JSON.stringify({ executionMode: mode }) }); await refreshAll(); };
   const deletePlan = async (planId: string) => { await apiRequest(`/api/test-plans/${planId}`, token, { method: "DELETE" }); await refreshAll(); };
-  const duplicatePlan = async (plan: RecordAny) => { await apiRequest(`/api/test-plans`, token, { method: "POST", body: JSON.stringify({ ...plan, name: `${plan.name || "Test plan"} copy`, projectId: getId(plan.project), versionId: getId(plan.version), ownerId: getId(currentUser) }) }); await refreshAll(); };
+  const duplicatePlan = async (plan: RecordAny) => {
+    const caseIds = Array.isArray(plan.items)
+      ? plan.items
+          .map((item: RecordAny) => getId(item.testCase))
+          .filter(Boolean)
+      : [];
+    await apiRequest(`/api/test-plans`, token, {
+      method: "POST",
+      body: JSON.stringify({
+        name: `${plan.name || "Test plan"} copy`,
+        description: plan.description || "",
+        projectId: getId(plan.project),
+        versionId: getId(plan.version),
+        executionMode: plan.executionMode || "manual",
+        caseIds,
+      }),
+    });
+    await refreshAll();
+  };
   const openExecutionForPlan = (plan: RecordAny) => { const planId = getId(plan); const runName = `${plan.name || "Test plan"} - ${new Date().toISOString().slice(0, 16).replace("T", " ")}`; router.push(`/workspace/admin/execution?testPlanId=${encodeURIComponent(planId)}&runName=${encodeURIComponent(runName)}`); };
   const setActiveTab = (tab: string) => router.push(`/workspace/admin/${tab}`);
   const handleNavigate = (tab: string) => router.push(`/workspace/admin/${tab}`);

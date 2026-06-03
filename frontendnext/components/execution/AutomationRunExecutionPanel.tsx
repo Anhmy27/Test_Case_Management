@@ -166,51 +166,72 @@ export default function AutomationRunExecutionPanel({
             </div>
 
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Steps</div>
-              <ol className="mt-3 space-y-2 text-sm text-slate-700">
-                {(selectedItem.testCase?.steps || []).map((step: RecordAny, index: number) => (
-                  <li key={index} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
-                    <span className="mr-2 text-xs text-slate-400">#{index + 1}</span>
-                    {step.action || step}
-                  </li>
-                ))}
-              </ol>
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Các bước tự động</div>
+              {(selectedItem.testCase?.automation?.steps || []).length === 0 ? (
+                <div className="mt-2 text-xs text-slate-500">Chưa cấu hình bước tự động.</div>
+              ) : (
+                <ol className="mt-3 space-y-2 text-sm text-slate-700">
+                  {(selectedItem.testCase?.automation?.steps || []).map((step: RecordAny, index: number) => (
+                    <li key={step.stepId || index} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                      <div className="flex items-start gap-2">
+                        <span className="shrink-0 text-xs font-semibold text-slate-400">#{index + 1}</span>
+                        <div className="min-w-0 flex-1">
+                          {step.stepName && (
+                            <div className="text-xs font-semibold text-slate-700">{step.stepName}</div>
+                          )}
+                          <div className="mt-0.5 flex flex-wrap gap-1 text-[11px]">
+                            <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-slate-600">{step.action}</span>
+                            {step.target && (
+                              <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-700">
+                                {step.targetType}: {step.target}
+                              </span>
+                            )}
+                            {step.value && (
+                              <span className="rounded bg-violet-50 px-1.5 py-0.5 text-violet-700">
+                                → {step.value}
+                              </span>
+                            )}
+                            {step.expected && (
+                              <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-emerald-700">
+                                expect: {step.expected}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              )}
             </div>
 
             <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Expected</div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Kết quả mong đợi</div>
               <div className="mt-2 whitespace-pre-line text-sm text-slate-700">
-                {Array.isArray(selectedItem.testCase?.steps) && selectedItem.testCase.steps.length > 0
-                  ? selectedItem.testCase.steps.map((step: RecordAny, index: number) => `${index + 1}. ${step.expected || ""}`).filter(Boolean).join("\n")
-                  : selectedItem.testCase?.expected || "N/A"}
+                {selectedItem.testCase?.expected || "N/A"}
               </div>
             </div>
 
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Execution note</div>
-              <div className="mt-2 text-sm text-slate-700">
-                {selectedItem.note || notes[getId(selectedItem)] || "No execution note yet"}
+              <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Kết quả chạy</div>
+              <div className="mt-2 whitespace-pre-line text-sm text-slate-700">
+                {selectedItem.note || notes[getId(selectedItem)] || "Chưa có kết quả"}
               </div>
             </div>
 
-            <div className="grid gap-4">
-              <label className="text-xs font-semibold text-slate-500">Current result note
-                <textarea
-                  rows={4}
-                  value={notes[getId(selectedItem)] ?? selectedItem.note ?? ""}
-                  readOnly
-                  className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                />
-              </label>
-              <label className="text-xs font-semibold text-slate-500">Notes
-                <textarea
-                  rows={3}
-                  value={selectedItem.notes || notes[`${getId(selectedItem)}:notes`] || ""}
-                  readOnly
-                  className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                />
-              </label>
-            </div>
+            {Array.isArray(selectedItem.automationLogs) && selectedItem.automationLogs.length > 0 && (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Log chi tiết từng bước</div>
+                <ol className="mt-2 space-y-1">
+                  {selectedItem.automationLogs.map((log: string, i: number) => (
+                    <li key={i} className="rounded bg-white px-2 py-1.5 text-[11px] text-slate-600 border border-slate-100">
+                      <span className="mr-1.5 text-slate-400">#{i + 1}</span>
+                      {log}
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
 
             {canLogBug && onLogBug && (
               <button
