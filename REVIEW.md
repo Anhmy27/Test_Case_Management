@@ -491,6 +491,9 @@ Status is verified against current code in this repo.
 - **§4.7 Upload guardrails:** `multer` import route now enforces Excel-only upload (`.xls`, `.xlsx` with matching MIME) and 50MB max size; frontend also validates extension/size before sending.
 - **Seed admin bootstrap behavior improved:** backend startup no longer auto-runs admin seeding; seeding is now manual via `node src/runSeedAdmin.js` (or `npm run seed:admin`), which prevents accidental admin creation on every app boot.
 - **§4.10 seedAdmin operator feedback:** `seedAdminIfNeeded` now logs explicit info when admin already exists (`already exists; not modifying existing credentials`), so operators do not assume password was rotated.
+- **§3.2 Controller/service separation (incremental progress):** `TestPlan` endpoints were migrated to the same split pattern as Project/Version/IssueType/TestCaseGroup/TestCase. HTTP handlers now live in `backend/src/controllers/testPlanController.js`, while business logic is exposed as pure functions in `backend/src/services/testManagementService.js` (`createTestPlanService`, `listTestPlansService`, etc.).
+- **§3.2 Controller/service separation (incremental progress):** TestRun + Dashboard endpoints are now thin wrappers in `backend/src/controllers/testManagementController.js`; heavy business logic/querying moved to `backend/src/services/testRunDashboardService.js`.
+- **§3.2 Controller/service separation (incremental progress):** auth/user/jira flows were also split into thin controllers + dedicated services (`backend/src/services/authService.js`, `backend/src/services/userAdminService.js`, `backend/src/services/jiraManagementService.js`), and duplicate export noise in `jiraController` was removed.
 
 ### ⚠️ Still open / not completed yet (high priority)
 

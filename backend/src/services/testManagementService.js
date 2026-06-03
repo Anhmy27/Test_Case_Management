@@ -7,7 +7,6 @@ const TestCase = require('../models/TestCase');
 const TestCaseGroup = require('../models/TestCaseGroup');
 const TestPlan = require('../models/TestPlan');
 const TestRun = require('../models/TestRun');
-const { asyncHandler } = require('../utils/asyncHandler');
 const { httpError } = require('../utils/httpError');
 const {
   buildSearchMatch,
@@ -587,9 +586,8 @@ const isPlanAssignedToUser = (testPlan, userId) => {
   return ownerMatch || assigneeMatch;
 };
 
-// Project CRUD
-const createProject = asyncHandler(async (req, res) => {
-  const { name, code, description, pid, jiraProjectKey, jiraProductKey } = req.body;
+// Project domain services (HTTP-agnostic)
+const createProjectService = async ({ name, code, description, pid, jiraProjectKey, jiraProductKey, createdBy }) => {
   if (!name || !code) {
     throw httpError(400, 'name and code are required');
   }
@@ -614,14 +612,13 @@ const createProject = asyncHandler(async (req, res) => {
     pid: pid ? String(pid).trim() : '',
     jiraProjectKey: incomingJiraProjectKey ? String(incomingJiraProjectKey).trim() : '',
     description: description || '',
-    createdBy: req.user.id,
+    createdBy,
   });
 
-  res.status(201).json({ project });
-});
+  return project;
+};
 
-const listProjects = asyncHandler(async (req, res) => {
-  const { search, includeDeleted } = req.query;
+const listProjectsService = async ({ search, includeDeleted }) => {
   const filters = [];
 
   if (includeDeleted !== 'true') {
@@ -637,32 +634,22 @@ const listProjects = asyncHandler(async (req, res) => {
   });
 
   const match = filters.length === 0 ? {} : filters.length === 1 ? filters[0] : { $and: filters };
-  const projects = await Project.find(match).sort({ createdAt: -1 }).lean();
+  return Project.find(match).sort({ createdAt: -1 }).lean();
+};
 
-  res.json({ projects });
-});
-
-const getProject = asyncHandler(async (req, res) => {
-  const { projectId } = req.params;
-  const project = await Project.findOne({
+const getProjectService = async (projectId) => {
+  return Project.findOne({
     entityId: toObjectId(projectId, 'projectId'),
     $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
     deletedAt: null,
   }).lean();
-  if (!project) {
-    res.json({ project: null });
-    return;
-  }
+};
 
-  res.json({ project });
-});
-
-const updateProject = asyncHandler(async (req, res) => {
-  const { projectId } = req.params;
-  const { name, code, description, status, pid, jiraProjectKey, jiraProductKey } = req.body;
+const updateProjectService = async (projectId, payload) => {
+  const { name, code, description, status, pid, jiraProjectKey, jiraProductKey } = payload;
   const incomingJiraProjectKey = jiraProjectKey !== undefined ? jiraProjectKey : jiraProductKey;
 
-  const nextProject = await updateVersionedDocument(Project, projectId, async (current) => {
+  return updateVersionedDocument(Project, projectId, async (current) => {
     const nextName = name ? normalizeName(name) : current.name;
     const nextCode = code ? normalizeKey(code) : current.code;
 
@@ -688,12 +675,9 @@ const updateProject = asyncHandler(async (req, res) => {
       createdBy: current.createdBy,
     };
   });
+};
 
-  res.json({ project: nextProject });
-});
-
-const deleteProject = asyncHandler(async (req, res) => {
-  const { projectId } = req.params;
+const deleteProjectService = async (projectId) => {
   const project = await Project.findOne({ entityId: toObjectId(projectId, 'projectId') }).lean();
   if (!project) {
     throw httpError(404, 'Project not found');
@@ -717,11 +701,9 @@ const deleteProject = asyncHandler(async (req, res) => {
   }
 
   await softDeleteVersionSeries(Project, projectId);
-  res.status(204).send();
-});
+};
 
-const restoreProject = asyncHandler(async (req, res) => {
-  const { projectId } = req.params;
+const restoreProjectService = async (projectId) => {
   const project = await Project.findOne({ entityId: toObjectId(projectId, 'projectId') }).lean();
   if (!project) {
     throw httpError(404, 'Project not found');
@@ -739,13 +721,11 @@ const restoreProject = asyncHandler(async (req, res) => {
   }
 
   await restoreVersionSeries(Project, projectId);
-  const restored = await Project.findOne({ entityId: project.entityId, $or: [{ isLatest: true }, { isLatest: { $exists: false } }], deletedAt: null }).lean();
-  res.json({ project: restored });
-});
+  return Project.findOne({ entityId: project.entityId, $or: [{ isLatest: true }, { isLatest: { $exists: false } }], deletedAt: null }).lean();
+};
 
 // Release version CRUD
-const createVersion = asyncHandler(async (req, res) => {
-  const { projectId, name, releaseDate, notes, idjira } = req.body;
+const createVersionService = async ({ projectId, name, releaseDate, notes, idjira, createdBy }) => {
   if (!projectId || !name) {
     throw httpError(400, 'projectId and name are required');
   }
@@ -780,7 +760,7 @@ const createVersion = asyncHandler(async (req, res) => {
     idjira: normalizedIdJira,
     releaseDate,
     notes: notes || '',
-    createdBy: req.user.id,
+    createdBy,
   });
 
   const populatedVersion = await Version.findById(version._id).lean();
@@ -800,16 +780,13 @@ const createVersion = asyncHandler(async (req, res) => {
     }).select('entityId name code deletedAt').lean();
   }
 
-  const normalizedVersion = {
+  return {
     ...populatedVersion,
     project: projectObj || (populatedVersion ? populatedVersion.project : null),
   };
+};
 
-  res.status(201).json({ version: normalizedVersion });
-});
-
-const listVersions = asyncHandler(async (req, res) => {
-  const { projectId, search, includeDeleted } = req.query;
+const listVersionsService = async ({ projectId, search, includeDeleted }) => {
   const filters = [];
 
   if (projectId) {
@@ -855,16 +832,13 @@ const listVersions = asyncHandler(async (req, res) => {
     if (project.entityId) projectMap.set(String(project.entityId), project);
   }
 
-  const normalizedVersions = versions.map((version) => ({
+  return versions.map((version) => ({
     ...version,
     project: projectMap.get(String(version.project)) || version.project || null,
   }));
+};
 
-  res.json({ versions: normalizedVersions });
-});
-
-const getVersion = asyncHandler(async (req, res) => {
-  const { versionId } = req.params;
+const getVersionService = async (versionId) => {
   let version = await Version.findOne({
     entityId: toObjectId(versionId, 'versionId'),
     $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
@@ -882,8 +856,7 @@ const getVersion = asyncHandler(async (req, res) => {
   }
 
   if (!version) {
-    res.json({ version: null });
-    return;
+    return null;
   }
 
   const project = await Project.findOne({
@@ -899,18 +872,14 @@ const getVersion = asyncHandler(async (req, res) => {
     ],
   }).select('entityId name code deletedAt').lean();
 
-  res.json({
-    version: {
-      ...version,
-      project: project || version.project || null,
-    },
-  });
-});
+  return {
+    ...version,
+    project: project || version.project || null,
+  };
+};
 
-const updateVersion = asyncHandler(async (req, res) => {
-  const { versionId } = req.params;
-  const { name, releaseDate, notes, idjira } = req.body;
-
+const updateVersionService = async (versionId, payload) => {
+  const { name, releaseDate, notes, idjira } = payload;
   const versionLookupId = toObjectId(versionId, 'versionId');
   const currentVersion = await Version.findOne({
     $and: [
@@ -987,16 +956,13 @@ const updateVersion = asyncHandler(async (req, res) => {
     ],
   }).select('entityId name code deletedAt').lean();
 
-  res.json({
-    version: {
-      ...populated,
-      project: project || populated.project || null,
-    },
-  });
-});
+  return {
+    ...populated,
+    project: project || populated.project || null,
+  };
+};
 
-const deleteVersion = asyncHandler(async (req, res) => {
-  const { versionId } = req.params;
+const deleteVersionService = async (versionId) => {
   const version = await Version.findOne({ entityId: toObjectId(versionId, 'versionId') });
   if (!version) {
     throw httpError(404, 'Version not found');
@@ -1004,11 +970,9 @@ const deleteVersion = asyncHandler(async (req, res) => {
 
   version.deletedAt = new Date();
   await version.save();
-  res.status(204).send();
-});
+};
 
-const restoreVersion = asyncHandler(async (req, res) => {
-  const { versionId } = req.params;
+const restoreVersionService = async (versionId) => {
   const version = await Version.findOne({ entityId: toObjectId(versionId, 'versionId') });
   if (!version) {
     throw httpError(404, 'Version not found');
@@ -1028,16 +992,11 @@ const restoreVersion = asyncHandler(async (req, res) => {
 
   version.deletedAt = null;
   await version.save();
-  res.json({ version });
-});
+  return version;
+};
 
-// Issue type CRUD
-const createIssueType = asyncHandler(async (req, res) => {
-  const { name, idjira } = req.body;
-  // TEMP LOG: help debug unexpected validation errors from frontend
-  try {
-    console.log('POST /api/issue-types body:', JSON.stringify(req.body));
-  } catch (e) {}
+// Issue type domain services (HTTP-agnostic)
+const createIssueTypeService = async ({ name, idjira, createdBy }) => {
   if (!name || !idjira) {
     throw httpError(400, 'name and idjira are required');
   }
@@ -1053,17 +1012,14 @@ const createIssueType = asyncHandler(async (req, res) => {
     throw httpError(409, 'Issue type name or Jira id already exists');
   }
 
-  const issueType = await IssueType.create({
+  return IssueType.create({
     name: normalizedName,
     idjira: normalizedIdJira,
-    createdBy: req.user.id,
+    createdBy,
   });
+};
 
-  res.status(201).json({ issueType });
-});
-
-const listIssueTypes = asyncHandler(async (req, res) => {
-  const { search, includeDeleted } = req.query;
+const listIssueTypesService = async ({ search, includeDeleted }) => {
   const filters = [];
 
   if (includeDeleted !== 'true') {
@@ -1075,25 +1031,20 @@ const listIssueTypes = asyncHandler(async (req, res) => {
   }
 
   const match = filters.length === 0 ? {} : filters.length === 1 ? filters[0] : { $and: filters };
-  const issueTypes = await IssueType.find(match).sort({ createdAt: -1 }).lean();
+  return IssueType.find(match).sort({ createdAt: -1 }).lean();
+};
 
-  res.json({ issueTypes });
-});
-
-const getIssueType = asyncHandler(async (req, res) => {
-  const { issueTypeId } = req.params;
+const getIssueTypeService = async (issueTypeId) => {
   const issueType = await IssueType.findById(toObjectId(issueTypeId, 'issueTypeId')).lean();
   if (!issueType) {
     throw httpError(404, 'Issue type not found');
   }
 
-  res.json({ issueType });
-});
+  return issueType;
+};
 
-const updateIssueType = asyncHandler(async (req, res) => {
-  const { issueTypeId } = req.params;
-  const { name, idjira } = req.body;
-
+const updateIssueTypeService = async (issueTypeId, payload) => {
+  const { name, idjira } = payload;
   const issueType = await IssueType.findById(toObjectId(issueTypeId, 'issueTypeId'));
   if (!issueType) {
     throw httpError(404, 'Issue type not found');
@@ -1120,11 +1071,10 @@ const updateIssueType = asyncHandler(async (req, res) => {
   }
 
   await issueType.save();
-  res.json({ issueType });
-});
+  return issueType;
+};
 
-const deleteIssueType = asyncHandler(async (req, res) => {
-  const { issueTypeId } = req.params;
+const deleteIssueTypeService = async (issueTypeId) => {
   const issueType = await IssueType.findById(toObjectId(issueTypeId, 'issueTypeId'));
   if (!issueType) {
     throw httpError(404, 'Issue type not found');
@@ -1132,13 +1082,10 @@ const deleteIssueType = asyncHandler(async (req, res) => {
 
   issueType.deletedAt = new Date();
   await issueType.save();
-  res.status(204).send();
-});
+};
 
 // Test case group CRUD
-const createTestCaseGroup = asyncHandler(async (req, res) => {
-  const { projectId, name, key, description } = req.body;
-
+const createTestCaseGroupService = async ({ projectId, name, key, description, createdBy }) => {
   if (!projectId || !name) {
     throw httpError(400, 'projectId and name are required');
   }
@@ -1159,7 +1106,7 @@ const createTestCaseGroup = asyncHandler(async (req, res) => {
     throw httpError(409, 'Test case group name or key already exists in this project');
   }
 
-  const group = await TestCaseGroup.create({
+  return TestCaseGroup.create({
     entityId: createEntityId(),
     versionNumber: 1,
     isLatest: true,
@@ -1169,14 +1116,11 @@ const createTestCaseGroup = asyncHandler(async (req, res) => {
     key: normalizedKey,
     name: normalizedName,
     description: description || '',
-    createdBy: req.user.id,
+    createdBy,
   });
+};
 
-  res.status(201).json({ group });
-});
-
-const listTestCaseGroups = asyncHandler(async (req, res) => {
-  const { projectId, search, includeDeleted } = req.query;
+const listTestCaseGroupsService = async ({ query, projectId, search, includeDeleted }) => {
   const baseFilters = {};
 
   if (projectId) {
@@ -1198,7 +1142,7 @@ const listTestCaseGroups = asyncHandler(async (req, res) => {
 
   const { docs: groups, pagination } = await buildVersionedList({
     model: TestCaseGroup,
-    query: req.query,
+    query,
     search,
     searchFields: ['key', 'name', 'description'],
     baseFilters,
@@ -1237,41 +1181,30 @@ const listTestCaseGroups = asyncHandler(async (req, res) => {
     };
   });
 
-  res.json({ groups: normalizedGroups, pagination });
-});
+  return { groups: normalizedGroups, pagination };
+};
 
-const getTestCaseGroup = asyncHandler(async (req, res) => {
-  const { groupId } = req.params;
-  const group = await TestCaseGroup.findOne({
+const getTestCaseGroupService = async (groupId) => {
+  return TestCaseGroup.findOne({
     entityId: toObjectId(groupId, 'groupId'),
     $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
     deletedAt: null,
   })
     .populate('project', 'entityId name code deletedAt')
     .lean();
-  if (!group) {
-    res.json({ group: null });
-    return;
-  }
+};
 
-  res.json({ group });
-});
-
-const getTestCaseGroupVersions = asyncHandler(async (req, res) => {
-  const { groupId } = req.params;
+const getTestCaseGroupVersionsService = async (groupId) => {
   try {
     const versions = await getVersionHistory(TestCaseGroup, groupId);
-    res.json({ versions });
+    return versions;
   } catch (err) {
-    res.json({ versions: [] });
+    return [];
   }
-});
+};
 
-const updateTestCaseGroup = asyncHandler(async (req, res) => {
-  const { groupId } = req.params;
-  const { projectId, key, name, description } = req.body;
-
-  const nextGroup = await updateVersionedDocument(TestCaseGroup, groupId, async (current) => {
+const updateTestCaseGroupService = async (groupId, { projectId, key, name, description }) => {
+  return updateVersionedDocument(TestCaseGroup, groupId, async (current) => {
     let nextProject;
     if (projectId) {
       nextProject = await resolveLatestProjectSnapshot(projectId, { includeDeleted: false });
@@ -1305,17 +1238,14 @@ const updateTestCaseGroup = asyncHandler(async (req, res) => {
       createdBy: current.createdBy,
     };
   });
+};
 
-  res.json({ group: nextGroup });
-});
+const deleteTestCaseGroupService = async (groupId) => {
+  await softDeleteVersionSeries(TestCaseGroup, groupId);
+};
 
-const deleteTestCaseGroup = asyncHandler(async (req, res) => {
-  await softDeleteVersionSeries(TestCaseGroup, req.params.groupId);
-  res.status(204).send();
-});
-
-const restoreTestCaseGroup = asyncHandler(async (req, res) => {
-  const current = await TestCaseGroup.findOne({ entityId: toObjectId(req.params.groupId, 'groupId') }).lean();
+const restoreTestCaseGroupService = async (groupId) => {
+  const current = await TestCaseGroup.findOne({ entityId: toObjectId(groupId, 'groupId') }).lean();
   if (!current) {
     throw httpError(404, 'Test case group not found');
   }
@@ -1338,14 +1268,27 @@ const restoreTestCaseGroup = asyncHandler(async (req, res) => {
     throw httpError(409, 'Test case group name or key already exists in this project');
   }
 
-  await restoreVersionSeries(TestCaseGroup, req.params.groupId);
-  const group = await TestCaseGroup.findOne({ entityId: toObjectId(req.params.groupId, 'groupId') }).lean();
-  res.json({ group });
-});
+  await restoreVersionSeries(TestCaseGroup, groupId);
+  return TestCaseGroup.findOne({ entityId: toObjectId(groupId, 'groupId') }).lean();
+};
 
 // Test case CRUD
-const createTestCase = asyncHandler(async (req, res) => {
-  const { projectId, groupId, caseKey, key, title, name, description, expected, steps, automation, priority, severity, type } = req.body;
+const createTestCaseService = async ({
+  projectId,
+  groupId,
+  caseKey,
+  key,
+  title,
+  name,
+  description,
+  expected,
+  steps,
+  automation,
+  priority,
+  severity,
+  type,
+  createdBy,
+}) => {
 
   if (!projectId || !groupId || !caseKey || !title) {
     throw httpError(400, 'projectId, groupId, caseKey and title are required');
@@ -1419,7 +1362,7 @@ const createTestCase = asyncHandler(async (req, res) => {
     severity: severity || 'major',
     type: type || 'functional',
     automation: normalizedAutomation,
-    createdBy: req.user.id,
+    createdBy,
   });
 
   const createdDoc = await TestCase.findById(testCase._id).lean();
@@ -1450,11 +1393,11 @@ const createTestCase = asyncHandler(async (req, res) => {
     group: groupObj || (createdDoc ? createdDoc.group : null),
   };
 
-  res.status(201).json({ testCase: normalized });
-});
+  return normalized;
+};
 
-const listTestCases = asyncHandler(async (req, res) => {
-  const { projectId, groupId, search, includeDeleted } = req.query;
+const listTestCasesService = async (query = {}) => {
+  const { projectId, groupId, search, includeDeleted } = query;
   const baseFilters = {};
 
   if (projectId) {
@@ -1474,9 +1417,9 @@ const listTestCases = asyncHandler(async (req, res) => {
   }
 
   if (groupId) {
-    if (req.query.projectId) {
+    if (query.projectId) {
       // project scope exists; resolve group within that project
-      const project = await ensureProjectExists(req.query.projectId);
+      const project = await ensureProjectExists(query.projectId);
       const resolvedGroup = await ensureGroupExists(groupId, project._id);
       baseFilters.group = resolvedGroup._id;
     } else {
@@ -1498,7 +1441,7 @@ const listTestCases = asyncHandler(async (req, res) => {
 
   const { docs: testCases, pagination } = await buildVersionedList({
     model: TestCase,
-    query: req.query,
+    query,
     search,
     searchFields: ['key', 'name', 'caseKey', 'title', 'description'],
     baseFilters,
@@ -1581,11 +1524,11 @@ const listTestCases = asyncHandler(async (req, res) => {
     });
   }
 
-  res.json({ testCases: normalizedTestCases, pagination });
-});
+  return { testCases: normalizedTestCases, pagination };
+};
 
-const listTestCaseDetails = asyncHandler(async (req, res) => {
-  const { projectId, groupId, search } = req.query;
+const listTestCaseDetailsService = async (query = {}) => {
+  const { projectId, groupId, search } = query;
 
   if (!projectId) {
     throw httpError(400, 'projectId is required');
@@ -1632,8 +1575,7 @@ const listTestCaseDetails = asyncHandler(async (req, res) => {
     }
 
     if (!groupVersionIds || groupVersionIds.length === 0) {
-      res.json({ testCases: [], pagination: null });
-      return;
+      return { testCases: [], pagination: null };
     }
 
     const runs = await TestRun.find({ project: { $in: projectObjectIds }, 'results.group': { $in: groupVersionIds.map((v) => toObjectId(v, 'groupId')) } }).select('results').lean();
@@ -1648,8 +1590,7 @@ const listTestCaseDetails = asyncHandler(async (req, res) => {
     }
 
     if (matchedVersionIds.size === 0) {
-      res.json({ testCases: [], pagination: null });
-      return;
+      return { testCases: [], pagination: null };
     }
 
     const matchedVersions = await TestCase.find({ _id: { $in: Array.from(matchedVersionIds).map((v) => toObjectId(v, 'testCaseId')) } }).select('_id entityId').lean();
@@ -1677,8 +1618,7 @@ const listTestCaseDetails = asyncHandler(async (req, res) => {
     .lean();
 
   if (testCases.length === 0) {
-    res.json({ testCases: [] });
-    return;
+    return { testCases: [] };
   }
 
   const entityIds = testCases
@@ -1772,11 +1712,10 @@ const listTestCaseDetails = asyncHandler(async (req, res) => {
     executionHistory: historyByEntity.get(objectIdString(testCase.entityId)) || [],
   }));
 
-  res.json({ testCases: detailRows });
-});
+  return { testCases: detailRows };
+};
 
-const getTestCase = asyncHandler(async (req, res) => {
-  const { testCaseId } = req.params;
+const getTestCaseService = async (testCaseId) => {
   const testCase = await TestCase.findOne({
     entityId: toObjectId(testCaseId, 'testCaseId'),
     $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
@@ -1786,26 +1725,23 @@ const getTestCase = asyncHandler(async (req, res) => {
     .populate('group', 'name key deletedAt')
     .lean();
   if (!testCase) {
-    res.json({ testCase: null });
-    return;
+    return null;
   }
 
-  res.json({ testCase });
-});
+  return testCase;
+};
 
-const getTestCaseVersions = asyncHandler(async (req, res) => {
-  const { testCaseId } = req.params;
+const getTestCaseVersionsService = async (testCaseId) => {
   try {
     const versions = await getVersionHistory(TestCase, testCaseId);
-    res.json({ versions });
+    return versions;
   } catch (err) {
     // If entity not found, return empty versions list instead of 404
-    res.json({ versions: [] });
+    return [];
   }
-});
+};
 
-const updateTestCase = asyncHandler(async (req, res) => {
-  const { testCaseId } = req.params;
+const updateTestCaseService = async (testCaseId, payload = {}) => {
   const {
     projectId,
     groupId,
@@ -1821,7 +1757,7 @@ const updateTestCase = asyncHandler(async (req, res) => {
     severity,
     type,
     status,
-  } = req.body;
+  } = payload;
 
   const currentCaseId = toObjectId(testCaseId, 'testCaseId');
   const currentCase = await TestCase.findOne({
@@ -1973,15 +1909,15 @@ const updateTestCase = asyncHandler(async (req, res) => {
     group: groupObj || (updatedDoc ? updatedDoc.group : null),
   };
 
-  res.json({ testCase: normalized });
-});
+  return normalized;
+};
 
-const importTestCases = asyncHandler(async (req, res) => {
-  if (!req.file) {
+const importTestCasesService = async ({ file, body = {}, userId }) => {
+  if (!file) {
     throw httpError(400, 'File is required');
   }
 
-  const { projectId } = req.body;
+  const { projectId } = body;
   if (!projectId) {
     throw httpError(400, 'projectId is required');
   }
@@ -1990,7 +1926,7 @@ const importTestCases = asyncHandler(async (req, res) => {
   const projectRefs = [String(project._id), String(project.entityId || '')].filter(Boolean);
 
   try {
-    const workbook = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const workbook = XLSX.read(file.buffer, { type: 'buffer' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rows = XLSX.utils.sheet_to_json(sheet);
 
@@ -2105,7 +2041,7 @@ const importTestCases = asyncHandler(async (req, res) => {
         }
 
         // validation for priority/severity/type may be strict based on flag
-        const strict = String(req.body.strict || '').toLowerCase() === 'true';
+        const strict = String(body.strict || '').toLowerCase() === 'true';
 
         if (strict) {
           if (!['low', 'medium', 'high', 'critical'].includes(priority)) {
@@ -2147,7 +2083,7 @@ const importTestCases = asyncHandler(async (req, res) => {
             ? type
             : 'functional',
           status: 'active',
-          createdBy: req.user.id,
+          createdBy: userId,
         });
 
         created.push({
@@ -2163,23 +2099,22 @@ const importTestCases = asyncHandler(async (req, res) => {
       }
     }
 
-    res.json({
+    return {
       message: `Imported ${created.length} test cases`,
       created,
       errors,
       total: rows.length,
-    });
+    };
   } catch (err) {
     throw httpError(400, `Excel parsing error: ${err.message}`);
   }
-});
-const deleteTestCase = asyncHandler(async (req, res) => {
-  await softDeleteVersionSeries(TestCase, req.params.testCaseId);
-  res.status(204).send();
-});
+};
+const deleteTestCaseService = async (testCaseId) => {
+  await softDeleteVersionSeries(TestCase, testCaseId);
+};
 
-const restoreTestCase = asyncHandler(async (req, res) => {
-  const current = await TestCase.findOne({ entityId: toObjectId(req.params.testCaseId, 'testCaseId') }).lean();
+const restoreTestCaseService = async (testCaseId) => {
+  const current = await TestCase.findOne({ entityId: toObjectId(testCaseId, 'testCaseId') }).lean();
   if (!current) {
     throw httpError(404, 'Test case not found');
   }
@@ -2218,18 +2153,27 @@ const restoreTestCase = asyncHandler(async (req, res) => {
     throw httpError(409, 'Test case key already exists in this group');
   }
 
-  await restoreVersionSeries(TestCase, req.params.testCaseId);
-  const testCase = await TestCase.findOne({ entityId: toObjectId(req.params.testCaseId, 'testCaseId') })
+  await restoreVersionSeries(TestCase, testCaseId);
+  const testCase = await TestCase.findOne({ entityId: toObjectId(testCaseId, 'testCaseId') })
     .populate('project', 'entityId name code deletedAt')
     .populate('group', 'name key deletedAt')
     .lean();
-  res.json({ testCase });
-});
+  return testCase;
+};
 
 // Test plan CRUD
-const createTestPlan = asyncHandler(async (req, res) => {
-  const { name, key, description, projectId, versionId, caseIds, executionMode, ownerId, assigneeIds } = req.body;
-
+const createTestPlanService = async ({
+  name,
+  key,
+  description,
+  projectId,
+  versionId,
+  caseIds,
+  executionMode,
+  ownerId,
+  assigneeIds,
+  createdBy,
+}) => {
   if (!name || !projectId || !versionId || !Array.isArray(caseIds) || caseIds.length === 0) {
     throw httpError(400, 'name, projectId, versionId and caseIds[] are required');
   }
@@ -2288,7 +2232,7 @@ const createTestPlan = asyncHandler(async (req, res) => {
     projectVersionId: project._id,
     version: releaseVersion.entityId ? releaseVersion.entityId : releaseVersion._id,
     versionVersionId: releaseVersion._id,
-    createdBy: req.user.id,
+    createdBy,
     owner: ownerId ? toObjectId(ownerId, 'ownerId') : undefined,
     assignees: Array.isArray(assigneeIds)
       ? assigneeIds.map((id, index) => toObjectId(id, `assigneeIds[${index}]`))
@@ -2306,11 +2250,13 @@ const createTestPlan = asyncHandler(async (req, res) => {
       .lean(),
   );
 
-  res.status(201).json({ testPlan: normalizedPlan });
-});
+  return normalizedPlan;
+};
 
-const listTestPlans = asyncHandler(async (req, res) => {
-  const { projectId, versionId, search, includeDeleted } = req.query;
+const listTestPlansService = async (query = {}, user = null) => {
+  const {
+    projectId, versionId, search, includeDeleted,
+  } = query;
   const baseFilters = {};
   let resolvedProject = null;
 
@@ -2319,8 +2265,7 @@ const listTestPlans = asyncHandler(async (req, res) => {
       resolvedProject = await ensureProjectExists(projectId);
     } catch (error) {
       if (error.statusCode === 404) {
-        res.json({ testPlans: [], pagination: null });
-        return;
+        return { testPlans: [], pagination: null };
       }
       throw error;
     }
@@ -2360,8 +2305,7 @@ const listTestPlans = asyncHandler(async (req, res) => {
       }
     } catch (error) {
       if (error.statusCode === 404) {
-        res.json({ testPlans: [], pagination: null });
-        return;
+        return { testPlans: [], pagination: null };
       }
       throw error;
     }
@@ -2372,7 +2316,7 @@ const listTestPlans = asyncHandler(async (req, res) => {
   }
   const { docs: testPlans, pagination } = await buildVersionedList({
     model: TestPlan,
-    query: req.query,
+    query,
     search,
     searchFields: ['key', 'name', 'description'],
     baseFilters,
@@ -2428,15 +2372,14 @@ const listTestPlans = asyncHandler(async (req, res) => {
 
   const attachedPlans = await Promise.all(normalizedPlans.map((plan) => attachTestPlanCases(plan)));
 
-  const visiblePlans = req.user.role === 'admin'
+  const visiblePlans = user?.role === 'admin' || !user
     ? attachedPlans
-    : attachedPlans.filter((plan) => isPlanAssignedToUser(plan, req.user.id));
+    : attachedPlans.filter((plan) => isPlanAssignedToUser(plan, user.id));
 
-  res.json({ testPlans: visiblePlans, pagination });
-});
+  return { testPlans: visiblePlans, pagination };
+};
 
-const getTestPlan = asyncHandler(async (req, res) => {
-  const { testPlanId } = req.params;
+const getTestPlanService = async (testPlanId) => {
   const testPlan = await TestPlan.findOne({ entityId: toObjectId(testPlanId, 'testPlanId') })
     .populate('project', 'entityId name code deletedAt')
     .populate('version', 'entityId name deletedAt')
@@ -2444,26 +2387,22 @@ const getTestPlan = asyncHandler(async (req, res) => {
     .populate('assignees', 'name email role')
     .lean();
   if (!testPlan) {
-    res.json({ testPlan: null });
-    return;
+    return null;
   }
 
-  res.json({ testPlan: await attachTestPlanCases(testPlan) });
-});
+  return attachTestPlanCases(testPlan);
+};
 
-const getTestPlanVersions = asyncHandler(async (req, res) => {
-  const { testPlanId } = req.params;
+const getTestPlanVersionsService = async (testPlanId) => {
   try {
     const versions = await getVersionHistory(TestPlan, testPlanId);
-    res.json({ versions });
+    return versions;
   } catch (err) {
-    res.json({ versions: [] });
+    return [];
   }
-});
+};
 
-const assignTestPlanItems = asyncHandler(async (req, res) => {
-  const { testPlanId } = req.params;
-  const { assigneeIds } = req.body;
+const assignTestPlanItemsService = async (testPlanId, { assigneeIds }, userId) => {
 
   if (!Array.isArray(assigneeIds) || assigneeIds.length === 0) {
     throw httpError(400, 'assigneeIds[] is required');
@@ -2476,10 +2415,10 @@ const assignTestPlanItems = asyncHandler(async (req, res) => {
     project: current.project,
     version: current.version,
     executionMode: current.executionMode,
-    owner: toObjectId(req.user.id, 'ownerId'),
+    owner: toObjectId(userId, 'ownerId'),
     assignees: assigneeIds.map((id, index) => toObjectId(id, `assigneeIds[${index}]`)),
     items: current.items,
-    createdBy: current.createdBy || req.user.id,
+    createdBy: current.createdBy || userId,
   }));
 
   const populated = await TestPlan.findById(nextTestPlan._id)
@@ -2489,12 +2428,24 @@ const assignTestPlanItems = asyncHandler(async (req, res) => {
     .populate('assignees', 'name email role')
     .lean();
 
-  res.json({ testPlan: await attachTestPlanCases(populated) });
-});
+  return attachTestPlanCases(populated);
+};
 
-const updateTestPlan = asyncHandler(async (req, res) => {
-  const { testPlanId } = req.params;
-  const { name, key, description, projectId, versionId, caseIds, executionMode, ownerId, assigneeIds } = req.body;
+const updateTestPlanService = async (
+  testPlanId,
+  {
+    name,
+    key,
+    description,
+    projectId,
+    versionId,
+    caseIds,
+    executionMode,
+    ownerId,
+    assigneeIds,
+  },
+  userId,
+) => {
 
   // Resolve testPlan entity -> current document _id to check for runs
   const planDoc = await TestPlan.findOne({ entityId: toObjectId(testPlanId, 'testPlanId') });
@@ -2534,8 +2485,8 @@ const updateTestPlan = asyncHandler(async (req, res) => {
     if (Array.isArray(caseIds) && caseIds.length > 0) {
       items = [];
       const allowedProjectRefs = new Set([
-        String(nextProjectId),
-        String((await ensureProjectExists(nextProjectId, { includeDeleted: false })).entityId || ''),
+        String(project._id),
+        String(project.entityId || ''),
       ].filter(Boolean));
       for (let index = 0; index < caseIds.length; index += 1) {
         const testCase = await resolveTestCaseByReference(caseIds[index], { includeDeleted: false });
@@ -2574,7 +2525,7 @@ const updateTestPlan = asyncHandler(async (req, res) => {
         ? assigneeIds.map((id, index) => toObjectId(id, `assigneeIds[${index}]`))
         : current.assignees,
       items,
-      createdBy: current.createdBy || req.user.id,
+      createdBy: current.createdBy || userId,
     };
   });
 
@@ -2585,16 +2536,15 @@ const updateTestPlan = asyncHandler(async (req, res) => {
     .populate('assignees', 'name email role')
     .lean();
 
-  res.json({ testPlan: await attachTestPlanCases(populated) });
-});
+  return attachTestPlanCases(populated);
+};
 
-const deleteTestPlan = asyncHandler(async (req, res) => {
-  await softDeleteVersionSeries(TestPlan, req.params.testPlanId);
-  res.status(204).send();
-});
+const deleteTestPlanService = async (testPlanId) => {
+  await softDeleteVersionSeries(TestPlan, testPlanId);
+};
 
-const restoreTestPlan = asyncHandler(async (req, res) => {
-  const current = await TestPlan.findOne({ entityId: toObjectId(req.params.testPlanId, 'testPlanId') }).lean();
+const restoreTestPlanService = async (testPlanId) => {
+  const current = await TestPlan.findOne({ entityId: toObjectId(testPlanId, 'testPlanId') }).lean();
   if (!current) {
     throw httpError(404, 'Test plan not found');
   }
@@ -2625,56 +2575,56 @@ const restoreTestPlan = asyncHandler(async (req, res) => {
     throw httpError(409, 'Test plan name or key already exists in this release version');
   }
 
-  await restoreVersionSeries(TestPlan, req.params.testPlanId);
-  const testPlan = await TestPlan.findOne({ entityId: toObjectId(req.params.testPlanId, 'testPlanId') })
+  await restoreVersionSeries(TestPlan, testPlanId);
+  const testPlan = await TestPlan.findOne({ entityId: toObjectId(testPlanId, 'testPlanId') })
     .populate('project', 'entityId name code deletedAt')
     .populate('version', 'entityId name deletedAt')
     .populate('owner', 'name email role')
     .populate('assignees', 'name email role')
     .lean();
-  res.json({ testPlan: await attachTestPlanCases(testPlan) });
-});
+  return attachTestPlanCases(testPlan);
+};
 
 module.exports = {
-  createProject,
-  listProjects,
-  getProject,
-  updateProject,
-  deleteProject,
-  restoreProject,
-  createVersion,
-  listVersions,
-  getVersion,
-  updateVersion,
-  deleteVersion,
-  restoreVersion,
-  createIssueType,
-  listIssueTypes,
-  getIssueType,
-  updateIssueType,
-  deleteIssueType,
-  createTestCaseGroup,
-  listTestCaseGroups,
-  getTestCaseGroup,
-  getTestCaseGroupVersions,
-  updateTestCaseGroup,
-  deleteTestCaseGroup,
-  restoreTestCaseGroup,
-  createTestCase,
-  listTestCases,
-  listTestCaseDetails,
-  importTestCases,
-  getTestCase,
-  getTestCaseVersions,
-  updateTestCase,
-  deleteTestCase,
-  restoreTestCase,
-  createTestPlan,
-  listTestPlans,
-  getTestPlan,
-  getTestPlanVersions,
-  assignTestPlanItems,
-  updateTestPlan,
-  deleteTestPlan,
-  restoreTestPlan,
+  createProjectService,
+  listProjectsService,
+  getProjectService,
+  updateProjectService,
+  deleteProjectService,
+  restoreProjectService,
+  createVersionService,
+  listVersionsService,
+  getVersionService,
+  updateVersionService,
+  deleteVersionService,
+  restoreVersionService,
+  createIssueTypeService,
+  listIssueTypesService,
+  getIssueTypeService,
+  updateIssueTypeService,
+  deleteIssueTypeService,
+  createTestCaseGroupService,
+  listTestCaseGroupsService,
+  getTestCaseGroupService,
+  getTestCaseGroupVersionsService,
+  updateTestCaseGroupService,
+  deleteTestCaseGroupService,
+  restoreTestCaseGroupService,
+  createTestCaseService,
+  listTestCasesService,
+  listTestCaseDetailsService,
+  importTestCasesService,
+  getTestCaseService,
+  getTestCaseVersionsService,
+  updateTestCaseService,
+  deleteTestCaseService,
+  restoreTestCaseService,
+  createTestPlanService,
+  listTestPlansService,
+  getTestPlanService,
+  getTestPlanVersionsService,
+  assignTestPlanItemsService,
+  updateTestPlanService,
+  deleteTestPlanService,
+  restoreTestPlanService,
 };

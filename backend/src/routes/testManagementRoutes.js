@@ -1,12 +1,24 @@
 const express = require('express');
 const multer = require('multer');
 const {
+  createTestPlan,
+  listTestPlans,
+  getTestPlan,
+  getTestPlanVersions,
+  assignTestPlanItems,
+  updateTestPlan,
+  deleteTestPlan,
+  restoreTestPlan,
+} = require('../controllers/testPlanController');
+const {
   createProject,
   listProjects,
   getProject,
   updateProject,
   deleteProject,
   restoreProject,
+} = require('../controllers/projectController');
+const {
   createVersion,
   listVersions,
   getVersion,
@@ -18,6 +30,8 @@ const {
   getIssueType,
   updateIssueType,
   deleteIssueType,
+} = require('../controllers/versionIssueTypeController');
+const {
   createTestCaseGroup,
   listTestCaseGroups,
   getTestCaseGroup,
@@ -25,6 +39,8 @@ const {
   updateTestCaseGroup,
   deleteTestCaseGroup,
   restoreTestCaseGroup,
+} = require('../controllers/testCaseGroupController');
+const {
   createTestCase,
   listTestCases,
   listTestCaseDetails,
@@ -34,15 +50,7 @@ const {
   updateTestCase,
   deleteTestCase,
   restoreTestCase,
-  createTestPlan,
-  listTestPlans,
-  getTestPlan,
-  getTestPlanVersions,
-  assignTestPlanItems,
-  updateTestPlan,
-  deleteTestPlan,
-  restoreTestPlan,
-} = require('../services/testManagementService');
+} = require('../controllers/testCaseController');
 const {
   startTestRun,
   listTestRuns,
