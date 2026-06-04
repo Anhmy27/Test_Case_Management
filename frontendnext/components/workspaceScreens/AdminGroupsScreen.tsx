@@ -44,7 +44,6 @@ export default function AdminGroupsScreen({
 }: AdminGroupsScreenProps) {
   const isEditing = Boolean(editingGroupId);
   const [searchTerm, setSearchTerm] = useState("");
-  const [projectFilter, setProjectFilter] = useState("");
   const [hierarchyPage, setHierarchyPage] = useState(1);
   const hierarchyPageSize = 4;
 
@@ -67,25 +66,16 @@ export default function AdminGroupsScreen({
 
   const filteredGroups = useMemo(() => {
     return groups.filter((group: RecordAny) => {
-      const groupProjectId = getId(group.project) || "";
-      if (projectFilter && groupProjectId !== projectFilter) {
-        return false;
-      }
-
       return (
         matchesSearch(group.name, group.project?.name, group.description) &&
         matchesLocalSearch(group.name, group.project?.name, group.description)
       );
     });
-  }, [groups, matchesLocalSearch, matchesSearch, projectFilter]);
+  }, [groups, matchesLocalSearch, matchesSearch]);
 
   const groupsByProject = useMemo(() => {
     return scopedProjects
       .map((project: RecordAny) => {
-        if (projectFilter && getId(project) !== projectFilter) {
-          return null;
-        }
-
         const projectGroups = filteredGroups.filter(
           (group: RecordAny) => getId(group.project) === getId(project),
         );
@@ -106,7 +96,6 @@ export default function AdminGroupsScreen({
     filteredGroups,
     matchesLocalSearch,
     matchesSearch,
-    projectFilter,
     scopedProjects,
   ]);
 
@@ -210,32 +199,11 @@ export default function AdminGroupsScreen({
           className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-slate-200"
         />
       </label>
-      <label className="grid min-w-[220px] gap-1">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-          Project filter
-        </span>
-        <select
-          value={projectFilter}
-          onChange={(event) => {
-            setProjectFilter(event.target.value);
-            setHierarchyPage(1);
-          }}
-          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none transition focus:border-slate-300 focus:ring-2 focus:ring-slate-200"
-        >
-          <option value="">All projects</option>
-          {scopedProjects.map((project: RecordAny) => (
-            <option key={getId(project)} value={getId(project)}>
-              {project.name}
-            </option>
-          ))}
-        </select>
-      </label>
       <button
         type="button"
         className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-100"
         onClick={() => {
           setSearchTerm("");
-          setProjectFilter("");
           setHierarchyPage(1);
         }}
       >
@@ -324,7 +292,7 @@ export default function AdminGroupsScreen({
             {filteredGroups.length} groups
           </span>
           <span className="rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-600">
-            {projectFilter ? "Filtered by project" : "All projects"}
+            Scoped by project selection
           </span>
           <span className="rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-600">
             Scroll or page through the list
