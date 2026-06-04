@@ -21,6 +21,12 @@ export async function apiRequest<T>(
   const authKey = token ? `|${token}` : '';
   const cacheKey = `${method}:${path}${authKey}`;
 
+  if (method !== 'GET') {
+    // Mutations can stale any recent GET cache entry.
+    _cache.clear();
+    _inflight.clear();
+  }
+
   if (isGetNoBody && !isVolatileGet) {
     // return recent cached response
     const cached = _cache.get(cacheKey);

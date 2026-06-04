@@ -36,8 +36,8 @@ export default function AdminTestRunsRoute() {
         if (!me.user) { router.replace("/"); return; }
         if (me.user.role !== "admin") { router.replace("/workspace/employee/my-test-plans"); return; }
         const [plansResponse, runsResponse] = await Promise.all([
-          apiRequest<{ testPlans: RecordAny[] }>("/api/test-plans", token),
-          apiRequest<{ testRuns: RecordAny[] }>("/api/test-runs", token),
+          apiRequest<{ testPlans: RecordAny[] }>(selectedProjectId ? `/api/test-plans?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-plans", token),
+          apiRequest<{ testRuns: RecordAny[] }>(selectedProjectId ? `/api/test-runs?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-runs", token),
         ]);
         if (cancelled) return;
         setCurrentUser(me.user);
@@ -48,7 +48,7 @@ export default function AdminTestRunsRoute() {
     };
     void load();
     return () => { cancelled = true; };
-  }, [router, token]);
+  }, [router, selectedProjectId, token]);
 
   const scopedPlans = useMemo(() => plans, [plans]);
   const selectedRunPlan = scopedPlans.find((plan) => getId(plan) === runForm.testPlanId);
@@ -64,7 +64,7 @@ export default function AdminTestRunsRoute() {
   };
 
   const refreshRuns = async () => {
-    const response = await apiRequest<{ testRuns: RecordAny[] }>("/api/test-runs", token);
+    const response = await apiRequest<{ testRuns: RecordAny[] }>(selectedProjectId ? `/api/test-runs?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-runs", token);
     setRuns(Array.isArray(response.testRuns) ? response.testRuns : []);
   };
 

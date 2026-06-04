@@ -2,8 +2,8 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import AdminTestCasesScreen from "@/components/workspaceScreens/AdminTestCasesScreen";
 import { apiRequest, createTextMatcher, getId, matchesSelectedEntity, userName } from "@/lib/api";
@@ -12,6 +12,12 @@ import { useAdminSidebarNav } from "@/components/workspaceScreens/adminNav";
 type RecordAny = Record<string, any>;
 const MAX_EXCEL_IMPORT_BYTES = 50 * 1024 * 1024;
 const EXCEL_IMPORT_EXTENSIONS = [".xls", ".xlsx"];
+
+function generateStepId() {
+  return typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 function storedToken() {
   return typeof window === "undefined" ? "" : window.localStorage.getItem("tcm_token") || "";
@@ -23,6 +29,8 @@ function storedProject() {
 
 export default function AdminTestCasesRoute() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const caseIdFromUrl = String(searchParams.get("caseId") || "").trim();
   const [token] = useState<string>(() => storedToken());
   const [selectedProjectId, setSelectedProjectId] = useState<string>(() => storedProject());
   const navItems = useAdminSidebarNav(selectedProjectId, "test-cases", router);
@@ -36,6 +44,7 @@ export default function AdminTestCasesRoute() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const importInputRef = useRef<HTMLInputElement | null>(null);
+  const consumedCaseIdRef = useRef<string>("");
 
   useEffect(() => { if (typeof window !== "undefined") { if (selectedProjectId) window.localStorage.setItem("tcm_selected_project_id", selectedProjectId); else window.localStorage.removeItem("tcm_selected_project_id"); } }, [selectedProjectId]);
 
@@ -91,11 +100,6 @@ export default function AdminTestCasesRoute() {
         action: String(step.action || "").trim(),
         expected: String(step.expected || "").trim(),
       }));
-  const generateStepId = () =>
-    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-      ? crypto.randomUUID()
-      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-
   const normalizeAutomationSteps = (steps: any[]) =>
     steps
       .filter((step) => String(step.action || "").trim())
@@ -148,7 +152,7 @@ export default function AdminTestCasesRoute() {
     setAutomationForm({ enabled: false, webId: "", baseUrl: "", userKey: "", timeoutMs: "30", steps: [{ stepId: generateStepId(), stepName: "", action: "goto", targetType: "css", target: "", value: "", expected: "", timeoutMs: "15" }] });
   };
 
-  const startTestCaseEdit = (testCase: RecordAny) => {
+  const startTestCaseEdit = useCallback((testCase: RecordAny) => {
     setEditingTestCaseId(getId(testCase));
     setTestCaseForm({
       projectId: getId(testCase.project),
@@ -167,7 +171,7 @@ export default function AdminTestCasesRoute() {
 
     const automation = testCase.automation || {};
     const existingSteps = Array.isArray(automation.steps) && automation.steps.length
-      ? automation.steps.map((step: RecordAny, idx: number) => ({
+      ? automation.steps.map((step: RecordAny) => ({
           stepId: String(step.stepId || "").trim() || generateStepId(),
           stepName: String(step.stepName || ""),
           action: String(step.action || "goto"),
@@ -187,7 +191,24 @@ export default function AdminTestCasesRoute() {
       timeoutMs: String(Math.round(Number(automation.timeoutMs || 30000) / 1000)),
       steps: existingSteps,
     });
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!caseIdFromUrl || consumedCaseIdRef.current === caseIdFromUrl || testCases.length === 0) {
+      return;
+    }
+
+    const matched = testCases.find((testCase) => getId(testCase) === caseIdFromUrl);
+    if (!matched) {
+      return;
+    }
+
+    consumedCaseIdRef.current = caseIdFromUrl;
+    const timeoutId = window.setTimeout(() => {
+      startTestCaseEdit(matched);
+    }, 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [caseIdFromUrl, startTestCaseEdit, testCases]);
 
   const deleteTestCase = async (testCaseId: string) => { await apiRequest(`/api/test-cases/${testCaseId}`, token, { method: "DELETE" }); await refreshAll(); };
   const duplicateTestCase = async (testCase: RecordAny) => {
@@ -245,8 +266,15 @@ export default function AdminTestCasesRoute() {
       return;
     }
 
+    const effectiveProjectId = String(selectedProjectId || testCaseForm.projectId || "").trim();
+    if (!effectiveProjectId) {
+      setMessage("Please select a project scope before importing");
+      return;
+    }
+
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("projectId", effectiveProjectId);
     await apiRequest(`/api/test-cases/import`, token, { method: "POST", body: formData });
     setMessage("Excel import completed");
     await refreshAll();

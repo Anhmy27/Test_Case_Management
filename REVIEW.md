@@ -477,7 +477,7 @@ Keep these patterns. Push back on the §2 / §3 items first; the rest is increme
 
 ---
 
-## 11. Progress Notes (updated 2026-06-03)
+## 11. Progress Notes (updated 2026-06-04)
 
 Status is verified against current code in this repo.
 
@@ -494,6 +494,12 @@ Status is verified against current code in this repo.
 - **§3.2 Controller/service separation (incremental progress):** `TestPlan` endpoints were migrated to the same split pattern as Project/Version/IssueType/TestCaseGroup/TestCase. HTTP handlers now live in `backend/src/controllers/testPlanController.js`, while business logic is exposed as pure functions in `backend/src/services/testManagementService.js` (`createTestPlanService`, `listTestPlansService`, etc.).
 - **§3.2 Controller/service separation (incremental progress):** TestRun + Dashboard endpoints are now thin wrappers in `backend/src/controllers/testManagementController.js`; heavy business logic/querying moved to `backend/src/services/testRunDashboardService.js`.
 - **§3.2 Controller/service separation (incremental progress):** auth/user/jira flows were also split into thin controllers + dedicated services (`backend/src/services/authService.js`, `backend/src/services/userAdminService.js`, `backend/src/services/jiraManagementService.js`), and duplicate export noise in `jiraController` was removed.
+- **TestPlan retrieval and update behavior aligned with versioned model:** `getTestPlanService` now resolves by `entityId + isLatest + deletedAt`, and updating a test plan is allowed even when historical runs already exist (runs keep snapshot references at run-start time).
+- **Dashboard visibility tightened for real-world operations:** dashboard endpoints in `backend/src/routes/testManagementRoutes.js` now require admin authorization (`authorize('admin')`) instead of authenticate-only.
+- **User lifecycle made production-realistic:** user deactivation now uses `isActive=false` (no hard delete), user list supports status filtering (`active`/`inactive`/`all`), admin update can toggle `isActive`, and API response wording was adjusted to `User deactivated`.
+- **Frontend consistency hardening:** GET cache in `frontendnext/lib/api.ts` is now invalidated on mutations to reduce stale UI after writes; test plan group toggling now rebuilds `caseIds` from selected groups only.
+- **Cross-route scope + navigation fixes:** admin test runs/execution now honor selected project scope in API queries; deep-link from Groups to Test Cases (`?caseId=`) now opens the target case for editing.
+- **Automation execution UX improved:** execution workspace now polls automation runs while status is `running`, so result/status updates surface without manual page refresh.
 
 ### ⚠️ Still open / not completed yet (high priority)
 

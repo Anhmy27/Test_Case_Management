@@ -78,7 +78,7 @@ export default function AdminTestPlansRoute() {
           apiRequest<{ groups: RecordAny[] }>(selectedProjectId ? `/api/test-case-groups?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-case-groups", token),
           apiRequest<{ testCases: RecordAny[] }>(selectedProjectId ? `/api/test-cases?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-cases", token),
           apiRequest<{ testPlans: RecordAny[] }>(selectedProjectId ? `/api/test-plans?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-plans", token),
-          apiRequest<{ testRuns: RecordAny[] }>("/api/test-runs", token),
+          apiRequest<{ testRuns: RecordAny[] }>(selectedProjectId ? `/api/test-runs?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-runs", token),
           apiRequest<{ users: RecordAny[] }>("/api/users", token),
         ]);
 
@@ -106,7 +106,7 @@ export default function AdminTestPlansRoute() {
       apiRequest<{ groups: RecordAny[] }>(selectedProjectId ? `/api/test-case-groups?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-case-groups", token),
       apiRequest<{ testCases: RecordAny[] }>(selectedProjectId ? `/api/test-cases?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-cases", token),
       apiRequest<{ testPlans: RecordAny[] }>(selectedProjectId ? `/api/test-plans?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-plans", token),
-      apiRequest<{ testRuns: RecordAny[] }>("/api/test-runs", token),
+      apiRequest<{ testRuns: RecordAny[] }>(selectedProjectId ? `/api/test-runs?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-runs", token),
       apiRequest<{ users: RecordAny[] }>("/api/users", token),
     ]);
 
@@ -140,8 +140,10 @@ export default function AdminTestPlansRoute() {
     setPlanForm((prev: any) => {
       const nextGroupIds = new Set<string>(prev.selectedGroupIds || []);
       if (nextGroupIds.has(groupId)) nextGroupIds.delete(groupId); else nextGroupIds.add(groupId);
-      const nextCaseIds = planProjectCases.filter((testCase) => nextGroupIds.has(getId(testCase.group))).map((testCase) => getId(testCase));
-      return { ...prev, selectedGroupIds: Array.from(nextGroupIds), caseIds: Array.from(new Set([...(prev.caseIds || []), ...nextCaseIds])) };
+      const nextCaseIds = planProjectCases
+        .filter((testCase) => nextGroupIds.has(getId(testCase.group)))
+        .map((testCase) => getId(testCase));
+      return { ...prev, selectedGroupIds: Array.from(nextGroupIds), caseIds: Array.from(new Set(nextCaseIds)) };
     });
   };
 

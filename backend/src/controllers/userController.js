@@ -7,7 +7,7 @@ const {
 } = require('../services/userAdminService');
 
 const listUsers = asyncHandler(async (req, res) => {
-  const users = await listUsersService();
+  const users = await listUsersService(req.query || {});
   res.json({ users });
 });
 
@@ -23,7 +23,7 @@ const updateUserByAdmin = asyncHandler(async (req, res) => {
 
 const deleteUserByAdmin = asyncHandler(async (req, res) => {
   await deleteUserByAdminService(req.params.id, req.user.id);
-  res.json({ message: 'User deleted' });
+  res.json({ message: 'User deactivated' });
 });
 
 module.exports = {

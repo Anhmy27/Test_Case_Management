@@ -2384,7 +2384,11 @@ const listTestPlansService = async (query = {}, user = null) => {
 };
 
 const getTestPlanService = async (testPlanId) => {
-  const testPlan = await TestPlan.findOne({ entityId: toObjectId(testPlanId, 'testPlanId') })
+  const testPlan = await TestPlan.findOne({
+    entityId: toObjectId(testPlanId, 'testPlanId'),
+    isLatest: true,
+    deletedAt: null,
+  })
     .populate('project', 'entityId name code deletedAt')
     .populate('version', 'entityId name deletedAt')
     .populate('owner', 'name email role')
@@ -2402,11 +2406,14 @@ const getTestPlanVersionsService = async (testPlanId) => {
     const versions = await getVersionHistory(TestPlan, testPlanId);
     return versions;
   } catch (err) {
-    return [];
+    if (err?.statusCode === 404) {
+      return [];
+    }
+    throw err;
   }
 };
 
-const assignTestPlanItemsService = async (testPlanId, { assigneeIds }, userId) => {
+const assignTestPlanItemsService = async (testPlanId, { assigneeIds, ownerId }, userId) => {
 
   if (!Array.isArray(assigneeIds) || assigneeIds.length === 0) {
     throw httpError(400, 'assigneeIds[] is required');
@@ -2419,7 +2426,7 @@ const assignTestPlanItemsService = async (testPlanId, { assigneeIds }, userId) =
     project: current.project,
     version: current.version,
     executionMode: current.executionMode,
-    owner: toObjectId(userId, 'ownerId'),
+    owner: ownerId ? toObjectId(ownerId, 'ownerId') : toObjectId(userId, 'ownerId'),
     assignees: assigneeIds.map((id, index) => toObjectId(id, `assigneeIds[${index}]`)),
     items: current.items,
     createdBy: current.createdBy || userId,
@@ -2450,15 +2457,6 @@ const updateTestPlanService = async (
   },
   userId,
 ) => {
-
-  // Resolve testPlan entity -> current document _id to check for runs
-  const planDoc = await TestPlan.findOne({ entityId: toObjectId(testPlanId, 'testPlanId') });
-  const planDocId = planDoc ? planDoc._id : toObjectId(testPlanId, 'testPlanId');
-  const hasRuns = await TestRun.exists({ testPlan: planDocId });
-  if (hasRuns) {
-    throw httpError(400, 'Test plan da co run, khong the update');
-  }
-
   const nextTestPlan = await updateVersionedDocument(TestPlan, testPlanId, async (current) => {
     const nextProjectId = projectId ? toObjectId(projectId, 'projectId') : current.project;
     const nextVersionId = versionId ? toObjectId(versionId, 'versionId') : current.version;
