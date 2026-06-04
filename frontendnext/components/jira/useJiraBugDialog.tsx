@@ -19,6 +19,18 @@ function getAssigneeValue(assignee: RecordAny) {
   return String(assignee.name || assignee.key || assignee.accountId || "");
 }
 
+function getIssueTypeOptionValue(issueType: RecordAny) {
+  return String(issueType.idjira || getId(issueType) || "").trim();
+}
+
+function getValidIssueTypes(issueTypeList: RecordAny[]) {
+  return issueTypeList.filter((issueType) => {
+    const value = getIssueTypeOptionValue(issueType);
+    const name = String(issueType.name || "").trim();
+    return Boolean(value && name);
+  });
+}
+
 type Options = {
   token: string;
   onNotice?: (message: string) => void;
@@ -130,10 +142,9 @@ export function useJiraBugDialog({ token, onNotice }: Options) {
         ).trim();
       }
 
+      const validIssueTypes = getValidIssueTypes(referenceData.issueTypes);
       const defaultIssueType =
-        referenceData.issueTypes.length > 0
-          ? String(referenceData.issueTypes[0].idjira || getId(referenceData.issueTypes[0]) || "")
-          : "";
+        validIssueTypes.length > 0 ? getIssueTypeOptionValue(validIssueTypes[0]) : "";
 
       setJiraBugDialog({
         projectId,
@@ -227,6 +238,8 @@ export function useJiraBugDialog({ token, onNotice }: Options) {
     );
   }, [assigneeOptions, jiraBugDialog?.assignee]);
 
+  const validIssueTypes = useMemo(() => getValidIssueTypes(issueTypes), [issueTypes]);
+
   useEffect(() => {
     if (!jiraBugDialog?.projectId || !assigneeDropdownOpen || !token) {
       return;
@@ -316,13 +329,16 @@ export function useJiraBugDialog({ token, onNotice }: Options) {
                   <select
                     value={jiraBugDialog.issueType}
                     onChange={(event) => updateJiraBugDialog({ issueType: event.target.value })}
+                    disabled={validIssueTypes.length === 0}
                   >
-                    <option value="">Select issue type</option>
-                    {issueTypes.map((issueType) => (
-                      <option key={getId(issueType)} value={issueType.idjira || getId(issueType)}>
-                        {issueType.name}
-                      </option>
-                    ))}
+                    {validIssueTypes.map((issueType) => {
+                      const optionValue = getIssueTypeOptionValue(issueType);
+                      return (
+                        <option key={getId(issueType)} value={optionValue}>
+                          {issueType.name}
+                        </option>
+                      );
+                    })}
                   </select>
                 </label>
                 <label>

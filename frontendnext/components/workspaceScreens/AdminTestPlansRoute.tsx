@@ -134,7 +134,10 @@ export default function AdminTestPlansRoute() {
   const selectedPlanGroupIds = new Set<string>(Array.isArray(planForm.selectedGroupIds) ? planForm.selectedGroupIds : []);
   const selectedPlanCaseIds = new Set<string>(Array.isArray(planForm.caseIds) ? planForm.caseIds : []);
   const selectedPlanGroups = groupCasesByGroup(planProjectGroups.filter((group) => selectedPlanGroupIds.has(getId(group))), planProjectCases);
-  const selectedPlanCasesByGroup = groupCasesByGroup(planProjectGroups, planProjectCases).map(({ group, cases }) => ({ group, cases: cases.filter((testCase) => selectedPlanCaseIds.has(getId(testCase))) }));
+  const selectedPlanCasesByGroup = groupCasesByGroup(
+    planProjectGroups.filter((group) => selectedPlanGroupIds.has(getId(group))),
+    planProjectCases,
+  );
 
   const togglePlanGroup = (groupId: string) => {
     setPlanForm((prev: any) => {

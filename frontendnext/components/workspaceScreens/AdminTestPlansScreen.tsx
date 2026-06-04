@@ -96,10 +96,17 @@ export default function AdminTestPlansScreen(props: Props) {
 
   const visibleCaseIds = useMemo(
     () =>
-      selectedPlanCasesByGroup.flatMap(({ cases }) =>
+      selectedPlanGroups.flatMap(({ cases }) =>
         cases.map((testCase) => getId(testCase)),
       ),
-    [getId, selectedPlanCasesByGroup],
+    [getId, selectedPlanGroups],
+  );
+  const visibleCases = useMemo(
+    () =>
+      selectedPlanCasesByGroup.flatMap(({ group, cases }) =>
+        cases.map((testCase) => ({ testCase, group })),
+      ),
+    [selectedPlanCasesByGroup],
   );
 
   const selectedPlanProject = useMemo(() => {
@@ -685,49 +692,34 @@ export default function AdminTestPlansScreen(props: Props) {
               </div>
             ) : (
               <div className="workspace-checklist__scroll workspace-checklist__scroll--cases">
-                {selectedPlanCasesByGroup.map(({ group, cases }) => {
-                const groupId = getId(group);
-
-                return (
-                  <div key={groupId} className="workspace-checklist__group">
-                    <div className="workspace-checklist__group-header workspace-checklist__group-header--compact">
-                      <strong>{group.name}</strong>
-                      <span>{cases.length} cases</span>
-                    </div>
-                    <div className="workspace-checklist__case-list workspace-checklist__case-list--compact">
-                      {cases.length === 0 ? (
-                        <div className="workspace-checklist__empty workspace-checklist__empty--inline">
-                          Group nay chua co test case.
-                        </div>
-                      ) : (
-                        cases.map((testCase: RecordAny) => {
-                          const caseId = getId(testCase);
-                          const checked = selectedPlanCaseIds.has(caseId);
-
-                          return (
-                            <label
-                              key={caseId}
-                              className={`workspace-checklist__case workspace-checklist__case--compact workspace-checklist__case--singleline${checked ? " is-checked" : ""}`}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={checked}
-                                onChange={() => togglePlanCase(groupId, caseId)}
-                              />
-                              <span className="workspace-checklist__case-main">
-                                <strong>
-                                  {testCase.caseKey} - {testCase.title}
-                                </strong>
-                                <small>{testCase.description || "Khong co mo ta"}</small>
-                              </span>
-                            </label>
-                          );
-                        })
-                      )}
-                    </div>
+                {visibleCases.length === 0 ? (
+                  <div className="workspace-checklist__empty">
+                    Cac group da chon chua co test case.
                   </div>
-                );
-              })}
+                ) : (
+                  visibleCases.map(({ testCase, group }) => {
+                    const caseId = getId(testCase);
+                    const checked = selectedPlanCaseIds.has(caseId);
+                    return (
+                      <label
+                        key={caseId}
+                        className={`workspace-checklist__case workspace-checklist__case--compact workspace-checklist__case--singleline${checked ? " is-checked" : ""}`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => togglePlanCase(getId(group), caseId)}
+                        />
+                        <span className="workspace-checklist__case-main">
+                          <strong>
+                            {testCase.caseKey} - {testCase.title}
+                          </strong>
+                          <small>{testCase.description || "Khong co mo ta"}</small>
+                        </span>
+                      </label>
+                    );
+                  })
+                )}
               </div>
             )}
           </div>
