@@ -8,9 +8,14 @@ const { errorMiddleware } = require('./middlewares/errorMiddleware');
 
 const app = express();
 
+const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    origin: corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins,
   })
 );
 app.use(express.json({ limit: '2mb' }));

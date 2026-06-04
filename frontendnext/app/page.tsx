@@ -18,7 +18,6 @@ export default function Home() {
 
   useEffect(() => {
     const token = typeof window !== "undefined" ? window.localStorage.getItem("tcm_token") || "" : "";
-    
     if (!token) return;
 
     (async () => {
