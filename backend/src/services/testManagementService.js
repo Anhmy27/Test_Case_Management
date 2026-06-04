@@ -1423,7 +1423,21 @@ const listTestCasesService = async (query = {}) => {
       // project scope exists; resolve group within that project
       const project = await ensureProjectExists(query.projectId);
       const resolvedGroup = await ensureGroupExists(groupId, project._id);
-      baseFilters.group = resolvedGroup._id;
+      const groupVersionIds = await TestCaseGroup.find({
+        entityId: resolvedGroup.entityId || resolvedGroup._id,
+      }).distinct('_id');
+      const groupRefs = Array.from(
+        new Set(
+          [
+            ...(groupVersionIds || []),
+            resolvedGroup.entityId,
+            resolvedGroup._id,
+          ]
+            .filter(Boolean)
+            .map((value) => String(value)),
+        ),
+      ).map((value) => toObjectId(value, 'groupId'));
+      baseFilters.group = { $in: groupRefs };
     } else {
       // no project scope provided — resolve group globally by entityId or _id
       let resolvedGroup = await TestCaseGroup.findOne({
@@ -1437,7 +1451,21 @@ const listTestCasesService = async (query = {}) => {
       if (!resolvedGroup) {
         throw httpError(404, 'Group not found');
       }
-      baseFilters.group = resolvedGroup._id;
+      const groupVersionIds = await TestCaseGroup.find({
+        entityId: resolvedGroup.entityId || resolvedGroup._id,
+      }).distinct('_id');
+      const groupRefs = Array.from(
+        new Set(
+          [
+            ...(groupVersionIds || []),
+            resolvedGroup.entityId,
+            resolvedGroup._id,
+          ]
+            .filter(Boolean)
+            .map((value) => String(value)),
+        ),
+      ).map((value) => toObjectId(value, 'groupId'));
+      baseFilters.group = { $in: groupRefs };
     }
   }
 
