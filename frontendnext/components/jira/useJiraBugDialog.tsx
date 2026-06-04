@@ -14,6 +14,7 @@ import {
 } from "@/components/jira/jiraBugUtils";
 
 type RecordAny = Record<string, any>;
+type JiraVersionSuggestion = { id: string; name: string; description?: string };
 
 function getAssigneeValue(assignee: RecordAny) {
   return String(assignee.name || assignee.key || assignee.accountId || "");
@@ -31,6 +32,35 @@ function getValidIssueTypes(issueTypeList: RecordAny[]) {
   });
 }
 
+function parseLabelTokens(value: string) {
+  return value
+    .split(/[,;]/)
+    .map((token) => token.trim())
+    .filter(Boolean);
+}
+
+function joinLabelTokens(tokens: string[]) {
+  return tokens.join(", ");
+}
+
+function addLabelToken(current: string, label: string) {
+  const normalizedLabel = String(label || "").trim();
+  if (!normalizedLabel) {
+    return current;
+  }
+
+  const tokens = parseLabelTokens(current);
+  if (tokens.includes(normalizedLabel)) {
+    return current;
+  }
+
+  return joinLabelTokens([...tokens, normalizedLabel]);
+}
+
+function removeLabelToken(current: string, label: string) {
+  return joinLabelTokens(parseLabelTokens(current).filter((token) => token !== label));
+}
+
 type Options = {
   token: string;
   onNotice?: (message: string) => void;
@@ -38,7 +68,6 @@ type Options = {
 
 export function useJiraBugDialog({ token, onNotice }: Options) {
   const [projects, setProjects] = useState<RecordAny[]>([]);
-  const [versions, setVersions] = useState<RecordAny[]>([]);
   const [issueTypes, setIssueTypes] = useState<RecordAny[]>([]);
   const [referenceDataLoaded, setReferenceDataLoaded] = useState(false);
 
@@ -47,37 +76,39 @@ export function useJiraBugDialog({ token, onNotice }: Options) {
   const [assigneeOptions, setAssigneeOptions] = useState<RecordAny[]>([]);
   const [assigneeLoading, setAssigneeLoading] = useState(false);
   const [assigneeDropdownOpen, setAssigneeDropdownOpen] = useState(false);
+  const [labelQuery, setLabelQuery] = useState("");
+  const [labelSuggestions, setLabelSuggestions] = useState<string[]>([]);
+  const [labelLoading, setLabelLoading] = useState(false);
+  const [versionQuery, setVersionQuery] = useState("");
+  const [versionSuggestions, setVersionSuggestions] = useState<JiraVersionSuggestion[]>([]);
+  const [versionLoading, setVersionLoading] = useState(false);
 
   const ensureReferenceData = useCallback(async () => {
     if (!token) {
-      return { projects: [] as RecordAny[], versions: [] as RecordAny[], issueTypes: [] as RecordAny[] };
+      return { projects: [] as RecordAny[], issueTypes: [] as RecordAny[] };
     }
 
     if (referenceDataLoaded) {
-      return { projects, versions, issueTypes };
+      return { projects, issueTypes };
     }
 
-    const [projectsResponse, versionsResponse, issueTypesResponse] = await Promise.all([
+    const [projectsResponse, issueTypesResponse] = await Promise.all([
       apiRequest<{ projects: RecordAny[] }>("/api/projects", token),
-      apiRequest<{ versions: RecordAny[] }>("/api/versions", token),
       apiRequest<{ issueTypes: RecordAny[] }>("/api/issue-types", token),
     ]);
 
     const nextProjects = Array.isArray(projectsResponse.projects) ? projectsResponse.projects : [];
-    const nextVersions = Array.isArray(versionsResponse.versions) ? versionsResponse.versions : [];
     const nextIssueTypes = Array.isArray(issueTypesResponse.issueTypes) ? issueTypesResponse.issueTypes : [];
 
     setProjects(nextProjects);
-    setVersions(nextVersions);
     setIssueTypes(nextIssueTypes);
     setReferenceDataLoaded(true);
 
     return {
       projects: nextProjects,
-      versions: nextVersions,
       issueTypes: nextIssueTypes,
     };
-  }, [issueTypes, projects, referenceDataLoaded, token, versions]);
+  }, [issueTypes, projects, referenceDataLoaded, token]);
 
   const closeJiraBugDialog = useCallback(() => {
     setJiraBugDialog(null);
@@ -85,6 +116,12 @@ export function useJiraBugDialog({ token, onNotice }: Options) {
     setAssigneeOptions([]);
     setAssigneeDropdownOpen(false);
     setAssigneeLoading(false);
+    setLabelQuery("");
+    setLabelSuggestions([]);
+    setLabelLoading(false);
+    setVersionQuery("");
+    setVersionSuggestions([]);
+    setVersionLoading(false);
   }, []);
 
   const updateJiraBugDialog = useCallback((patch: Partial<JiraBugDialogState>) => {
@@ -93,7 +130,7 @@ export function useJiraBugDialog({ token, onNotice }: Options) {
 
   const openJiraBugDialog = useCallback(
     async (run: RecordAny, result: RecordAny) => {
-      let referenceData: { projects: RecordAny[]; versions: RecordAny[]; issueTypes: RecordAny[] };
+      let referenceData: { projects: RecordAny[]; issueTypes: RecordAny[] };
       try {
         referenceData = await ensureReferenceData();
       } catch (error) {
@@ -121,27 +158,6 @@ export function useJiraBugDialog({ token, onNotice }: Options) {
         return;
       }
 
-      let runVersionIdJira = "";
-      const runVersionRef = String(getId(run?.version) || run?.version || "").trim();
-      if (runVersionRef) {
-        const matched = referenceData.versions.find(
-          (version) => getId(version) === runVersionRef || String(version?._id || "") === runVersionRef,
-        );
-        if (matched) {
-          runVersionIdJira = String(matched.idjira || "").trim();
-        }
-      }
-
-      if (!runVersionIdJira) {
-        runVersionIdJira = String(
-          run?.version?.idjira ||
-            run?.testPlan?.version?.idjira ||
-            run?.testPlanVersion?.idjira ||
-            run?.version?.name ||
-            "",
-        ).trim();
-      }
-
       const validIssueTypes = getValidIssueTypes(referenceData.issueTypes);
       const defaultIssueType =
         validIssueTypes.length > 0 ? getIssueTypeOptionValue(validIssueTypes[0]) : "";
@@ -159,7 +175,7 @@ export function useJiraBugDialog({ token, onNotice }: Options) {
         priority: mapPriorityToJira(result?.testCase?.priority),
         assignee: "",
         originalEstimate: "",
-        versions: runVersionIdJira ? [runVersionIdJira] : [],
+        versions: [],
         labels: "",
         submitting: false,
         error: "",
@@ -167,6 +183,10 @@ export function useJiraBugDialog({ token, onNotice }: Options) {
       setAssigneeQuery("");
       setAssigneeOptions([]);
       setAssigneeDropdownOpen(false);
+      setLabelQuery("");
+      setLabelSuggestions([]);
+      setVersionQuery("");
+      setVersionSuggestions([]);
     },
     [ensureReferenceData, onNotice],
   );
@@ -210,35 +230,121 @@ export function useJiraBugDialog({ token, onNotice }: Options) {
     }
   }, [closeJiraBugDialog, jiraBugDialog, onNotice, token, updateJiraBugDialog]);
 
-  const selectedAssigneeLabel = useMemo(() => {
-    if (!jiraBugDialog?.assignee) {
-      return "";
-    }
-
-    const selectedAssignee = assigneeOptions.find(
-      (assignee) => getAssigneeValue(assignee) === jiraBugDialog.assignee,
-    );
-
-    return String(
-      selectedAssignee?.displayName ||
-        selectedAssignee?.name ||
-        selectedAssignee?.key ||
-        jiraBugDialog.assignee ||
-        "",
-    );
-  }, [assigneeOptions, jiraBugDialog?.assignee]);
-
-  const selectedAssigneeDetail = useMemo(() => {
-    if (!jiraBugDialog?.assignee) {
-      return null;
-    }
-
-    return (
-      assigneeOptions.find((assignee) => getAssigneeValue(assignee) === jiraBugDialog.assignee) || null
-    );
-  }, [assigneeOptions, jiraBugDialog?.assignee]);
+  const selectedAssigneeDetail = jiraBugDialog?.assignee
+    ? assigneeOptions.find((assignee) => getAssigneeValue(assignee) === jiraBugDialog.assignee) || null
+    : null;
+  const selectedAssigneeLabel = String(
+    selectedAssigneeDetail?.displayName ||
+      selectedAssigneeDetail?.name ||
+      selectedAssigneeDetail?.key ||
+      jiraBugDialog?.assignee ||
+      "",
+  );
 
   const validIssueTypes = useMemo(() => getValidIssueTypes(issueTypes), [issueTypes]);
+  const selectedLabels = useMemo(
+    () => (jiraBugDialog ? parseLabelTokens(jiraBugDialog.labels) : []),
+    [jiraBugDialog],
+  );
+  const selectedVersions = jiraBugDialog?.versions || [];
+  const selectedVersionNames = selectedVersions.map((versionId) => {
+    const matched = versionSuggestions.find((item) => item.id === versionId);
+    return {
+      id: versionId,
+      name: matched?.name || versionId,
+      description: matched?.description || "",
+    };
+  });
+
+  useEffect(() => {
+    if (!jiraBugDialog || !token) {
+      return;
+    }
+
+    let cancelled = false;
+    const timeoutId = window.setTimeout(() => {
+      setLabelLoading(true);
+
+      void apiRequest<{ suggestions?: Array<{ label?: string }> }>(
+        `/api/jira/label-suggestions?query=${encodeURIComponent(labelQuery)}`,
+        token,
+      )
+        .then((response) => {
+          if (cancelled) {
+            return;
+          }
+
+          const suggestions = Array.isArray(response.suggestions) ? response.suggestions : [];
+          const labels = suggestions
+            .map((item) => String(item.label || "").trim())
+            .filter(Boolean);
+          setLabelSuggestions(labels);
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setLabelSuggestions([]);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setLabelLoading(false);
+          }
+        });
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [jiraBugDialog, labelQuery, token]);
+
+  useEffect(() => {
+    if (!jiraBugDialog?.projectId || !token) {
+      return;
+    }
+
+    let cancelled = false;
+    const timeoutId = window.setTimeout(() => {
+      setVersionLoading(true);
+
+      const url =
+        `/api/jira/version-suggestions?projectId=${encodeURIComponent(jiraBugDialog.projectId)}` +
+        `&maxResults=100&startAt=0&query=${encodeURIComponent(versionQuery)}`;
+
+      void apiRequest<{ suggestions?: Array<{ id?: string; name?: string; description?: string }> }>(url, token)
+        .then((response) => {
+          if (cancelled) {
+            return;
+          }
+
+          const suggestions = Array.isArray(response.suggestions) ? response.suggestions : [];
+          setVersionSuggestions(
+            suggestions
+              .map((item) => ({
+                id: String(item.id || "").trim(),
+                name: String(item.name || "").trim(),
+                description: String(item.description || "").trim(),
+              }))
+              .filter((item) => item.id && item.name),
+          );
+        })
+        .catch(() => {
+          if (!cancelled) {
+            setVersionSuggestions([]);
+          }
+        })
+        .finally(() => {
+          if (!cancelled) {
+            setVersionLoading(false);
+          }
+        });
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [jiraBugDialog?.projectId, token, versionQuery]);
 
   useEffect(() => {
     if (!jiraBugDialog?.projectId || !assigneeDropdownOpen || !token) {
@@ -249,15 +355,12 @@ export function useJiraBugDialog({ token, onNotice }: Options) {
     const projectKey = getProjectJiraProjectKey(project);
 
     if (!projectKey) {
-      setAssigneeOptions([]);
-      setAssigneeLoading(false);
       return;
     }
 
     const url = `/api/jira/assignable-users?projectKeys=${encodeURIComponent(projectKey)}&maxResults=100&username=${encodeURIComponent(assigneeQuery || "")}`;
 
     let cancelled = false;
-    setAssigneeLoading(true);
 
     void apiRequest<{ users: RecordAny[] }>(url, token)
       .then((response) => {
@@ -385,11 +488,127 @@ export function useJiraBugDialog({ token, onNotice }: Options) {
               <label>
                 <span>Labels</span>
                 <input
-                  value={jiraBugDialog.labels}
-                  onChange={(event) => updateJiraBugDialog({ labels: event.target.value })}
-                  placeholder="BE, FE"
+                  type="search"
+                  value={labelQuery}
+                  onChange={(event) => setLabelQuery(event.target.value)}
+                  placeholder="Tim label trong Jira..."
                 />
               </label>
+              {selectedLabels.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {selectedLabels.map((label) => (
+                    <span key={label} className="workspace-pill bg-slate-100 text-slate-700">
+                      {label}
+                      <button
+                        type="button"
+                        className="ml-2 text-slate-500 hover:text-slate-800"
+                        onClick={() =>
+                          updateJiraBugDialog({
+                            labels: removeLabelToken(jiraBugDialog.labels, label),
+                          })
+                        }
+                        aria-label={`Remove label ${label}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              <label>
+                <span>Chon label</span>
+                <select
+                  value=""
+                  disabled={labelLoading || labelSuggestions.length === 0}
+                  onChange={(event) => {
+                    const pickedLabel = event.target.value;
+                    if (!pickedLabel) {
+                      return;
+                    }
+
+                    updateJiraBugDialog({
+                      labels: addLabelToken(jiraBugDialog.labels, pickedLabel),
+                    });
+                  }}
+                >
+                  <option value="">
+                    {labelLoading
+                      ? "Dang tai label..."
+                      : labelSuggestions.length === 0
+                        ? "Khong co label phu hop"
+                        : "Chon label"}
+                  </option>
+                  {labelSuggestions.map((label) => (
+                    <option key={label} value={label} disabled={selectedLabels.includes(label)}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="workspace-note">Labels duoc lay tu Jira suggest API theo query ban nhap.</div>
+              <label>
+                <span>Affects Versions</span>
+                <input
+                  type="search"
+                  value={versionQuery}
+                  onChange={(event) => setVersionQuery(event.target.value)}
+                  placeholder="Tim version trong Jira..."
+                />
+              </label>
+              {selectedVersionNames.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {selectedVersionNames.map((version) => (
+                    <span key={version.id} className="workspace-pill bg-slate-100 text-slate-700">
+                      {version.name}
+                      <button
+                        type="button"
+                        className="ml-2 text-slate-500 hover:text-slate-800"
+                        onClick={() =>
+                          updateJiraBugDialog({
+                            versions: selectedVersions.filter((item) => item !== version.id),
+                          })
+                        }
+                        aria-label={`Remove version ${version.name}`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              <label>
+                <span>Chon Affects Version</span>
+                <select
+                  value=""
+                  disabled={versionLoading || versionSuggestions.length === 0}
+                  onChange={(event) => {
+                    const pickedVersionId = event.target.value;
+                    if (!pickedVersionId || selectedVersions.includes(pickedVersionId)) {
+                      return;
+                    }
+
+                    updateJiraBugDialog({
+                      versions: [...selectedVersions, pickedVersionId],
+                    });
+                  }}
+                >
+                  <option value="">
+                    {versionLoading
+                      ? "Dang tai version..."
+                      : versionSuggestions.length === 0
+                        ? "Khong co version phu hop"
+                        : "Chon Affects Version"}
+                  </option>
+                  {versionSuggestions.map((version) => (
+                    <option key={version.id} value={version.id} disabled={selectedVersions.includes(version.id)}>
+                      {version.description ? `${version.name} - ${version.description}` : version.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="workspace-note">
+                Affects Versions duoc lay tu Jira API theo project va query.
+              </div>
               <label>
                 <span>Original Estimate</span>
                 <input
@@ -480,6 +699,7 @@ export function useJiraBugDialog({ token, onNotice }: Options) {
                           setAssigneeLoading(false);
                         }}
                         role="option"
+                        aria-selected={getAssigneeValue(assignee) === jiraBugDialog.assignee}
                       >
                         <strong>{assignee.displayName || assignee.name || assignee.key}</strong>
                         <span>{assignee.emailAddress || assignee.name || assignee.key}</span>

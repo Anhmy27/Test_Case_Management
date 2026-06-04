@@ -725,18 +725,14 @@ const restoreProjectService = async (projectId) => {
 };
 
 // Release version CRUD
-const createVersionService = async ({ projectId, name, releaseDate, notes, idjira, createdBy }) => {
+const createVersionService = async ({ projectId, name, releaseDate, notes, createdBy }) => {
   if (!projectId || !name) {
     throw httpError(400, 'projectId and name are required');
   }
 
   const project = await ensureProjectExists(projectId);
   const normalizedName = normalizeName(name);
-  const normalizedIdJira = idjira ? String(idjira).trim() : '';
   const projectRef = project.entityId || project._id;
-
-  const orMatchers = [{ name: normalizedName }];
-  if (normalizedIdJira) orMatchers.push({ idjira: normalizedIdJira });
 
   const projectVersionIds = await Project.find({ entityId: project.entityId }).distinct('_id');
   const projectRefs = Array.from(
@@ -747,7 +743,7 @@ const createVersionService = async ({ projectId, name, releaseDate, notes, idjir
     project: { $in: projectRefs },
     deletedAt: null,
     isLatest: true,
-    $or: orMatchers,
+    name: normalizedName,
   }).lean();
   if (existingVersion) {
     throw httpError(409, `Version "${name}" already exists in this project`);
@@ -757,7 +753,6 @@ const createVersionService = async ({ projectId, name, releaseDate, notes, idjir
     project: projectRef,
     projectVersionId: project._id,
     name: normalizedName,
-    idjira: normalizedIdJira,
     releaseDate,
     notes: notes || '',
     createdBy,
@@ -808,7 +803,7 @@ const listVersionsService = async ({ projectId, search, includeDeleted }) => {
   }
 
   if (search) {
-    filters.push(buildSearchMatch(search, ['name', 'notes', 'idjira']));
+    filters.push(buildSearchMatch(search, ['name', 'notes']));
   }
 
   const match = filters.length === 0 ? {} : filters.length === 1 ? filters[0] : { $and: filters };
@@ -879,7 +874,7 @@ const getVersionService = async (versionId) => {
 };
 
 const updateVersionService = async (versionId, payload) => {
-  const { name, releaseDate, notes, idjira } = payload;
+  const { name, releaseDate, notes } = payload;
   const versionLookupId = toObjectId(versionId, 'versionId');
   const currentVersion = await Version.findOne({
     $and: [
@@ -905,12 +900,8 @@ const updateVersionService = async (versionId, payload) => {
     const latestProject = await resolveLatestProjectSnapshot(current.project, { includeDeleted: false });
 
     const nextName = name ? normalizeName(name) : current.name;
-    const nextIdJira = idjira !== undefined ? String(idjira || '').trim() : current.idjira;
     const nextReleaseDate = releaseDate !== undefined ? (releaseDate || null) : current.releaseDate;
     const nextNotes = notes !== undefined ? notes || '' : current.notes;
-
-    const orMatchers = [{ name: nextName }];
-    if (nextIdJira) orMatchers.push({ idjira: nextIdJira });
 
     const project = await ensureProjectExists(current.project, { includeDeleted: false });
     const projectVersionIds = await Project.find({ entityId: project.entityId }).distinct('_id');
@@ -924,18 +915,17 @@ const updateVersionService = async (versionId, payload) => {
       project: { $in: currentProjectRefs },
       $and: [
         activeLatestFilter(),
-        { $or: orMatchers },
+        { name: nextName },
       ],
     }).lean();
     if (duplicate) {
-      throw httpError(409, `Version "${nextName}" or Jira id already exists in this project`);
+      throw httpError(409, `Version "${nextName}" already exists in this project`);
     }
 
     return {
       project: current.project,
       projectVersionId: latestProject._id,
       name: nextName,
-      idjira: nextIdJira,
       releaseDate: nextReleaseDate,
       notes: nextNotes,
       createdBy: current.createdBy,
@@ -983,11 +973,11 @@ const restoreVersionService = async (versionId) => {
     project: version.project,
     $and: [
       activeLatestFilter(),
-      { $or: [{ name: version.name }, ...(version.idjira ? [{ idjira: version.idjira }] : [])] },
+      { name: version.name },
     ],
   }).lean();
   if (duplicate) {
-    throw httpError(409, `Version "${version.name}" or Jira id already exists in this project`);
+    throw httpError(409, `Version "${version.name}" already exists in this project`);
   }
 
   version.deletedAt = null;

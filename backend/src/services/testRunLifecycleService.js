@@ -309,7 +309,6 @@ const getMyRunItemsService = async (runId, user) => {
             _id: version._id,
             entityId: version.entityId,
             name: version.name,
-            idjira: version.idjira,
           }
         : testRun.version || null,
       testPlan: plan

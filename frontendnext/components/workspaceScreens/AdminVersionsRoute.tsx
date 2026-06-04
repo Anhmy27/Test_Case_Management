@@ -22,7 +22,7 @@ export default function AdminVersionsRoute() {
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [versions, setVersions] = useState<RecordAny[]>([]);
   const [editingVersionId, setEditingVersionId] = useState("");
-  const [versionForm, setVersionForm] = useState<{ projectId: string; name: string; idjira?: string; releaseDate: string }>({ projectId: "", name: "", idjira: "", releaseDate: "" });
+  const [versionForm, setVersionForm] = useState<{ projectId: string; name: string; releaseDate: string }>({ projectId: "", name: "", releaseDate: "" });
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -63,11 +63,11 @@ export default function AdminVersionsRoute() {
       const payload = { ...versionForm, projectId: versionForm.projectId || selectedProjectId };
       if (editingVersionId) { await apiRequest(`/api/versions/${editingVersionId}`, token, { method: "PUT", body: JSON.stringify(payload) }); setMessage("Version updated"); }
       else { await apiRequest(`/api/versions`, token, { method: "POST", body: JSON.stringify(payload) }); setMessage("Version created"); }
-      setEditingVersionId(""); setVersionForm({ projectId: "", name: "", idjira: "", releaseDate: "" }); await refreshVersions();
+      setEditingVersionId(""); setVersionForm({ projectId: "", name: "", releaseDate: "" }); await refreshVersions();
     } catch (error) { setMessage(error instanceof Error ? error.message : "Unable to save version"); }
   };
-  const startVersionEdit = (version: RecordAny) => { setEditingVersionId(getId(version)); setVersionForm({ projectId: getId(version.project), name: version.name || "", idjira: version.idjira || "", releaseDate: version.releaseDate ? String(version.releaseDate).slice(0, 10) : "" }); };
-  const cancelVersionEdit = () => { setEditingVersionId(""); setVersionForm({ projectId: "", name: "", idjira: "", releaseDate: "" }); };
+  const startVersionEdit = (version: RecordAny) => { setEditingVersionId(getId(version)); setVersionForm({ projectId: getId(version.project), name: version.name || "", releaseDate: version.releaseDate ? String(version.releaseDate).slice(0, 10) : "" }); };
+  const cancelVersionEdit = () => { setEditingVersionId(""); setVersionForm({ projectId: "", name: "", releaseDate: "" }); };
   const deleteVersion = async (versionId: string) => { await apiRequest(`/api/versions/${versionId}`, token, { method: "DELETE" }); await refreshVersions(); };
   const handleNavigate = (tab: string) => router.push(`/workspace/admin/${tab}`);
   const handleLogout = () => { if (typeof window !== "undefined") { window.localStorage.removeItem("tcm_token"); window.localStorage.removeItem("tcm_selected_project_id"); } router.replace("/"); };

@@ -9,23 +9,26 @@ const getJiraConfig = () => {
   ).trim().replace(/\/$/, '');
   const username = String(process.env.JIRA_USERNAME || '').trim();
   const password = String(process.env.JIRA_PASSWORD || '').trim();
+  const cookie = String(process.env.JIRA_COOKIE || '').trim();
 
   const missingFields = [];
   if (!baseURL) {
     missingFields.push('JIRA_BASE_URL');
   }
-  if (!username) {
-    missingFields.push('JIRA_USERNAME');
-  }
-  if (!password) {
-    missingFields.push('JIRA_PASSWORD');
+  if (!cookie) {
+    if (!username) {
+      missingFields.push('JIRA_USERNAME');
+    }
+    if (!password) {
+      missingFields.push('JIRA_PASSWORD');
+    }
   }
 
   if (missingFields.length > 0) {
     throw httpError(500, `Jira integration is not configured: missing ${missingFields.join(', ')}`);
   }
 
-  return { baseURL, username, password };
+  return { baseURL, username, password, cookie };
 };
 
 const extractToken = (html, tokenName) => {
@@ -56,9 +59,63 @@ const verifyJiraSession = async (context) => {
   return dashboardResponse;
 };
 
+const getContextCookieHeader = async (context, baseURL) => {
+  const state = await context.storageState();
+  const cookies = Array.isArray(state?.cookies) ? state.cookies : [];
+  if (cookies.length === 0) {
+    return '';
+  }
+
+  let host = '';
+  try {
+    host = new URL(baseURL).hostname;
+  } catch {
+    host = '';
+  }
+
+  const nowSec = Math.floor(Date.now() / 1000);
+  const scoped = cookies.filter((cookie) => {
+    if (!cookie?.name) {
+      return false;
+    }
+    if (typeof cookie.expires === 'number' && cookie.expires > 0 && cookie.expires < nowSec) {
+      return false;
+    }
+
+    if (!host) {
+      return true;
+    }
+
+    const domain = String(cookie.domain || '').replace(/^\./, '');
+    return Boolean(domain) && (host === domain || host.endsWith(`.${domain}`));
+  });
+
+  return scoped.map((cookie) => `${cookie.name}=${cookie.value || ''}`).join('; ');
+};
+
 const createLoggedInContext = async () => {
-  const { baseURL, username, password } = getJiraConfig();
-  const context = await request.newContext({ baseURL });
+  const { baseURL, username, password, cookie } = getJiraConfig();
+  const context = await request.newContext({
+    baseURL,
+    extraHTTPHeaders: cookie
+      ? {
+          Cookie: cookie,
+        }
+      : undefined,
+  });
+
+  if (cookie) {
+    try {
+      await verifyJiraSession(context);
+      console.log('[Jira] session verified via JIRA_COOKIE');
+      return context;
+    } catch (cookieErr) {
+      if (!username || !password) {
+        throw cookieErr;
+      }
+      console.log('[Jira] JIRA_COOKIE invalid, fallback to username/password login');
+    }
+  }
 
   console.log('[Jira] login start', {
     baseURL,
@@ -212,6 +269,109 @@ const createBugIssue = async ({
   }
 };
 
+const suggestLabels = async ({ query = '' } = {}) => {
+  const context = await createLoggedInContext();
+  const { baseURL } = getJiraConfig();
+
+  try {
+    const params = new URLSearchParams();
+    params.set('query', String(query || ''));
+    const cookieHeader = await getContextCookieHeader(context, baseURL);
+
+    const response = await context.get(`/rest/api/1.0/labels/suggest?${params.toString()}`, {
+      headers: {
+        Accept: 'application/json',
+        ...(cookieHeader ? { Cookie: cookieHeader } : {}),
+      },
+    });
+
+    if (!response.ok()) {
+      const body = await response.text();
+      throw httpError(502, body || 'Unable to load Jira label suggestions');
+    }
+
+    const rawBody = await response.text();
+    const body = String(rawBody || '').trim();
+
+    // Jira may return JSON (preferred) or XML based on gateway/proxy behavior.
+    if (body.startsWith('{') || body.startsWith('[')) {
+      let parsed;
+      try {
+        parsed = JSON.parse(body);
+      } catch {
+        throw httpError(502, 'Jira labels response is not valid JSON');
+      }
+
+      const suggestions = Array.isArray(parsed?.suggestions) ? parsed.suggestions : [];
+      return suggestions
+        .map((item) => String(item?.label || '').trim())
+        .filter(Boolean);
+    }
+
+    const xmlMatches = [...body.matchAll(/<label>([^<]+)<\/label>/gi)];
+    if (xmlMatches.length > 0) {
+      return xmlMatches
+        .map((match) => String(match[1] || '').trim())
+        .filter(Boolean);
+    }
+
+    throw httpError(502, 'Unable to parse Jira label suggestions response');
+  } finally {
+    await context.dispose();
+  }
+};
+
+const suggestVersions = async ({
+  projectIds,
+  query = '',
+  maxResults = 100,
+  startAt = 0,
+} = {}) => {
+  const context = await createLoggedInContext();
+  const { baseURL } = getJiraConfig();
+
+  try {
+    const params = new URLSearchParams();
+    params.set('maxResults', String(maxResults || 100));
+    params.set('startAt', String(startAt || 0));
+    params.set('projectIds', String(projectIds || ''));
+    params.set('query', String(query || ''));
+    const cookieHeader = await getContextCookieHeader(context, baseURL);
+
+    const response = await context.get(`/rest/api/2/version?${params.toString()}`, {
+      headers: {
+        Accept: 'application/json',
+        ...(cookieHeader ? { Cookie: cookieHeader } : {}),
+      },
+    });
+
+    if (!response.ok()) {
+      const body = await response.text();
+      throw httpError(502, body || 'Unable to load Jira version suggestions');
+    }
+
+    const rawBody = await response.text();
+    const body = String(rawBody || '').trim();
+    let parsed;
+    try {
+      parsed = JSON.parse(body);
+    } catch {
+      throw httpError(502, 'Jira versions response is not valid JSON');
+    }
+
+    const values = Array.isArray(parsed?.values) ? parsed.values : [];
+    return values
+      .map((item) => ({
+        id: String(item?.id || '').trim(),
+        name: String(item?.name || '').trim(),
+        description: String(item?.description || '').trim(),
+      }))
+      .filter((item) => item.id && item.name);
+  } finally {
+    await context.dispose();
+  }
+};
+
 const searchAssignableUsers = async ({
   projectKeys,
   username = '',
@@ -241,5 +401,7 @@ const searchAssignableUsers = async ({
 
 module.exports = {
   createBugIssue,
+  suggestLabels,
+  suggestVersions,
   searchAssignableUsers,
 };

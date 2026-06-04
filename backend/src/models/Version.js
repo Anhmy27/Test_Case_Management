@@ -20,12 +20,6 @@ const versionSchema = new mongoose.Schema(
       required: true,
       trim: true,
     },
-    idjira: {
-      type: String,
-      trim: true,
-      default: '',
-      index: true,
-    },
     releaseDate: {
       type: Date,
     },

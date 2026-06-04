@@ -1,7 +1,12 @@
 const mongoose = require('mongoose');
 const Project = require('../models/Project');
 const { httpError } = require('../utils/httpError');
-const { createBugIssue, searchAssignableUsers } = require('./jiraService');
+const {
+  createBugIssue,
+  suggestLabels,
+  suggestVersions,
+  searchAssignableUsers,
+} = require('./jiraService');
 
 const getProjectById = async (projectId) => {
   if (!mongoose.Types.ObjectId.isValid(projectId)) {
@@ -96,7 +101,43 @@ const getAssignableUsersService = async ({
   return { users };
 };
 
+const getLabelSuggestionsService = async ({ query = '' } = {}) => {
+  const labels = await suggestLabels({ query: String(query || '') });
+  return {
+    suggestions: labels.map((label) => ({ label })),
+  };
+};
+
+const getVersionSuggestionsService = async ({
+  projectId,
+  query = '',
+  maxResults = '100',
+  startAt = '0',
+} = {}) => {
+  if (!projectId) {
+    throw httpError(400, 'projectId is required');
+  }
+
+  const project = await getProjectById(projectId);
+  const versions = await suggestVersions({
+    projectIds: String(project.pid || ''),
+    query: String(query || ''),
+    maxResults: Number(maxResults) || 100,
+    startAt: Number(startAt) || 0,
+  });
+
+  return {
+    suggestions: versions.map((item) => ({
+      id: item.id,
+      name: item.name,
+      description: item.description,
+    })),
+  };
+};
+
 module.exports = {
   logBugService,
   getAssignableUsersService,
+  getLabelSuggestionsService,
+  getVersionSuggestionsService,
 };
