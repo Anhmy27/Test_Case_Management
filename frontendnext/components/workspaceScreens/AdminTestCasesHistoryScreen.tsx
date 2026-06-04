@@ -18,7 +18,7 @@ type Props = {
   matchesSearch: (...values: Array<string | number | undefined | null>) => boolean;
 };
 
-export default function AdminTestCasesDetailScreen({ selectedProjectId, detailGroupId, setDetailGroupId, scopedGroups, detailLoading, detailRows, matchesSearch }: Props) {
+export default function AdminTestCasesHistoryScreen({ selectedProjectId, detailGroupId, setDetailGroupId, scopedGroups, detailLoading, detailRows, matchesSearch }: Props) {
   const safeDetailRows = Array.isArray(detailRows) ? detailRows : [];
   const [focusedCase, setFocusedCase] = useState<RecordAny | null>(null);
 
@@ -52,10 +52,10 @@ export default function AdminTestCasesDetailScreen({ selectedProjectId, detailGr
   return (
     <div className="workspace-stack">
       {(selectedProjectId === undefined || selectedProjectId === null) ? (
-        <div className="workspace-banner">Hay chon project trong Project scope de xem Test Cases Detail.</div>
+        <div className="workspace-banner">Hay chon project trong Project scope de xem Execution History.</div>
       ) : (
         <>
-          <SectionCard title="Test Cases Detail" subtitle="Loc theo group va xem 3 status pass/fail/blocked/skip gan nhat">
+          <SectionCard title="Execution History" subtitle="Loc theo group va xem 3 status pass/fail/blocked/skip gan nhat">
             <div className="workspace-filterbar">
               <div className="workspace-filterbar__label">
                 <span>Group filter</span>

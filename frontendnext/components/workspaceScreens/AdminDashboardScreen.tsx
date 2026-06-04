@@ -301,7 +301,7 @@ export default function AdminDashboardScreen({
         <button
           key="action"
           type="button"
-          onClick={() => onNavigate?.("test-cases-detail")}
+          onClick={() => onNavigate?.("test-cases-history")}
           className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-900"
         >
           Investigate

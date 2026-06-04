@@ -127,7 +127,7 @@ router.delete('/test-case-groups/:groupId', authorize('admin'), deleteTestCaseGr
 router.patch('/test-case-groups/:groupId/restore', authorize('admin'), restoreTestCaseGroup);
 
 router.get('/test-cases', listTestCases);
-router.get('/test-cases/detail', listTestCaseDetails);
+router.get('/test-cases/history', listTestCaseDetails);
 router.post('/test-cases/import', authorize('admin'), upload.single('file'), importTestCases);
 router.get('/test-cases/:testCaseId', getTestCase);
 router.get('/test-cases/:testCaseId/versions', getTestCaseVersions);

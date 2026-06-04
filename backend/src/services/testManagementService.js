@@ -1572,14 +1572,14 @@ const listTestCaseDetailsService = async (query = {}) => {
 
   const filters = [
     { project: { $in: projectObjectIds } },
-    activeLatestFilter(),
+    { deletedAt: null },
   ];
   let resolvedGroup = null;
   if (groupId) {
     // Resolve provided groupId (could be entityId or version _id) to all
-    // group version _ids that belong to this project, then match runs whose
-    // results.group is one of those version _ids. This ensures the frontend
-    // may send either the group's entityId or a version _id and still match.
+    // group references in this project, then filter test cases by `group`.
+    // This ensures the frontend may send either the group's entityId or a
+    // version _id and still match.
     const groupObjectId = toObjectId(groupId, 'groupId');
 
     // include all versions for the group entity (do not restrict to isLatest)
@@ -1608,32 +1608,26 @@ const listTestCaseDetailsService = async (query = {}) => {
       return { testCases: [], pagination: null };
     }
 
-    const runs = await TestRun.find({ project: { $in: projectObjectIds }, 'results.group': { $in: groupVersionIds.map((v) => toObjectId(v, 'groupId')) } }).select('results').lean();
+    const groupRefs = Array.from(
+      new Set(
+        [
+          ...groupVersionIds.map((value) => String(value)),
+          String(groupObjectId),
+          resolvedGroup?.entityId ? String(resolvedGroup.entityId) : '',
+        ].filter(Boolean),
+      ),
+    );
+    const groupRefObjectIds = groupRefs
+      .filter((value) => mongoose.Types.ObjectId.isValid(value))
+      .map((value) => toObjectId(value, 'groupId'));
 
-    const matchedVersionIds = new Set();
-    for (const run of runs) {
-      for (const r of run.results || []) {
-        if (r && r.group && groupVersionIds.some((gid) => String(gid) === String(r.group)) && r.testCase) {
-          matchedVersionIds.add(String(r.testCase));
-        }
-      }
-    }
-
-    if (matchedVersionIds.size === 0) {
+    if (groupRefObjectIds.length === 0) {
       return { testCases: [], pagination: null };
     }
 
-    const matchedVersions = await TestCase.find({ _id: { $in: Array.from(matchedVersionIds).map((v) => toObjectId(v, 'testCaseId')) } }).select('_id entityId').lean();
-    const matchedEntityIds = matchedVersions.map((v) => String(v.entityId || '')).filter(Boolean);
-    const matchedVersionIdList = matchedVersions.map((v) => String(v._id)).filter(Boolean);
-    const combinedIds = Array.from(new Set([...matchedEntityIds, ...matchedVersionIdList]));
-
-    filters.push({
-      $or: [
-        { entityId: { $in: combinedIds.map((v) => toObjectId(v, 'testCaseId')) } },
-        { _id: { $in: combinedIds.map((v) => toObjectId(v, 'testCaseId')) } },
-      ],
-    });
+    // Filter test cases by their group reference directly.
+    // This is more stable than deriving membership from run results.
+    filters.push({ group: { $in: groupRefObjectIds } });
   }
 
   if (search) {
@@ -1665,6 +1659,17 @@ const listTestCaseDetailsService = async (query = {}) => {
   const versionIdToEntityId = new Map(
     allCaseVersions.map((row) => [objectIdString(row._id), objectIdString(row.entityId)]),
   );
+  const entityIdToVersionIds = allCaseVersions.reduce((acc, row) => {
+    const entityId = objectIdString(row.entityId);
+    const versionId = objectIdString(row._id);
+    if (!entityId || !versionId) {
+      return acc;
+    }
+    const existing = acc.get(entityId) || new Set();
+    existing.add(versionId);
+    acc.set(entityId, existing);
+    return acc;
+  }, new Map());
   const versionIds = allCaseVersions.map((row) => row._id);
 
   let historyByEntity = new Map();
@@ -1707,28 +1712,39 @@ const listTestCaseDetailsService = async (query = {}) => {
           return rightTime - leftTime;
         })
         .forEach((result) => {
-          const entityId = versionIdToEntityId.get(objectIdString(result.testCase));
-          if (!entityId) {
+          const testCaseRef = objectIdString(result.testCase);
+          if (!testCaseRef) {
+            return;
+          }
+          const mappedEntityId = versionIdToEntityId.get(testCaseRef);
+          const targetVersionIds = versionIdToEntityId.has(testCaseRef)
+            ? [testCaseRef]
+            : Array.from(entityIdToVersionIds.get(testCaseRef) || []);
+          if (!mappedEntityId && targetVersionIds.length === 0) {
             return;
           }
 
           const resultGroup = result.group ? (groupMap.get(objectIdString(result.group)) || null) : null;
-
-          const existing = acc.get(entityId) || [];
-          existing.push({
-            runId: String(run._id),
-            runName: run.name,
-            runStatus: run.status,
-            status: result.status,
-            executedAt: result.executedAt || runStartedAt,
-            startedAt: run.startedAt || run.createdAt || null,
-            endedAt: run.endedAt || null,
-            startedBy: run.startedBy || null,
-            endedBy: run.endedBy || null,
-            group: resultGroup,
-            note: result.note || result.notes || '',
-          });
-          acc.set(entityId, existing);
+          const versionKeys = targetVersionIds.length > 0
+            ? targetVersionIds
+            : Array.from(entityIdToVersionIds.get(mappedEntityId) || []);
+          for (const versionKey of versionKeys) {
+            const existing = acc.get(versionKey) || [];
+            existing.push({
+              runId: String(run._id),
+              runName: run.name,
+              runStatus: run.status,
+              status: result.status,
+              executedAt: result.executedAt || runStartedAt,
+              startedAt: run.startedAt || run.createdAt || null,
+              endedAt: run.endedAt || null,
+              startedBy: run.startedBy || null,
+              endedBy: run.endedBy || null,
+              group: resultGroup,
+              note: result.note || result.notes || '',
+            });
+            acc.set(versionKey, existing);
+          }
         });
 
       return acc;
@@ -1737,9 +1753,9 @@ const listTestCaseDetailsService = async (query = {}) => {
 
   const detailRows = testCases.map((testCase) => ({
     ...testCase,
-    group: (historyByEntity.get(objectIdString(testCase.entityId)) || [])[0]?.group || resolvedGroup || testCase.group || null,
-    recentStatuses: (historyByEntity.get(objectIdString(testCase.entityId)) || []).slice(0, 3).map((entry) => entry.status),
-    executionHistory: historyByEntity.get(objectIdString(testCase.entityId)) || [],
+    group: (historyByEntity.get(objectIdString(testCase._id)) || [])[0]?.group || resolvedGroup || testCase.group || null,
+    recentStatuses: (historyByEntity.get(objectIdString(testCase._id)) || []).slice(0, 3).map((entry) => entry.status),
+    executionHistory: historyByEntity.get(objectIdString(testCase._id)) || [],
   }));
 
   return { testCases: detailRows };

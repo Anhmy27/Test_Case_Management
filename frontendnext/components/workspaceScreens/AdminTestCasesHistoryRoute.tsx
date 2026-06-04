@@ -5,7 +5,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
-import AdminTestCasesDetailScreen from "@/components/workspaceScreens/AdminTestCasesDetailScreen";
+import AdminTestCasesHistoryScreen from "@/components/workspaceScreens/AdminTestCasesHistoryScreen";
 import { apiRequest, createTextMatcher, getId, userName } from "@/lib/api";
 import { useAdminSidebarNav } from "@/components/workspaceScreens/adminNav";
 
@@ -19,11 +19,11 @@ function storedProject() {
   return typeof window === "undefined" ? "" : window.localStorage.getItem("tcm_selected_project_id") || "";
 }
 
-export default function AdminTestCasesDetailRoute() {
+export default function AdminTestCasesHistoryRoute() {
   const router = useRouter();
   const [token] = useState<string>(() => storedToken());
   const [selectedProjectId, setSelectedProjectId] = useState<string>(() => storedProject());
-  const navItems = useAdminSidebarNav(selectedProjectId, "test-cases-detail", router);
+  const navItems = useAdminSidebarNav(selectedProjectId, "test-cases-history", router);
   const [currentUser, setCurrentUser] = useState<RecordAny | null>(null);
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [groups, setGroups] = useState<RecordAny[]>([]);
@@ -71,7 +71,7 @@ export default function AdminTestCasesDetailRoute() {
         const [projectsResponse, groupsResponse, detailResponse] = await Promise.all([
           apiRequest<{ projects: RecordAny[] }>("/api/projects", token),
           apiRequest<{ groups: RecordAny[] }>(selectedProjectId ? `/api/test-case-groups?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-case-groups", token),
-          apiRequest<{ testCases: RecordAny[] }>(selectedProjectId ? `/api/test-cases/detail?projectId=${encodeURIComponent(selectedProjectId)}${detailGroupId ? `&groupId=${encodeURIComponent(detailGroupId)}` : ""}` : "/api/test-cases/detail", token),
+          apiRequest<{ testCases: RecordAny[] }>(selectedProjectId ? `/api/test-cases/history?projectId=${encodeURIComponent(selectedProjectId)}${detailGroupId ? `&groupId=${encodeURIComponent(detailGroupId)}` : ""}` : "/api/test-cases/history", token),
         ]);
 
         if (cancelled) return;
@@ -82,7 +82,7 @@ export default function AdminTestCasesDetailRoute() {
         setDetailRows(Array.isArray(detailResponse.testCases) ? detailResponse.testCases : []);
       } catch (error) {
         if (!cancelled) {
-          setMessage(error instanceof Error ? error.message : "Unable to load test case detail");
+          setMessage(error instanceof Error ? error.message : "Unable to load execution history");
         }
       } finally {
         if (!cancelled) {
@@ -110,8 +110,8 @@ export default function AdminTestCasesDetailRoute() {
   const topbar = (
     <div className="flex flex-wrap items-center gap-3">
       <div>
-        <div className="text-sm font-semibold text-slate-900">Test Cases Detail</div>
-        <div className="text-xs text-slate-500">Route-local history view</div>
+        <div className="text-sm font-semibold text-slate-900">Execution History</div>
+        <div className="text-xs text-slate-500">Route-local run history view</div>
       </div>
       <div className="ml-auto flex flex-wrap items-center gap-3">
         <select value={selectedProjectId} onChange={(event) => setSelectedProjectId(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900">
@@ -126,7 +126,7 @@ export default function AdminTestCasesDetailRoute() {
   );
 
   if (loading && !currentUser) {
-    return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-600">Loading test case detail...</div>;
+    return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-600">Loading execution history...</div>;
   }
 
   if (!currentUser) {
@@ -138,12 +138,12 @@ export default function AdminTestCasesDetailRoute() {
       brand={{ title: "Test Case Management", subtitle: "Admin workspace" }}
       user={{ name: userName(currentUser), email: currentUser.email, role: currentUser.role }}
       navItems={navItems}
-      activeKey="test-cases-detail"
+      activeKey="test-cases-history"
       onNavChange={handleNavigate}
       topbar={topbar}
     >
       {message ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{message}</div> : null}
-      <AdminTestCasesDetailScreen
+      <AdminTestCasesHistoryScreen
         selectedProjectId={selectedProjectId}
         detailGroupId={detailGroupId}
         setDetailGroupId={setDetailGroupId}

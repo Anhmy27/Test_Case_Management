@@ -10,7 +10,7 @@ import AdminDashboardScreen from "@/components/workspaceScreens/AdminDashboardSc
 import AdminProjectsScreen from "./workspaceScreens/AdminProjectsScreen";
 import AdminGroupsScreen from "./workspaceScreens/AdminGroupsScreen";
 import AdminTestCasesScreen from "./workspaceScreens/AdminTestCasesScreen";
-import AdminTestCasesDetailScreen from "./workspaceScreens/AdminTestCasesDetailScreen";
+import AdminTestCasesHistoryScreen from "./workspaceScreens/AdminTestCasesHistoryScreen";
 import AdminVersionsScreen from "./workspaceScreens/AdminVersionsScreen";
 import AdminIssueTypesScreen from "./workspaceScreens/AdminIssueTypesScreen";
 import AdminTestPlansScreen from "@/components/workspaceScreens/AdminTestPlansScreen";
@@ -33,7 +33,7 @@ const adminNav = [
   { key: "projects", label: "Projects" },
   { key: "groups", label: "Groups" },
   { key: "test-cases", label: "Test Cases" },
-  { key: "test-cases-detail", label: "Test Cases Detail" },
+  { key: "test-cases-history", label: "Execution History" },
   { key: "versions", label: "Versions" },
   { key: "issue-types", label: "Issue Types" },
   { key: "test-plans", label: "Test Plans" },
@@ -140,7 +140,6 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
     createPlan,
     createUser,
     deleteUser,
-    setSelectedRunId,
     myItems,
     loadMyItems,
     loadTestCaseDetails,
@@ -274,7 +273,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
     const allowedForProject = [
       "groups",
       "test-cases",
-      "test-cases-detail",
+      "test-cases-history",
       "versions",
       "test-plans",
       "test-runs",
@@ -300,7 +299,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
   }, [visibleTab]);
 
   useEffect(() => {
-    if (!isAdmin || visibleTab !== "test-cases-detail") {
+    if (!isAdmin || visibleTab !== "test-cases-history") {
       return;
     }
 
@@ -415,7 +414,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
       : [
           "groups",
           "test-cases",
-          "test-cases-detail",
+          "test-cases-history",
           "versions",
           "test-plans",
           "test-runs",
@@ -729,8 +728,8 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
           />
         )}
 
-        {isAdmin && visibleTab === "test-cases-detail" && (
-          <AdminTestCasesDetailScreen
+        {isAdmin && visibleTab === "test-cases-history" && (
+          <AdminTestCasesHistoryScreen
             selectedProjectId={selectedProjectId}
             detailGroupId={detailGroupId}
             setDetailGroupId={setDetailGroupId}
