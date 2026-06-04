@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import AdminTestCasesScreen from "@/components/workspaceScreens/AdminTestCasesScreen";
 import { apiRequest, createTextMatcher, getId, matchesSelectedEntity, userName } from "@/lib/api";
@@ -23,6 +23,8 @@ function storedProject() {
 
 export default function AdminTestCasesRoute() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const caseIdFromUrl = String(searchParams.get("caseId") || "").trim();
   const [token] = useState<string>(() => storedToken());
   const [selectedProjectId, setSelectedProjectId] = useState<string>(() => storedProject());
   const navItems = useAdminSidebarNav(selectedProjectId, "test-cases", router);
@@ -36,6 +38,7 @@ export default function AdminTestCasesRoute() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const importInputRef = useRef<HTMLInputElement | null>(null);
+  const consumedCaseIdRef = useRef<string>("");
 
   useEffect(() => { if (typeof window !== "undefined") { if (selectedProjectId) window.localStorage.setItem("tcm_selected_project_id", selectedProjectId); else window.localStorage.removeItem("tcm_selected_project_id"); } }, [selectedProjectId]);
 
@@ -71,6 +74,20 @@ export default function AdminTestCasesRoute() {
     void load();
     return () => { cancelled = true; };
   }, [router, selectedProjectId, token]);
+
+  useEffect(() => {
+    if (!caseIdFromUrl || consumedCaseIdRef.current === caseIdFromUrl || testCases.length === 0) {
+      return;
+    }
+
+    const matched = testCases.find((testCase) => getId(testCase) === caseIdFromUrl);
+    if (!matched) {
+      return;
+    }
+
+    consumedCaseIdRef.current = caseIdFromUrl;
+    startTestCaseEdit(matched);
+  }, [caseIdFromUrl, testCases]);
 
   const refreshAll = async () => {
     const [projectsResponse, groupsResponse, casesResponse] = await Promise.all([

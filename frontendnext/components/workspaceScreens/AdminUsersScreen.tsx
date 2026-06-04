@@ -9,8 +9,8 @@ import { getId } from "@/lib/api";
 type RecordAny = Record<string, any>;
 
 type Props = {
-  newUserForm: { name: string; email: string; password: string; role: string };
-  setNewUserForm: Dispatch<SetStateAction<{ name: string; email: string; password: string; role: string }>>;
+  newUserForm: { name: string; email: string; password: string; role: string; isActive: boolean };
+  setNewUserForm: Dispatch<SetStateAction<{ name: string; email: string; password: string; role: string; isActive: boolean }>>;
   createUser: (event: React.FormEvent) => Promise<void>;
   editingUserId: string;
   startUserEdit: (user: RecordAny) => void;
@@ -47,6 +47,9 @@ export default function AdminUsersScreen({
             <label><span>Password</span><input type="password" value={newUserForm.password} onChange={(e) => setNewUserForm((prev) => ({ ...prev, password: e.target.value }))} required={!isEditing} placeholder={isEditing ? "Leave blank to keep current password" : undefined} /></label>
             <label><span>Role</span><select value={newUserForm.role} onChange={(e) => setNewUserForm((prev) => ({ ...prev, role: e.target.value }))}><option value="employee">employee</option><option value="admin">admin</option></select></label>
           </div>
+          <div className="workspace-form__grid workspace-form__grid--two">
+            <label><span>Status</span><select value={newUserForm.isActive ? "active" : "inactive"} onChange={(e) => setNewUserForm((prev) => ({ ...prev, isActive: e.target.value === "active" }))}><option value="active">active</option><option value="inactive">inactive</option></select></label>
+          </div>
           <div className="workspace-inline-actions">
             <ActionButton type="submit" label={isEditing ? "Update user" : "Create user"} icon={isEditing ? "💾" : "＋"} variant="primary" />
             {isEditing && <ActionButton label="Cancel" icon="↩" onClick={cancelUserEdit} tooltip="Cancel editing" />}
@@ -56,23 +59,24 @@ export default function AdminUsersScreen({
 
       <SectionCard title="User List">
         <DataTable
-          columns={["User", "Email", "Role", "Actions"]}
+          columns={["User", "Email", "Role", "Status", "Actions"]}
           rows={users
-            .filter((user: RecordAny) => matchesSearch(user.name, user.email, user.role))
+            .filter((user: RecordAny) => matchesSearch(user.name, user.email, user.role, user.isActive === false ? "inactive" : "active"))
             .map((user: RecordAny) => (
               <>
                 <div>{user.name}</div>
                 <div>{user.email}</div>
                 <div>{user.role}</div>
+                <div>{user.isActive === false ? "inactive" : "active"}</div>
                 <div className="workspace-inline-actions">
                   <ActionButton label="Edit" icon="✎" onClick={() => startUserEdit(user)} />
                   <ActionButton
-                    label="Delete"
-                    icon="🗑"
+                    label="Deactivate"
+                    icon="⛔"
                     variant="danger"
                     onClick={() => void deleteUser(getId(user))}
                     disabled={getId(user) === currentUserId}
-                    tooltip={getId(user) === currentUserId ? "You cannot delete your own account" : "Delete user"}
+                    tooltip={getId(user) === currentUserId ? "You cannot deactivate your own account" : "Deactivate user"}
                   />
                 </div>
               </>

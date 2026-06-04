@@ -81,8 +81,18 @@ export default function WorkspaceExecutionRoute({ role }: { role: "admin" | "emp
           return;
         }
 
-        const plansPromise = apiRequest<{ testPlans: RecordAny[] }>("/api/test-plans", token);
-        const runsPromise = apiRequest<{ testRuns: RecordAny[] }>("/api/test-runs", token);
+        const plansPromise = apiRequest<{ testPlans: RecordAny[] }>(
+          role === "admin" && selectedProjectId
+            ? `/api/test-plans?projectId=${encodeURIComponent(selectedProjectId)}`
+            : "/api/test-plans",
+          token,
+        );
+        const runsPromise = apiRequest<{ testRuns: RecordAny[] }>(
+          role === "admin" && selectedProjectId
+            ? `/api/test-runs?projectId=${encodeURIComponent(selectedProjectId)}`
+            : "/api/test-runs",
+          token,
+        );
         const projectsPromise =
           role === "employee"
             ? apiRequest<{ projects: RecordAny[] }>("/api/projects", token)
@@ -120,7 +130,7 @@ export default function WorkspaceExecutionRoute({ role }: { role: "admin" | "emp
     return () => {
       cancelled = true;
     };
-  }, [role, router, testPlanIdFromUrl, runNameFromUrl, token]);
+  }, [role, router, runNameFromUrl, selectedProjectId, testPlanIdFromUrl, token]);
 
   useEffect(() => {
     if (!token || !currentUser) {
@@ -185,6 +195,12 @@ export default function WorkspaceExecutionRoute({ role }: { role: "admin" | "emp
   const activeMyItems = runIdFromUrl ? myItems : [];
   const selectedRunPlan = scopedPlans.find((plan) => getId(plan) === runForm.testPlanId) || activeRun?.testPlan || null;
   const selectedRunPlanIsAutomation = String(selectedRunPlan?.executionMode || "manual") === "automation";
+  const shouldPollAutomationRun = Boolean(
+    runIdFromUrl &&
+      activeRun &&
+      activeRun.status === "running" &&
+      selectedRunPlanIsAutomation,
+  );
   const selectedItem = activeMyItems.find((item) => getId(item) === selectedItemId);
   const canEditSelectedRun = Boolean(
     activeRun &&
@@ -193,6 +209,41 @@ export default function WorkspaceExecutionRoute({ role }: { role: "admin" | "emp
       (String(getId(activeRun.startedBy) || "") === String(getId(currentUser) || "") ||
         currentUser?.role === "admin"),
   );
+
+  useEffect(() => {
+    if (!shouldPollAutomationRun || !token) {
+      return;
+    }
+
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const response = await apiRequest<{ testRun?: RecordAny | null; results: RecordAny[] }>(
+          `/api/test-runs/${encodeURIComponent(runIdFromUrl)}/my-items`,
+          token,
+        );
+        if (cancelled) {
+          return;
+        }
+
+        if (response.testRun) {
+          setSelectedRun(response.testRun);
+        }
+        setMyItems(Array.isArray(response.results) ? response.results : []);
+      } catch {
+        // Keep polling passive to avoid noisy UI.
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      void poll();
+    }, 5000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [runIdFromUrl, shouldPollAutomationRun, token]);
 
   const startRun = async (event: React.FormEvent) => {
     event.preventDefault();

@@ -151,13 +151,13 @@ router.patch('/test-runs/:runId/end', authorize('admin', 'employee'), endTestRun
 router.get('/test-runs/:runId/my-items', getMyRunItems);
 router.patch('/test-runs/:runId/results/:resultId', updateRunResult);
 
-router.get('/dashboard', getDashboard);
+router.get('/dashboard', authorize('admin'), getDashboard);
 
 // Dashboard routes
-router.get('/dashboard/projects', getProjectDashboard);
-router.get('/dashboard/versions', getVersionDashboard);
-router.get('/dashboard/test-plans', getTestPlanStats);
-router.get('/dashboard/test-plans/:testPlanId', getTestPlanDetail);
+router.get('/dashboard/projects', authorize('admin'), getProjectDashboard);
+router.get('/dashboard/versions', authorize('admin'), getVersionDashboard);
+router.get('/dashboard/test-plans', authorize('admin'), getTestPlanStats);
+router.get('/dashboard/test-plans/:testPlanId', authorize('admin'), getTestPlanDetail);
 
 module.exports = router;
 
