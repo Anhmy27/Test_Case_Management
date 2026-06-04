@@ -151,7 +151,7 @@ export default function ExecutionScreen(props: Props) {
             >
               {startingRun
                 ? selectedRunPlanIsAutomation
-                  ? "Đang chạy Playwright..."
+                  ? "Đang khởi động..."
                   : "Đang start run..."
                 : "Start run"}
             </button>
@@ -159,7 +159,7 @@ export default function ExecutionScreen(props: Props) {
         )}
         {selectedRunPlanIsAutomation && !selectedRun && (
           <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            Plan automation: Playwright sẽ chạy ngay khi bạn bấm Start run. Quá trình có thể mất vài phút — vui lòng chờ đến khi hoàn tất.
+            Plan automation: bấm Start run để khởi động Playwright chạy nền. Bạn có thể theo dõi tiến độ realtime trên màn execution.
           </div>
         )}
       </section>

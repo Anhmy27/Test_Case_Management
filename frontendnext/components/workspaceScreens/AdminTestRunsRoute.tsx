@@ -76,17 +76,21 @@ export default function AdminTestRunsRoute() {
     try {
       const response = await apiRequest<{
         testRun?: RecordAny | null;
+        automationQueued?: boolean;
         automationSummary?: RecordAny;
       }>("/api/test-runs", token, { method: "POST", body: JSON.stringify(runForm) });
       if (response.testRun) {
         setRuns((prev) => [response.testRun as RecordAny, ...prev.filter((run) => getId(run) !== getId(response.testRun))]);
+        if (response.automationQueued) {
+          router.push(`/workspace/admin/execution?runId=${encodeURIComponent(getId(response.testRun))}`);
+          setMessage("Automation đang chạy nền. Kết quả sẽ cập nhật tự động.");
+        } else if (response.automationSummary) {
+          setMessage(formatAutomationRunMessage(response.automationSummary));
+        } else {
+          setMessage("Test run started");
+        }
       }
       await refreshRuns();
-      if (response.automationSummary) {
-        setMessage(formatAutomationRunMessage(response.automationSummary));
-      } else {
-        setMessage("Test run started");
-      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to start test run");
     } finally {

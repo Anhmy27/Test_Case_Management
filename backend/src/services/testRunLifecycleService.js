@@ -22,7 +22,7 @@ const {
   attachRunTestPlan,
   attachRunProjectAndVersion,
 } = require('../utils/entityResolvers');
-const { executeAutomationRun } = require('./automation/runOrchestrator');
+const { scheduleAutomationRun } = require('./automation/automationJobRunner');
 
 // ---------------------------------------------------------------------------
 // Start run
@@ -131,19 +131,15 @@ const startTestRunService = async ({ testPlanId, name, baseUrl, user }) => {
   const runPayload = await attachRunProjectAndVersion(await attachRunTestPlan(populatedRun));
 
   if (resolvedTestPlan.executionMode === 'automation') {
-    const automationResult = await executeAutomationRun({
+    scheduleAutomationRun({
       testRunId: testRun._id,
       baseUrl: baseUrl || '',
       executedBy: user.id,
     });
 
-    const populatedAutomationRun = await TestRun.findById(automationResult.testRun._id).lean();
-    const automationRunPayload = await attachRunProjectAndVersion(await attachRunTestPlan(populatedAutomationRun));
-
     return {
-      testRun: automationRunPayload,
-      automationSummary: automationResult.summary,
-      automationReport: automationResult.report,
+      testRun: runPayload,
+      automationQueued: true,
     };
   }
 

@@ -218,4 +218,35 @@ export function formatAutomationRunMessage(summary?: AutomationRunSummary | null
   return `Automation hoàn tất: ${summary.pass ?? 0} pass, ${summary.fail ?? 0} fail, ${summary.blocked ?? 0} blocked, ${summary.skip ?? 0} skip / ${summary.total ?? 0} cases.`;
 }
 
+export function summarizeAutomationResults(items: Array<{ status?: string }>): AutomationRunSummary {
+  const summary: AutomationRunSummary = {
+    total: items.length,
+    pass: 0,
+    fail: 0,
+    blocked: 0,
+    skip: 0,
+  };
+
+  for (const item of items) {
+    const status = String(item.status || 'untested');
+    if (status === 'pass') summary.pass = (summary.pass ?? 0) + 1;
+    else if (status === 'fail') summary.fail = (summary.fail ?? 0) + 1;
+    else if (status === 'blocked') summary.blocked = (summary.blocked ?? 0) + 1;
+    else if (status === 'skip') summary.skip = (summary.skip ?? 0) + 1;
+  }
+
+  return summary;
+}
+
+export function getAutomationRunProgress(items: Array<{ status?: string }>) {
+  const total = items.length;
+  const finished = items.filter((item) => {
+    const status = String(item.status || 'untested');
+    return status !== 'untested';
+  }).length;
+  const percent = total > 0 ? Math.round((finished / total) * 100) : 0;
+
+  return { total, finished, percent };
+}
+
 

@@ -183,6 +183,9 @@ const executeAutomationRun = async ({ testRunId, baseUrl = '', executedBy }) => 
         note: finalNote,
         logs: logLines,
       });
+
+      // Persist after each case so polling clients see incremental progress.
+      await testRun.save();
     }
 
     testRun.status = 'completed';

@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import ExecutionScreen from "@/components/workspaceScreens/ExecutionScreen";
-import { apiRequest, formatAutomationRunMessage, getId, userName } from "@/lib/api";
+import { apiRequest, formatAutomationRunMessage, getId, summarizeAutomationResults, userName } from "@/lib/api";
 import { useAdminSidebarNav } from "@/components/workspaceScreens/adminNav";
 import {
   EMPLOYEE_NAV_ITEMS,
@@ -235,6 +235,7 @@ export default function WorkspaceExecutionRoute({ role }: { role: "admin" | "emp
     }
 
     let cancelled = false;
+
     const poll = async () => {
       try {
         const response = await apiRequest<{ testRun?: RecordAny | null; results: RecordAny[] }>(
@@ -247,6 +248,9 @@ export default function WorkspaceExecutionRoute({ role }: { role: "admin" | "emp
 
         if (response.testRun) {
           setSelectedRun(response.testRun);
+          if (response.testRun.status === "completed") {
+            setMessage(formatAutomationRunMessage(summarizeAutomationResults(response.results || [])));
+          }
         }
         setMyItems(Array.isArray(response.results) ? response.results : []);
       } catch {
@@ -254,9 +258,11 @@ export default function WorkspaceExecutionRoute({ role }: { role: "admin" | "emp
       }
     };
 
+    void poll();
+
     const intervalId = window.setInterval(() => {
       void poll();
-    }, 5000);
+    }, 3000);
 
     return () => {
       cancelled = true;
@@ -272,6 +278,7 @@ export default function WorkspaceExecutionRoute({ role }: { role: "admin" | "emp
     try {
       const response = await apiRequest<{
         testRun?: RecordAny | null;
+        automationQueued?: boolean;
         automationSummary?: RecordAny;
       }>("/api/test-runs", token, {
         method: "POST",
@@ -286,10 +293,10 @@ export default function WorkspaceExecutionRoute({ role }: { role: "admin" | "emp
         setRuns((prev) => [response.testRun as RecordAny, ...prev.filter((run) => getId(run) !== getId(response.testRun))]);
         const runId = getId(response.testRun);
         if (runId) {
-          const itemsResponse = await apiRequest<{ testRun?: RecordAny | null; results: RecordAny[] }>(`/api/test-runs/${runId}/my-items`, token);
-          setMyItems(Array.isArray(itemsResponse.results) ? itemsResponse.results : []);
-          if (itemsResponse.testRun) setSelectedRun(itemsResponse.testRun);
-          if (response.automationSummary) {
+          if (response.automationQueued) {
+            setMyItems([]);
+            setMessage("Automation đang chạy nền. Kết quả sẽ cập nhật tự động.");
+          } else if (response.automationSummary) {
             setMessage(formatAutomationRunMessage(response.automationSummary));
           } else {
             setMessage("Test run started");

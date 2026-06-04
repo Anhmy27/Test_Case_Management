@@ -3,7 +3,7 @@
 
 import { useMemo, useState } from "react";
 import FailureScreenshot from "./FailureScreenshot";
-import { getId } from "@/lib/api";
+import { getAutomationRunProgress, getId } from "@/lib/api";
 import type { Dispatch, SetStateAction } from "react";
 
 type RecordAny = Record<string, any>;
@@ -82,6 +82,8 @@ export default function AutomationRunExecutionPanel({
       )
       .slice(0, 6);
   }, [myItems]);
+
+  const runProgress = useMemo(() => getAutomationRunProgress(myItems), [myItems]);
 
   return (
     <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)_320px]">
@@ -311,9 +313,24 @@ export default function AutomationRunExecutionPanel({
             {runIsCompleted
               ? "Run automation đã hoàn tất. Bạn có thể xem log từng case và Log Bug cho các case fail."
               : runIsRunning
-                ? "Run automation đang chạy hoặc chưa được tải đầy đủ. Tải lại trang nếu trạng thái không cập nhật."
+                ? `Automation đang chạy nền — Case ${runProgress.finished}/${runProgress.total} (${runProgress.percent}%). Trang tự cập nhật mỗi 3 giây.`
                 : "Chế độ xem automation — không thể chỉnh sửa kết quả thủ công."}
           </div>
+
+          {runIsRunning && runProgress.total > 0 ? (
+            <div>
+              <div className="mb-1 flex items-center justify-between text-xs text-slate-500">
+                <span>Tiến độ</span>
+                <span>{runProgress.percent}%</span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="h-full rounded-full bg-amber-500 transition-all duration-500"
+                  style={{ width: `${runProgress.percent}%` }}
+                />
+              </div>
+            </div>
+          ) : null}
 
           <div>
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Hoạt động gần đây</div>
