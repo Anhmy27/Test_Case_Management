@@ -1567,7 +1567,7 @@ const listTestCaseDetailsService = async (query = {}) => {
 
   const filters = [
     { project: { $in: projectObjectIds } },
-    { deletedAt: null },
+    activeLatestFilter(),
   ];
   let resolvedGroup = null;
   if (groupId) {
@@ -1654,21 +1654,31 @@ const listTestCaseDetailsService = async (query = {}) => {
   const versionIdToEntityId = new Map(
     allCaseVersions.map((row) => [objectIdString(row._id), objectIdString(row.entityId)]),
   );
-  const entityIdToVersionIds = allCaseVersions.reduce((acc, row) => {
-    const entityId = objectIdString(row.entityId);
-    const versionId = objectIdString(row._id);
-    if (!entityId || !versionId) {
-      return acc;
+  const knownEntityIds = new Set(
+    allCaseVersions.map((row) => objectIdString(row.entityId)).filter(Boolean),
+  );
+
+  const resolveHistoryEntityId = (testCaseRef) => {
+    if (!testCaseRef) {
+      return '';
     }
-    const existing = acc.get(entityId) || new Set();
-    existing.add(versionId);
-    acc.set(entityId, existing);
-    return acc;
-  }, new Map());
-  const versionIds = allCaseVersions.map((row) => row._id);
+    if (versionIdToEntityId.has(testCaseRef)) {
+      return versionIdToEntityId.get(testCaseRef);
+    }
+    if (knownEntityIds.has(testCaseRef)) {
+      return testCaseRef;
+    }
+    return '';
+  };
+
+  const sortExecutionHistory = (entries) => entries.slice().sort((left, right) => {
+    const leftTime = new Date(left.executedAt || left.startedAt || 0).getTime();
+    const rightTime = new Date(right.executedAt || right.startedAt || 0).getTime();
+    return rightTime - leftTime;
+  });
 
   let historyByEntity = new Map();
-  if (versionIds.length > 0) {
+  if (allCaseVersions.length > 0) {
     const historyRuns = await TestRun.find({
       project: { $in: projectObjectIds },
     })
@@ -1701,57 +1711,46 @@ const listTestCaseDetailsService = async (query = {}) => {
 
       (run.results || [])
         .filter((result) => ['pass', 'fail', 'blocked', 'skip'].includes(result.status) && result.testCase)
-        .sort((left, right) => {
-          const leftTime = new Date(left.executedAt || runStartedAt || 0).getTime();
-          const rightTime = new Date(right.executedAt || runStartedAt || 0).getTime();
-          return rightTime - leftTime;
-        })
         .forEach((result) => {
-          const testCaseRef = objectIdString(result.testCase);
-          if (!testCaseRef) {
-            return;
-          }
-          const mappedEntityId = versionIdToEntityId.get(testCaseRef);
-          const targetVersionIds = versionIdToEntityId.has(testCaseRef)
-            ? [testCaseRef]
-            : Array.from(entityIdToVersionIds.get(testCaseRef) || []);
-          if (!mappedEntityId && targetVersionIds.length === 0) {
+          const entityId = resolveHistoryEntityId(objectIdString(result.testCase));
+          if (!entityId) {
             return;
           }
 
           const resultGroup = result.group ? (groupMap.get(objectIdString(result.group)) || null) : null;
-          const versionKeys = targetVersionIds.length > 0
-            ? targetVersionIds
-            : Array.from(entityIdToVersionIds.get(mappedEntityId) || []);
-          for (const versionKey of versionKeys) {
-            const existing = acc.get(versionKey) || [];
-            existing.push({
-              runId: String(run._id),
-              runName: run.name,
-              runStatus: run.status,
-              status: result.status,
-              executedAt: result.executedAt || runStartedAt,
-              startedAt: run.startedAt || run.createdAt || null,
-              endedAt: run.endedAt || null,
-              startedBy: run.startedBy || null,
-              endedBy: run.endedBy || null,
-              group: resultGroup,
-              note: result.note || result.notes || '',
-            });
-            acc.set(versionKey, existing);
-          }
+          const existing = acc.get(entityId) || [];
+          existing.push({
+            runId: String(run._id),
+            runName: run.name,
+            runStatus: run.status,
+            status: result.status,
+            executedAt: result.executedAt || runStartedAt,
+            startedAt: run.startedAt || run.createdAt || null,
+            endedAt: run.endedAt || null,
+            startedBy: run.startedBy || null,
+            endedBy: run.endedBy || null,
+            group: resultGroup,
+            note: result.note || result.notes || '',
+          });
+          acc.set(entityId, existing);
         });
 
       return acc;
     }, new Map());
   }
 
-  const detailRows = testCases.map((testCase) => ({
-    ...testCase,
-    group: (historyByEntity.get(objectIdString(testCase._id)) || [])[0]?.group || resolvedGroup || testCase.group || null,
-    recentStatuses: (historyByEntity.get(objectIdString(testCase._id)) || []).slice(0, 3).map((entry) => entry.status),
-    executionHistory: historyByEntity.get(objectIdString(testCase._id)) || [],
-  }));
+  const detailRows = testCases.map((testCase) => {
+    const executionHistory = sortExecutionHistory(
+      historyByEntity.get(objectIdString(testCase.entityId)) || [],
+    );
+
+    return {
+      ...testCase,
+      group: executionHistory[0]?.group || resolvedGroup || testCase.group || null,
+      recentStatuses: executionHistory.slice(0, 3).map((entry) => entry.status),
+      executionHistory,
+    };
+  });
 
   return { testCases: detailRows };
 };
