@@ -14,6 +14,7 @@ const { httpError } = require('../utils/httpError');
 const {
   toObjectId,
   findTestPlanByReference,
+  findProjectByReference,
 } = require('../utils/entityResolvers');
 
 // ---------------------------------------------------------------------------
@@ -32,6 +33,7 @@ const emptyDashboardPayload = () => ({
     executed: 0,
     passRate: 0,
     completionRate: 0,
+    activeUsers: 0,
   },
   runs: [],
   runningTestRuns: [],
@@ -111,11 +113,41 @@ const getDashboardService = async ({ projectId, versionId }) => {
     ? Number(((summary.executed / summary.totalCases) * 100).toFixed(2))
     : 0;
 
-  const runningTestRuns = await TestRun.find({ ...match, status: 'running' })
+  const [startedByUsers, testerUsersAgg] = await Promise.all([
+    TestRun.distinct('startedBy', match),
+    TestRun.aggregate([
+      { $match: match },
+      { $unwind: '$results' },
+      { $match: { 'results.tester': { $ne: null } } },
+      { $group: { _id: '$results.tester' } },
+    ]),
+  ]);
+  const activeUserIds = new Set([
+    ...startedByUsers.map((id) => String(id)),
+    ...testerUsersAgg.map((item) => String(item._id)),
+  ]);
+  summary.activeUsers = activeUserIds.size;
+
+  const runningTestRunsRaw = await TestRun.find({ ...match, status: 'running' })
     .sort({ startedAt: -1 })
     .populate('startedBy', 'name email role')
     .populate('testPlan', 'name')
     .lean();
+  const runningTestRuns = await Promise.all(
+    runningTestRunsRaw.map(async (run) => {
+      const resolvedProject = await findProjectByReference(run.project);
+      return {
+        ...run,
+        project: resolvedProject
+          ? {
+              _id: String(resolvedProject.entityId || resolvedProject._id),
+              name: resolvedProject.name,
+              code: resolvedProject.code,
+            }
+          : run.project,
+      };
+    }),
+  );
 
   const planFilter = resolvedProjectEntityId
     ? {
@@ -167,18 +199,28 @@ const getDashboardService = async ({ projectId, versionId }) => {
   ]);
 
   const failedCaseIds = failedCases.map((item) => item._id);
-  const failedCaseDocs = await TestCase.find({ _id: { $in: failedCaseIds } }).select('caseKey title priority').lean();
+  const failedCaseDocs = await TestCase.find({ _id: { $in: failedCaseIds } })
+    .select('caseKey title priority project')
+    .lean();
   const failedCaseMap = new Map(failedCaseDocs.map((item) => [String(item._id), item]));
-  const mostFailedTestCases = failedCases.map((item) => {
-    const testCase = failedCaseMap.get(String(item._id));
+  const mostFailedTestCases = await Promise.all(failedCases.map(async (item) => {
+    const testCase = failedCaseMap.get(String(item._id)) || null;
+    const project = testCase?.project ? await findProjectByReference(testCase.project) : null;
     return {
       testCaseId: String(item._id),
       caseKey: testCase?.caseKey || '',
       title: testCase?.title || 'Unknown test case',
       priority: testCase?.priority || 'medium',
       failCount: item.failCount,
+      project: project
+        ? {
+            _id: String(project.entityId || project._id),
+            name: project.name,
+            code: project.code,
+          }
+        : null,
     };
-  });
+  }));
 
   const testerActivityAgg = await TestRun.aggregate([
     { $match: match },
@@ -215,8 +257,15 @@ const getDashboardService = async ({ projectId, versionId }) => {
 
   const projectDocs = await Project.find(
     resolvedProjectEntityId
-      ? { entityId: resolvedProjectEntityId, deletedAt: null }
-      : { deletedAt: null },
+      ? {
+          entityId: resolvedProjectEntityId,
+          deletedAt: null,
+          $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+        }
+      : {
+          deletedAt: null,
+          $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+        },
   ).lean();
 
   const projectOverview = await Promise.all(projectDocs.map(async (project) => {
@@ -224,17 +273,41 @@ const getDashboardService = async ({ projectId, versionId }) => {
     const projectIds = Array.from(new Set(
       projectRefs.flatMap((item) => [String(item._id), String(item.entityId || '')]).filter(Boolean),
     ));
-    const latestVersion = await Version.findOne({ entityId: project.entityId, deletedAt: null })
+    const projectObjectIds = projectIds.map((v) => toObjectId(v, 'projectId'));
+    const latestVersion = await Version.findOne({
+      $and: [
+        {
+          $or: [
+            { project: { $in: projectObjectIds } },
+            { projectVersionId: { $in: projectObjectIds } },
+          ],
+        },
+        { deletedAt: null },
+        { $or: [{ isLatest: true }, { isLatest: { $exists: false } }] },
+      ],
+    })
       .sort({ createdAt: -1 })
       .lean();
+    const latestRunWithVersion = latestVersion
+      ? null
+      : await TestRun.findOne({ project: { $in: projectObjectIds } })
+        .sort({ startedAt: -1 })
+        .populate('version', 'name')
+        .lean();
+
+    const projectRunMatch = { project: { $in: projectObjectIds } };
+    if (match.version) {
+      projectRunMatch.version = match.version;
+    }
 
     const projectRuns = await TestRun.aggregate([
-      { $match: { project: { $in: projectIds.map((v) => toObjectId(v, 'projectId')) } } },
+      { $match: projectRunMatch },
       {
         $project: {
           total: { $size: '$results' },
           passCount: { $size: { $filter: { input: '$results', as: 'r', cond: { $eq: ['$$r.status', 'pass'] } } } },
           failCount: { $size: { $filter: { input: '$results', as: 'r', cond: { $eq: ['$$r.status', 'fail'] } } } },
+          blockedCount: { $size: { $filter: { input: '$results', as: 'r', cond: { $eq: ['$$r.status', 'blocked'] } } } },
         },
       },
     ]);
@@ -242,15 +315,18 @@ const getDashboardService = async ({ projectId, versionId }) => {
     const totalTests = projectRuns.reduce((acc, run) => acc + run.total, 0);
     const passCount = projectRuns.reduce((acc, run) => acc + run.passCount, 0);
     const failCount = projectRuns.reduce((acc, run) => acc + run.failCount, 0);
-    const executed = passCount + failCount;
+    const blockedCount = projectRuns.reduce((acc, run) => acc + (run.blockedCount || 0), 0);
+    const executed = passCount + failCount + blockedCount;
 
     return {
-      _id: String(project._id),
+      _id: String(project.entityId || project._id),
       name: project.name,
       code: project.code,
-      latestVersion: latestVersion ? latestVersion.name : 'N/A',
+      latestVersion: latestVersion?.name || latestRunWithVersion?.version?.name || 'N/A',
+      totalTests,
       passCount,
       failCount,
+      blockedCount,
       passRate: executed > 0 ? Number(((passCount / executed) * 100).toFixed(2)) : 0,
       progress: totalTests > 0 ? Number(((executed / totalTests) * 100).toFixed(2)) : 0,
     };
@@ -283,12 +359,30 @@ const getProjectDashboardService = async () => {
     const projectIds = Array.from(new Set(
       projectRefs.flatMap((item) => [String(item._id), String(item.entityId || '')]).filter(Boolean),
     ));
-    const latestVersion = await Version.findOne({ entityId: project.entityId, deletedAt: null })
+    const projectObjectIds = projectIds.map((v) => toObjectId(v, 'projectId'));
+    const latestVersion = await Version.findOne({
+      $and: [
+        {
+          $or: [
+            { project: { $in: projectObjectIds } },
+            { projectVersionId: { $in: projectObjectIds } },
+          ],
+        },
+        { deletedAt: null },
+        { $or: [{ isLatest: true }, { isLatest: { $exists: false } }] },
+      ],
+    })
       .sort({ createdAt: -1 })
       .lean();
+    const latestRunWithVersion = latestVersion
+      ? null
+      : await TestRun.findOne({ project: { $in: projectObjectIds } })
+        .sort({ startedAt: -1 })
+        .populate('version', 'name')
+        .lean();
 
     const runs = await TestRun.aggregate([
-      { $match: { project: { $in: projectIds.map((v) => toObjectId(v, 'projectId')) } } },
+      { $match: { project: { $in: projectObjectIds } } },
       {
         $project: {
           total: { $size: '$results' },
@@ -314,7 +408,7 @@ const getProjectDashboardService = async () => {
       _id: String(project._id),
       name: project.name,
       code: project.code,
-      latestVersion: latestVersion ? latestVersion.name : 'N/A',
+      latestVersion: latestVersion?.name || latestRunWithVersion?.version?.name || 'N/A',
       passRate: executed > 0 ? Number(((passCount / executed) * 100).toFixed(2)) : 0,
       totalTests,
       failCount,

@@ -10,6 +10,16 @@ import { WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
 import { apiRequest, getId, userName } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
+const PROJECT_SCOPE_STORAGE_KEY = "tcm_selected_project_id";
+const PROJECT_SCOPE_TABS = new Set([
+  "groups",
+  "test-cases",
+  "test-cases-history",
+  "versions",
+  "test-plans",
+  "test-runs",
+  "execution",
+]);
 
 export default function AdminDashboardRoute() {
   const router = useRouter();
@@ -74,11 +84,13 @@ export default function AdminDashboardRoute() {
   const dashboardSummary = safeDashboard.summary || {};
   const dashboardProjectOverview = Array.isArray(safeDashboard.projectOverview) ? safeDashboard.projectOverview : [];
   const isGlobalScope = !selectedProjectId;
-  const totalProjects = safeProjects.length;
+  const selectedProject = safeProjects.find((project) => getId(project) === selectedProjectId) || null;
+  const scopedProjectName = selectedProject?.name || "";
+  const totalProjects = isGlobalScope ? safeProjects.length : (selectedProjectId ? 1 : 0);
   const totalPlans = safePlans.length;
   const totalCases = Number(dashboardSummary.totalCases || 0);
   const runningRunsCount = Number(dashboardSummary.runningRuns || 0);
-  const totalUsers = users.length;
+  const totalUsers = isGlobalScope ? users.length : Number(dashboardSummary.activeUsers || 0);
   const normalizedSearch = searchTerm.trim().toLowerCase();
 
   const matchesSearch = (...values: Array<string | number | undefined | null>) => {
@@ -90,8 +102,24 @@ export default function AdminDashboardRoute() {
   };
 
   const handleNavigate = (tab: string, projectId?: string) => {
-    if (typeof projectId === "string") {
-      setSelectedProjectId(projectId);
+    const explicitProjectId = typeof projectId === "string" ? projectId.trim() : "";
+    const nextProjectId = explicitProjectId || selectedProjectId;
+
+    if (PROJECT_SCOPE_TABS.has(tab)) {
+      if (!nextProjectId) {
+        setMessage("Please select a project before opening this section.");
+        return;
+      }
+
+      setSelectedProjectId(nextProjectId);
+      window.localStorage.setItem(PROJECT_SCOPE_STORAGE_KEY, nextProjectId);
+      router.push(`/workspace/admin/${tab}`);
+      return;
+    }
+
+    if (explicitProjectId) {
+      setSelectedProjectId(explicitProjectId);
+      window.localStorage.setItem(PROJECT_SCOPE_STORAGE_KEY, explicitProjectId);
     }
 
     router.push(`/workspace/admin/${tab}`);
@@ -142,6 +170,7 @@ export default function AdminDashboardRoute() {
       ) : (
         <AdminDashboardScreen
           isGlobalScope={isGlobalScope}
+          scopedProjectName={scopedProjectName}
           totalProjects={totalProjects}
           totalPlans={totalPlans}
           totalCases={totalCases}

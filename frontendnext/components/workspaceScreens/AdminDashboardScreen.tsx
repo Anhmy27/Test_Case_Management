@@ -9,6 +9,7 @@ type RecordAny = Record<string, any>;
 
 type AdminDashboardScreenProps = {
   isGlobalScope: boolean;
+  scopedProjectName?: string;
   totalProjects: number;
   totalPlans: number;
   totalCases: number;
@@ -45,12 +46,18 @@ type SummaryCard = {
 type RunningRunRow = {
   run: RecordAny;
   projectName: string;
+  projectId: string;
   index: number;
 };
 
 type RiskRow = {
   id: string;
   cells: ReactNode[];
+};
+
+type KpiDefinition = {
+  label: string;
+  formula: string;
 };
 
 function SectionHeader({
@@ -162,6 +169,7 @@ function DataGrid({
 
 export default function AdminDashboardScreen({
   isGlobalScope,
+  scopedProjectName,
   totalProjects,
   totalPlans,
   totalCases,
@@ -189,34 +197,42 @@ export default function AdminDashboardScreen({
 
   const summaryCards: SummaryCard[] = [
     { label: "Running Runs", value: dashboardSummary.runningRuns || runningRunsCount || 0 },
-    { label: "Pass Rate", value: `${passRate}%`, helper: "All completed runs" },
-    { label: "Completion", value: `${completionRate}%`, helper: "Across active plans" },
+    { label: "Pass Rate", value: `${passRate}%`, helper: "Across executed test cases" },
+    { label: "Completion", value: `${completionRate}%`, helper: "Across total test cases in scope" },
     {
       label: "Risk Items",
       value: delayedPlans.length + mostFailedCases.length,
-      helper: "Delayed or failing" ,
+      helper: "Delayed plans or high-failure cases",
     },
   ] as const;
 
   const statusBreakdown = [
-    { key: "pass", label: "Passed", value: passCount, color: "#16a34a" },
-    { key: "fail", label: "Failed", value: failCount, color: "#ef4444" },
+    { key: "pass", label: "Pass", value: passCount, color: "#16a34a" },
+    { key: "fail", label: "Fail", value: failCount, color: "#ef4444" },
     { key: "blocked", label: "Blocked", value: blockedCount, color: "#f59e0b" },
-    { key: "untested", label: "Not run", value: untestedCount, color: "#64748b" },
+    { key: "untested", label: "Not Run", value: untestedCount, color: "#64748b" },
+  ];
+  const kpiDefinitions: KpiDefinition[] = [
+    { label: "Pass Rate", formula: "pass / (pass + fail + blocked)" },
+    { label: "Completion", formula: "(pass + fail + blocked) / totalCases" },
+    { label: "Active Users", formula: "distinct(startedBy, results.tester)" },
   ];
 
   const runningRunRows: DataGridRow[] = runningRuns
     .map((run: RecordAny, index: number) => {
-      const rawProject = run.testPlan?.project ?? run.project ?? null;
+      const rawProject = run.project ?? run.testPlan?.project ?? null;
       const pid = getId(rawProject) || (typeof rawProject === "string" ? rawProject : "");
-      const project = projects.find((p: RecordAny) => getId(p) === pid);
-      const projectName = project?.name || (pid ? pid : "-");
-      return { run, projectName, index };
+      const project = projects.find((p: RecordAny) =>
+        getId(p) === pid || String(p._id || "") === pid,
+      );
+      const projectName = run.project?.name || project?.name || (pid ? pid : "-");
+      const projectId = getId(project) || pid;
+      return { run, projectName, projectId, index };
     })
-    .filter(({ run, projectName }: RunningRunRow) =>
-      matchesSearch(run.name, run.testPlan?.name, projectName, userName(run.startedBy)),
+    .filter(({ run, projectName, projectId }: RunningRunRow) =>
+      matchesSearch(run.name, run.testPlan?.name, projectName, projectId, userName(run.startedBy)),
     )
-    .map(({ run, projectName, index }: RunningRunRow) => ({
+    .map(({ run, projectName, projectId, index }: RunningRunRow) => ({
       id: String(getId(run) || run.id || index),
       cells: [
         <div key="run" className="font-semibold text-slate-900">
@@ -237,7 +253,7 @@ export default function AdminDashboardScreen({
         <button
           key="action"
           type="button"
-          onClick={() => onNavigate?.("test-runs")}
+          onClick={() => onNavigate?.("test-runs", projectId)}
           className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-900"
         >
           Open
@@ -265,7 +281,7 @@ export default function AdminDashboardScreen({
           key="status"
           className="inline-flex items-center rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700"
         >
-          Attention
+          Needs attention
         </span>,
         <button
           key="action"
@@ -301,7 +317,7 @@ export default function AdminDashboardScreen({
         <button
           key="action"
           type="button"
-          onClick={() => onNavigate?.("test-cases-history")}
+          onClick={() => onNavigate?.("test-cases-history", getId(item.project))}
           className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-900"
         >
           Investigate
@@ -391,6 +407,24 @@ export default function AdminDashboardScreen({
       ],
     }));
 
+  const scopedProjectStats = !isGlobalScope
+    ? (projectOverview.find((project: RecordAny) =>
+        matchesSearch(project.name, project.code, project.latestVersion),
+      ) || projectOverview[0] || null)
+    : null;
+  const scopedSnapshotCards: SummaryCard[] = scopedProjectStats
+    ? [
+        { label: "Latest Version", value: scopedProjectStats.latestVersion || "N/A" },
+        { label: "Total Tests", value: Number(scopedProjectStats.totalTests || 0) },
+        { label: "Blocked", value: Number(scopedProjectStats.blockedCount || 0), helper: "Blocked during execution" },
+        {
+          label: "Project Pass Rate",
+          value: `${Number(scopedProjectStats.passRate || 0)}%`,
+          helper: `${Number(scopedProjectStats.passCount || 0)} pass / ${Number(scopedProjectStats.failCount || 0)} fail`,
+        },
+      ]
+    : [];
+
   return (
     <div className="space-y-8">
       <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -398,20 +432,30 @@ export default function AdminDashboardScreen({
           title={isGlobalScope ? "Portfolio Overview" : "QA Command Center"}
           subtitle={
             isGlobalScope
-              ? "Cross-project operational health and immediate risks"
-              : "Active progress, execution risk, and tester throughput"
+              ? "Cross-project quality visibility and priority risks"
+              : "Execution progress, risk, and tester throughput for selected project"
           }
           actions={
-            <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
-              {isGlobalScope ? "Global" : "Project"}
-            </div>
+            <>
+              <div className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold text-slate-600">
+                {isGlobalScope ? "Global" : "Project"}
+              </div>
+              {!isGlobalScope && scopedProjectName && (
+                <div className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+                  {scopedProjectName}
+                </div>
+              )}
+            </>
           }
         />
         <div className="grid grid-cols-1 gap-4 px-6 py-5 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard label="Projects" value={totalProjects} />
-          <MetricCard label="Test Plans" value={totalPlans} />
-          <MetricCard label="Test Cases" value={totalCases} />
-          <MetricCard label="Users" value={totalUsers} />
+          <MetricCard
+            label={isGlobalScope ? "Projects" : "Current Project"}
+            value={isGlobalScope ? totalProjects : (scopedProjectName || "Selected")}
+          />
+          <MetricCard label="Test plan" value={totalPlans} />
+          <MetricCard label="Test case" value={totalCases} />
+          <MetricCard label={isGlobalScope ? "Users" : "Active Users"} value={totalUsers} />
         </div>
         <div className="grid grid-cols-1 gap-4 px-6 pb-6 md:grid-cols-2 xl:grid-cols-4">
           {summaryCards.map((card: SummaryCard) => (
@@ -424,9 +468,22 @@ export default function AdminDashboardScreen({
           ))}
         </div>
         <div className="px-6 pb-6">
+          <div className="mb-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              KPI Definitions
+            </div>
+            <div className="mt-2 grid grid-cols-1 gap-2 text-xs text-slate-600 md:grid-cols-3">
+              {kpiDefinitions.map((kpi) => (
+                <div key={kpi.label} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                  <div className="font-semibold text-slate-700">{kpi.label}</div>
+                  <div className="mt-0.5 text-slate-500">{kpi.formula}</div>
+                </div>
+              ))}
+            </div>
+          </div>
           <StatusBreakdownDonut
-            title="Execution mix"
-            subtitle="Biểu đồ trạng thái giúp đọc nhanh pass/fail/blocked"
+            title="Execution Status Mix"
+            subtitle="Quickly scan pass/fail/blocked distribution"
             items={statusBreakdown}
           />
         </div>
@@ -436,7 +493,7 @@ export default function AdminDashboardScreen({
         <div className="space-y-4">
           <SectionHeader
             title="Action Center"
-            subtitle="Runs that need immediate attention"
+            subtitle="Runs requiring immediate attention"
           />
           <DataGrid
             columns={[
@@ -492,21 +549,58 @@ export default function AdminDashboardScreen({
 
           <div className="space-y-4">
             <SectionHeader
-              title="Project Health"
-              subtitle="Latest version signal and progress"
+              title="Project Snapshot"
+              subtitle="Operational health for selected project scope"
             />
-            <DataGrid
-              columns={[
-                { key: "project", label: "Project" },
-                { key: "version", label: "Latest Version" },
-                { key: "pass", label: "Pass" },
-                { key: "fail", label: "Fail" },
-                { key: "progress", label: "Progress" },
-                { key: "action", label: "Action", align: "right", width: "120px" },
-              ]}
-              rows={projectRows}
-              emptyText="No projects found"
-            />
+            {scopedProjectStats ? (
+              <>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  {scopedSnapshotCards.map((card: SummaryCard) => (
+                    <MetricCard
+                      key={card.label}
+                      label={card.label}
+                      value={card.value}
+                      helper={card.helper}
+                    />
+                  ))}
+                </div>
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Progress
+                  </div>
+                  <div className="mt-2 flex items-center justify-between text-sm text-slate-600">
+                    <span>{Number(scopedProjectStats.progress || 0)}%</span>
+                    <span>{Number(scopedProjectStats.totalTests || 0)} tests</span>
+                  </div>
+                  <div className="mt-3 h-2 w-full rounded-full bg-slate-100">
+                    <div
+                      className="h-2 rounded-full bg-slate-900"
+                      style={{ width: `${Math.max(0, Math.min(100, Number(scopedProjectStats.progress || 0)))}%` }}
+                    />
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onNavigate?.("versions", getId(scopedProjectStats) || "")}
+                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-900"
+                    >
+                      Open Versions
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onNavigate?.("test-plans", getId(scopedProjectStats) || "")}
+                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-900"
+                    >
+                      Open Plans
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="rounded-2xl border border-slate-200 bg-white px-5 py-8 text-center text-sm text-slate-500 shadow-sm">
+                No project snapshot found for current scope.
+              </div>
+            )}
           </div>
         </div>
       )}

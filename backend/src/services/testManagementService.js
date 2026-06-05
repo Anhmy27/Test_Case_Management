@@ -647,7 +647,48 @@ const listProjectsService = async ({ search, includeDeleted }) => {
   });
 
   const match = filters.length === 0 ? {} : filters.length === 1 ? filters[0] : { $and: filters };
-  return Project.find(match).sort({ createdAt: -1 }).lean();
+  const projects = await Project.find(match).sort({ createdAt: -1 }).lean();
+
+  const projectsWithLatestVersion = await Promise.all(
+    projects.map(async (project) => {
+      const projectRefs = await Project.find({ entityId: project.entityId }).select('_id entityId').lean();
+      const projectObjectIds = Array.from(
+        new Set(
+          projectRefs
+            .flatMap((item) => [String(item._id), String(item.entityId || '')])
+            .filter(Boolean),
+        ),
+      ).map((value) => toObjectId(value, 'projectId'));
+
+      const latestVersion = await Version.findOne({
+        $and: [
+          {
+            $or: [
+              { project: { $in: projectObjectIds } },
+              { projectVersionId: { $in: projectObjectIds } },
+            ],
+          },
+          { deletedAt: null },
+          { $or: [{ isLatest: true }, { isLatest: { $exists: false } }] },
+        ],
+      })
+        .sort({ createdAt: -1 })
+        .select('entityId name')
+        .lean();
+
+      return {
+        ...project,
+        latestVersion: latestVersion
+          ? {
+              _id: String(latestVersion.entityId || latestVersion._id),
+              name: latestVersion.name,
+            }
+          : null,
+      };
+    }),
+  );
+
+  return projectsWithLatestVersion;
 };
 
 const getProjectService = async (projectId) => {
