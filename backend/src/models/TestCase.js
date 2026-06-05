@@ -6,7 +6,7 @@ const stepSchema = new mongoose.Schema(
   {
     order: { type: Number, required: true },
     action: { type: String, required: true, trim: true },
-    expected: { type: String, required: true, trim: true },
+    expected: { type: String, default: null, trim: true },
   },
   { _id: false }
 );

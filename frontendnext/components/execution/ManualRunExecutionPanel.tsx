@@ -45,6 +45,11 @@ export default function ManualRunExecutionPanel({
   const [queueSearch, setQueueSearch] = useState("");
 
   const getExpectedResultText = (testCase: RecordAny) => {
+    const overall = String(testCase?.expected || "").trim();
+    if (overall) {
+      return overall;
+    }
+
     const steps = Array.isArray(testCase?.steps) ? testCase.steps : [];
     const uniqueExpected = Array.from(
       new Set(
@@ -54,11 +59,7 @@ export default function ManualRunExecutionPanel({
       ),
     );
 
-    if (uniqueExpected.length > 0) {
-      return uniqueExpected.join("\n");
-    }
-
-    return testCase?.expected || "N/A";
+    return uniqueExpected.length > 0 ? uniqueExpected.join("\n") : "N/A";
   };
 
   const currentIndex = myItems.findIndex((item: RecordAny) => getId(item) === selectedItemId);
@@ -264,6 +265,9 @@ export default function ManualRunExecutionPanel({
                   <li key={index} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
                     <span className="mr-2 text-xs text-slate-400">#{index + 1}</span>
                     {step.action || step}
+                    {step.expected && (
+                      <div className="mt-1 text-xs text-slate-500">→ {step.expected}</div>
+                    )}
                   </li>
                 ))}
               </ol>

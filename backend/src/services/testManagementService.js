@@ -52,6 +52,27 @@ const extractReferenceId = (value) => {
   return '';
 };
 
+const normalizeStepExpected = (value) => {
+  const trimmed = String(value || '').trim();
+  return trimmed || null;
+};
+
+const normalizeManualSteps = (steps) => {
+  if (!Array.isArray(steps)) {
+    return [];
+  }
+
+  return steps
+    .filter((step) => step && String(step.action || '').trim())
+    .map((step, index) => ({
+      order: index + 1,
+      action: String(step.action).trim(),
+      expected: normalizeStepExpected(step.expected),
+    }));
+};
+
+const normalizeOverallExpected = (value) => String(value || '').trim();
+
 const normalizeAutomationSteps = (steps) => {
   if (!Array.isArray(steps)) {
     return [];
@@ -323,15 +344,7 @@ const buildCasePayload = ({
 }) => {
   const normalizedKey = normalizeKey(key || caseKey);
   const normalizedName = normalizeName(name || title);
-  const normalizedSteps = Array.isArray(steps)
-    ? steps
-        .filter((step) => step && step.action && step.expected)
-        .map((step, index) => ({
-          order: index + 1,
-          action: String(step.action),
-          expected: String(step.expected),
-        }))
-    : [];
+  const normalizedSteps = normalizeManualSteps(steps);
 
   return {
     project: toObjectId(projectId, 'projectId'),
@@ -341,7 +354,7 @@ const buildCasePayload = ({
     caseKey: normalizedKey,
     title: normalizedName,
     description: description || '',
-    expected: String(expected || '').trim(),
+    expected: normalizeOverallExpected(expected),
     steps: normalizedSteps,
     priority: priority || 'medium',
     severity: severity || 'major',
@@ -1340,16 +1353,8 @@ const createTestCaseService = async ({
     caseKey: normalizedKey,
     title: normalizedName,
     description: description || '',
-    expected: String(expected || '').trim() || String((Array.isArray(steps) && steps[0] && steps[0].expected) || '').trim(),
-    steps: Array.isArray(steps)
-      ? steps
-          .filter((step) => step && step.action)
-          .map((step, index) => ({
-            order: index + 1,
-            action: String(step.action),
-            expected: String(expected || step.expected || '').trim(),
-          }))
-      : [],
+    expected: normalizeOverallExpected(expected),
+    steps: normalizeManualSteps(steps),
     priority: priority || 'medium',
     severity: severity || 'major',
     type: type || 'functional',
@@ -1839,16 +1844,12 @@ const updateTestCaseService = async (testCaseId, payload = {}) => {
       });
     }
 
-    const nextExpected = String(expected || current.expected || (Array.isArray(current.steps) && current.steps[0] && current.steps[0].expected) || '').trim();
+    const nextExpected = expected !== undefined
+      ? normalizeOverallExpected(expected)
+      : normalizeOverallExpected(current.expected);
 
     const nextSteps = Array.isArray(steps)
-      ? steps
-          .filter((step) => step && step.action)
-          .map((step, index) => ({
-            order: index + 1,
-            action: String(step.action),
-            expected: nextExpected || String(step.expected || '').trim(),
-          }))
+      ? normalizeManualSteps(steps)
       : current.steps;
 
     const nextAutomation = automation
@@ -2045,11 +2046,27 @@ const importTestCasesService = async ({ file, body = {}, userId }) => {
           .filter(Boolean)
           .sort((a, b) => a.idx - b.idx);
 
+        const stepExpectedPattern = /^Step\s*(\d+)\s*Expected$/i;
+        const stepExpectedByIndex = Object.keys(row).reduce((acc, key) => {
+          const match = String(key).match(stepExpectedPattern);
+          if (!match) {
+            return acc;
+          }
+
+          const idx = parseInt(match[1], 10);
+          acc[idx] = normalizeStepExpected(row[key]);
+          return acc;
+        }, {});
+
         const steps = [];
         for (const s of detectedSteps) {
           const action = String(row[s.key] || '').trim();
           if (action) {
-            steps.push({ order: s.idx, action, expected: expectedResult });
+            steps.push({
+              order: s.idx,
+              action,
+              expected: stepExpectedByIndex[s.idx] ?? null,
+            });
           }
         }
 
@@ -2110,6 +2127,7 @@ const importTestCasesService = async ({ file, body = {}, userId }) => {
           caseKey: normalizedKey,
           title: normalizedName,
           description,
+          expected: expectedResult,
           steps,
           priority: ['low', 'medium', 'high', 'critical'].includes(priority)
             ? priority

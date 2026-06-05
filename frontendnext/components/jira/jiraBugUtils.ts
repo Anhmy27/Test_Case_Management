@@ -55,7 +55,8 @@ export function buildJiraBugDescription(
 ) {
   const testCase = selectedItemValue?.testCase || {};
   const steps = Array.isArray(testCase.steps) ? testCase.steps : [];
-  const uniqueExpected = Array.from(
+  const overallExpected = String(testCase.expected || "").trim();
+  const stepExpected = Array.from(
     new Set(
       steps
         .map((step: RecordAny) => String(step.expected || "").trim())
@@ -64,8 +65,12 @@ export function buildJiraBugDescription(
   );
   const stepLines = steps.flatMap((step: RecordAny, index: number) => {
     const action = String(step.action || "").trim();
-    return [`${index + 1}. ${action || "Step"}`];
+    const expected = String(step.expected || "").trim();
+    const line = `${index + 1}. ${action || "Step"}`;
+    return expected ? [`${line} (expected: ${expected})`] : [line];
   });
+  const expectedResult = overallExpected
+    || (stepExpected.length > 0 ? stepExpected.join(" | ") : "N/A");
 
   return [
     `Run: ${selectedRunValue?.name || ""}`,
@@ -74,7 +79,7 @@ export function buildJiraBugDescription(
     "Steps to reproduce:",
     ...(stepLines.length > 0 ? stepLines : ["1. <no manual steps captured>"]),
     "",
-    `Expected result: ${uniqueExpected.length > 0 ? uniqueExpected.join(" | ") : testCase.expected || "N/A"}`,
+    `Expected result: ${expectedResult}`,
     "",
     `Actual result: ${selectedItemValue?.note || ""}`,
   ].join("\n");

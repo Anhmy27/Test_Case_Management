@@ -92,14 +92,17 @@ export default function AdminTestCasesRoute() {
     setTestCases(Array.isArray(casesResponse.testCases) ? casesResponse.testCases : []);
   };
 
-  const normalizeSteps = (steps: Array<{ action: string; expected?: string }>) =>
+  const normalizeSteps = (steps: Array<{ action: string; expected?: string | null }>) =>
     steps
       .filter((step) => String(step.action || "").trim())
-      .map((step, index) => ({
-        order: index + 1,
-        action: String(step.action || "").trim(),
-        expected: String(step.expected || "").trim(),
-      }));
+      .map((step, index) => {
+        const stepExpected = String(step.expected || "").trim();
+        return {
+          order: index + 1,
+          action: String(step.action || "").trim(),
+          expected: stepExpected || null,
+        };
+      });
   const normalizeAutomationSteps = (steps: any[]) =>
     steps
       .filter((step) => String(step.action || "").trim())
