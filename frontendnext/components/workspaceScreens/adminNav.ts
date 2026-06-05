@@ -25,6 +25,7 @@ const GLOBAL_SCOPE_KEYS = new Set([
 ]);
 
 const PROJECT_SCOPE_KEYS = new Set([
+  "dashboard",
   "groups",
   "test-cases",
   "test-cases-history",
