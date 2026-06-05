@@ -8,6 +8,7 @@ const Project = require('../models/Project');
 const Version = require('../models/Version');
 const TestCase = require('../models/TestCase');
 const TestPlan = require('../models/TestPlan');
+const TestRun = require('../models/TestRun');
 const { httpError } = require('./httpError');
 
 // ---------------------------------------------------------------------------
@@ -138,6 +139,33 @@ const findVersionByReference = async (versionRef) => {
   return latestVersion || (referencedVersion.deletedAt ? null : referencedVersion);
 };
 
+const repointVersionReferences = async (versionEntityId, latestVersionDoc) => {
+  if (!versionEntityId || !latestVersionDoc?._id) {
+    return;
+  }
+
+  const entityObjectId = toObjectId(String(versionEntityId), 'versionId');
+  const versionSnapshotIds = await Version.find({ entityId: entityObjectId }).distinct('_id');
+  const staleVersionIds = versionSnapshotIds.filter(
+    (snapshotId) => String(snapshotId) !== String(latestVersionDoc._id),
+  );
+
+  if (staleVersionIds.length === 0) {
+    return;
+  }
+
+  await Promise.all([
+    TestPlan.updateMany(
+      { version: { $in: staleVersionIds } },
+      { $set: { version: latestVersionDoc._id, versionVersionId: latestVersionDoc._id } },
+    ),
+    TestRun.updateMany(
+      { version: { $in: staleVersionIds } },
+      { $set: { version: latestVersionDoc._id } },
+    ),
+  ]);
+};
+
 // ---------------------------------------------------------------------------
 // Run payload enrichers — attach resolved references to a plain TestRun object
 // ---------------------------------------------------------------------------
@@ -195,6 +223,7 @@ module.exports = {
   findLatestTestCaseByReference,
   findProjectByReference,
   findVersionByReference,
+  repointVersionReferences,
   attachRunTestPlan,
   attachRunProjectAndVersion,
 };

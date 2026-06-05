@@ -8,6 +8,7 @@ const TestCaseGroup = require('../models/TestCaseGroup');
 const TestPlan = require('../models/TestPlan');
 const TestRun = require('../models/TestRun');
 const { httpError } = require('../utils/httpError');
+const { repointVersionReferences } = require('../utils/entityResolvers');
 const {
   buildSearchMatch,
   createEntityId,
@@ -985,6 +986,11 @@ const updateVersionService = async (versionId, payload) => {
       createdBy: current.createdBy,
     };
   });
+
+  await repointVersionReferences(
+    currentVersion.entityId || currentVersion._id,
+    nextVersion,
+  );
 
   const populated = await Version.findById(nextVersion._id).lean();
   const project = await Project.findOne({
@@ -2444,26 +2450,47 @@ const listTestPlansService = async (query = {}, user = null) => {
   }
 
   const referencedVersionIds = Array.from(new Set(testPlans.map((p) => extractReferenceId(p.version)).filter(Boolean)));
-  let attachedVersions = [];
+  let latestVersionByRef = new Map();
   if (referencedVersionIds.length > 0) {
     const referencedVersionObjectIds = referencedVersionIds.filter((v) => mongoose.Types.ObjectId.isValid(v));
-    attachedVersions = await Version.find({
+    const referencedVersions = await Version.find({
       $or: [
         { _id: { $in: referencedVersionObjectIds.map((v) => toObjectId(v, 'versionId')) } },
         { entityId: { $in: referencedVersionObjectIds.map((v) => toObjectId(v, 'versionId')) } },
       ],
-    }).select('entityId name deletedAt').lean();
-  }
-  const versionMap = new Map();
-  for (const v of attachedVersions) {
-    versionMap.set(String(v._id), v);
-    if (v.entityId) versionMap.set(String(v.entityId), v);
+    }).select('entityId _id').lean();
+
+    const versionEntityIds = Array.from(new Set(
+      referencedVersions.map((version) => String(version.entityId || version._id)).filter(Boolean),
+    ));
+
+    const latestVersions = versionEntityIds.length > 0
+      ? await Version.find({
+        entityId: { $in: versionEntityIds.map((value) => toObjectId(value, 'versionId')) },
+        ...activeLatestFilter(),
+      }).select('entityId name deletedAt _id').lean()
+      : [];
+
+    const latestByEntityId = new Map(
+      latestVersions.map((version) => [String(version.entityId || version._id), version]),
+    );
+
+    for (const snapshot of referencedVersions) {
+      const latest = latestByEntityId.get(String(snapshot.entityId || snapshot._id));
+      if (!latest) {
+        continue;
+      }
+      latestVersionByRef.set(String(snapshot._id), latest);
+      if (snapshot.entityId) {
+        latestVersionByRef.set(String(snapshot.entityId), latest);
+      }
+    }
   }
 
   const normalizedPlans = testPlans.map((plan) => ({
     ...plan,
     project: projectMap.get(extractReferenceId(plan.project)) || plan.project || null,
-    version: versionMap.get(extractReferenceId(plan.version)) || plan.version || null,
+    version: latestVersionByRef.get(extractReferenceId(plan.version)) || plan.version || null,
   }));
 
   const attachedPlans = await Promise.all(normalizedPlans.map((plan) => attachTestPlanCases(plan)));

@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction, FormEvent } from "react";
 import { ActionButton, Button, Field, INPUT_CLS } from "./shared";
+import { matchesSelectedEntity } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
 
@@ -30,6 +31,7 @@ type Props = {
   setAssignDraft: Dispatch<SetStateAction<{ ownerId: string; assigneeIds: string[] }>>;
   saveAssignments: (event: FormEvent) => Promise<void>;
   scopedPlans: RecordAny[];
+  versionFilterId?: string;
   editingPlanId: string;
   editingExecutionMode: string;
   setEditingPlanId: Dispatch<SetStateAction<string>>;
@@ -68,6 +70,7 @@ export default function AdminTestPlansScreen(props: Props) {
     setAssignDraft,
     saveAssignments,
     scopedPlans,
+    versionFilterId = "",
     editingPlanId,
     setEditingPlanId,
     setEditingExecutionMode,
@@ -204,10 +207,13 @@ export default function AdminTestPlansScreen(props: Props) {
 
   const filteredPlans = useMemo(
     () =>
-      scopedPlans.filter((plan: RecordAny) =>
-        matchesSearch(plan.name, plan.project?.name, plan.version?.name, userName(plan.owner)),
-      ),
-    [matchesSearch, scopedPlans, userName],
+      scopedPlans.filter((plan: RecordAny) => {
+        if (versionFilterId && !matchesSelectedEntity(plan.version, versionFilterId)) {
+          return false;
+        }
+        return matchesSearch(plan.name, plan.project?.name, plan.version?.name, userName(plan.owner));
+      }),
+    [getId, matchesSearch, scopedPlans, userName, versionFilterId],
   );
 
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
