@@ -37,7 +37,11 @@ export function persistProjectId(projectId: string) {
 }
 
 export function useEmployeeProjectScope(projects: RecordAny[]) {
-  const [selectedProjectId, setSelectedProjectId] = useState<string>(() => getStoredProjectId());
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+
+  useEffect(() => {
+    setSelectedProjectId(getStoredProjectId());
+  }, []);
 
   useEffect(() => {
     persistProjectId(selectedProjectId);

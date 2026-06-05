@@ -1,24 +1,19 @@
-"use client";
+﻿"use client";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import AppShell from "@/components/AppShell";
 import AdminTestRunsScreen from "@/components/workspaceScreens/AdminTestRunsScreen";
+import { useAdminWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
+import { WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
 import { apiRequest, formatAutomationRunMessage, getId, userName } from "@/lib/api";
-import { useAdminSidebarNav } from "@/components/workspaceScreens/adminNav";
 
 type RecordAny = Record<string, any>;
-function storedToken() { return typeof window === "undefined" ? "" : window.localStorage.getItem("tcm_token") || ""; }
-function storedProject() { return typeof window === "undefined" ? "" : window.localStorage.getItem("tcm_selected_project_id") || ""; }
 
 export default function AdminTestRunsRoute() {
   const router = useRouter();
-  const [selectedProjectId] = useState<string>(() => storedProject());
-  const navItems = useAdminSidebarNav(selectedProjectId, "test-runs", router);
-  const [token] = useState<string>(() => storedToken());
-  const [currentUser, setCurrentUser] = useState<RecordAny | null>(null);
+  const { token, currentUser, selectedProjectId, setTopbar, handleLogout } = useAdminWorkspace();
   const [plans, setPlans] = useState<RecordAny[]>([]);
   const [runs, setRuns] = useState<RecordAny[]>([]);
   const [runForm, setRunForm] = useState({ testPlanId: "", name: "", baseUrl: "" });
@@ -27,28 +22,33 @@ export default function AdminTestRunsRoute() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    if (!token) { router.replace("/"); return; }
+    if (!token || !currentUser) {
+      return;
+    }
+
     let cancelled = false;
     const load = async () => {
-      setLoading(true); setMessage("");
+      setLoading(true);
+      setMessage("");
       try {
-        const me = await apiRequest<{ user: RecordAny | null }>("/api/auth/me", token);
-        if (!me.user) { router.replace("/"); return; }
-        if (me.user.role !== "admin") { router.replace("/workspace/employee/my-test-plans"); return; }
         const [plansResponse, runsResponse] = await Promise.all([
           apiRequest<{ testPlans: RecordAny[] }>(selectedProjectId ? `/api/test-plans?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-plans", token),
           apiRequest<{ testRuns: RecordAny[] }>(selectedProjectId ? `/api/test-runs?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-runs", token),
         ]);
         if (cancelled) return;
-        setCurrentUser(me.user);
         setPlans(Array.isArray(plansResponse.testPlans) ? plansResponse.testPlans : []);
         setRuns(Array.isArray(runsResponse.testRuns) ? runsResponse.testRuns : []);
-      } catch (error) { if (!cancelled) setMessage(error instanceof Error ? error.message : "Unable to load test runs"); }
-      finally { if (!cancelled) setLoading(false); }
+      } catch (error) {
+        if (!cancelled) setMessage(error instanceof Error ? error.message : "Unable to load test runs");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     };
     void load();
-    return () => { cancelled = true; };
-  }, [router, selectedProjectId, token]);
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser, selectedProjectId, token]);
 
   const scopedPlans = useMemo(() => plans, [plans]);
   const selectedRunPlan = scopedPlans.find((plan) => getId(plan) === runForm.testPlanId);
@@ -64,7 +64,10 @@ export default function AdminTestRunsRoute() {
   };
 
   const refreshRuns = async () => {
-    const response = await apiRequest<{ testRuns: RecordAny[] }>(selectedProjectId ? `/api/test-runs?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-runs", token);
+    const response = await apiRequest<{ testRuns: RecordAny[] }>(
+      selectedProjectId ? `/api/test-runs?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-runs",
+      token,
+    );
     setRuns(Array.isArray(response.testRuns) ? response.testRuns : []);
   };
 
@@ -83,7 +86,7 @@ export default function AdminTestRunsRoute() {
         setRuns((prev) => [response.testRun as RecordAny, ...prev.filter((run) => getId(run) !== getId(response.testRun))]);
         if (response.automationQueued) {
           router.push(`/workspace/admin/execution?runId=${encodeURIComponent(getId(response.testRun))}`);
-          setMessage("Automation đang chạy nền. Kết quả sẽ cập nhật tự động.");
+          setMessage("Automation Ä‘ang cháº¡y ná»n. Káº¿t quáº£ sáº½ cáº­p nháº­t tá»± Ä‘á»™ng.");
         } else if (response.automationSummary) {
           setMessage(formatAutomationRunMessage(response.automationSummary));
         } else {
@@ -102,10 +105,47 @@ export default function AdminTestRunsRoute() {
     router.push(`/workspace/admin/execution?runId=${encodeURIComponent(runId)}`);
   };
 
-  const handleNavigate = (tab: string) => router.push(`/workspace/admin/${tab}`);
-  const handleLogout = () => { if (typeof window !== "undefined") { window.localStorage.removeItem("tcm_token"); window.localStorage.removeItem("tcm_selected_project_id"); } router.replace("/"); };
-  const topbar = <div className="flex flex-wrap items-center gap-3"><div><div className="text-sm font-semibold text-slate-900">Test Runs</div><div className="text-xs text-slate-500">Route-local test run list</div></div><div className="ml-auto flex flex-wrap items-center gap-3"><button type="button" onClick={handleLogout} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">Log out</button></div></div>;
-  if (loading && !currentUser) return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-600">Loading test runs...</div>;
-  if (!currentUser) return null;
-  return <AppShell brand={{ title: "Test Case Management", subtitle: "Admin workspace" }} user={{ name: userName(currentUser), email: currentUser.email, role: currentUser.role }} navItems={navItems} activeKey="test-runs" onNavChange={handleNavigate} topbar={topbar}>{message ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{message}</div> : null}<AdminTestRunsScreen runForm={runForm} setRunForm={setRunForm} startRun={startRun} startingRun={startingRun} scopedPlans={scopedPlans} selectedRunPlanIsAutomation={selectedRunPlanIsAutomation} adminRuns={runs} matchesSearch={matchesSearch} userName={userName} currentUserId={currentUserId} loadMyItems={loadMyItems} /></AppShell>;
+  useLayoutEffect(() => {
+    setTopbar(
+      <div className="flex flex-wrap items-center gap-3">
+        <div>
+          <div className="text-sm font-semibold text-slate-900">Test Runs</div>
+        </div>
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600"
+          >
+            Log out
+          </button>
+        </div>
+      </div>,
+    );
+
+    return () => setTopbar(null);
+  }, [handleLogout, setTopbar]);
+
+  return (
+    <>
+      {message ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{message}</div> : null}
+      {loading ? (
+        <WorkspaceContentSkeleton />
+      ) : (
+        <AdminTestRunsScreen
+          runForm={runForm}
+          setRunForm={setRunForm}
+          startRun={startRun}
+          startingRun={startingRun}
+          scopedPlans={scopedPlans}
+          selectedRunPlanIsAutomation={selectedRunPlanIsAutomation}
+          adminRuns={runs}
+          matchesSearch={matchesSearch}
+          userName={userName}
+          currentUserId={currentUserId}
+          loadMyItems={loadMyItems}
+        />
+      )}
+    </>
+  );
 }

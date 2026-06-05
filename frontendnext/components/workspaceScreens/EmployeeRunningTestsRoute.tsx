@@ -1,32 +1,20 @@
-"use client";
+﻿"use client";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import AppShell from "@/components/AppShell";
 import EmployeeRunningTestsScreen from "@/components/workspaceScreens/EmployeeRunningTestsScreen";
-import {
-  EMPLOYEE_NAV_ITEMS,
-  buildEmployeeTopbar,
-  useEmployeeProjectScope,
-} from "@/components/workspaceScreens/employeeNav";
+import { buildEmployeeTopbar, useEmployeeProjectScope } from "@/components/workspaceScreens/employeeNav";
+import { useEmployeeWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
+import { WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
 import { apiRequest, getId, userName } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
 
-function getStoredToken() {
-  if (typeof window === "undefined") {
-    return "";
-  }
-
-  return window.localStorage.getItem("tcm_token") || "";
-}
-
 export default function EmployeeRunningTestsRoute() {
   const router = useRouter();
-  const [token] = useState<string>(() => getStoredToken());
-  const [currentUser, setCurrentUser] = useState<RecordAny | null>(null);
+  const { token, currentUser, setTopbar, handleLogout } = useEmployeeWorkspace();
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [runs, setRuns] = useState<RecordAny[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,8 +23,7 @@ export default function EmployeeRunningTestsRoute() {
   const projectScope = useEmployeeProjectScope(projects);
 
   useEffect(() => {
-    if (!token) {
-      router.replace("/");
+    if (!token || !currentUser) {
       return;
     }
 
@@ -47,24 +34,6 @@ export default function EmployeeRunningTestsRoute() {
       setMessage("");
 
       try {
-        const meResponse = await apiRequest<{ user: RecordAny | null }>("/api/auth/me", token);
-        const me = meResponse.user;
-
-        if (!me) {
-          if (!cancelled) {
-            window.localStorage.removeItem("tcm_token");
-            router.replace("/");
-          }
-          return;
-        }
-
-        if (me.role === "admin") {
-          if (!cancelled) {
-            router.replace("/workspace/admin/dashboard");
-          }
-          return;
-        }
-
         const [projectsResponse, runsResponse] = await Promise.all([
           apiRequest<{ projects: RecordAny[] }>("/api/projects", token),
           apiRequest<{ testRuns: RecordAny[] }>("/api/test-runs", token),
@@ -73,7 +42,6 @@ export default function EmployeeRunningTestsRoute() {
           return;
         }
 
-        setCurrentUser(me);
         setProjects(Array.isArray(projectsResponse.projects) ? projectsResponse.projects : []);
         setRuns(Array.isArray(runsResponse.testRuns) ? runsResponse.testRuns : []);
       } catch (error) {
@@ -92,7 +60,7 @@ export default function EmployeeRunningTestsRoute() {
     return () => {
       cancelled = true;
     };
-  }, [router, token]);
+  }, [currentUser, token]);
 
   const myScopedRuns = useMemo(
     () => projectScope.filterMyRuns(runs, getId(currentUser)),
@@ -116,64 +84,51 @@ export default function EmployeeRunningTestsRoute() {
     router.push(`/workspace/employee/execution?runId=${encodeURIComponent(runId)}`);
   };
 
-  const handleNavigate = (tab: string) => {
-    router.push(`/workspace/employee/${tab}`);
-  };
-
-  const handleLogout = () => {
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem("tcm_token");
-      window.localStorage.removeItem("tcm_selected_project_id");
-    }
-
-    router.replace("/");
-  };
-
-  const topbar = buildEmployeeTopbar({
-    tabLabel: "Running Tests",
-    scopeLabel: projectScope.scopeLabel,
-    selectedProjectId: projectScope.selectedProjectId,
-    projects: projectScope.safeProjects,
-    onProjectChange: projectScope.setSelectedProjectId,
-    searchTerm,
-    onSearchChange: setSearchTerm,
-    searchPlaceholder: "Search by run, plan, status...",
-    stats: [{ label: "runs", value: myScopedRuns.length }],
-    onLogout: handleLogout,
-  });
-
-  if (loading && !currentUser) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-600">
-        Loading running tests...
-      </div>
+  useLayoutEffect(() => {
+    setTopbar(
+      buildEmployeeTopbar({
+        tabLabel: "Running Tests",
+        scopeLabel: projectScope.scopeLabel,
+        selectedProjectId: projectScope.selectedProjectId,
+        projects: projectScope.safeProjects,
+        onProjectChange: projectScope.setSelectedProjectId,
+        searchTerm,
+        onSearchChange: setSearchTerm,
+        searchPlaceholder: "Search by run, plan, status...",
+        stats: [{ label: "runs", value: myScopedRuns.length }],
+        onLogout: handleLogout,
+      }),
     );
-  }
 
-  if (!currentUser) {
-    return null;
-  }
+    return () => setTopbar(null);
+  }, [
+    handleLogout,
+    myScopedRuns.length,
+    projectScope.safeProjects,
+    projectScope.scopeLabel,
+    projectScope.selectedProjectId,
+    projectScope.setSelectedProjectId,
+    searchTerm,
+    setTopbar,
+  ]);
 
   return (
-    <AppShell
-      brand={{ title: "Test Case Management", subtitle: "Employee workspace" }}
-      user={{ name: userName(currentUser), email: currentUser.email, role: currentUser.role }}
-      navItems={EMPLOYEE_NAV_ITEMS}
-      activeKey="running-tests"
-      onNavChange={handleNavigate}
-      topbar={topbar}
-    >
+    <>
       {message ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           {message}
         </div>
       ) : null}
-      <EmployeeRunningTestsScreen
-        myScopedRuns={myScopedRuns}
-        matchesSearch={matchesSearch}
-        loadMyItems={loadMyItems}
-        userName={userName}
-      />
-    </AppShell>
+      {loading ? (
+        <WorkspaceContentSkeleton />
+      ) : (
+        <EmployeeRunningTestsScreen
+          myScopedRuns={myScopedRuns}
+          matchesSearch={matchesSearch}
+          loadMyItems={loadMyItems}
+          userName={userName}
+        />
+      )}
+    </>
   );
 }

@@ -1,23 +1,15 @@
-"use client";
+﻿"use client";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import AppShell from "@/components/AppShell";
 import AdminTestPlansScreen from "@/components/workspaceScreens/AdminTestPlansScreen";
+import { useAdminWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
+import { WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
 import { apiRequest, createTextMatcher, getId, matchesSelectedEntity, userName } from "@/lib/api";
-import { useAdminSidebarNav } from "@/components/workspaceScreens/adminNav";
 
 type RecordAny = Record<string, any>;
-
-function storedToken() {
-  return typeof window === "undefined" ? "" : window.localStorage.getItem("tcm_token") || "";
-}
-
-function storedProject() {
-  return typeof window === "undefined" ? "" : window.localStorage.getItem("tcm_selected_project_id") || "";
-}
 
 function groupCasesByGroup(groups: RecordAny[], cases: RecordAny[]) {
   return groups.map((group) => ({
@@ -28,10 +20,7 @@ function groupCasesByGroup(groups: RecordAny[], cases: RecordAny[]) {
 
 export default function AdminTestPlansRoute() {
   const router = useRouter();
-  const [token] = useState<string>(() => storedToken());
-  const [selectedProjectId, setSelectedProjectId] = useState<string>(() => storedProject());
-  const navItems = useAdminSidebarNav(selectedProjectId, "test-plans", router);
-  const [currentUser, setCurrentUser] = useState<RecordAny | null>(null);
+  const { token, currentUser, selectedProjectId, setSelectedProjectId, setTopbar, handleLogout } = useAdminWorkspace();
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [versions, setVersions] = useState<RecordAny[]>([]);
   const [groups, setGroups] = useState<RecordAny[]>([]);
@@ -47,13 +36,6 @@ export default function AdminTestPlansRoute() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      if (selectedProjectId) window.localStorage.setItem("tcm_selected_project_id", selectedProjectId);
-      else window.localStorage.removeItem("tcm_selected_project_id");
-    }
-  }, [selectedProjectId]);
-
   const handleProjectScopeChange = (projectId: string) => {
     setSelectedProjectId(projectId);
     if (projectId) {
@@ -62,16 +44,14 @@ export default function AdminTestPlansRoute() {
   };
 
   useEffect(() => {
-    if (!token) { router.replace("/"); return; }
+    if (!token || !currentUser) {
+      return;
+    }
 
     let cancelled = false;
     const load = async () => {
       setLoading(true); setMessage("");
       try {
-        const me = await apiRequest<{ user: RecordAny | null }>("/api/auth/me", token);
-        if (!me.user) { router.replace("/"); return; }
-        if (me.user.role !== "admin") { router.replace("/workspace/employee/my-test-plans"); return; }
-
         const [projectsResponse, versionsResponse, groupsResponse, casesResponse, plansResponse, runsResponse, usersResponse] = await Promise.all([
           apiRequest<{ projects: RecordAny[] }>("/api/projects", token),
           apiRequest<{ versions: RecordAny[] }>(selectedProjectId ? `/api/versions?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/versions", token),
@@ -83,7 +63,6 @@ export default function AdminTestPlansRoute() {
         ]);
 
         if (cancelled) return;
-        setCurrentUser(me.user);
         setProjects(Array.isArray(projectsResponse.projects) ? projectsResponse.projects : []);
         setVersions(Array.isArray(versionsResponse.versions) ? versionsResponse.versions : []);
         setGroups(Array.isArray(groupsResponse.groups) ? groupsResponse.groups : []);
@@ -97,7 +76,7 @@ export default function AdminTestPlansRoute() {
 
     void load();
     return () => { cancelled = true; };
-  }, [router, selectedProjectId, token]);
+  }, [currentUser, selectedProjectId, token]);
 
   const refreshAll = async () => {
     const [projectsResponse, versionsResponse, groupsResponse, casesResponse, plansResponse, runsResponse, usersResponse] = await Promise.all([
@@ -220,11 +199,84 @@ export default function AdminTestPlansRoute() {
   };
   const openExecutionForPlan = (plan: RecordAny) => { const planId = getId(plan); const runName = `${plan.name || "Test plan"} - ${new Date().toISOString().slice(0, 16).replace("T", " ")}`; router.push(`/workspace/admin/execution?testPlanId=${encodeURIComponent(planId)}&runName=${encodeURIComponent(runName)}`); };
   const setActiveTab = (tab: string) => router.push(`/workspace/admin/${tab}`);
-  const handleNavigate = (tab: string) => router.push(`/workspace/admin/${tab}`);
-  const handleLogout = () => { if (typeof window !== "undefined") { window.localStorage.removeItem("tcm_token"); window.localStorage.removeItem("tcm_selected_project_id"); } router.replace("/"); };
   const matchesSearch = createTextMatcher();
-  const topbar = <div className="flex flex-wrap items-center gap-3"><div><div className="text-sm font-semibold text-slate-900">Test Plans</div><div className="text-xs text-slate-500">Route-local plan workbench</div></div><div className="ml-auto flex flex-wrap items-center gap-3"><select value={selectedProjectId} onChange={(event) => handleProjectScopeChange(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"><option value="">All projects</option>{projects.map((project) => <option key={getId(project)} value={getId(project)}>{project.name}</option>)}</select><button type="button" onClick={handleLogout} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600">Log out</button></div></div>;
-  if (loading && !currentUser) return <div className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-600">Loading test plans...</div>;
-  if (!currentUser) return null;
-  return <AppShell brand={{ title: "Test Case Management", subtitle: "Admin workspace" }} user={{ name: userName(currentUser), email: currentUser.email, role: currentUser.role }} navItems={navItems} activeKey="test-plans" onNavChange={handleNavigate} topbar={topbar}>{message ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{message}</div> : null}<AdminTestPlansScreen planForm={planForm} setPlanForm={setPlanForm} createPlan={createPlan} scopedProjects={scopedProjects} scopedVersions={scopedVersions} planProjectGroups={planProjectGroups} planProjectCases={planProjectCases} selectedPlanGroupIds={selectedPlanGroupIds} selectedPlanCaseIds={selectedPlanCaseIds} selectedPlanGroups={selectedPlanGroups} selectedPlanCasesByGroup={selectedPlanCasesByGroup} togglePlanGroup={togglePlanGroup} togglePlanCase={togglePlanCase} users={users} currentUser={currentUser} selectedPlanId={selectedPlanId} selectPlanForAssignment={selectPlanForAssignment} assignDraft={assignDraft} setAssignDraft={setAssignDraft} saveAssignments={saveAssignments} scopedPlans={plans} editingPlanId={editingPlanId} editingExecutionMode={editingExecutionMode} setEditingPlanId={setEditingPlanId} setEditingExecutionMode={setEditingExecutionMode} updatePlanExecutionMode={updatePlanExecutionMode} deletePlan={deletePlan} duplicatePlan={duplicatePlan} runs={runs} openExecutionForPlan={openExecutionForPlan} setActiveTab={setActiveTab as any} userName={userName} getId={getId} matchesSearch={matchesSearch} /></AppShell>;
+
+  useLayoutEffect(() => {
+    setTopbar(
+      <div className="flex flex-wrap items-center gap-3">
+        <div>
+          <div className="text-sm font-semibold text-slate-900">Test Plans</div>
+        </div>
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <select
+            value={selectedProjectId}
+            onChange={(event) => handleProjectScopeChange(event.target.value)}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+          >
+            <option value="">All projects</option>
+            {projects.map((project) => (
+              <option key={getId(project)} value={getId(project)}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600"
+          >
+            Log out
+          </button>
+        </div>
+      </div>,
+    );
+
+    return () => setTopbar(null);
+  }, [handleLogout, handleProjectScopeChange, projects, selectedProjectId, setTopbar]);
+
+  return (
+    <>
+      {message ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{message}</div> : null}
+      {loading ? (
+        <WorkspaceContentSkeleton />
+      ) : (
+        <AdminTestPlansScreen
+          planForm={planForm}
+          setPlanForm={setPlanForm}
+          createPlan={createPlan}
+          scopedProjects={scopedProjects}
+          scopedVersions={scopedVersions}
+          planProjectGroups={planProjectGroups}
+          planProjectCases={planProjectCases}
+          selectedPlanGroupIds={selectedPlanGroupIds}
+          selectedPlanCaseIds={selectedPlanCaseIds}
+          selectedPlanGroups={selectedPlanGroups}
+          selectedPlanCasesByGroup={selectedPlanCasesByGroup}
+          togglePlanGroup={togglePlanGroup}
+          togglePlanCase={togglePlanCase}
+          users={users}
+          currentUser={currentUser}
+          selectedPlanId={selectedPlanId}
+          selectPlanForAssignment={selectPlanForAssignment}
+          assignDraft={assignDraft}
+          setAssignDraft={setAssignDraft}
+          saveAssignments={saveAssignments}
+          scopedPlans={plans}
+          editingPlanId={editingPlanId}
+          editingExecutionMode={editingExecutionMode}
+          setEditingPlanId={setEditingPlanId}
+          setEditingExecutionMode={setEditingExecutionMode}
+          updatePlanExecutionMode={updatePlanExecutionMode}
+          deletePlan={deletePlan}
+          duplicatePlan={duplicatePlan}
+          runs={runs}
+          openExecutionForPlan={openExecutionForPlan}
+          setActiveTab={setActiveTab as any}
+          userName={userName}
+          getId={getId}
+          matchesSearch={matchesSearch}
+        />
+      )}
+    </>
+  );
 }

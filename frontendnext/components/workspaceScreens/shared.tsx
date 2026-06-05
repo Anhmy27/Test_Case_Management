@@ -3,6 +3,16 @@
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
+export function WorkspaceContentSkeleton() {
+  return (
+    <div className="animate-pulse space-y-6">
+      <div className="h-24 rounded-2xl bg-slate-200/80" />
+      <div className="h-64 rounded-2xl bg-slate-200/60" />
+      <div className="h-96 rounded-2xl bg-slate-200/40" />
+    </div>
+  );
+}
+
 type ActionButtonProps = {
   label: string;
   icon?: string;

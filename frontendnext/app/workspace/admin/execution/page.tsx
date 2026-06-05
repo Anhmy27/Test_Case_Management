@@ -1,15 +1,10 @@
-import { Suspense } from "react";
+﻿import { Suspense } from "react";
 import WorkspaceExecutionRoute from "@/components/workspaceScreens/WorkspaceExecutionRoute";
+import { WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
 
 export default function AdminExecutionPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-screen items-center justify-center bg-slate-50 text-slate-600">
-          Loading execution workspace...
-        </div>
-      }
-    >
+    <Suspense fallback={<WorkspaceContentSkeleton />}>
       <WorkspaceExecutionRoute role="admin" />
     </Suspense>
   );

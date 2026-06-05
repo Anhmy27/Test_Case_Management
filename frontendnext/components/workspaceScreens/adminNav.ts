@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo } from "react";
 import type { AppShellNavItem } from "@/components/AppShell";
 
 export const ADMIN_NAV_ITEMS: ReadonlyArray<AppShellNavItem> = [
@@ -60,11 +60,6 @@ export function useAdminSidebarNav(
   options?: { enabled?: boolean },
 ) {
   const enabled = options?.enabled ?? true;
-  const enabledRef = useRef(enabled);
-
-  useEffect(() => {
-    enabledRef.current = enabled;
-  }, [enabled]);
 
   const navItems = useMemo(
     () => getAdminNavItems(selectedProjectId),
@@ -72,7 +67,7 @@ export function useAdminSidebarNav(
   );
 
   useEffect(() => {
-    if (!enabledRef.current) {
+    if (!enabled) {
       return;
     }
 
@@ -82,7 +77,7 @@ export function useAdminSidebarNav(
 
     const fallback = getAdminNavItems(selectedProjectId)[0]?.key ?? "dashboard";
     router.replace(`/workspace/admin/${fallback}`);
-  }, [activeKey, selectedProjectId, router]);
+  }, [activeKey, enabled, selectedProjectId, router]);
 
   return navItems;
 }
