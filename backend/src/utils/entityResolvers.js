@@ -35,6 +35,37 @@ const isPlanAssignedToUser = (testPlan, userId) => {
   return ownerMatch || assigneeMatch;
 };
 
+const extractUserRef = (value) => {
+  if (!value) return undefined;
+  if (typeof value === 'string') return value;
+  if (typeof value === 'object' && value !== null) {
+    const id = value._id || value.id;
+    return id ? String(id) : undefined;
+  }
+  return String(value);
+};
+
+/**
+ * Resolve owner/assignees/tester for a plan item.
+ * Item-level fields take precedence; plan-level fields are the fallback.
+ */
+const resolvePlanItemAssignment = (item, plan) => {
+  const itemOwner = item?.owner ? extractUserRef(item.owner) : undefined;
+  const itemAssignees = Array.isArray(item?.assignees) && item.assignees.length > 0
+    ? item.assignees.map(extractUserRef).filter(Boolean)
+    : null;
+
+  const owner = itemOwner || extractUserRef(plan?.owner);
+  const assignees = itemAssignees
+    ?? (Array.isArray(plan?.assignees)
+      ? plan.assignees.map(extractUserRef).filter(Boolean)
+      : []);
+
+  const tester = owner || assignees[0] || undefined;
+
+  return { owner, assignees, tester };
+};
+
 // ---------------------------------------------------------------------------
 // Entity finders — always return the latest non-deleted document
 // ---------------------------------------------------------------------------
@@ -158,6 +189,7 @@ const attachRunProjectAndVersion = async (testRun) => {
 module.exports = {
   toObjectId,
   isPlanAssignedToUser,
+  resolvePlanItemAssignment,
   findTestPlanByReference,
   getTestPlanVersionIds,
   findLatestTestCaseByReference,
