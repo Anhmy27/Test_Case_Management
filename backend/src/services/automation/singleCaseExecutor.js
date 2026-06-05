@@ -76,5 +76,4 @@ const executeSingleCaseAutomation = async ({
 
 module.exports = {
   executeSingleCaseAutomation,
-  isCancelledError,
 };

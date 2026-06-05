@@ -4,20 +4,16 @@ export function runResultFailureScreenshotPath(runId: string, resultId: string) 
   return `/api/test-runs/${encodeURIComponent(runId)}/results/${encodeURIComponent(resultId)}/failure-screenshot`;
 }
 
+export function dryRunFailureScreenshotPath(dryRunId: string) {
+  return `/api/automation/dry-runs/${encodeURIComponent(dryRunId)}/failure-screenshot`;
+}
+
 export function hasFailureScreenshot(failureScreenshot?: string | null) {
   return Boolean(String(failureScreenshot || "").trim());
 }
 
-export async function fetchRunResultFailureScreenshot({
-  runId,
-  resultId,
-  token,
-}: {
-  runId: string;
-  resultId: string;
-  token: string;
-}) {
-  const response = await fetch(`${API_BASE}${runResultFailureScreenshotPath(runId, resultId)}`, {
+async function fetchAuthenticatedScreenshot(path: string, token: string) {
+  const response = await fetch(`${API_BASE}${path}`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
@@ -39,4 +35,26 @@ export async function fetchRunResultFailureScreenshot({
 
   const blob = await response.blob();
   return URL.createObjectURL(blob);
+}
+
+export async function fetchRunResultFailureScreenshot({
+  runId,
+  resultId,
+  token,
+}: {
+  runId: string;
+  resultId: string;
+  token: string;
+}) {
+  return fetchAuthenticatedScreenshot(runResultFailureScreenshotPath(runId, resultId), token);
+}
+
+export async function fetchDryRunFailureScreenshot({
+  dryRunId,
+  token,
+}: {
+  dryRunId: string;
+  token: string;
+}) {
+  return fetchAuthenticatedScreenshot(dryRunFailureScreenshotPath(dryRunId), token);
 }

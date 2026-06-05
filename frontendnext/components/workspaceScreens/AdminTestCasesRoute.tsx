@@ -144,8 +144,10 @@ export default function AdminTestCasesRoute() {
       setTestCaseForm({ projectId: "", groupId: "", caseKey: "", title: "", priority: "medium", severity: "major", type: "functional", description: "", expected: "", steps: [{ action: "", expected: "" }] });
       setAutomationForm({ enabled: false, webId: "", baseUrl: "", userKey: "", timeoutMs: "30", steps: [{ stepId: generateStepId(), stepName: "", action: "goto", targetType: "css", target: "", value: "", expected: "", timeoutMs: "15" }] });
       await refreshAll();
+      return true;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to save test case");
+      return false;
     }
   };
 

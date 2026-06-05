@@ -2,7 +2,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
   Dispatch,
   MutableRefObject,
@@ -11,6 +11,7 @@ import type {
 import { getId } from "@/lib/api";
 import AutomationConfigPanel from "@/components/automation/AutomationConfigPanel";
 import AutomationDryRunPanel from "@/components/automation/AutomationDryRunPanel";
+import TestCaseWorkbenchModal from "@/components/testCases/TestCaseWorkbenchModal";
 import type { AutomationForm } from "@/lib/automationStepMeta";
 
 type RecordAny = Record<string, any>;
@@ -44,7 +45,7 @@ type Props = {
   updateAutomationStep: (index: number, key: string, value: string) => void;
   removeAutomationStep: (index: number) => void;
   moveAutomationStep: (fromIndex: number, toIndex: number) => void;
-  saveTestCase: (event: React.FormEvent) => Promise<void>;
+  saveTestCase: (event: React.FormEvent) => Promise<boolean | void>;
   cancelTestCaseEdit: () => void;
   testCases: RecordAny[];
   matchesSearch: (
@@ -101,9 +102,9 @@ export default function AdminTestCasesScreen(props: Props) {
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [activeId, setActiveId] = useState<string>("");
-  const [panelMode, setPanelMode] = useState<"view" | "edit" | "create">(
-    "view",
-  );
+  const [workbenchModal, setWorkbenchModal] = useState<
+    "edit" | "create" | null
+  >(null);
   const [preset, setPreset] = useState<FilterPreset>("all");
   const [groupFilter, setGroupFilter] = useState<string>("");
   const [draggingStep, setDraggingStep] = useState<ManualDragPayload | null>(null);
@@ -185,16 +186,6 @@ export default function AdminTestCasesScreen(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- resolveScopedName reads scopedProjects/scopedGroups already listed
   }, [groupFilter, matchesSearch, preset, scopedGroups, scopedProjects, testCases]);
 
-  const activeCase = useMemo(
-    () =>
-      testCases.find((testCase) => getId(testCase) === String(activeId)) ||
-      testCases.find(
-        (testCase) => getId(testCase) === String(effectiveActiveId),
-      ) ||
-      (filteredCases.length > 0 ? filteredCases[0] : null),
-    [activeId, effectiveActiveId, filteredCases, testCases],
-  );
-
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const allVisibleSelected =
     filteredCases.length > 0 &&
@@ -259,6 +250,42 @@ export default function AdminTestCasesScreen(props: Props) {
     setDraggingStep(null);
   };
 
+  const closeWorkbench = () => {
+    cancelTestCaseEdit();
+    setWorkbenchModal(null);
+  };
+
+  const openEdit = (testCase: RecordAny) => {
+    startTestCaseEdit(testCase);
+    setActiveId(getId(testCase));
+    setWorkbenchModal("edit");
+  };
+
+  const openCreate = () => {
+    cancelTestCaseEdit();
+    setWorkbenchModal("create");
+  };
+
+  const switchWorkbenchCase = (testCase: RecordAny) => {
+    setActiveId(getId(testCase));
+    startTestCaseEdit(testCase);
+  };
+
+  const handleSaveTestCase = async (event: React.FormEvent) => {
+    const saved = await saveTestCase(event);
+    if (saved === true) {
+      setWorkbenchModal(null);
+    }
+  };
+
+  useEffect(() => {
+    if (!editingTestCaseId || workbenchModal !== null) {
+      return;
+    }
+    setActiveId(editingTestCaseId);
+    setWorkbenchModal("edit");
+  }, [editingTestCaseId, workbenchModal]);
+
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -275,10 +302,7 @@ export default function AdminTestCasesScreen(props: Props) {
             <button
               type="button"
               className="rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-slate-800"
-              onClick={() => {
-                cancelTestCaseEdit();
-                setPanelMode("create");
-              }}
+              onClick={openCreate}
             >
               + New test case
             </button>
@@ -356,8 +380,7 @@ export default function AdminTestCasesScreen(props: Props) {
         </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
-        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="border-b border-slate-200 px-4 py-3">
             <div className="flex flex-wrap items-center gap-3">
               <div className="text-sm font-semibold text-slate-900">
@@ -441,7 +464,7 @@ export default function AdminTestCasesScreen(props: Props) {
                             ? "bg-slate-50"
                             : ""
                         }`}
-                        onClick={() => setActiveId(caseId)}
+                        onClick={() => openEdit(testCase)}
                       >
                         <td className="px-4 py-3">
                           <input
@@ -504,19 +527,7 @@ export default function AdminTestCasesScreen(props: Props) {
                               className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
                               onClick={(event) => {
                                 event.stopPropagation();
-                                setActiveId(caseId);
-                                setPanelMode("view");
-                              }}
-                            >
-                              ↗ View
-                            </button>
-                            <button
-                              type="button"
-                              className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                startTestCaseEdit(testCase);
-                                setPanelMode("edit");
+                                openEdit(testCase);
                               }}
                             >
                               ✎ Edit
@@ -552,152 +563,59 @@ export default function AdminTestCasesScreen(props: Props) {
           </div>
         </section>
 
-        <aside className="space-y-6 xl:sticky xl:top-6">
-          <section className="flex max-h-[calc(100vh-96px)] flex-col rounded-2xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex shrink-0 items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
-              <div>
-                <div className="text-sm font-semibold text-slate-900">
-                  {panelMode === "edit"
-                    ? "Edit test case"
-                    : panelMode === "create"
-                      ? "New test case"
-                      : "Case details"}
-                </div>
-                <div className="text-xs text-slate-500">
-                  {panelMode === "view"
-                    ? "Quick context and actions"
-                    : "Edit fields and save"}
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                {panelMode !== "create" && activeCase && (
-                  <button
-                    type="button"
-                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
-                    onClick={() => {
-                      startTestCaseEdit(activeCase);
-                      setPanelMode("edit");
-                    }}
-                  >
-                    ✎ Edit
-                  </button>
-                )}
-                {panelMode !== "create" && activeCase && (
-                  <button
-                    type="button"
-                    className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
-                    onClick={() => void duplicateTestCase(activeCase)}
-                  >
-                    ⧉ Duplicate
-                  </button>
-                )}
-              </div>
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-slate-900">
+              Recent activity
             </div>
+            <div className="text-xs text-slate-500">
+              5 test case gan nhat
+            </div>
+          </div>
+          <button
+            type="button"
+            className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
+            onClick={() => setShowRecentModal(true)}
+          >
+            View all
+          </button>
+        </div>
+        <div className="mt-3 space-y-3 text-sm text-slate-600">
+          {recentCases.map((item) => (
+            <button
+              key={getId(item)}
+              type="button"
+              onClick={() => openEdit(item)}
+              className="flex w-full items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-left hover:border-slate-300"
+            >
+              <span>
+                <span className="block text-xs text-slate-500">
+                  {item.caseKey}
+                </span>
+                <span className="block text-sm font-semibold text-slate-900">
+                  {item.title}
+                </span>
+              </span>
+              <span className="text-xs text-slate-400">
+                {new Date(
+                  item.updatedAt || item.createdAt || 0,
+                ).toLocaleDateString()}
+              </span>
+            </button>
+          ))}
+        </div>
+      </section>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-            {panelMode === "view" && activeCase ? (
-              <div className="space-y-4">
-                <div>
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Case
-                  </div>
-                  <div className="text-lg font-semibold text-slate-900">
-                    {activeCase.caseKey}
-                  </div>
-                  <div className="text-sm text-slate-600">
-                    {activeCase.title}
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  <span className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">
-                    {activeCase.priority || "medium"}
-                  </span>
-                  <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
-                    {activeCase.severity || "major"}
-                  </span>
-                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-                    {activeCase.type || "functional"}
-                  </span>
-                  <span
-                    className={
-                      activeCase.automation?.enabled
-                        ? "rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700"
-                        : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500"
-                    }
-                  >
-                    {activeCase.automation?.enabled ? "Automation" : "Manual"}
-                  </span>
-                </div>
-
-                {activeCase.description && (
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-                    {activeCase.description}
-                  </div>
-                )}
-
-                {activeCase.expected && (
-                  <div>
-                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Expected result
-                    </div>
-                    <div className="mt-1 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
-                      {activeCase.expected}
-                    </div>
-                  </div>
-                )}
-
-                {Array.isArray(activeCase.steps) && activeCase.steps.length > 0 && (
-                  <div>
-                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Manual Steps ({activeCase.steps.length})
-                    </div>
-                    <ol className="mt-2 space-y-2">
-                      {(activeCase.steps as RecordAny[]).map((step, index) => (
-                        <li
-                          key={index}
-                          className="rounded-lg border border-slate-200 bg-white p-3"
-                        >
-                          <div className="flex items-start gap-2">
-                            <span className="shrink-0 text-[11px] font-semibold text-slate-400">
-                              #{index + 1}
-                            </span>
-                            <div className="min-w-0 flex-1">
-                              <div className="text-sm text-slate-800">{step.action}</div>
-                              {step.expected && (
-                                <div className="mt-1 text-[11px] text-emerald-700">
-                                  → {step.expected}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </li>
-                      ))}
-                    </ol>
-                  </div>
-                )}
-
-                {activeCase.automation?.enabled && (
-                  <div>
-                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Automation ({(activeCase.automation?.steps || []).length} bước)
-                    </div>
-                    <div className="mt-1 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
-                      {activeCase.automation?.webId && (
-                        <div>Web ID: {activeCase.automation.webId}</div>
-                      )}
-                      {activeCase.automation?.baseUrl && (
-                        <div>URL: {activeCase.automation.baseUrl}</div>
-                      )}
-                      {activeCase.automation?.userKey && (
-                        <div>Profile: {activeCase.automation.userKey}</div>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <form className="space-y-4" onSubmit={saveTestCase}>
+      {workbenchModal && (
+        <TestCaseWorkbenchModal
+          mode={workbenchModal}
+          onClose={closeWorkbench}
+          cases={filteredCases}
+          activeCaseId={String(effectiveActiveId)}
+          onSelectCase={switchWorkbenchCase}
+        >
+          <form className="space-y-4" onSubmit={handleSaveTestCase}>
                 <div className="grid grid-cols-2 gap-3">
                   <label className="text-xs font-semibold text-slate-500">
                     Project
@@ -949,7 +867,7 @@ export default function AdminTestCasesScreen(props: Props) {
                 </div>
 
                 <label className="text-xs font-semibold text-slate-500">
-                  Kết quả mong đợi (tổng quan)
+                  Kết quả mong đợi (tổng quan, tùy chọn)
                   <textarea
                     rows={2}
                     value={testCaseForm.expected}
@@ -961,7 +879,6 @@ export default function AdminTestCasesScreen(props: Props) {
                     }
                     className="mt-1.5 w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm"
                     placeholder="Mô tả kết quả mong đợi sau khi thực hiện test case..."
-                    required
                   />
                 </label>
 
@@ -988,73 +905,23 @@ export default function AdminTestCasesScreen(props: Props) {
                     type="submit"
                     className="flex-1 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-slate-800"
                   >
-                    {panelMode === "edit"
+                    {workbenchModal === "edit"
                       ? "+ Save changes"
                       : "+ Create test case"}
                   </button>
-                  {panelMode === "edit" && (
+                  {(workbenchModal === "edit" || workbenchModal === "create") && (
                     <button
                       type="button"
                       className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
-                      onClick={() => {
-                        cancelTestCaseEdit();
-                        setPanelMode("view");
-                      }}
+                      onClick={closeWorkbench}
                     >
                       Cancel
                     </button>
                   )}
                 </div>
-              </form>
-            )}
-            </div>
-          </section>
-
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold text-slate-900">
-                  Recent activity
-                </div>
-                <div className="text-xs text-slate-500">
-                  5 test case gan nhat
-                </div>
-              </div>
-              <button
-                type="button"
-                className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
-                onClick={() => setShowRecentModal(true)}
-              >
-                View all
-              </button>
-            </div>
-            <div className="mt-3 space-y-3 text-sm text-slate-600">
-              {recentCases.map((item) => (
-                <button
-                  key={getId(item)}
-                  type="button"
-                  onClick={() => setActiveId(getId(item))}
-                  className="flex w-full items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-left hover:border-slate-300"
-                >
-                  <span>
-                    <span className="block text-xs text-slate-500">
-                      {item.caseKey}
-                    </span>
-                    <span className="block text-sm font-semibold text-slate-900">
-                      {item.title}
-                    </span>
-                  </span>
-                  <span className="text-xs text-slate-400">
-                    {new Date(
-                      item.updatedAt || item.createdAt || 0,
-                    ).toLocaleDateString()}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </section>
-        </aside>
-      </div>
+          </form>
+        </TestCaseWorkbenchModal>
+      )}
 
       {showRecentModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm">
@@ -1095,8 +962,7 @@ export default function AdminTestCasesScreen(props: Props) {
                       key={getId(item)}
                       type="button"
                       onClick={() => {
-                        setActiveId(getId(item));
-                        setPanelMode("view");
+                        openEdit(item);
                         setShowRecentModal(false);
                       }}
                       className="rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-50"

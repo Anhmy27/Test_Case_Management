@@ -5,6 +5,7 @@ const ALLOWED_ACTIONS = new Set([
   'click',
   'type',
   'select',
+  'wait',
   'waitfor',
   'asserttext',
   'assertvisible',
@@ -300,14 +301,19 @@ const executeStep = async (page, step, baseUrl) => {
     return `dragTo ${target} -> ${destinationSelector}`;
   }
 
+  if (action === 'wait') {
+    await page.waitForTimeout(timeoutMs);
+    return `wait ${timeoutMs}ms`;
+  }
+
   if (action === 'waitfor') {
-    if (target) {
-      await locator.waitFor({ state: 'visible', timeout: timeoutMs });
-      return `waitFor visible ${target}`;
+    if (!target) {
+      await page.waitForTimeout(timeoutMs);
+      return `waitFor timeout ${timeoutMs}ms`;
     }
 
-    await page.waitForTimeout(timeoutMs);
-    return `waitFor timeout ${timeoutMs}ms`;
+    await locator.waitFor({ state: 'visible', timeout: timeoutMs });
+    return `waitFor visible ${target}`;
   }
 
   if (action === 'assertvisible') {

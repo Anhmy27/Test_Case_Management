@@ -5,12 +5,11 @@ import type { AutomationForm } from "@/lib/automationStepMeta";
 import {
   dryRunStatusClassName,
   dryRunStatusLabel,
-  fetchDryRunFailureScreenshot,
   formatDryRunDuration,
   runAutomationDryRun,
   type DryRunResult,
 } from "@/lib/automationDryRun";
-import { hasFailureScreenshot } from "@/lib/automationArtifacts";
+import { fetchDryRunFailureScreenshot, hasFailureScreenshot } from "@/lib/automationArtifacts";
 
 type Props = {
   token: string;

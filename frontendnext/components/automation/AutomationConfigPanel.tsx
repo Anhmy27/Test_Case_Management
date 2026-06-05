@@ -90,7 +90,7 @@ export default function AutomationConfigPanel({
         {automationForm.enabled && (
           <>
             <label className="text-xs font-semibold text-slate-500">
-              URL gốc của ứng dụng
+              URL gốc
               <input
                 value={automationForm.baseUrl}
                 onChange={(e) =>
@@ -100,13 +100,13 @@ export default function AutomationConfigPanel({
                 placeholder="https://app.example.com"
               />
               <span className="mt-1 block text-[11px] font-normal text-slate-400">
-                Địa chỉ trang web cần test. Các bước goto sẽ ghép với URL này nếu chỉ nhập đường dẫn tương đối như /login.
+                Goto có thể dùng path tương đối (/login).
               </span>
             </label>
 
             <div className="grid grid-cols-2 gap-3">
               <label className="text-xs font-semibold text-slate-500">
-                Web ID (tùy chọn)
+                Web ID
                 <input
                   value={automationForm.webId}
                   onChange={(e) =>
@@ -116,27 +116,27 @@ export default function AutomationConfigPanel({
                   placeholder="my-app-staging"
                 />
                 <span className="mt-1 block text-[11px] font-normal text-slate-400">
-                  Khóa nhóm session đăng nhập. Dùng khi cùng URL nhưng nhiều môi trường hoặc nhiều app khác nhau.
+                  Khóa session theo app/môi trường.
                 </span>
               </label>
 
               <label className="text-xs font-semibold text-slate-500">
-                Profile người dùng (tùy chọn)
+                Profile user
                 <input
                   value={automationForm.userKey}
                   onChange={(e) =>
                     setAutomationForm((prev) => ({ ...prev, userKey: e.target.value }))
                   }
                   className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                  placeholder="admin · tester@company.com"
+                  placeholder="admin"
                 />
                 <span className="mt-1 block text-[11px] font-normal text-slate-400">
-                  Tên định danh phiên đăng nhập. Nếu đã đăng nhập trước, Playwright sẽ tái sử dụng session.
+                  Tái sử dụng phiên đăng nhập.
                 </span>
               </label>
 
               <label className="text-xs font-semibold text-slate-500">
-                Thời gian chờ mặc định (giây)
+                Timeout mặc định (giây)
                 <input
                   type="number"
                   min="1"
@@ -148,7 +148,7 @@ export default function AutomationConfigPanel({
                   placeholder="30"
                 />
                 <span className="mt-1 block text-[11px] font-normal text-slate-400">
-                  Tổng thời gian chờ tối đa cho toàn bộ test case này (giây). Mặc định: 30.
+                  Áp dụng cho cả test case.
                 </span>
               </label>
             </div>
@@ -162,7 +162,7 @@ export default function AutomationConfigPanel({
           <div className="flex items-center justify-between">
             <div>
               <div className="text-xs font-semibold text-slate-600">Các bước tự động</div>
-              <div className="text-[11px] text-slate-500">Kéo nút ≡ để sắp xếp lại thứ tự bước</div>
+              <div className="text-[11px] text-slate-500">Kéo ≡ để đổi thứ tự</div>
             </div>
             <button
               type="button"
@@ -227,9 +227,11 @@ function AutomationStepRow({
 }: StepRowProps) {
   const meta = ACTION_META[step.action] ?? ACTION_META["goto"];
   const allowedTargetTypes = meta.targetTypes.length > 0 ? meta.targetTypes : [...ALL_TARGET_TYPES];
-  const showTarget = meta.needsTarget || Boolean(step.target);
-  const showValue = meta.needsValue || Boolean(step.value);
-  const showExpected = meta.needsExpected || Boolean(step.expected);
+  const isWaitStep = step.action === "wait";
+  const showTarget = !isWaitStep && (meta.needsTarget || Boolean(step.target));
+  const showValue = !isWaitStep && (meta.needsValue || Boolean(step.value));
+  const showExpected = !isWaitStep && (meta.needsExpected || Boolean(step.expected));
+  const showTargetTypeRow = !isWaitStep && (showTarget || meta.targetTypes.length > 0);
 
   return (
     <div
@@ -265,11 +267,11 @@ function AutomationStepRow({
       {/* Step name */}
       <div className="mt-2">
         <label className="text-[11px] font-semibold text-slate-500">
-          Tên bước (ghi chú cho dễ nhớ)
+          Tên bước
           <input
             value={step.stepName}
             onChange={(e) => onUpdate(index, "stepName", e.target.value)}
-            placeholder={`Ví dụ: ${meta.label}`}
+            placeholder={meta.label}
             className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
           />
         </label>
@@ -297,7 +299,8 @@ function AutomationStepRow({
               <option value="dragTo">Kéo thả (dragTo)</option>
             </optgroup>
             <optgroup label="── Chờ ──">
-              <option value="waitFor">Chờ phần tử / thời gian (waitFor)</option>
+              <option value="wait">Đợi (wait)</option>
+              <option value="waitFor">Chờ phần tử (waitFor)</option>
             </optgroup>
             <optgroup label="── Kiểm tra (Assert) ──">
               <option value="assertText">Kiểm tra văn bản (assertText)</option>
@@ -313,26 +316,26 @@ function AutomationStepRow({
         </label>
 
         <label className="font-semibold text-slate-500">
-          Thời gian chờ bước này (giây)
+          {isWaitStep ? "Thời gian đợi (giây)" : "Timeout bước (giây)"}
           <input
             type="number"
             min="1"
             value={step.timeoutMs}
             onChange={(e) => onUpdate(index, "timeoutMs", e.target.value)}
             className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1 text-sm"
-            placeholder="15"
+            placeholder={isWaitStep ? "3" : "15"}
           />
           <span className="mt-1 block text-[10px] font-normal text-slate-400">
-            Nếu bước không xong trong thời gian này (giây), coi là thất bại.
+            {isWaitStep ? "Chờ đủ số giây này." : "Quá hạn = bước fail."}
           </span>
         </label>
       </div>
 
       {/* Target type + target selector */}
-      {(showTarget || meta.targetTypes.length > 0) && (
+      {showTargetTypeRow && (
         <div className="mt-2 grid grid-cols-2 gap-2 text-xs">
           <label className="font-semibold text-slate-500">
-            Loại xác định phần tử
+            Loại selector
             <select
               value={step.targetType}
               onChange={(e) => onUpdate(index, "targetType", e.target.value)}
@@ -340,32 +343,28 @@ function AutomationStepRow({
             >
               {allowedTargetTypes.map((t) => (
                 <option key={t} value={t}>
-                  {t === "css" ? "CSS Selector (.class / #id)"
-                    : t === "id" ? "ID thuộc tính (id=...)"
-                    : t === "placeholder" ? "Placeholder ô input"
-                    : t === "text" ? "Văn bản hiển thị"
-                    : t === "label" ? "Nhãn (label)"
+                  {t === "css" ? "CSS"
+                    : t === "id" ? "ID"
+                    : t === "placeholder" ? "Placeholder"
+                    : t === "text" ? "Text"
+                    : t === "label" ? "Label"
                     : t === "testid" ? "data-testid"
                     : t === "url" ? "URL"
                     : t}
                 </option>
               ))}
             </select>
-            <span className="mt-1 block text-[10px] font-normal text-slate-400">Cách tìm phần tử trên trang</span>
           </label>
 
           {showTarget && (
             <label className="font-semibold text-slate-500">
-              {step.action === "dragTo" ? "Phần tử nguồn" : "Tên / địa chỉ phần tử"}
+              {step.action === "dragTo" ? "Phần tử nguồn" : "Selector / text"}
               <input
                 value={step.target}
                 onChange={(e) => onUpdate(index, "target", e.target.value)}
                 placeholder={meta.targetPlaceholder}
                 className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1 text-sm"
               />
-              <span className="mt-1 block text-[10px] font-normal text-slate-400">
-                {meta.targetPlaceholder || "Nhập địa chỉ phần tử theo loại đã chọn"}
-              </span>
             </label>
           )}
         </div>
@@ -375,42 +374,31 @@ function AutomationStepRow({
       {showValue && (
         <div className="mt-2 text-xs">
           <label className="font-semibold text-slate-500">
-            {step.action === "goto" ? "URL hoặc đường dẫn"
-              : step.action === "press" ? "Phím cần nhấn"
-              : step.action === "dragTo" ? "Phần tử đích (thả vào đây)"
+            {step.action === "goto" ? "URL / path"
+              : step.action === "press" ? "Phím"
+              : step.action === "dragTo" ? "Phần tử đích"
               : step.action === "upload" ? "Đường dẫn file"
-              : "Nội dung / Giá trị"}
+              : "Giá trị"}
             <input
               value={step.value}
               onChange={(e) => onUpdate(index, "value", e.target.value)}
               placeholder={meta.valuePlaceholder}
               className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1 text-sm"
             />
-            {meta.valuePlaceholder && (
-              <span className="mt-1 block text-[10px] font-normal text-slate-400">
-                Ví dụ: {meta.valuePlaceholder}
-              </span>
-            )}
           </label>
         </div>
       )}
 
-      {/* Expected field */}
       {showExpected && (
         <div className="mt-2 text-xs">
           <label className="font-semibold text-slate-500">
-            Kết quả mong đợi (cần chứa chuỗi này)
+            Chuỗi mong đợi
             <input
               value={step.expected}
               onChange={(e) => onUpdate(index, "expected", e.target.value)}
               placeholder={meta.expectedPlaceholder}
               className="mt-1 w-full rounded-lg border border-slate-200 px-2 py-1 text-sm"
             />
-            {meta.expectedPlaceholder && (
-              <span className="mt-1 block text-[10px] font-normal text-slate-400">
-                Ví dụ: {meta.expectedPlaceholder}
-              </span>
-            )}
           </label>
         </div>
       )}

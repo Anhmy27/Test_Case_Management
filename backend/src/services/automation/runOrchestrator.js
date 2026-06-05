@@ -22,8 +22,6 @@ const { executeSingleCaseAutomation } = require('./singleCaseExecutor');
 
 const authManager = createAuthManager();
 
-const isCancelledError = (error) => error?.code === 'AUTOMATION_CANCELLED';
-
 const ensureProgress = (testRun) => {
   if (!testRun.automationProgress) {
     testRun.automationProgress = {};
