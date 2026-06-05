@@ -13,7 +13,7 @@ type RecordAny = Record<string, any>;
 
 export default function AdminDashboardRoute() {
   const router = useRouter();
-  const { token, currentUser, selectedProjectId, setSelectedProjectId, setTopbar, handleLogout } = useAdminWorkspace();
+  const { token, currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [plans, setPlans] = useState<RecordAny[]>([]);
   const [users, setUsers] = useState<RecordAny[]>([]);
@@ -100,50 +100,35 @@ export default function AdminDashboardRoute() {
   useLayoutEffect(() => {
     setTopbar(
       <div className="flex flex-wrap items-center gap-3">
-        <div>
-          <div className="text-sm font-semibold text-slate-900">Dashboard</div>
-        </div>
+        <h1 className="text-xl font-semibold text-slate-900">Dashboard</h1>
         <div className="ml-auto flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-            Search
-            <input
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              className="w-56 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
-              placeholder="Filter dashboard cards"
-            />
-          </label>
-          <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-            Project scope
-            <select
-              value={selectedProjectId}
-              onChange={(event) => setSelectedProjectId(event.target.value)}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
-            >
-              <option value="">All projects</option>
-              {safeProjects.map((project) => {
-                const projectId = getId(project);
-                return (
-                  <option key={projectId || project.code || project.name} value={projectId}>
-                    {project.name}
-                  </option>
-                );
-              })}
-            </select>
-          </label>
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-900"
+          <input
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            className="w-52 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20"
+            placeholder="Search dashboard..."
+          />
+          <select
+            value={selectedProjectId}
+            onChange={(event) => setSelectedProjectId(event.target.value)}
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-400 focus:outline-none"
           >
-            Log out
-          </button>
+            <option value="">All projects</option>
+            {safeProjects.map((project) => {
+              const projectId = getId(project);
+              return (
+                <option key={projectId || project.code || project.name} value={projectId}>
+                  {project.name}
+                </option>
+              );
+            })}
+          </select>
         </div>
       </div>,
     );
 
     return () => setTopbar(null);
-  }, [handleLogout, safeProjects, searchTerm, selectedProjectId, setSelectedProjectId, setTopbar]);
+  }, [safeProjects, searchTerm, selectedProjectId, setSelectedProjectId, setTopbar]);
 
   return (
     <>

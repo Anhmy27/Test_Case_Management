@@ -8,10 +8,10 @@ import { getId, matchesSelectedEntity } from "@/lib/api";
 type RecordAny = Record<string, unknown>;
 
 export const EMPLOYEE_NAV_ITEMS: ReadonlyArray<AppShellNavItem> = [
-  { key: "my-test-plans", label: "My Test Plans" },
-  { key: "running-tests", label: "Running Tests" },
-  { key: "history", label: "History" },
-  { key: "execution", label: "Run Test" },
+  { key: "my-test-plans", label: "My Test Plans", group: "Workspace" },
+  { key: "running-tests", label: "Running Tests", group: "Workspace" },
+  { key: "history", label: "History", group: "Workspace" },
+  { key: "execution", label: "Run Test", group: "Workspace" },
 ];
 
 const PROJECT_STORAGE_KEY = "tcm_selected_project_id";
@@ -123,7 +123,6 @@ type EmployeeTopbarOptions = {
   onSearchChange?: (value: string) => void;
   searchPlaceholder?: string;
   stats?: Array<{ label: string; value: number }>;
-  onLogout: () => void;
 };
 
 export function buildEmployeeTopbar({
@@ -137,7 +136,6 @@ export function buildEmployeeTopbar({
   onSearchChange,
   searchPlaceholder = "Search by name, code, key, status...",
   stats,
-  onLogout,
 }: EmployeeTopbarOptions): ReactNode {
   return (
     <div className="flex flex-wrap items-center gap-4">
@@ -207,13 +205,6 @@ export function buildEmployeeTopbar({
             ))}
           </div>
         ) : null}
-        <button
-          type="button"
-          onClick={onLogout}
-          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-900"
-        >
-          Log out
-        </button>
       </div>
     </div>
   );

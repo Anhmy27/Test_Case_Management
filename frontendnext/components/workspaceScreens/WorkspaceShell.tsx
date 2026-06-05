@@ -175,20 +175,9 @@ export function AdminWorkspaceShell({ children }: { children: ReactNode }) {
   }, [currentUser, handleLogout, selectedProjectId, token]);
 
   const defaultTopbar = (
-    <div className="flex min-h-[52px] flex-wrap items-center gap-3">
-      <div>
-        <div className="text-sm font-semibold capitalize text-slate-900">
-          {activeKey.replace(/-/g, " ")}
-        </div>
-      </div>
-      <div className="ml-auto">
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600"
-        >
-          Log out
-        </button>
+    <div className="flex min-h-[40px] items-center">
+      <div className="text-xl font-semibold capitalize text-slate-900">
+        {activeKey.replace(/-/g, " ")}
       </div>
     </div>
   );
@@ -209,6 +198,7 @@ export function AdminWorkspaceShell({ children }: { children: ReactNode }) {
         navItems={navItems}
         activeKey={activeKey}
         onNavChange={handleNavigate}
+        onLogout={handleLogout}
         topbar={topbar ?? defaultTopbar}
         mainRef={mainRef}
       >
@@ -313,20 +303,9 @@ export function EmployeeWorkspaceShell({ children }: { children: ReactNode }) {
   }, [currentUser, handleLogout, token]);
 
   const defaultTopbar = (
-    <div className="flex min-h-[52px] flex-wrap items-center gap-3">
-      <div>
-        <div className="text-sm font-semibold capitalize text-slate-900">
-          {activeKey.replace(/-/g, " ")}
-        </div>
-      </div>
-      <div className="ml-auto">
-        <button
-          type="button"
-          onClick={handleLogout}
-          className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600"
-        >
-          Log out
-        </button>
+    <div className="flex min-h-[40px] items-center">
+      <div className="text-xl font-semibold capitalize text-slate-900">
+        {activeKey.replace(/-/g, " ")}
       </div>
     </div>
   );
@@ -347,6 +326,7 @@ export function EmployeeWorkspaceShell({ children }: { children: ReactNode }) {
         navItems={EMPLOYEE_NAV_ITEMS}
         activeKey={activeKey}
         onNavChange={handleNavigate}
+        onLogout={handleLogout}
         topbar={topbar ?? defaultTopbar}
         mainRef={mainRef}
       >

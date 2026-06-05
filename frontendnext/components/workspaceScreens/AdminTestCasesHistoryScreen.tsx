@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useMemo, useState } from "react";
-import { DataTable, SectionCard } from "./shared";
+import { DataTable, Field, INPUT_CLS, SectionCard, StatusBadge } from "./shared";
 import { getId } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
@@ -41,64 +41,73 @@ export default function AdminTestCasesHistoryScreen({ selectedProjectId, detailG
     );
   }, [focusedHistory]);
 
-  function statusClass(status?: string) {
-    if (status === "pass") return "workspace-pill bg-emerald-50 text-emerald-700";
-    if (status === "fail") return "workspace-pill bg-rose-50 text-rose-700";
-    if (status === "blocked") return "workspace-pill bg-amber-50 text-amber-700";
-    if (status === "skip") return "workspace-pill bg-slate-100 text-slate-600";
-    return "workspace-pill";
+  function statusCell(status?: string) {
+    return status ? <StatusBadge status={status} /> : <span className="text-slate-400">-</span>;
   }
 
   return (
-    <div className="workspace-stack">
+    <div className="space-y-5">
       {(selectedProjectId === undefined || selectedProjectId === null) ? (
-        <div className="workspace-banner">Hay chon project trong Project scope de xem Execution History.</div>
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Hãy chọn project trong Project scope để xem Execution History.
+        </div>
       ) : (
         <>
-          <SectionCard title="Execution History" subtitle="Loc theo group va xem 3 status pass/fail/blocked/skip gan nhat">
-            <div className="workspace-filterbar">
-              <div className="workspace-filterbar__label">
-                <span>Group filter</span>
-                <p>Chon group de rut gon danh sach test case.</p>
+          <SectionCard title="Execution History" subtitle="Lọc theo group, xem 3 lần chạy gần nhất">
+            <div className="flex flex-wrap items-end gap-4">
+              <div className="shrink-0">
+                <p className="text-xs font-semibold text-slate-700">Group filter</p>
+                <p className="mt-0.5 text-xs text-slate-500">Chọn group để rút gọn danh sách test case.</p>
               </div>
-              <label className="workspace-filterbar__control">
-                <select value={detailGroupId} onChange={(e) => setDetailGroupId(e.target.value)}>
+              <Field label="Group">
+                <select
+                  className={INPUT_CLS}
+                  value={detailGroupId}
+                  onChange={(e) => setDetailGroupId(e.target.value)}
+                >
                   <option value="">All groups</option>
-                  {scopedGroups.map((group: RecordAny) => <option key={getId(group)} value={getId(group)}>{group.name}</option>)}
+                  {scopedGroups.map((group: RecordAny) => (
+                    <option key={getId(group)} value={getId(group)}>
+                      {group.name}
+                    </option>
+                  ))}
                 </select>
-              </label>
+              </Field>
             </div>
           </SectionCard>
 
           <SectionCard title="Test Case List">
             {detailLoading ? (
-              <div className="workspace-table__empty">Loading...</div>
+              <div className="py-8 text-center text-sm text-slate-400">Loading...</div>
             ) : (
               <DataTable
                 columns={["Case", "Group", "Priority", "Recent 1", "Recent 2", "Recent 3", "Action"]}
-                rows={safeDetailRows.filter((testCase: RecordAny) => matchesSearch(testCase.caseKey, testCase.title, testCase.group?.name, testCase.priority, ...(testCase.recentStatuses || []))).map((testCase: RecordAny) => {
-                  const statuses = Array.isArray(testCase.recentStatuses) ? testCase.recentStatuses : [];
-                  const statusCell = (status?: string) => <span className={statusClass(status)}>{status || "-"}</span>;
-                  return (
-                    <>
-                      <div>{testCase.caseKey || testCase.key} - {testCase.title || testCase.name}</div>
-                      <div>{testCase.group?.name || "-"}</div>
-                      <div>{testCase.priority || "-"}</div>
-                      <div>{statusCell(statuses[0])}</div>
-                      <div>{statusCell(statuses[1])}</div>
-                      <div>{statusCell(statuses[2])}</div>
-                      <div>
-                        <button
-                          type="button"
-                          className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
-                          onClick={() => setFocusedCase(testCase)}
-                        >
-                          View all
-                        </button>
-                      </div>
-                    </>
-                  );
-                })}
+                rows={safeDetailRows
+                  .filter((testCase: RecordAny) =>
+                    matchesSearch(testCase.caseKey, testCase.title, testCase.group?.name, testCase.priority, ...(testCase.recentStatuses || [])),
+                  )
+                  .map((testCase: RecordAny) => {
+                    const statuses = Array.isArray(testCase.recentStatuses) ? testCase.recentStatuses : [];
+                    return (
+                      <>
+                        <div>{testCase.caseKey || testCase.key} - {testCase.title || testCase.name}</div>
+                        <div>{testCase.group?.name || "-"}</div>
+                        <div>{testCase.priority || "-"}</div>
+                        <div>{statusCell(statuses[0])}</div>
+                        <div>{statusCell(statuses[1])}</div>
+                        <div>{statusCell(statuses[2])}</div>
+                        <div>
+                          <button
+                            type="button"
+                            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                            onClick={() => setFocusedCase(testCase)}
+                          >
+                            View all
+                          </button>
+                        </div>
+                      </>
+                    );
+                  })}
                 emptyText="No test cases in this project"
               />
             )}
@@ -164,7 +173,7 @@ export default function AdminTestCasesHistoryScreen({ selectedProjectId, detailG
                         <div className="font-semibold text-slate-900">{entry.runName || entry.runId || "Run"}</div>
                         <div className="text-xs text-slate-500">{entry.runStatus || "-"}</div>
                       </div>
-                      <div><span className={statusClass(entry.status)}>{entry.status || "-"}</span></div>
+                      <div>{entry.status ? <StatusBadge status={entry.status} /> : <span className="text-slate-400">-</span>}</div>
                       <div className="text-slate-700">{entry.startedBy?.name || entry.startedBy?.email || "-"}</div>
                       <div className="text-slate-600">{entry.executedAt ? new Date(entry.executedAt).toLocaleString() : (entry.startedAt ? new Date(entry.startedAt).toLocaleString() : "-")}</div>
                       <div className="text-slate-600">{entry.note || "-"}</div>
@@ -179,3 +188,4 @@ export default function AdminTestCasesHistoryScreen({ selectedProjectId, detailG
     </div>
   );
 }
+

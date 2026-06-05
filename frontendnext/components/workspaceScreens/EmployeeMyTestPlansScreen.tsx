@@ -23,8 +23,8 @@ export default function EmployeeMyTestPlansScreen({ scopedPlans, matchesSearch, 
   );
 
   return (
-    <div className="workspace-stack">
-      <SectionCard title="My Test Plans" subtitle="Click vao test plan de vao run test">
+    <div className="space-y-5">
+      <SectionCard title="My Test Plans" subtitle="Click vào test plan để vào run test">
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_320px]">
           <DataTable
             columns={["Test Plan", "Project", "Version", "Action"]}

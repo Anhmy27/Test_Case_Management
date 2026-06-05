@@ -14,7 +14,7 @@ type RecordAny = Record<string, any>;
 
 export default function EmployeeMyTestPlansRoute() {
   const router = useRouter();
-  const { token, currentUser, setTopbar, handleLogout } = useEmployeeWorkspace();
+  const { token, currentUser, setTopbar } = useEmployeeWorkspace();
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [plans, setPlans] = useState<RecordAny[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,13 +107,11 @@ export default function EmployeeMyTestPlansRoute() {
           { label: "projects", value: projectScope.safeProjects.length },
           { label: "plans", value: scopedPlans.length },
         ],
-        onLogout: handleLogout,
       }),
     );
 
     return () => setTopbar(null);
   }, [
-    handleLogout,
     projectScope.safeProjects,
     projectScope.scopeLabel,
     projectScope.selectedProjectId,

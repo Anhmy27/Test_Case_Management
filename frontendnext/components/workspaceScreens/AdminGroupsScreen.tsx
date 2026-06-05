@@ -4,7 +4,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import { ActionButton, SectionCard } from "./shared";
+import { ActionButton, Field, INPUT_CLS, SectionCard } from "./shared";
 import { getId } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
@@ -128,7 +128,7 @@ export default function AdminGroupsScreen({
               {group.description || "No description"}
             </div>
           </div>
-          <span className="workspace-pill bg-white">
+          <span className="rounded-full bg-white border border-slate-200 px-2.5 py-1 text-xs font-semibold text-slate-600">
             {groupCases.length} cases
           </span>
         </summary>
@@ -152,7 +152,7 @@ export default function AdminGroupsScreen({
 
         <div className="mt-3 border-l border-slate-200 pl-3">
           {groupCases.length === 0 ? (
-            <div className="workspace-empty">No test cases in this group</div>
+            <div className="py-4 text-center text-sm text-slate-400">No test cases in this group</div>
           ) : (
             <div
               className={`space-y-2 ${shouldScrollCases ? "max-h-[240px] overflow-y-auto pr-1" : ""}`}
@@ -213,61 +213,46 @@ export default function AdminGroupsScreen({
   );
 
   return (
-    <div className="workspace-stack">
+    <div className="space-y-5">
       <SectionCard
         title="Test Case Groups"
-        subtitle="Tao nhom test case trong section rieng"
+        subtitle="Tạo nhóm test case theo project"
       >
-        <form className="workspace-form" onSubmit={createGroup}>
-          <div className="workspace-form__grid workspace-form__grid--two">
-            <label>
-              <span>Project</span>
+        <form className="space-y-4" onSubmit={createGroup}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Project">
               <select
+                className={INPUT_CLS}
                 value={groupForm.projectId}
-                onChange={(e) =>
-                  setGroupForm((prev) => ({
-                    ...prev,
-                    projectId: e.target.value,
-                  }))
-                }
+                onChange={(e) => setGroupForm((prev) => ({ ...prev, projectId: e.target.value }))}
                 required
               >
-                <option value="">Select</option>
+                <option value="">Select project</option>
                 {scopedProjects.map((project: RecordAny) => (
                   <option key={getId(project)} value={getId(project)}>
                     {project.name}
                   </option>
                 ))}
               </select>
-            </label>
-            <label>
-              <span>Name</span>
+            </Field>
+            <Field label="Name">
               <input
+                className={INPUT_CLS}
                 value={groupForm.name}
-                onChange={(e) =>
-                  setGroupForm((prev) => ({
-                    ...prev,
-                    name: e.target.value,
-                  }))
-                }
+                onChange={(e) => setGroupForm((prev) => ({ ...prev, name: e.target.value }))}
                 required
               />
-            </label>
+            </Field>
           </div>
-          <label>
-            <span>Description</span>
+          <Field label="Description">
             <textarea
               rows={3}
+              className={INPUT_CLS}
               value={groupForm.description}
-              onChange={(e) =>
-                setGroupForm((prev) => ({
-                  ...prev,
-                  description: e.target.value,
-                }))
-              }
+              onChange={(e) => setGroupForm((prev) => ({ ...prev, description: e.target.value }))}
             />
-          </label>
-          <div className="workspace-inline-actions">
+          </Field>
+          <div className="flex flex-wrap items-center gap-2">
             <ActionButton
               type="submit"
               label={isEditing ? "Update group" : "Create group"}
@@ -275,18 +260,13 @@ export default function AdminGroupsScreen({
               variant="primary"
             />
             {isEditing && (
-              <ActionButton
-                label="Cancel"
-                icon="↩"
-                onClick={cancelGroupEdit}
-                tooltip="Cancel editing"
-              />
+              <ActionButton label="Cancel" icon="↩" onClick={cancelGroupEdit} tooltip="Cancel editing" />
             )}
           </div>
         </form>
       </SectionCard>
 
-      <SectionCard title="Group List" subtitle="Nhom theo project">
+      <SectionCard title="Group List" subtitle="Nhóm theo project">
         <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-slate-500">
           <span className="rounded-full bg-slate-100 px-2.5 py-1 font-semibold text-slate-600">
             {filteredGroups.length} groups
@@ -302,7 +282,7 @@ export default function AdminGroupsScreen({
           {filterBar}
           <div className="max-h-[620px] overflow-y-auto pr-1">
             {visibleHierarchyProjects.length === 0 ? (
-              <div className="workspace-empty">No groups</div>
+              <div className="py-8 text-center text-sm text-slate-400">No groups</div>
             ) : (
               <div className="space-y-3">
                 {visibleHierarchyProjects.map(
@@ -335,7 +315,7 @@ export default function AdminGroupsScreen({
 
                       <div className="space-y-2 px-4 pb-4 pt-3">
                         {projectGroups.length === 0 ? (
-                          <div className="workspace-empty">
+                          <div className="py-4 text-center text-sm text-slate-400">
                             No groups under this project
                           </div>
                         ) : (

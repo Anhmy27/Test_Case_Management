@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import type { Dispatch, SetStateAction } from "react";
-import { ActionButton, DataTable, SectionCard } from "./shared";
+import { Button, DataTable, Field, INPUT_CLS, SectionCard } from "./shared";
 import { getId } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
@@ -32,91 +32,65 @@ export default function AdminProjectsScreen({
   deleteProject,
 }: AdminProjectsScreenProps) {
   return (
-    <div className="workspace-stack">
-      <SectionCard title={editingProjectId ? "Edit Project" : "Projects"} subtitle="Tao, sua, xoa project trong mot workspace rieng">
-        <form className="workspace-form" onSubmit={saveProject}>
-          <div className="workspace-form__grid">
-            <label>
-              <span>Name</span>
+    <div className="space-y-5">
+      <SectionCard title={editingProjectId ? "Edit Project" : "Projects"} subtitle="Tạo, sửa, xóa project">
+        <form className="space-y-4" onSubmit={saveProject}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Name">
               <input
+                className={INPUT_CLS}
                 value={projectForm.name}
-                onChange={(e) =>
-                  setProjectForm((prev) => ({
-                    ...prev,
-                    name: e.target.value,
-                  }))
-                }
+                onChange={(e) => setProjectForm((prev) => ({ ...prev, name: e.target.value }))}
                 required
               />
-            </label>
-            <label>
-              <span>Code</span>
+            </Field>
+            <Field label="Code">
               <input
+                className={INPUT_CLS}
                 value={projectForm.code}
-                onChange={(e) =>
-                  setProjectForm((prev) => ({
-                    ...prev,
-                    code: e.target.value,
-                  }))
-                }
+                onChange={(e) => setProjectForm((prev) => ({ ...prev, code: e.target.value }))}
                 required
               />
-            </label>
-            <label>
-              <span>Jira pid</span>
+            </Field>
+            <Field label="Jira pid">
               <input
+                className={INPUT_CLS}
                 value={projectForm.pid}
-                onChange={(e) =>
-                  setProjectForm((prev) => ({
-                    ...prev,
-                    pid: e.target.value,
-                  }))
-                }
+                onChange={(e) => setProjectForm((prev) => ({ ...prev, pid: e.target.value }))}
                 placeholder="11500"
               />
-            </label>
-            <label>
-              <span>Jira Project Key</span>
+            </Field>
+            <Field label="Jira Project Key">
               <input
+                className={INPUT_CLS}
                 value={projectForm.jiraProjectKey}
-                onChange={(e) =>
-                  setProjectForm((prev) => ({
-                    ...prev,
-                    jiraProjectKey: e.target.value,
-                  }))
-                }
+                onChange={(e) => setProjectForm((prev) => ({ ...prev, jiraProjectKey: e.target.value }))}
                 placeholder="CED"
               />
-            </label>
+            </Field>
           </div>
-          <label>
-            <span>Description</span>
+          <Field label="Description">
             <textarea
               rows={3}
+              className={INPUT_CLS}
               value={projectForm.description}
-              onChange={(e) =>
-                setProjectForm((prev) => ({
-                  ...prev,
-                  description: e.target.value,
-                }))
-              }
+              onChange={(e) => setProjectForm((prev) => ({ ...prev, description: e.target.value }))}
             />
-          </label>
-          <div className="workspace-inline-actions">
-            <ActionButton
-              type="submit"
-              label={editingProjectId ? "Save project" : "Create project"}
-              icon={editingProjectId ? "💾" : "＋"}
-              variant="primary"
-            />
+          </Field>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="submit" variant="primary">
+              {editingProjectId ? "💾 Save project" : "＋ Create project"}
+            </Button>
             {editingProjectId && (
-              <ActionButton label="Cancel" icon="↩" onClick={cancelProjectEdit} tooltip="Cancel editing" />
+              <Button type="button" variant="secondary" onClick={cancelProjectEdit}>
+                ↩ Cancel
+              </Button>
             )}
           </div>
         </form>
       </SectionCard>
 
-      <SectionCard title="Project List" subtitle="Card/table sach, riang">
+      <SectionCard title="Project List">
         <DataTable
           columns={["Project", "Code", "Pid", "Jira Key", "Action"]}
           rows={projects
@@ -127,9 +101,9 @@ export default function AdminProjectsScreen({
                 <div>{project.code}</div>
                 <div>{project.pid || "-"}</div>
                 <div>{project.jiraProjectKey || project.jiraProductKey || project.Jiraproduckeys || project.JiraProductKey || "-"}</div>
-                <div className="workspace-inline-actions">
-                  <ActionButton label="Edit" icon="✎" onClick={() => startProjectEdit(project)} />
-                  <ActionButton label="Delete" icon="🗑" variant="danger" onClick={() => void deleteProject(getId(project))} />
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button size="sm" onClick={() => startProjectEdit(project)}>✎ Edit</Button>
+                  <Button size="sm" variant="danger" onClick={() => void deleteProject(getId(project))}>🗑 Delete</Button>
                 </div>
               </>
             ))}

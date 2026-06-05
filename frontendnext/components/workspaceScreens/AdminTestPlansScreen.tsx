@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction, FormEvent } from "react";
-import { ActionButton } from "./shared";
+import { ActionButton, Button, Field, INPUT_CLS } from "./shared";
 
 type RecordAny = Record<string, any>;
 
@@ -466,268 +466,198 @@ export default function AdminTestPlansScreen(props: Props) {
             </button>
             <h3 className="mb-2 text-lg font-semibold text-slate-900">{editingPlanId ? "Edit Test Plan" : "Create Test Plan"}</h3>
             <p className="mb-4 text-sm text-slate-600">{editingPlanId ? "Sua thong tin plan, gom ca danh sach test case." : "Assign user va tao plan rieng biet"}</p>
-            <form className="workspace-form" onSubmit={async (e) => {
+            <form className="space-y-4" onSubmit={async (e) => {
               const saved = await createPlan(e);
-              if (saved) {
-                setShowCreateModal(false);
-              }
+              if (saved) setShowCreateModal(false);
             }}>
-          <div className="workspace-form__grid workspace-form__grid--two">
-            <label>
-              <span>Project</span>
-              <select
-                value={planForm.projectId}
-                onChange={(e) =>
-                  setPlanForm((prev: any) => ({
-                    ...prev,
-                    projectId: e.target.value,
-                    versionId: "",
-                    selectedGroupIds: [],
-                    caseIds: [],
-                  }))
-                }
-                required
-              >
-                <option value="">Select</option>
-                {scopedProjects.map((project: RecordAny) => (
-                  <option key={getId(project)} value={getId(project)}>
-                    {project.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span>Version</span>
-              <select
-                value={planForm.versionId}
-                onChange={(e) =>
-                  setPlanForm((prev: any) => ({
-                    ...prev,
-                    versionId: e.target.value,
-                  }))
-                }
-                required
-              >
-                <option value="">Select</option>
-                {scopedVersions
-                  .filter((version: RecordAny) => getId(version.project) === planForm.projectId)
-                  .map((version: RecordAny) => (
-                    <option key={getId(version)} value={getId(version)}>
-                      {version.name}
-                    </option>
-                  ))}
-              </select>
-            </label>
-          </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Project">
+                  <select
+                    className={INPUT_CLS}
+                    value={planForm.projectId}
+                    onChange={(e) => setPlanForm((prev: any) => ({ ...prev, projectId: e.target.value, versionId: "", selectedGroupIds: [], caseIds: [] }))}
+                    required
+                  >
+                    <option value="">Select project</option>
+                    {scopedProjects.map((project: RecordAny) => (
+                      <option key={getId(project)} value={getId(project)}>{project.name}</option>
+                    ))}
+                  </select>
+                </Field>
+                <Field label="Version">
+                  <select
+                    className={INPUT_CLS}
+                    value={planForm.versionId}
+                    onChange={(e) => setPlanForm((prev: any) => ({ ...prev, versionId: e.target.value }))}
+                    required
+                  >
+                    <option value="">Select version</option>
+                    {scopedVersions
+                      .filter((version: RecordAny) => getId(version.project) === planForm.projectId)
+                      .map((version: RecordAny) => (
+                        <option key={getId(version)} value={getId(version)}>{version.name}</option>
+                      ))}
+                  </select>
+                </Field>
+              </div>
 
-          <label>
-            <span>Execution Mode</span>
-            <select
-              value={planForm.executionMode || "manual"}
-              onChange={(e) =>
-                setPlanForm((prev: any) => ({
-                  ...prev,
-                  executionMode: e.target.value,
-                }))
-              }
-            >
-              <option value="manual">Manual</option>
-              <option value="automation">Automation</option>
-            </select>
-          </label>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Execution Mode">
+                  <select
+                    className={INPUT_CLS}
+                    value={planForm.executionMode || "manual"}
+                    onChange={(e) => setPlanForm((prev: any) => ({ ...prev, executionMode: e.target.value }))}
+                  >
+                    <option value="manual">Manual</option>
+                    <option value="automation">Automation</option>
+                  </select>
+                </Field>
+                <Field label="Name">
+                  <input
+                    className={INPUT_CLS}
+                    value={planForm.name}
+                    onChange={(e) => setPlanForm((prev: any) => ({ ...prev, name: e.target.value }))}
+                    required
+                  />
+                </Field>
+              </div>
 
-          <label>
-            <span>Name</span>
-            <input
-              value={planForm.name}
-              onChange={(e) =>
-                setPlanForm((prev: any) => ({
-                  ...prev,
-                  name: e.target.value,
-                }))
-              }
-              required
-            />
-          </label>
+              <Field label="Description">
+                <textarea
+                  rows={3}
+                  className={INPUT_CLS}
+                  value={planForm.description}
+                  onChange={(e) => setPlanForm((prev: any) => ({ ...prev, description: e.target.value }))}
+                />
+              </Field>
 
-          <label>
-            <span>Description</span>
-            <textarea
-              rows={3}
-              value={planForm.description}
-              onChange={(e) =>
-                setPlanForm((prev: any) => ({
-                  ...prev,
-                  description: e.target.value,
-                }))
-              }
-            />
-          </label>
-
-          <label>
-            <span>Groups</span>
-            <div className="workspace-checklist workspace-checklist--compact workspace-checklist--scrollable rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
-              {!selectedPlanProject ? (
-                <div className="workspace-checklist__empty">Chon project truoc de lay danh sach group.</div>
-              ) : (
-                <details className="group rounded-2xl border border-slate-200 bg-white shadow-sm" open>
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-900 transition group-open:rounded-b-none group-open:border-b group-open:border-slate-200">
-                    <span className="flex items-center gap-3">
-                      <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-600 text-xs font-semibold text-white">
-                        {String(selectedPlanProject.name || "?").slice(0, 1).toUpperCase()}
-                      </span>
-                      <span>
-                        <strong className="block text-slate-900">{selectedPlanProject.name}</strong>
-                        <span className="block text-xs font-normal text-slate-500">
-                          {planProjectGroups.length} groups in current scope
+              {/* ── Group Checklist ── */}
+              <div>
+                <span className="mb-1.5 block text-xs font-medium text-slate-600">Groups</span>
+                <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
+                  {!selectedPlanProject ? (
+                    <div className="py-4 text-center text-xs text-slate-400">Chọn project trước để lấy danh sách group.</div>
+                  ) : (
+                    <details className="group rounded-2xl border border-slate-200 bg-white shadow-sm" open>
+                      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-900 transition group-open:rounded-b-none group-open:border-b group-open:border-slate-200">
+                        <span className="flex items-center gap-3">
+                          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-600 text-xs font-semibold text-white">
+                            {String(selectedPlanProject.name || "?").slice(0, 1).toUpperCase()}
+                          </span>
+                          <span>
+                            <strong className="block text-slate-900">{selectedPlanProject.name}</strong>
+                            <span className="block text-xs font-normal text-slate-500">{planProjectGroups.length} groups in scope</span>
+                          </span>
                         </span>
-                      </span>
-                    </span>
-                    <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-                      {selectedPlanGroupIds.size} selected
-                    </span>
-                  </summary>
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">{selectedPlanGroupIds.size} selected</span>
+                      </summary>
 
-                  <div className="space-y-2 border-l border-slate-200 px-4 py-3">
-                    {planProjectGroups.length === 0 ? (
-                      <div className="workspace-checklist__empty workspace-checklist__empty--inline">
-                        Khong co group nao trong project nay.
+                      <div className="space-y-2 border-l border-slate-200 px-4 py-3">
+                        {planProjectGroups.length === 0 ? (
+                          <div className="py-3 text-center text-xs text-slate-400">Không có group nào trong project này.</div>
+                        ) : (
+                          planProjectGroups.map((group: RecordAny) => {
+                            const groupId = getId(group);
+                            const checked = selectedPlanGroupIds.has(groupId);
+                            const groupCases = planProjectCases.filter((testCase: RecordAny) => String(getId(testCase.group)) === groupId);
+                            const shouldScrollCases = groupCases.length >= 4;
+
+                            return (
+                              <details key={groupId} className={`rounded-xl border px-3 py-2.5 ${checked ? "border-emerald-200 bg-emerald-50/60" : "border-slate-100 bg-slate-50"}`}>
+                                <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
+                                  <label className="flex flex-1 cursor-pointer items-center gap-3 border-0 bg-transparent p-0" onClick={(event) => event.stopPropagation()}>
+                                    <input type="checkbox" className="h-4 w-4 rounded accent-emerald-600" checked={checked} onChange={() => togglePlanGroup(groupId)} />
+                                    <span className="flex flex-col gap-0.5">
+                                      <strong className="text-sm font-semibold text-slate-900">{group.name}</strong>
+                                      <small className="text-xs text-slate-500">{groupCases.length} test cases</small>
+                                    </span>
+                                  </label>
+                                </summary>
+
+                                <div className="mt-3 border-l border-slate-200 pl-3">
+                                  {groupCases.length === 0 ? (
+                                    <div className="py-3 text-center text-xs text-slate-400">Không có test case trong group này.</div>
+                                  ) : (
+                                    <div className={`space-y-1 ${shouldScrollCases ? "max-h-[240px] overflow-y-auto pr-1" : ""}`}>
+                                      {groupCases.map((testCase: RecordAny) => {
+                                        const caseId = getId(testCase);
+                                        const checkedCase = selectedPlanCaseIds.has(caseId);
+                                        return (
+                                          <label key={caseId} className={`flex cursor-pointer items-center gap-2.5 rounded-lg border px-2.5 py-2 transition ${checkedCase ? "border-blue-200 bg-blue-50" : "border-transparent hover:bg-slate-50"}`}>
+                                            <input type="checkbox" className="h-4 w-4 rounded accent-blue-600" checked={checkedCase} onChange={() => togglePlanCase(groupId, caseId)} />
+                                            <span className="flex min-w-0 flex-col gap-0.5">
+                                              <strong className="block truncate text-xs font-semibold text-slate-900">{testCase.caseKey} - {testCase.title}</strong>
+                                              <small className="block truncate text-[11px] text-slate-400">{testCase.description || "No description"}</small>
+                                            </span>
+                                          </label>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              </details>
+                            );
+                          })
+                        )}
                       </div>
+                    </details>
+                  )}
+                </div>
+              </div>
+
+              {/* ── Cases Panel ── */}
+              <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-3">
+                <div className="flex items-center justify-between gap-3 border-b border-slate-200 pb-3">
+                  <div>
+                    <span className="text-xs font-semibold text-slate-700">Test cases</span>
+                    <p className="mt-0.5 text-xs text-slate-500">Chọn nhiều test case từ các group khác nhau.</p>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs">
+                    <label className="flex cursor-pointer items-center gap-1.5 font-semibold text-slate-600">
+                      <input
+                        ref={selectAllCasesRef}
+                        type="checkbox"
+                        className="h-4 w-4 rounded accent-blue-600"
+                        checked={allVisibleCasesSelected}
+                        onChange={toggleAllVisibleCases}
+                        disabled={visibleCaseIds.length === 0}
+                      />
+                      All
+                    </label>
+                    <span className="font-semibold text-slate-700">{selectedPlanCaseIds.size} selected</span>
+                    <span className="text-slate-500">{selectedGroupCount} group(s)</span>
+                  </div>
+                </div>
+
+                {selectedPlanGroups.length === 0 ? (
+                  <div className="py-4 text-center text-xs text-slate-400">Chọn ít nhất 1 group để hiện test case.</div>
+                ) : (
+                  <div className="mt-3 max-h-[300px] space-y-1 overflow-y-auto">
+                    {visibleCases.length === 0 ? (
+                      <div className="py-3 text-center text-xs text-slate-400">Các group đã chọn chưa có test case.</div>
                     ) : (
-                      planProjectGroups.map((group: RecordAny) => {
-                        const groupId = getId(group);
-                        const checked = selectedPlanGroupIds.has(groupId);
-                        const groupCases = planProjectCases.filter(
-                          (testCase: RecordAny) => String(getId(testCase.group)) === groupId,
-                        );
-                        const shouldScrollCases = groupCases.length >= 4;
-
+                      visibleCases.map(({ testCase, group }) => {
+                        const caseId = getId(testCase);
+                        const checked = selectedPlanCaseIds.has(caseId);
                         return (
-                          <details key={groupId} className={`rounded-xl border px-3 py-2.5 ${checked ? "border-emerald-200 bg-emerald-50/60" : "border-slate-100 bg-slate-50"}`}>
-                            <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-                              <label
-                                className={`workspace-checklist__item workspace-checklist__item--compact workspace-checklist__item--singleline${checked ? " is-checked" : ""} flex-1 border-0 bg-transparent p-0`}
-                                onClick={(event) => event.stopPropagation()}
-                              >
-                                <input
-                                  type="checkbox"
-                                  checked={checked}
-                                  onChange={() => togglePlanGroup(groupId)}
-                                />
-                                <span className="workspace-checklist__item-main">
-                                  <strong>{group.name}</strong>
-                                  <small>{groupCases.length} test cases</small>
-                                </span>
-                              </label>
-                            </summary>
-
-                            <div className="mt-3 border-l border-slate-200 pl-3">
-                              {groupCases.length === 0 ? (
-                                <div className="workspace-checklist__empty workspace-checklist__empty--inline">
-                                  Khong co test case trong group nay.
-                                </div>
-                              ) : (
-                                <div className={`space-y-2 ${shouldScrollCases ? "max-h-[240px] overflow-y-auto pr-1" : ""}`}>
-                                  {groupCases.map((testCase: RecordAny) => {
-                                    const caseId = getId(testCase);
-                                    const checkedCase = selectedPlanCaseIds.has(caseId);
-
-                                    return (
-                                      <label
-                                        key={caseId}
-                                        className={`workspace-checklist__case workspace-checklist__case--compact workspace-checklist__case--singleline${checkedCase ? " is-checked" : ""}`}
-                                      >
-                                        <input
-                                          type="checkbox"
-                                          checked={checkedCase}
-                                          onChange={() => togglePlanCase(groupId, caseId)}
-                                        />
-                                        <span className="workspace-checklist__case-main">
-                                          <strong>
-                                            {testCase.caseKey} - {testCase.title}
-                                          </strong>
-                                          <small>{testCase.description || "Khong co mo ta"}</small>
-                                        </span>
-                                      </label>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          </details>
+                          <label key={caseId} className={`flex cursor-pointer items-center gap-2.5 rounded-lg border px-2.5 py-2 transition ${checked ? "border-blue-200 bg-blue-50" : "border-transparent hover:bg-slate-50"}`}>
+                            <input type="checkbox" className="h-4 w-4 rounded accent-blue-600" checked={checked} onChange={() => togglePlanCase(getId(group), caseId)} />
+                            <span className="flex min-w-0 flex-col gap-0.5">
+                              <strong className="block truncate text-xs font-semibold text-slate-900">{testCase.caseKey} - {testCase.title}</strong>
+                              <small className="block truncate text-[11px] text-slate-400">{testCase.description || "No description"}</small>
+                            </span>
+                          </label>
                         );
                       })
                     )}
                   </div>
-                </details>
-              )}
-            </div>
-          </label>
-
-          <div className="workspace-checklist__panel workspace-checklist__panel--compact">
-            <div className="workspace-checklist__panel-header workspace-checklist__panel-header--compact">
-              <div>
-                <span>Test cases</span>
-                <p>Chon nhieu test case tu cac group khac nhau bang checkbox.</p>
-              </div>
-              <div className="workspace-checklist__panel-actions">
-                <label className="workspace-checklist__select-all">
-                  <input
-                    ref={selectAllCasesRef}
-                    type="checkbox"
-                    checked={allVisibleCasesSelected}
-                    onChange={toggleAllVisibleCases}
-                    disabled={visibleCaseIds.length === 0}
-                  />
-                  <span>All</span>
-                </label>
-                <strong>{selectedPlanCaseIds.size} selected</strong>
-                <small>{selectedGroupCount} group(s)</small>
-              </div>
-            </div>
-
-            {selectedPlanGroups.length === 0 ? (
-              <div className="workspace-checklist__empty">
-                Chon it nhat 1 group de hien test case.
-              </div>
-            ) : (
-              <div className="workspace-checklist__scroll workspace-checklist__scroll--cases">
-                {visibleCases.length === 0 ? (
-                  <div className="workspace-checklist__empty">
-                    Cac group da chon chua co test case.
-                  </div>
-                ) : (
-                  visibleCases.map(({ testCase, group }) => {
-                    const caseId = getId(testCase);
-                    const checked = selectedPlanCaseIds.has(caseId);
-                    return (
-                      <label
-                        key={caseId}
-                        className={`workspace-checklist__case workspace-checklist__case--compact workspace-checklist__case--singleline${checked ? " is-checked" : ""}`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => togglePlanCase(getId(group), caseId)}
-                        />
-                        <span className="workspace-checklist__case-main">
-                          <strong>
-                            {testCase.caseKey} - {testCase.title}
-                          </strong>
-                          <small>{testCase.description || "Khong co mo ta"}</small>
-                        </span>
-                      </label>
-                    );
-                  })
                 )}
               </div>
-            )}
-          </div>
 
-          <button className="workspace-primary" type="submit">
-            {editingPlanId ? "Save test plan" : "Create test plan"}
-          </button>
-        </form>
+              <Button type="submit" variant="primary">
+                {editingPlanId ? "💾 Save test plan" : "＋ Create test plan"}
+              </Button>
+            </form>
           </div>
         </div>
       )}
@@ -745,91 +675,71 @@ export default function AdminTestPlansScreen(props: Props) {
             <h3 className="mb-2 text-lg font-semibold text-slate-900">Assign Assignees</h3>
             <p className="mb-4 text-sm text-slate-600">Owner se tu dong la admin dang thao tac</p>
 
-            <form
-              className="workspace-form workspace-form--assignments"
-              onSubmit={async (event) => {
-                await handleSaveAssignments(event);
-              }}
-            >
-              <div className="workspace-assignments__section">
-                <label>
-                  <span>Test Plan</span>
-                  <select value={selectedPlanId} onChange={(e) => selectPlanForAssignment(e.target.value)} required>
-                    <option value="">Select plan</option>
-                    {scopedPlans.map((plan: RecordAny) => (
-                      <option key={getId(plan)} value={getId(plan)}>
-                        {plan.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
+            <form className="space-y-4" onSubmit={async (event) => { await handleSaveAssignments(event); }}>
+              <Field label="Test Plan">
+                <select className={INPUT_CLS} value={selectedPlanId} onChange={(e) => selectPlanForAssignment(e.target.value)} required>
+                  <option value="">Select plan</option>
+                  {scopedPlans.map((plan: RecordAny) => (
+                    <option key={getId(plan)} value={getId(plan)}>{plan.name}</option>
+                  ))}
+                </select>
+              </Field>
 
-              <div className="workspace-assignments__section">
-                <div className="workspace-assignments__picker">
-                  <label>
-                    <span>Assign Members</span>
-                    <input
-                      type="search"
-                      value={assigneeSearch}
-                      onChange={(e) => setAssigneeSearch(e.target.value)}
-                      placeholder="Search users..."
-                    />
-                  </label>
-
-                  <div className="workspace-assignments__list" role="group" aria-label="Assignees">
-                    {filteredUsers.length === 0 ? (
-                      <div className="workspace-checklist__empty">
-                        No users found.
-                      </div>
-                    ) : (
-                      filteredUsers.map((user: RecordAny) => {
-                        const userId = getId(user);
-                        const checked = assignDraft.assigneeIds.includes(userId);
-
-                        return (
-                          <label
-                            key={userId}
-                            className={`workspace-assignments__item${checked ? " is-checked" : ""}`}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => {
-                                setAssignDraft((prev: any) => ({
-                                  ...prev,
-                                  assigneeIds: checked
-                                    ? prev.assigneeIds.filter((id: string) => id !== userId)
-                                    : [...prev.assigneeIds, userId],
-                                }));
-                              }}
-                            />
-                            <span className="workspace-assignments__item-main">
-                              <strong>{user.name}</strong>
-                              <small>{user.role}</small>
-                            </span>
-                          </label>
-                        );
-                      })
-                    )}
-                  </div>
+              <div>
+                <Field label="Assign Members">
+                  <input
+                    type="search"
+                    className={INPUT_CLS}
+                    value={assigneeSearch}
+                    onChange={(e) => setAssigneeSearch(e.target.value)}
+                    placeholder="Search users..."
+                  />
+                </Field>
+                <div className="mt-2 max-h-[280px] space-y-1 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2" role="group" aria-label="Assignees">
+                  {filteredUsers.length === 0 ? (
+                    <div className="py-4 text-center text-xs text-slate-400">No users found.</div>
+                  ) : (
+                    filteredUsers.map((user: RecordAny) => {
+                      const userId = getId(user);
+                      const checked = assignDraft.assigneeIds.includes(userId);
+                      return (
+                        <label key={userId} className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 transition ${checked ? "border-blue-200 bg-blue-50" : "border-transparent hover:bg-white"}`}>
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded accent-blue-600"
+                            checked={checked}
+                            onChange={() => {
+                              setAssignDraft((prev: any) => ({
+                                ...prev,
+                                assigneeIds: checked
+                                  ? prev.assigneeIds.filter((id: string) => id !== userId)
+                                  : [...prev.assigneeIds, userId],
+                              }));
+                            }}
+                          />
+                          <span className="flex flex-col gap-0.5">
+                            <strong className="text-sm font-semibold text-slate-900">{user.name}</strong>
+                            <small className="text-xs text-slate-500">{user.role}</small>
+                          </span>
+                        </label>
+                      );
+                    })
+                  )}
                 </div>
               </div>
 
-              <div className="workspace-assignments__owner">
-                <span>Owner</span>
-                <strong>{ownerName}</strong>
-                <span>({ownerRole})</span>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <div className="text-xs font-medium text-slate-500">Owner (tự động)</div>
+                <div className="mt-1 font-semibold text-slate-900">
+                  {ownerName} <span className="text-xs font-normal text-slate-500">({ownerRole})</span>
+                </div>
               </div>
 
-              <div className="workspace-assignments__summary">
-                <strong>{selectedAssignees.length}</strong>
-                <span>selected members</span>
+              <div className="rounded-xl bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                <strong>{selectedAssignees.length}</strong> members selected
               </div>
 
-              <button className="workspace-primary workspace-assignments__submit" type="submit">
-                Save assignment
-              </button>
+              <Button type="submit" variant="primary">💾 Save assignment</Button>
             </form>
           </div>
         </div>

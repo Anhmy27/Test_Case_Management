@@ -22,7 +22,7 @@ function getProjectJiraProjectKey(project?: RecordAny | null) {
 }
 
 export default function AdminProjectsRoute() {
-  const { token, currentUser, setTopbar, handleLogout } = useAdminWorkspace();
+  const { token, currentUser, setTopbar } = useAdminWorkspace();
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [editingProjectId, setEditingProjectId] = useState<string>("");
   const [projectForm, setProjectForm] = useState({ name: "", code: "", pid: "", jiraProjectKey: "", description: "" });
@@ -114,29 +114,20 @@ export default function AdminProjectsRoute() {
   useLayoutEffect(() => {
     setTopbar(
       <div className="flex flex-wrap items-center gap-3">
-        <div>
-          <div className="text-sm font-semibold text-slate-900">Projects</div>
-        </div>
-        <div className="ml-auto flex flex-wrap items-center gap-3">
+        <h1 className="text-xl font-semibold text-slate-900">Projects</h1>
+        <div className="ml-auto">
           <input
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
-            className="w-56 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
-            placeholder="Filter projects"
+            className="w-52 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20"
+            placeholder="Filter projects..."
           />
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600"
-          >
-            Log out
-          </button>
         </div>
       </div>,
     );
 
     return () => setTopbar(null);
-  }, [handleLogout, searchTerm, setTopbar]);
+  }, [searchTerm, setTopbar]);
 
   return (
     <>

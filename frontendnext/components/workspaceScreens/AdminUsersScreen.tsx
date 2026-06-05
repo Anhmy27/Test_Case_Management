@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import type { Dispatch, SetStateAction } from "react";
-import { ActionButton, DataTable, SectionCard } from "./shared";
+import { Button, DataTable, Field, INPUT_CLS, SectionCard } from "./shared";
 import { getId } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
@@ -36,23 +36,67 @@ export default function AdminUsersScreen({
   const isEditing = Boolean(editingUserId);
 
   return (
-    <div className="workspace-stack">
-      <SectionCard title="Users" subtitle="Quan ly user, role va assign">
-        <form className="workspace-form" onSubmit={createUser}>
-          <div className="workspace-form__grid workspace-form__grid--two">
-            <label><span>Name</span><input value={newUserForm.name} onChange={(e) => setNewUserForm((prev) => ({ ...prev, name: e.target.value }))} required /></label>
-            <label><span>Email</span><input type="email" value={newUserForm.email} onChange={(e) => setNewUserForm((prev) => ({ ...prev, email: e.target.value }))} required /></label>
+    <div className="space-y-5">
+      <SectionCard title="Users" subtitle="Quản lý user, role và assign">
+        <form className="space-y-4" onSubmit={createUser}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Name">
+              <input
+                className={INPUT_CLS}
+                value={newUserForm.name}
+                onChange={(e) => setNewUserForm((prev) => ({ ...prev, name: e.target.value }))}
+                required
+              />
+            </Field>
+            <Field label="Email">
+              <input
+                type="email"
+                className={INPUT_CLS}
+                value={newUserForm.email}
+                onChange={(e) => setNewUserForm((prev) => ({ ...prev, email: e.target.value }))}
+                required
+              />
+            </Field>
+            <Field label="Password">
+              <input
+                type="password"
+                className={INPUT_CLS}
+                value={newUserForm.password}
+                onChange={(e) => setNewUserForm((prev) => ({ ...prev, password: e.target.value }))}
+                required={!isEditing}
+                placeholder={isEditing ? "Leave blank to keep current" : undefined}
+              />
+            </Field>
+            <Field label="Role">
+              <select
+                className={INPUT_CLS}
+                value={newUserForm.role}
+                onChange={(e) => setNewUserForm((prev) => ({ ...prev, role: e.target.value }))}
+              >
+                <option value="employee">Employee</option>
+                <option value="admin">Admin</option>
+              </select>
+            </Field>
+            <Field label="Status">
+              <select
+                className={INPUT_CLS}
+                value={newUserForm.isActive ? "active" : "inactive"}
+                onChange={(e) => setNewUserForm((prev) => ({ ...prev, isActive: e.target.value === "active" }))}
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </Field>
           </div>
-          <div className="workspace-form__grid workspace-form__grid--two">
-            <label><span>Password</span><input type="password" value={newUserForm.password} onChange={(e) => setNewUserForm((prev) => ({ ...prev, password: e.target.value }))} required={!isEditing} placeholder={isEditing ? "Leave blank to keep current password" : undefined} /></label>
-            <label><span>Role</span><select value={newUserForm.role} onChange={(e) => setNewUserForm((prev) => ({ ...prev, role: e.target.value }))}><option value="employee">employee</option><option value="admin">admin</option></select></label>
-          </div>
-          <div className="workspace-form__grid workspace-form__grid--two">
-            <label><span>Status</span><select value={newUserForm.isActive ? "active" : "inactive"} onChange={(e) => setNewUserForm((prev) => ({ ...prev, isActive: e.target.value === "active" }))}><option value="active">active</option><option value="inactive">inactive</option></select></label>
-          </div>
-          <div className="workspace-inline-actions">
-            <ActionButton type="submit" label={isEditing ? "Update user" : "Create user"} icon={isEditing ? "💾" : "＋"} variant="primary" />
-            {isEditing && <ActionButton label="Cancel" icon="↩" onClick={cancelUserEdit} tooltip="Cancel editing" />}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="submit" variant="primary">
+              {isEditing ? "💾 Update user" : "＋ Create user"}
+            </Button>
+            {isEditing && (
+              <Button type="button" variant="secondary" onClick={cancelUserEdit}>
+                ↩ Cancel
+              </Button>
+            )}
           </div>
         </form>
       </SectionCard>
@@ -61,23 +105,39 @@ export default function AdminUsersScreen({
         <DataTable
           columns={["User", "Email", "Role", "Status", "Actions"]}
           rows={users
-            .filter((user: RecordAny) => matchesSearch(user.name, user.email, user.role, user.isActive === false ? "inactive" : "active"))
+            .filter((user: RecordAny) =>
+              matchesSearch(user.name, user.email, user.role, user.isActive === false ? "inactive" : "active"),
+            )
             .map((user: RecordAny) => (
               <>
-                <div>{user.name}</div>
-                <div>{user.email}</div>
-                <div>{user.role}</div>
-                <div>{user.isActive === false ? "inactive" : "active"}</div>
-                <div className="workspace-inline-actions">
-                  <ActionButton label="Edit" icon="✎" onClick={() => startUserEdit(user)} />
-                  <ActionButton
-                    label="Deactivate"
-                    icon="⛔"
+                <div className="font-medium text-slate-900">{user.name}</div>
+                <div className="text-slate-600">{user.email}</div>
+                <div>
+                  <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                    {user.role}
+                  </span>
+                </div>
+                <div>
+                  <span
+                    className={
+                      user.isActive === false
+                        ? "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500"
+                        : "rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700"
+                    }
+                  >
+                    {user.isActive === false ? "Inactive" : "Active"}
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button size="sm" onClick={() => startUserEdit(user)}>✎ Edit</Button>
+                  <Button
+                    size="sm"
                     variant="danger"
                     onClick={() => void deleteUser(getId(user))}
                     disabled={getId(user) === currentUserId}
-                    tooltip={getId(user) === currentUserId ? "You cannot deactivate your own account" : "Deactivate user"}
-                  />
+                  >
+                    ⛔ Deactivate
+                  </Button>
                 </div>
               </>
             ))}

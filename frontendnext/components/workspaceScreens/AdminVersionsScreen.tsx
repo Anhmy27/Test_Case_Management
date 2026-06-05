@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import type { Dispatch, SetStateAction } from "react";
-import { ActionButton, DataTable, SectionCard } from "./shared";
+import { Button, DataTable, Field, INPUT_CLS, SectionCard } from "./shared";
 
 type RecordAny = Record<string, any>;
 
@@ -39,17 +39,51 @@ export default function AdminVersionsScreen({
   const isEditing = Boolean(editingVersionId);
 
   return (
-    <div className="workspace-stack">
-      <SectionCard title="Versions" subtitle="Tao version trong workspace rieng">
-        <form className="workspace-form" onSubmit={createVersion}>
-          <div className="workspace-form__grid workspace-form__grid--three">
-            <label><span>Project</span><select value={versionForm.projectId} onChange={(e) => setVersionForm((prev) => ({ ...prev, projectId: e.target.value }))} required><option value="">Select</option>{scopedProjects.map((project: RecordAny) => <option key={getId(project)} value={getId(project)}>{project.name}</option>)}</select></label>
-            <label><span>Name</span><input value={versionForm.name} onChange={(e) => setVersionForm((prev) => ({ ...prev, name: e.target.value }))} required /></label>
-            <label><span>Release date</span><input type="date" value={versionForm.releaseDate} onChange={(e) => setVersionForm((prev) => ({ ...prev, releaseDate: e.target.value }))} /></label>
+    <div className="space-y-5">
+      <SectionCard title="Versions" subtitle="Tạo version trong workspace">
+        <form className="space-y-4" onSubmit={createVersion}>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Field label="Project">
+              <select
+                className={INPUT_CLS}
+                value={versionForm.projectId}
+                onChange={(e) => setVersionForm((prev) => ({ ...prev, projectId: e.target.value }))}
+                required
+              >
+                <option value="">Select project</option>
+                {scopedProjects.map((project: RecordAny) => (
+                  <option key={getId(project)} value={getId(project)}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Name">
+              <input
+                className={INPUT_CLS}
+                value={versionForm.name}
+                onChange={(e) => setVersionForm((prev) => ({ ...prev, name: e.target.value }))}
+                required
+              />
+            </Field>
+            <Field label="Release date">
+              <input
+                type="date"
+                className={INPUT_CLS}
+                value={versionForm.releaseDate}
+                onChange={(e) => setVersionForm((prev) => ({ ...prev, releaseDate: e.target.value }))}
+              />
+            </Field>
           </div>
-          <div className="workspace-inline-actions">
-            <ActionButton type="submit" label={isEditing ? "Update version" : "Create version"} icon={isEditing ? "💾" : "＋"} variant="primary" />
-            {isEditing && <ActionButton label="Cancel" icon="↩" onClick={cancelVersionEdit} tooltip="Cancel editing" />}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="submit" variant="primary">
+              {isEditing ? "💾 Update version" : "＋ Create version"}
+            </Button>
+            {isEditing && (
+              <Button type="button" variant="secondary" onClick={cancelVersionEdit}>
+                ↩ Cancel
+              </Button>
+            )}
           </div>
         </form>
       </SectionCard>
@@ -62,20 +96,18 @@ export default function AdminVersionsScreen({
               const pid = getId(version.project);
               const proj = projects.find((p: RecordAny) => getId(p) === pid);
               const projectName = proj?.name || pid || "-";
-
               return { version, projectName };
             })
-            .filter(
-              ({ version, projectName }: { version: RecordAny; projectName: string }) =>
-                matchesSearch(version.name, projectName),
+            .filter(({ version, projectName }: { version: RecordAny; projectName: string }) =>
+              matchesSearch(version.name, projectName),
             )
             .map(({ version, projectName }: { version: RecordAny; projectName: string }) => (
               <>
                 <div>{version.name}</div>
                 <div>{projectName}</div>
-                <div className="workspace-inline-actions">
-                  <ActionButton label="Edit" icon="✎" onClick={() => startVersionEdit(version)} />
-                  <ActionButton label="Delete" icon="🗑" variant="danger" onClick={() => void deleteVersion(getId(version))} />
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button size="sm" onClick={() => startVersionEdit(version)}>✎ Edit</Button>
+                  <Button size="sm" variant="danger" onClick={() => void deleteVersion(getId(version))}>🗑 Delete</Button>
                 </div>
               </>
             ))}

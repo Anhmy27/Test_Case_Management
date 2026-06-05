@@ -4,11 +4,16 @@
 
 import { useMemo, useState } from "react";
 import { getId } from "@/lib/api";
-import { ActionButton, DataTable, SectionCard } from "./shared";
+import { Button, DataTable, SectionCard, StatusBadge } from "./shared";
 
 type RecordAny = Record<string, any>;
 
-type Props = { myScopedRuns: RecordAny[]; matchesSearch: (...values: Array<string | number | undefined | null>) => boolean; loadMyItems: (runId: string) => Promise<void>; userName: (value: unknown) => string; };
+type Props = {
+  myScopedRuns: RecordAny[];
+  matchesSearch: (...values: Array<string | number | undefined | null>) => boolean;
+  loadMyItems: (runId: string) => Promise<void>;
+  userName: (value: unknown) => string;
+};
 
 export default function EmployeeHistoryScreen({ myScopedRuns, matchesSearch, loadMyItems, userName }: Props) {
   const [focusedRunId, setFocusedRunId] = useState<string>("");
@@ -39,23 +44,25 @@ export default function EmployeeHistoryScreen({ myScopedRuns, matchesSearch, loa
   );
 
   return (
-    <div className="workspace-stack">
-      <SectionCard title="Traceability" subtitle="Click run de xem nhanh context lien quan">
-        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="workspace-history-strip">
+    <div className="space-y-5">
+      <SectionCard title="Traceability" subtitle="Click run để xem nhanh context liên quan">
+        <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="flex flex-wrap gap-2">
             {completedRuns.slice(0, 10).map((run: RecordAny) => {
-                const runId = String(run?._id || run?.id || "");
-                const isActive = String(focusedRun?._id || focusedRun?.id || "") === runId;
+              const runId = String(run?._id || run?.id || "");
+              const isActive = String(focusedRun?._id || focusedRun?.id || "") === runId;
               return (
                 <button
-                    key={runId}
+                  key={runId}
                   type="button"
-                    onClick={() => setFocusedRunId(runId)}
-                  className={`workspace-history-strip__item text-left ${isActive ? "ring-2 ring-indigo-300" : ""}`}
+                  onClick={() => setFocusedRunId(runId)}
+                  className={`flex flex-col gap-1 rounded-xl border px-3 py-2.5 text-left text-sm transition hover:border-slate-300 hover:bg-slate-50 ${
+                    isActive ? "border-blue-300 bg-blue-50 ring-2 ring-blue-200" : "border-slate-200 bg-white"
+                  }`}
                 >
-                  <span className="workspace-pill status-pass">{run.status || "completed"}</span>
-                  <strong>{run.name}</strong>
-                  <small>{run.testPlan?.name || "-"}</small>
+                  <StatusBadge status={run.status || "completed"} />
+                  <span className="font-semibold text-slate-900">{run.name}</span>
+                  <span className="text-xs text-slate-500">{run.testPlan?.name || "-"}</span>
                 </button>
               );
             })}
@@ -79,39 +86,60 @@ export default function EmployeeHistoryScreen({ myScopedRuns, matchesSearch, loa
         </div>
       </SectionCard>
 
-      <SectionCard title="History" subtitle="Lich su execution va xu huong pass/fail">
-        <div className="workspace-metrics workspace-metrics--wide">
-          <div className="mini-stat"><span>Completed runs</span><strong>{summary.total}</strong></div>
-          <div className="mini-stat"><span>Visible</span><strong>{completedRuns.length}</strong></div>
-          <div className="mini-stat"><span>Status</span><strong>Trend</strong></div>
+      <SectionCard title="History" subtitle="Lịch sử execution và xu hướng pass/fail">
+        <div className="mb-4 grid grid-cols-3 gap-3">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div className="text-xs uppercase tracking-wide text-slate-500">Completed runs</div>
+            <div className="mt-1 text-2xl font-semibold text-slate-900">{summary.total}</div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div className="text-xs uppercase tracking-wide text-slate-500">Visible</div>
+            <div className="mt-1 text-2xl font-semibold text-slate-900">{completedRuns.length}</div>
+          </div>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <div className="text-xs uppercase tracking-wide text-slate-500">Status</div>
+            <div className="mt-1 text-2xl font-semibold text-slate-900">Trend</div>
+          </div>
         </div>
-        <div className="workspace-history-strip">
-          {completedRuns.slice(0, 8).map((run: RecordAny) => {
-            const label = String(run.status || "completed");
-            const toneClass = label === "completed" ? "status-pass" : "status-skip";
-            return (
-              <div key={getId(run)} className="workspace-history-strip__item">
-                <span className={`workspace-pill ${toneClass}`}>{label}</span>
-                <strong>{run.name}</strong>
-                <small>{run.testPlan?.name || "-"}</small>
-              </div>
-            );
-          })}
+        <div className="flex flex-wrap gap-2">
+          {completedRuns.slice(0, 8).map((run: RecordAny) => (
+            <div
+              key={getId(run)}
+              className="flex flex-col gap-1 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm shadow-sm"
+            >
+              <StatusBadge status={run.status || "completed"} />
+              <strong className="text-slate-900">{run.name}</strong>
+              <small className="text-slate-500">{run.testPlan?.name || "-"}</small>
+            </div>
+          ))}
         </div>
       </SectionCard>
 
-      <SectionCard title="Run Timeline" subtitle="Mo rong tung run de drill down nhanh hon">
+      <SectionCard title="Run Timeline" subtitle="Mở rộng từng run để drill down nhanh hơn">
         <DataTable
           columns={["Run", "Plan", "Status", "Started By", "When", "Action"]}
           rows={completedRuns.map((run: RecordAny) => (
             <>
-              <div>{run.name}</div>
-              <div>{run.testPlan?.name || "-"}</div>
-              <div><span className="workspace-pill workspace-pill--success">{run.status}</span></div>
-              <div>{userName(run.startedBy)}</div>
-              <div>{run.completedAt || run.endedAt || run.updatedAt || run.createdAt ? new Date(run.completedAt || run.endedAt || run.updatedAt || run.createdAt).toLocaleString() : "-"}</div>
+              <div className="font-medium text-slate-900">{run.name}</div>
+              <div className="text-slate-600">{run.testPlan?.name || "-"}</div>
+              <div><StatusBadge status={run.status || "completed"} /></div>
+              <div className="text-slate-600">{userName(run.startedBy)}</div>
+              <div className="text-sm text-slate-600">
+                {(run.completedAt || run.endedAt || run.updatedAt || run.createdAt)
+                  ? new Date(run.completedAt || run.endedAt || run.updatedAt || run.createdAt).toLocaleString()
+                  : "-"}
+              </div>
               <div>
-                <ActionButton label="View" icon="↗" onClick={() => { const runId = String(run?._id || run?.id || ""); if (!runId) return; void loadMyItems(runId); }} />
+                <Button
+                  size="sm"
+                  label="View"
+                  icon="↗"
+                  onClick={() => {
+                    const runId = String(run?._id || run?.id || "");
+                    if (!runId) return;
+                    void loadMyItems(runId);
+                  }}
+                />
               </div>
             </>
           ))}

@@ -22,8 +22,8 @@ export default function EmployeeRunningTestsScreen({ myScopedRuns, matchesSearch
   );
 
   return (
-    <div className="workspace-stack">
-      <SectionCard title="Running Tests" subtitle="Run dang chay cua ban">
+    <div className="space-y-5">
+      <SectionCard title="Running Tests" subtitle="Run đang chạy của bạn">
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_320px]">
           <DataTable
             columns={["Run", "Plan", "Progress", "Status", "Action"]}

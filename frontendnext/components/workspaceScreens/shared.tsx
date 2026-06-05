@@ -3,28 +3,227 @@
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
-export function WorkspaceContentSkeleton() {
+// ─── Form primitives ──────────────────────────────────────────────────────
+
+/** Shared Tailwind class for all text inputs, selects, and textareas */
+export const INPUT_CLS =
+  "w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20 disabled:cursor-not-allowed disabled:opacity-50";
+
+/** Wraps a label + field slot pair */
+export function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
   return (
-    <div className="animate-pulse space-y-6">
-      <div className="h-24 rounded-2xl bg-slate-200/80" />
-      <div className="h-64 rounded-2xl bg-slate-200/60" />
-      <div className="h-96 rounded-2xl bg-slate-200/40" />
+    <label className="flex flex-col gap-1.5">
+      <span className="text-xs font-medium text-slate-600">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+// ─── FilterBar ────────────────────────────────────────────────────────────
+
+/**
+ * Horizontal row of filter controls.
+ * `cols` controls how many columns the controls section uses (default 4).
+ */
+export function FilterBar({
+  label,
+  description,
+  children,
+  cols = 4,
+}: {
+  label?: string;
+  description?: string;
+  children: ReactNode;
+  cols?: number;
+}) {
+  return (
+    <div className="flex flex-wrap items-start gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+      {(label || description) && (
+        <div className="w-40 shrink-0">
+          {label && (
+            <p className="text-xs font-semibold text-slate-700">{label}</p>
+          )}
+          {description && (
+            <p className="mt-0.5 text-xs text-slate-500">{description}</p>
+          )}
+        </div>
+      )}
+      <div
+        className={`grid flex-1 gap-3`}
+        style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+      >
+        {children}
+      </div>
     </div>
   );
 }
 
-type ActionButtonProps = {
-  label: string;
-  icon?: string;
+// ─── FilterControl ────────────────────────────────────────────────────────
+
+export function FilterControl({ children }: { children: ReactNode }) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="sr-only">Filter</span>
+      {children}
+    </label>
+  );
+}
+
+// ─── Skeleton ──────────────────────────────────────────────────────────────
+
+export function WorkspaceContentSkeleton() {
+  return (
+    <div className="animate-pulse space-y-4">
+      <div className="h-20 rounded-2xl bg-slate-200/70" />
+      <div className="h-56 rounded-2xl bg-slate-200/50" />
+      <div className="h-80 rounded-2xl bg-slate-200/40" />
+    </div>
+  );
+}
+
+// ─── StatusBadge ───────────────────────────────────────────────────────────
+
+const STATUS_STYLES: Record<string, string> = {
+  pass:      "bg-emerald-50 text-emerald-700 ring-emerald-200/60",
+  fail:      "bg-rose-50 text-rose-700 ring-rose-200/60",
+  blocked:   "bg-amber-50 text-amber-800 ring-amber-200/60",
+  skip:      "bg-slate-100 text-slate-600 ring-slate-200/60",
+  running:   "bg-sky-50 text-sky-700 ring-sky-200/60",
+  completed: "bg-slate-100 text-slate-700 ring-slate-200/60",
+  pending:   "bg-amber-50 text-amber-700 ring-amber-200/60",
+  automation:"bg-violet-50 text-violet-700 ring-violet-200/60",
+  manual:    "bg-slate-100 text-slate-600 ring-slate-200/60",
+  active:    "bg-emerald-50 text-emerald-700 ring-emerald-200/60",
+  inactive:  "bg-slate-100 text-slate-500 ring-slate-200/60",
+};
+
+export function StatusBadge({ status }: { status: string }) {
+  const key = String(status || "").toLowerCase();
+  const cls = STATUS_STYLES[key] ?? "bg-slate-100 text-slate-600 ring-slate-200/60";
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ring-1 ring-inset ${cls}`}
+    >
+      {status}
+    </span>
+  );
+}
+
+// ─── Button ────────────────────────────────────────────────────────────────
+
+type ButtonVariant = "primary" | "secondary" | "danger" | "ghost";
+type ButtonSize = "sm" | "md" | "lg";
+
+type ButtonProps = {
+  /** Visible label text. Can also use `children` instead. */
+  label?: string;
+  children?: ReactNode;
+  icon?: ReactNode;
   onClick?: () => void;
   type?: "button" | "submit" | "reset";
   disabled?: boolean;
   loading?: boolean;
-  variant?: "primary" | "secondary" | "danger" | "ghost";
+  variant?: ButtonVariant;
+  size?: ButtonSize;
   tooltip?: string;
   className?: string;
 };
 
+const BTN_VARIANT: Record<ButtonVariant, string> = {
+  primary:
+    "border-blue-600 bg-blue-600 text-white hover:bg-blue-700 hover:border-blue-700 shadow-sm",
+  secondary:
+    "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50 shadow-sm",
+  danger:
+    "border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-300 hover:bg-rose-100",
+  ghost:
+    "border-transparent bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+};
+
+const BTN_SIZE: Record<ButtonSize, string> = {
+  sm: "px-2.5 py-1 text-xs gap-1",
+  md: "px-3 py-1.5 text-xs gap-1.5",
+  lg: "px-4 py-2 text-sm gap-2",
+};
+
+export function Button({
+  label,
+  children,
+  icon,
+  onClick,
+  disabled,
+  loading,
+  variant = "secondary",
+  size = "md",
+  tooltip,
+  type,
+  className = "",
+}: ButtonProps) {
+  const content = children ?? label;
+  return (
+    <button
+      type={type ?? "button"}
+      onClick={onClick}
+      disabled={disabled || loading}
+      title={tooltip ?? (typeof content === "string" ? content : undefined)}
+      aria-label={typeof content === "string" ? content : label}
+      className={`inline-flex items-center rounded-lg border font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${BTN_VARIANT[variant]} ${BTN_SIZE[size]} ${className}`}
+    >
+      {loading ? (
+        <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+      ) : icon ? (
+        <span className="shrink-0" aria-hidden="true">{icon}</span>
+      ) : null}
+      {content !== undefined && <span>{content}</span>}
+    </button>
+  );
+}
+
+// Backward-compat alias
+export { Button as ActionButton };
+
+// ─── Card ──────────────────────────────────────────────────────────────────
+
+export function Card({
+  title,
+  subtitle,
+  children,
+  actions,
+  noPadding = false,
+}: {
+  title?: string;
+  subtitle?: string;
+  children: ReactNode;
+  actions?: ReactNode;
+  noPadding?: boolean;
+}) {
+  return (
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      {(title || actions) && (
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
+          {title ? (
+            <div>
+              <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
+              {subtitle && <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>}
+            </div>
+          ) : null}
+          {actions ? (
+            <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>
+          ) : null}
+        </div>
+      )}
+      {noPadding ? children : <div className="p-5">{children}</div>}
+    </section>
+  );
+}
+
+// SectionCard backward-compat alias
 export function SectionCard({
   title,
   subtitle,
@@ -37,27 +236,82 @@ export function SectionCard({
   children: ReactNode;
 }) {
   return (
-    <section className="workspace-card">
-      <div
-        className="workspace-card__header"
-        style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem" }}
-      >
-        <div>
-          <h2>{title}</h2>
-          {subtitle && <p>{subtitle}</p>}
-        </div>
-        {actions && <div className="workspace-inline-actions">{actions}</div>}
-      </div>
+    <Card title={title} subtitle={subtitle} actions={actions}>
       {children}
-    </section>
+    </Card>
   );
 }
+
+// ─── PageHeader ────────────────────────────────────────────────────────────
+
+export function PageHeader({
+  title,
+  subtitle,
+  actions,
+  meta,
+}: {
+  title: string;
+  subtitle?: string;
+  actions?: ReactNode;
+  meta?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-4">
+      <div className="min-w-0">
+        <h1 className="text-xl font-semibold text-slate-900">{title}</h1>
+        {subtitle && <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p>}
+        {meta && (
+          <div className="mt-2 flex flex-wrap items-center gap-2">{meta}</div>
+        )}
+      </div>
+      {actions && (
+        <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>
+      )}
+    </div>
+  );
+}
+
+// ─── EmptyState ────────────────────────────────────────────────────────────
+
+export function EmptyState({
+  title,
+  description,
+  action,
+  icon,
+}: {
+  title: string;
+  description?: string;
+  action?: ReactNode;
+  icon?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center px-4 py-16 text-center">
+      <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+        {icon ?? (
+          <svg className="h-7 w-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={1.5}
+              d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0H4"
+            />
+          </svg>
+        )}
+      </div>
+      <p className="text-sm font-semibold text-slate-900">{title}</p>
+      {description && <p className="mt-1 max-w-xs text-sm text-slate-500">{description}</p>}
+      {action && <div className="mt-4">{action}</div>}
+    </div>
+  );
+}
+
+// ─── DataTable ─────────────────────────────────────────────────────────────
 
 export function DataTable({
   columns,
   rows,
   emptyText,
-  pageSize = 10,
+  pageSize = 15,
   enablePagination = true,
 }: {
   columns: string[];
@@ -67,10 +321,9 @@ export function DataTable({
   enablePagination?: boolean;
 }) {
   const [currentPage, setCurrentPage] = useState(1);
-  const columnStyle = {
+  const colStyle = {
     gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))`,
   };
-
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
   const safePage = Math.min(currentPage, totalPages);
 
@@ -81,84 +334,60 @@ export function DataTable({
   }, [enablePagination, pageSize, rows, safePage]);
 
   return (
-    <div className="workspace-table">
-      <div className="workspace-table__head" style={columnStyle}>
-        {columns.map((column) => (
-          <div key={column}>{column}</div>
+    <div className="overflow-hidden">
+      {/* Head */}
+      <div
+        className="grid gap-3 border-b border-slate-100 bg-slate-50 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500"
+        style={colStyle}
+      >
+        {columns.map((col) => (
+          <div key={col}>{col}</div>
         ))}
       </div>
+
+      {/* Body */}
       {rows.length === 0 ? (
-        <div className="workspace-table__empty">{emptyText}</div>
+        <div className="px-4 py-12 text-center text-sm text-slate-400">{emptyText}</div>
       ) : (
-        <div className="workspace-table__body">
-          {visibleRows.map((row, index) => (
-            <div key={index} className="workspace-table__row" style={columnStyle}>
+        <div>
+          {visibleRows.map((row, i) => (
+            <div
+              key={i}
+              className="grid items-center gap-3 border-b border-slate-100 px-4 py-3 last:border-0 hover:bg-slate-50/70"
+              style={colStyle}
+            >
               {row}
             </div>
           ))}
         </div>
       )}
-      {enablePagination && rows.length > pageSize ? (
-        <div className="flex items-center justify-between gap-3 px-2 py-2 text-xs text-slate-600">
+
+      {/* Pagination */}
+      {enablePagination && rows.length > pageSize && (
+        <div className="flex items-center justify-between gap-3 border-t border-slate-100 bg-white px-4 py-2.5 text-xs text-slate-500">
           <span>
-            Page {safePage}/{totalPages} · {rows.length} items
+            {rows.length} items · trang {safePage}/{totalPages}
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
-              className="rounded border border-slate-200 px-2 py-1 disabled:opacity-50"
+              className="rounded-lg border border-slate-200 px-2.5 py-1 font-medium transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
               disabled={safePage <= 1}
-              onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
             >
-              Prev
+              ← Trước
             </button>
             <button
               type="button"
-              className="rounded border border-slate-200 px-2 py-1 disabled:opacity-50"
+              className="rounded-lg border border-slate-200 px-2.5 py-1 font-medium transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
               disabled={safePage >= totalPages}
-              onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
             >
-              Next
+              Tiếp →
             </button>
           </div>
         </div>
-      ) : null}
+      )}
     </div>
-  );
-}
-
-export function ActionButton({
-  label,
-  icon,
-  onClick,
-  disabled,
-  loading,
-  variant = "secondary",
-  tooltip,
-  type,
-  className,
-}: ActionButtonProps) {
-  const base = "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-semibold transition";
-  const tone =
-    variant === "primary"
-      ? "border-slate-900 bg-slate-900 text-white hover:bg-slate-800"
-      : variant === "danger"
-        ? "border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-300 hover:bg-rose-100"
-        : variant === "ghost"
-          ? "border-transparent bg-transparent text-slate-600 hover:bg-slate-100"
-          : "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50";
-
-  return (
-    <button
-      type={type || "button"}
-      onClick={onClick}
-      disabled={disabled || loading}
-      title={tooltip || label}
-      aria-label={label}
-      className={`${base} ${tone} disabled:cursor-not-allowed disabled:opacity-50 ${className || ""}`}
-    >
-      {loading ? "…" : icon ? <span aria-hidden="true">{icon}</span> : null}
-      <span>{label}</span>
-    </button>
   );
 }

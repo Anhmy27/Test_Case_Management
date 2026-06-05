@@ -14,7 +14,7 @@ type RecordAny = Record<string, any>;
 
 export default function EmployeeHistoryRoute() {
   const router = useRouter();
-  const { token, currentUser, setTopbar, handleLogout } = useEmployeeWorkspace();
+  const { token, currentUser, setTopbar } = useEmployeeWorkspace();
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [runs, setRuns] = useState<RecordAny[]>([]);
   const [loading, setLoading] = useState(true);
@@ -96,13 +96,11 @@ export default function EmployeeHistoryRoute() {
         onSearchChange: setSearchTerm,
         searchPlaceholder: "Search by run, plan, executor...",
         stats: [{ label: "runs", value: myScopedRuns.length }],
-        onLogout: handleLogout,
       }),
     );
 
     return () => setTopbar(null);
   }, [
-    handleLogout,
     myScopedRuns.length,
     projectScope.safeProjects,
     projectScope.scopeLabel,

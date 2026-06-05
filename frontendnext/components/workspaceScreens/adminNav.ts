@@ -39,11 +39,13 @@ export function isGlobalProjectScope(selectedProjectId: string) {
 }
 
 export function getAdminNavItems(selectedProjectId: string): AppShellNavItem[] {
-  const allowed = isGlobalProjectScope(selectedProjectId)
-    ? GLOBAL_SCOPE_KEYS
-    : PROJECT_SCOPE_KEYS;
-
-  return ADMIN_NAV_ITEMS.filter((item) => allowed.has(item.key));
+  const isGlobal = isGlobalProjectScope(selectedProjectId);
+  const allowed = isGlobal ? GLOBAL_SCOPE_KEYS : PROJECT_SCOPE_KEYS;
+  const group = isGlobal ? "Global" : "Project";
+  return ADMIN_NAV_ITEMS.filter((item) => allowed.has(item.key)).map((item) => ({
+    ...item,
+    group,
+  }));
 }
 
 export function isAdminTabAllowedForScope(tab: string, selectedProjectId: string) {

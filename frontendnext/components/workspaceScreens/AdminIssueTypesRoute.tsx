@@ -11,7 +11,7 @@ import { apiRequest, getId } from "@/lib/api";
 type RecordAny = Record<string, any>;
 
 export default function AdminIssueTypesRoute() {
-  const { token, currentUser, setTopbar, handleLogout } = useAdminWorkspace();
+  const { token, currentUser, setTopbar } = useAdminWorkspace();
   const [issueTypes, setIssueTypes] = useState<RecordAny[]>([]);
   const [issueTypeForm, setIssueTypeForm] = useState({ name: "", idjira: "" });
   const [editingIssueTypeId, setEditingIssueTypeId] = useState("");
@@ -89,29 +89,20 @@ export default function AdminIssueTypesRoute() {
   useLayoutEffect(() => {
     setTopbar(
       <div className="flex flex-wrap items-center gap-3">
-        <div>
-          <div className="text-sm font-semibold text-slate-900">Issue Types</div>
-        </div>
-        <div className="ml-auto flex flex-wrap items-center gap-3">
+        <h1 className="text-xl font-semibold text-slate-900">Issue Types</h1>
+        <div className="ml-auto">
           <input
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
-            className="w-56 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
-            placeholder="Filter issue types"
+            className="w-52 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20"
+            placeholder="Filter issue types..."
           />
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600"
-          >
-            Log out
-          </button>
         </div>
       </div>,
     );
 
     return () => setTopbar(null);
-  }, [handleLogout, searchTerm, setTopbar]);
+  }, [searchTerm, setTopbar]);
 
   return (
     <>

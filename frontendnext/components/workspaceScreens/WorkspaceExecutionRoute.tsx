@@ -30,7 +30,7 @@ function AdminWorkspaceExecutionRoute() {
   const runIdFromUrl = String(searchParams.get("runId") || "").trim();
   const testPlanIdFromUrl = String(searchParams.get("testPlanId") || "").trim();
   const runNameFromUrl = String(searchParams.get("runName") || "").trim();
-  const { token, currentUser, selectedProjectId, setTopbar, handleLogout } = useAdminWorkspace();
+  const { token, currentUser, selectedProjectId, setTopbar } = useAdminWorkspace();
   const [plans, setPlans] = useState<RecordAny[]>([]);
   const [runs, setRuns] = useState<RecordAny[]>([]);
   const [selectedRun, setSelectedRun] = useState<RecordAny | null>(null);
@@ -336,25 +336,9 @@ function AdminWorkspaceExecutionRoute() {
   };
 
   useLayoutEffect(() => {
-    setTopbar(
-      <div className="flex flex-wrap items-center gap-3">
-        <div>
-          <div className="text-sm font-semibold text-slate-900">Execution</div>
-        </div>
-        <div className="ml-auto flex items-center gap-3">
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600"
-          >
-            Log out
-          </button>
-        </div>
-      </div>,
-    );
-
+    setTopbar(<h1 className="text-xl font-semibold text-slate-900">Execution</h1>);
     return () => setTopbar(null);
-  }, [handleLogout, setTopbar]);
+  }, [setTopbar]);
 
   return (
     <>
@@ -399,7 +383,7 @@ function EmployeeWorkspaceExecutionRoute() {
   const runIdFromUrl = String(searchParams.get("runId") || "").trim();
   const testPlanIdFromUrl = String(searchParams.get("testPlanId") || "").trim();
   const runNameFromUrl = String(searchParams.get("runName") || "").trim();
-  const { token, currentUser, setTopbar, handleLogout } = useEmployeeWorkspace();
+  const { token, currentUser, setTopbar } = useEmployeeWorkspace();
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [plans, setPlans] = useState<RecordAny[]>([]);
   const [runs, setRuns] = useState<RecordAny[]>([]);
@@ -719,7 +703,6 @@ function EmployeeWorkspaceExecutionRoute() {
           { label: "plans", value: scopedPlans.length },
           { label: "runs", value: runs.length },
         ],
-        onLogout: handleLogout,
       }),
     );
 
@@ -729,7 +712,6 @@ function EmployeeWorkspaceExecutionRoute() {
     employeeProjectScope.scopeLabel,
     employeeProjectScope.selectedProjectId,
     employeeProjectScope.setSelectedProjectId,
-    handleLogout,
     runs.length,
     scopedPlans.length,
     setTopbar,

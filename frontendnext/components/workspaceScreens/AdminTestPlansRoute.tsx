@@ -20,7 +20,7 @@ function groupCasesByGroup(groups: RecordAny[], cases: RecordAny[]) {
 
 export default function AdminTestPlansRoute() {
   const router = useRouter();
-  const { token, currentUser, selectedProjectId, setSelectedProjectId, setTopbar, handleLogout } = useAdminWorkspace();
+  const { token, currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [versions, setVersions] = useState<RecordAny[]>([]);
   const [groups, setGroups] = useState<RecordAny[]>([]);
@@ -204,14 +204,12 @@ export default function AdminTestPlansRoute() {
   useLayoutEffect(() => {
     setTopbar(
       <div className="flex flex-wrap items-center gap-3">
-        <div>
-          <div className="text-sm font-semibold text-slate-900">Test Plans</div>
-        </div>
-        <div className="ml-auto flex flex-wrap items-center gap-3">
+        <h1 className="text-xl font-semibold text-slate-900">Test Plans</h1>
+        <div className="ml-auto">
           <select
             value={selectedProjectId}
             onChange={(event) => handleProjectScopeChange(event.target.value)}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-400 focus:outline-none"
           >
             <option value="">All projects</option>
             {projects.map((project) => (
@@ -220,19 +218,12 @@ export default function AdminTestPlansRoute() {
               </option>
             ))}
           </select>
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600"
-          >
-            Log out
-          </button>
         </div>
       </div>,
     );
 
     return () => setTopbar(null);
-  }, [handleLogout, handleProjectScopeChange, projects, selectedProjectId, setTopbar]);
+  }, [handleProjectScopeChange, projects, selectedProjectId, setTopbar]);
 
   return (
     <>

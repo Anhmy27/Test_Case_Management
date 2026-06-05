@@ -13,7 +13,7 @@ type RecordAny = Record<string, any>;
 
 export default function AdminTestRunsRoute() {
   const router = useRouter();
-  const { token, currentUser, selectedProjectId, setTopbar, handleLogout } = useAdminWorkspace();
+  const { token, currentUser, selectedProjectId, setTopbar } = useAdminWorkspace();
   const [plans, setPlans] = useState<RecordAny[]>([]);
   const [runs, setRuns] = useState<RecordAny[]>([]);
   const [runForm, setRunForm] = useState({ testPlanId: "", name: "", baseUrl: "" });
@@ -106,25 +106,9 @@ export default function AdminTestRunsRoute() {
   };
 
   useLayoutEffect(() => {
-    setTopbar(
-      <div className="flex flex-wrap items-center gap-3">
-        <div>
-          <div className="text-sm font-semibold text-slate-900">Test Runs</div>
-        </div>
-        <div className="ml-auto flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600"
-          >
-            Log out
-          </button>
-        </div>
-      </div>,
-    );
-
+    setTopbar(<h1 className="text-xl font-semibold text-slate-900">Test Runs</h1>);
     return () => setTopbar(null);
-  }, [handleLogout, setTopbar]);
+  }, [setTopbar]);
 
   return (
     <>

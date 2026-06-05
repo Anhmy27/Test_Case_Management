@@ -13,7 +13,7 @@ type RecordAny = Record<string, any>;
 
 export default function AdminGroupsRoute() {
   const router = useRouter();
-  const { token, currentUser, selectedProjectId, setSelectedProjectId, setTopbar, handleLogout } = useAdminWorkspace();
+  const { token, currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [groups, setGroups] = useState<RecordAny[]>([]);
   const [testCases, setTestCases] = useState<RecordAny[]>([]);
@@ -106,20 +106,18 @@ export default function AdminGroupsRoute() {
   useLayoutEffect(() => {
     setTopbar(
       <div className="flex flex-wrap items-center gap-3">
-        <div>
-          <div className="text-sm font-semibold text-slate-900">Groups</div>
-        </div>
+        <h1 className="text-xl font-semibold text-slate-900">Groups</h1>
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <input
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
-            className="w-56 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
-            placeholder="Filter groups"
+            className="w-52 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20"
+            placeholder="Filter groups..."
           />
           <select
             value={selectedProjectId}
             onChange={(event) => setSelectedProjectId(event.target.value)}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-400 focus:outline-none"
           >
             <option value="">All projects</option>
             {projects.map((project) => (
@@ -128,19 +126,12 @@ export default function AdminGroupsRoute() {
               </option>
             ))}
           </select>
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600"
-          >
-            Log out
-          </button>
         </div>
       </div>,
     );
 
     return () => setTopbar(null);
-  }, [handleLogout, projects, searchTerm, selectedProjectId, setSelectedProjectId, setTopbar]);
+  }, [projects, searchTerm, selectedProjectId, setSelectedProjectId, setTopbar]);
 
   return (
     <>
