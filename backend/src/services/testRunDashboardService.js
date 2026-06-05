@@ -582,6 +582,8 @@ const {
   getMyRunItemsService,
   updateRunResultService,
   endTestRunService,
+  cancelAutomationRunService,
+  retryFailedAutomationRunService,
 } = require('./testRunLifecycleService');
 
 module.exports = {
@@ -592,6 +594,8 @@ module.exports = {
   getMyRunItemsService,
   updateRunResultService,
   endTestRunService,
+  cancelAutomationRunService,
+  retryFailedAutomationRunService,
   // dashboard
   getDashboardService,
   getProjectDashboardService,

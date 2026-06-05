@@ -134,6 +134,19 @@ const testRunSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
     },
+    automationBaseUrl: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    automationProgress: {
+      currentCaseIndex: { type: Number, default: 0 },
+      totalCases: { type: Number, default: 0 },
+      currentStepIndex: { type: Number, default: 0 },
+      currentStepTotal: { type: Number, default: 0 },
+      currentCaseKey: { type: String, default: '', trim: true },
+      cancelRequested: { type: Boolean, default: false },
+    },
     results: {
       type: [runResultSchema],
       default: [],

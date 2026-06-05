@@ -47,6 +47,8 @@ export default function WorkspaceExecutionRoute({ role }: { role: "admin" | "emp
   const [runForm, setRunForm] = useState({ testPlanId: "", name: "", baseUrl: "" });
   const [loading, setLoading] = useState(true);
   const [startingRun, setStartingRun] = useState(false);
+  const [cancellingRun, setCancellingRun] = useState(false);
+  const [retryingRun, setRetryingRun] = useState(false);
   const [message, setMessage] = useState("");
   const { openJiraBugDialog, jiraBugDialogNode } = useJiraBugDialog({
     token,
@@ -228,6 +230,13 @@ export default function WorkspaceExecutionRoute({ role }: { role: "admin" | "emp
       (String(getId(activeRun.startedBy) || "") === String(getId(currentUser) || "") ||
         currentUser?.role === "admin"),
   );
+  const canControlAutomationRun = Boolean(
+    activeRun &&
+      isActiveRunAutomation &&
+      currentUser &&
+      (String(getId(activeRun.startedBy) || "") === String(getId(currentUser) || "") ||
+        currentUser.role === "admin"),
+  );
 
   useEffect(() => {
     if (!shouldPollAutomationRun || !token) {
@@ -330,6 +339,50 @@ export default function WorkspaceExecutionRoute({ role }: { role: "admin" | "emp
     }
   };
 
+  const cancelAutomationRun = async () => {
+    if (!activeRun || !token) return;
+    setCancellingRun(true);
+    setMessage("");
+    try {
+      await apiRequest(`/api/test-runs/${encodeURIComponent(getId(activeRun))}/cancel`, token, {
+        method: "POST",
+      });
+      setMessage("Đang dừng automation run...");
+      await loadMyItems(getId(activeRun));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to cancel automation run");
+    } finally {
+      setCancellingRun(false);
+    }
+  };
+
+  const retryFailedAutomation = async () => {
+    if (!activeRun || !token) return;
+    setRetryingRun(true);
+    setMessage("");
+    try {
+      const response = await apiRequest<{
+        testRun?: RecordAny | null;
+        automationQueued?: boolean;
+        retryCount?: number;
+      }>(`/api/test-runs/${encodeURIComponent(getId(activeRun))}/retry-failed`, token, {
+        method: "POST",
+        body: JSON.stringify({
+          baseUrl: runForm.baseUrl || activeRun.automationBaseUrl || "",
+        }),
+      });
+      if (response.testRun) {
+        setSelectedRun(response.testRun);
+      }
+      setMessage(`Đang retry ${response.retryCount ?? 0} case fail...`);
+      await loadMyItems(getId(activeRun));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to retry failed cases");
+    } finally {
+      setRetryingRun(false);
+    }
+  };
+
   const handleNavigate = (tab: string) => {
     router.push(role === "admin" ? `/workspace/admin/${tab}` : `/workspace/employee/${tab}`);
   };
@@ -402,6 +455,11 @@ export default function WorkspaceExecutionRoute({ role }: { role: "admin" | "emp
         updateResult={updateResult}
         endRun={endRun}
         canEditSelectedRun={canEditSelectedRun}
+        canControlAutomationRun={canControlAutomationRun}
+        cancellingRun={cancellingRun}
+        retryingRun={retryingRun}
+        onCancelAutomationRun={cancelAutomationRun}
+        onRetryFailedAutomation={retryFailedAutomation}
         token={token}
         onLogBug={openJiraBugDialog}
       />

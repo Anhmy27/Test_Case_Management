@@ -249,4 +249,37 @@ export function getAutomationRunProgress(items: Array<{ status?: string }>) {
   return { total, finished, percent };
 }
 
+export type AutomationProgress = {
+  currentCaseIndex?: number;
+  totalCases?: number;
+  currentStepIndex?: number;
+  currentStepTotal?: number;
+  currentCaseKey?: string;
+  cancelRequested?: boolean;
+};
+
+export function formatAutomationLiveProgress(
+  progress?: AutomationProgress | null,
+  fallback?: { finished: number; total: number },
+) {
+  const caseIndex = Number(progress?.currentCaseIndex || fallback?.finished || 0);
+  const caseTotal = Number(progress?.totalCases || fallback?.total || 0);
+  const stepIndex = Number(progress?.currentStepIndex || 0);
+  const stepTotal = Number(progress?.currentStepTotal || 0);
+  const caseKey = String(progress?.currentCaseKey || '').trim();
+
+  const parts: string[] = [];
+  if (caseTotal > 0) {
+    parts.push(`Case ${caseIndex}/${caseTotal}`);
+  }
+  if (stepTotal > 0) {
+    parts.push(`Step ${stepIndex}/${stepTotal}`);
+  }
+  if (caseKey) {
+    parts.push(caseKey);
+  }
+
+  return parts.join(' · ') || 'Đang khởi động...';
+}
+
 
