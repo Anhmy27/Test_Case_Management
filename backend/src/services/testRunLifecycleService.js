@@ -14,6 +14,7 @@ const { httpError } = require('../utils/httpError');
 const {
   toObjectId,
   isPlanAssignedToUser,
+  resolvePlanItemAssignment,
   findTestPlanByReference,
   getTestPlanVersionIds,
   findLatestTestCaseByReference,
@@ -84,17 +85,19 @@ const startTestRunService = async ({ testPlanId, name, baseUrl, user }) => {
     }).lean();
   }));
 
-  const results = resolvedTestPlan.items.map((item, index) => ({
-    planItemId: item._id,
-    testCase: latestTestCases[index]._id,
-    group: latestGroups[index]?._id || latestTestCases[index]?.group || null,
-    owner: resolvedTestPlan.owner,
-    assignees: resolvedTestPlan.assignees || [],
-    tester: resolvedTestPlan.owner
-      || (resolvedTestPlan.assignees?.length > 0 ? resolvedTestPlan.assignees[0] : undefined),
-    status: 'untested',
-    note: '',
-  }));
+  const results = resolvedTestPlan.items.map((item, index) => {
+    const assignment = resolvePlanItemAssignment(item, resolvedTestPlan);
+    return {
+      planItemId: item._id,
+      testCase: latestTestCases[index]._id,
+      group: latestGroups[index]?._id || latestTestCases[index]?.group || null,
+      owner: assignment.owner,
+      assignees: assignment.assignees,
+      tester: assignment.tester,
+      status: 'untested',
+      note: '',
+    };
+  });
 
   const ownerSnapshot = resolvedTestPlan.owner
     ? {
