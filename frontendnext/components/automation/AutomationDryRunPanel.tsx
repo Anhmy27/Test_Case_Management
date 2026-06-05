@@ -10,6 +10,7 @@ import {
   type DryRunResult,
 } from "@/lib/automationDryRun";
 import { fetchDryRunFailureScreenshot, hasFailureScreenshot } from "@/lib/automationArtifacts";
+import ZoomableScreenshot from "../execution/ZoomableScreenshot";
 
 type Props = {
   token: string;
@@ -188,11 +189,7 @@ export default function AutomationDryRunPanel({
               ) : screenshotError ? (
                 <div className="mt-2 text-xs text-rose-800">{screenshotError}</div>
               ) : screenshotSrc ? (
-                <img
-                  alt="Dry run failure screenshot"
-                  className="mt-2 max-h-[480px] w-full rounded-lg border border-rose-200 bg-white object-contain"
-                  src={screenshotSrc}
-                />
+                <ZoomableScreenshot src={screenshotSrc} alt="Dry run failure screenshot" />
               ) : null}
             </div>
           ) : null}

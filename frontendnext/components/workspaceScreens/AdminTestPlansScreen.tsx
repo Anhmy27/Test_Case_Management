@@ -445,7 +445,7 @@ export default function AdminTestPlansScreen(props: Props) {
           <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="text-sm font-semibold text-slate-900">Execution runs</div>
-              <button type="button" className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold" onClick={() => setActiveTab("test-runs")}>View all</button>
+              <button type="button" className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold" onClick={() => setActiveTab("test-runs-execution")}>View all</button>
             </div>
             <div className="mt-3 space-y-2 text-sm">
               {relatedRuns.length === 0 ? <div className="text-slate-500">No related runs</div> : relatedRuns.map((run: RecordAny) => <div key={String(getId(run))} className="rounded-lg border border-slate-200 p-3"><div className="flex items-center justify-between"><strong className="text-slate-900">{run.name || "Run"}</strong><span className={run.status === "completed" ? "text-emerald-700" : run.status === "running" ? "text-amber-700" : "text-slate-500"}>{run.status || "pending"}</span></div><div className="text-xs text-slate-500">{new Date(run.createdAt || 0).toLocaleString()}</div></div>)}

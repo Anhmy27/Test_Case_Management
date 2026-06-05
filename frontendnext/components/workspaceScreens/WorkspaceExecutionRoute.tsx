@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import ExecutionScreen from "@/components/workspaceScreens/ExecutionScreen";
 import { useAdminWorkspace, useEmployeeWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
 import { WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
-import { apiRequest, formatAutomationRunMessage, getId, summarizeAutomationResults } from "@/lib/api";
+import { apiRequest, createTextMatcher, formatAutomationRunMessage, getId, summarizeAutomationResults, userName } from "@/lib/api";
 import {
   buildEmployeeTopbar,
   useEmployeeProjectScope,
@@ -30,6 +30,7 @@ function AdminWorkspaceExecutionRoute() {
   const runIdFromUrl = String(searchParams.get("runId") || "").trim();
   const testPlanIdFromUrl = String(searchParams.get("testPlanId") || "").trim();
   const runNameFromUrl = String(searchParams.get("runName") || "").trim();
+  const adminExecutionPath = "/workspace/admin/test-runs-execution";
   const { token, currentUser, selectedProjectId, setTopbar } = useAdminWorkspace();
   const [plans, setPlans] = useState<RecordAny[]>([]);
   const [runs, setRuns] = useState<RecordAny[]>([]);
@@ -148,6 +149,8 @@ function AdminWorkspaceExecutionRoute() {
   const scopedPlans = useMemo(() => (Array.isArray(plans) ? plans : []), [plans]);
   const activeRun = runIdFromUrl ? selectedRun : null;
   const activeMyItems = runIdFromUrl ? myItems : [];
+  const currentUserId = getId(currentUser);
+  const matchesSearch = useMemo(() => createTextMatcher(), []);
   const selectedRunPlan = scopedPlans.find((plan) => getId(plan) === runForm.testPlanId) || activeRun?.testPlan || null;
   const selectedRunPlanIsAutomation = String(selectedRunPlan?.executionMode || "manual") === "automation";
   const isActiveRunAutomation =
@@ -231,6 +234,18 @@ function AdminWorkspaceExecutionRoute() {
     };
   }, [runIdFromUrl, shouldPollAutomationRun, token]);
 
+  const refreshRuns = async () => {
+    const response = await apiRequest<{ testRuns: RecordAny[] }>(
+      selectedProjectId ? `/api/test-runs?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-runs",
+      token,
+    );
+    setRuns(Array.isArray(response.testRuns) ? response.testRuns : []);
+  };
+
+  const openRun = (runId: string) => {
+    router.push(`${adminExecutionPath}?runId=${encodeURIComponent(runId)}`);
+  };
+
   const startRun = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!runForm.testPlanId || startingRun) return;
@@ -256,15 +271,16 @@ function AdminWorkspaceExecutionRoute() {
         if (runId) {
           if (response.automationQueued) {
             setMyItems([]);
-            setMessage("Automation Ä‘ang cháº¡y ná»n. Káº¿t quáº£ sáº½ cáº­p nháº­t tá»± Ä‘á»™ng.");
+            setMessage("Automation đang chạy nền. Kết quả sẽ cập nhật tự động.");
           } else if (response.automationSummary) {
             setMessage(formatAutomationRunMessage(response.automationSummary));
           } else {
             setMessage("Test run started");
           }
-          router.push(`/workspace/admin/execution?runId=${encodeURIComponent(runId)}`);
+          router.push(`${adminExecutionPath}?runId=${encodeURIComponent(runId)}`);
         }
       }
+      await refreshRuns();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to start run");
     } finally {
@@ -274,7 +290,14 @@ function AdminWorkspaceExecutionRoute() {
 
   const loadMyItems = async (runId: string) => {
     const response = await apiRequest<{ testRun?: RecordAny | null; results: RecordAny[] }>(`/api/test-runs/${runId}/my-items`, token);
-    if (response.testRun) setSelectedRun(response.testRun);
+    if (response.testRun) {
+      setSelectedRun(response.testRun);
+      setRuns((prev) => {
+        const nextRunId = getId(response.testRun);
+        const filtered = prev.filter((run) => getId(run) !== nextRunId);
+        return [response.testRun as RecordAny, ...filtered];
+      });
+    }
     setMyItems(Array.isArray(response.results) ? response.results : []);
   };
 
@@ -282,12 +305,14 @@ function AdminWorkspaceExecutionRoute() {
     if (!selectedRun) return;
     await apiRequest(`/api/test-runs/${getId(selectedRun)}/results/${resultId}`, token, { method: "PATCH", body: JSON.stringify({ status, note, notes: resultNotes }) });
     await loadMyItems(getId(selectedRun));
+    await refreshRuns();
   };
 
   const endRun = async (runId: string) => {
     await apiRequest(`/api/test-runs/${runId}/end`, token, { method: "PATCH" });
     if (runId) {
       await loadMyItems(runId);
+      await refreshRuns();
     }
   };
 
@@ -299,8 +324,9 @@ function AdminWorkspaceExecutionRoute() {
       await apiRequest(`/api/test-runs/${encodeURIComponent(getId(activeRun))}/cancel`, token, {
         method: "POST",
       });
-      setMessage("Äang dá»«ng automation run...");
+      setMessage("Đang dừng automation run...");
       await loadMyItems(getId(activeRun));
+      await refreshRuns();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to cancel automation run");
     } finally {
@@ -326,8 +352,9 @@ function AdminWorkspaceExecutionRoute() {
       if (response.testRun) {
         setSelectedRun(response.testRun);
       }
-      setMessage(`Äang retry ${response.retryCount ?? 0} case fail...`);
+      setMessage(`Đang retry ${response.retryCount ?? 0} case fail...`);
       await loadMyItems(getId(activeRun));
+      await refreshRuns();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to retry failed cases");
     } finally {
@@ -336,7 +363,7 @@ function AdminWorkspaceExecutionRoute() {
   };
 
   useLayoutEffect(() => {
-    setTopbar(<h1 className="text-xl font-semibold text-slate-900">Execution</h1>);
+    setTopbar(<h1 className="text-xl font-semibold text-slate-900">Test Runs + Execution</h1>);
     return () => setTopbar(null);
   }, [setTopbar]);
 
@@ -370,6 +397,11 @@ function AdminWorkspaceExecutionRoute() {
           onRetryFailedAutomation={retryFailedAutomation}
           token={token}
           onLogBug={openJiraBugDialog}
+          adminRuns={runs}
+          onOpenRun={openRun}
+          currentUserId={currentUserId}
+          userName={userName}
+          matchesSearch={matchesSearch}
         />
       )}
       {jiraBugDialogNode}

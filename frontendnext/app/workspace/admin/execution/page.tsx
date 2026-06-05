@@ -1,11 +1,27 @@
-﻿import { Suspense } from "react";
-import WorkspaceExecutionRoute from "@/components/workspaceScreens/WorkspaceExecutionRoute";
-import { WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
+﻿import { redirect } from "next/navigation";
 
-export default function AdminExecutionPage() {
-  return (
-    <Suspense fallback={<WorkspaceContentSkeleton />}>
-      <WorkspaceExecutionRoute role="admin" />
-    </Suspense>
-  );
+type SearchParams = Record<string, string | string[] | undefined>;
+
+function toQueryString(searchParams: SearchParams) {
+  const query = new URLSearchParams();
+  Object.entries(searchParams).forEach(([key, value]) => {
+    if (typeof value === "string") {
+      query.set(key, value);
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach((entry) => query.append(key, entry));
+    }
+  });
+  const serialized = query.toString();
+  return serialized ? `?${serialized}` : "";
+}
+
+export default async function AdminExecutionRedirectPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const params = await searchParams;
+  redirect(`/workspace/admin/test-runs-execution${toQueryString(params)}`);
 }

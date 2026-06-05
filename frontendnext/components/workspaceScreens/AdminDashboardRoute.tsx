@@ -17,8 +17,7 @@ const PROJECT_SCOPE_TABS = new Set([
   "test-cases-history",
   "versions",
   "test-plans",
-  "test-runs",
-  "execution",
+  "test-runs-execution",
 ]);
 
 export default function AdminDashboardRoute() {

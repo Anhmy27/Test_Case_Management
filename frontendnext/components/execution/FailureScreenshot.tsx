@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { fetchRunResultFailureScreenshot, hasFailureScreenshot } from "@/lib/automationArtifacts";
+import ZoomableScreenshot from "./ZoomableScreenshot";
 
 type FailureScreenshotProps = {
   runId: string;
@@ -90,11 +91,7 @@ export default function FailureScreenshot({
       ) : errorMessage ? (
         <div className="mt-2 text-xs text-rose-800">{errorMessage}</div>
       ) : imageSrc ? (
-        <img
-          alt="Failure screenshot"
-          className="mt-2 max-h-[480px] w-full rounded-lg border border-rose-200 bg-white object-contain"
-          src={imageSrc}
-        />
+        <ZoomableScreenshot src={imageSrc} alt="Failure screenshot" />
       ) : null}
     </div>
   );

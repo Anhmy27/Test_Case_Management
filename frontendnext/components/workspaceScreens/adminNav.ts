@@ -12,8 +12,7 @@ export const ADMIN_NAV_ITEMS: ReadonlyArray<AppShellNavItem> = [
   { key: "test-cases-history", label: "Execution History" },
   { key: "versions", label: "Versions" },
   { key: "test-plans", label: "Test Plans" },
-  { key: "test-runs", label: "Test Runs" },
-  { key: "execution", label: "Execution" },
+  { key: "test-runs-execution", label: "Test Runs + Execution" },
   { key: "users", label: "Users" },
 ];
 
@@ -31,8 +30,7 @@ const PROJECT_SCOPE_KEYS = new Set([
   "test-cases-history",
   "versions",
   "test-plans",
-  "test-runs",
-  "execution",
+  "test-runs-execution",
 ]);
 
 export function isGlobalProjectScope(selectedProjectId: string) {

@@ -45,7 +45,11 @@ const EmployeeWorkspaceContext = createContext<EmployeeWorkspaceContextValue | n
 
 function resolveAdminActiveKey(pathname: string) {
   const match = pathname.match(/\/workspace\/admin\/([^/?#]+)/);
-  return match?.[1] || "dashboard";
+  const key = match?.[1] || "dashboard";
+  if (key === "test-runs" || key === "execution") {
+    return "test-runs-execution";
+  }
+  return key;
 }
 
 function resolveEmployeeActiveKey(pathname: string) {
