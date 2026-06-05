@@ -64,6 +64,10 @@ const {
   getTestPlanDetail,
   applyAutomationResults,
   getRunResultFailureScreenshot,
+  cancelAutomationRun,
+  retryFailedAutomationRun,
+  dryRunAutomation,
+  getDryRunFailureScreenshot,
 } = require('../controllers/testManagementController');
 const { authenticate, authorize } = require('../middlewares/authMiddleware');
 const { httpError } = require('../utils/httpError');
@@ -147,11 +151,16 @@ router.patch('/test-plans/:testPlanId/restore', authorize('admin'), restoreTestP
 
 router.get('/test-runs', listTestRuns);
 router.post('/test-runs', authorize('admin', 'employee'), startTestRun);
+router.post('/test-runs/:runId/cancel', authorize('admin', 'employee'), cancelAutomationRun);
+router.post('/test-runs/:runId/retry-failed', authorize('admin', 'employee'), retryFailedAutomationRun);
 router.patch('/test-runs/:runId/end', authorize('admin', 'employee'), endTestRun);
 
 router.get('/test-runs/:runId/my-items', getMyRunItems);
 router.get('/test-runs/:runId/results/:resultId/failure-screenshot', getRunResultFailureScreenshot);
 router.patch('/test-runs/:runId/results/:resultId', updateRunResult);
+
+router.post('/automation/dry-run', authorize('admin'), dryRunAutomation);
+router.get('/automation/dry-runs/:dryRunId/failure-screenshot', authorize('admin'), getDryRunFailureScreenshot);
 
 router.get('/dashboard', authorize('admin'), getDashboard);
 

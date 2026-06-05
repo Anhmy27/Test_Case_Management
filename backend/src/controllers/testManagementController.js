@@ -12,8 +12,14 @@ const {
   getVersionDashboardService,
   getTestPlanStatsService,
   getTestPlanDetailService,
+  cancelAutomationRunService,
+  retryFailedAutomationRunService,
 } = require('../services/testRunDashboardService');
 const { getRunResultFailureScreenshotService } = require('../services/testRunArtifactService');
+const {
+  dryRunAutomationService,
+  getDryRunFailureScreenshotService,
+} = require('../services/automation/dryRunService');
 
 const startTestRun = asyncHandler(async (req, res) => {
   const result = await startTestRunService({
@@ -58,6 +64,20 @@ const endTestRun = asyncHandler(async (req, res) => {
   res.json(result);
 });
 
+const cancelAutomationRun = asyncHandler(async (req, res) => {
+  const result = await cancelAutomationRunService(req.params.runId, req.user);
+  res.json(result);
+});
+
+const retryFailedAutomationRun = asyncHandler(async (req, res) => {
+  const result = await retryFailedAutomationRunService(
+    req.params.runId,
+    req.user,
+    req.body?.baseUrl || '',
+  );
+  res.json(result);
+});
+
 const getDashboard = asyncHandler(async (req, res) => {
   const result = await getDashboardService(req.query || {});
   res.json(result);
@@ -94,6 +114,24 @@ const getRunResultFailureScreenshot = asyncHandler(async (req, res) => {
   fs.createReadStream(absolutePath).pipe(res);
 });
 
+const dryRunAutomation = asyncHandler(async (req, res) => {
+  const result = await dryRunAutomationService({
+    testCaseId: req.body?.testCaseId || '',
+    automation: req.body?.automation,
+    baseUrl: req.body?.baseUrl || '',
+    user: req.user,
+  });
+  res.status(200).json(result);
+});
+
+const getDryRunFailureScreenshot = asyncHandler(async (req, res) => {
+  const { absolutePath, contentType } = await getDryRunFailureScreenshotService(req.params.dryRunId);
+
+  res.setHeader('Content-Type', contentType);
+  res.setHeader('Cache-Control', 'private, max-age=3600');
+  fs.createReadStream(absolutePath).pipe(res);
+});
+
 module.exports = {
   startTestRun,
   listTestRuns,
@@ -101,10 +139,14 @@ module.exports = {
   updateRunResult,
   applyAutomationResults,
   endTestRun,
+  cancelAutomationRun,
+  retryFailedAutomationRun,
   getDashboard,
   getProjectDashboard,
   getVersionDashboard,
   getTestPlanStats,
   getTestPlanDetail,
   getRunResultFailureScreenshot,
+  dryRunAutomation,
+  getDryRunFailureScreenshot,
 };

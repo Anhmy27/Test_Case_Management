@@ -10,6 +10,7 @@ import type {
 } from "react";
 import { getId } from "@/lib/api";
 import AutomationConfigPanel from "@/components/automation/AutomationConfigPanel";
+import AutomationDryRunPanel from "@/components/automation/AutomationDryRunPanel";
 import type { AutomationForm } from "@/lib/automationStepMeta";
 
 type RecordAny = Record<string, any>;
@@ -29,6 +30,7 @@ type TestCaseForm = {
 
 
 type Props = {
+  token: string;
   editingTestCaseId: string;
   testCaseForm: TestCaseForm;
   setTestCaseForm: Dispatch<SetStateAction<TestCaseForm>>;
@@ -66,6 +68,7 @@ type ManualDragPayload = { index: number };
 
 export default function AdminTestCasesScreen(props: Props) {
   const {
+    token,
     editingTestCaseId,
     testCaseForm,
     setTestCaseForm,
@@ -970,6 +973,14 @@ export default function AdminTestCasesScreen(props: Props) {
                   removeAutomationStep={removeAutomationStep}
                   moveAutomationStep={moveAutomationStep}
                 />
+
+                {automationForm.enabled ? (
+                  <AutomationDryRunPanel
+                    token={token}
+                    automationForm={automationForm}
+                    testCaseId={editingTestCaseId}
+                  />
+                ) : null}
 
 
                 <div className="flex items-center gap-2">

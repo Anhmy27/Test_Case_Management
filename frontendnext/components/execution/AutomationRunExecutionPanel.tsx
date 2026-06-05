@@ -3,7 +3,7 @@
 
 import { useMemo, useState } from "react";
 import FailureScreenshot from "./FailureScreenshot";
-import { getAutomationRunProgress, getId } from "@/lib/api";
+import { formatAutomationLiveProgress, getAutomationRunProgress, getId } from "@/lib/api";
 import type { Dispatch, SetStateAction } from "react";
 
 type RecordAny = Record<string, any>;
@@ -17,6 +17,11 @@ interface AutomationRunExecutionPanelProps {
   notes: Record<string, string>;
   setNotes: Dispatch<SetStateAction<Record<string, string>>>;
   token: string;
+  canControlRun?: boolean;
+  cancellingRun?: boolean;
+  retryingRun?: boolean;
+  onCancelRun?: () => Promise<void>;
+  onRetryFailed?: () => Promise<void>;
   onLogBug?: (run: RecordAny, result: RecordAny) => void;
 }
 
@@ -29,6 +34,11 @@ export default function AutomationRunExecutionPanel({
   notes,
   setNotes,
   token,
+  canControlRun = false,
+  cancellingRun = false,
+  retryingRun = false,
+  onCancelRun,
+  onRetryFailed,
   onLogBug,
 }: AutomationRunExecutionPanelProps) {
   const [queueFilter, setQueueFilter] = useState<"all" | "pending" | "failed" | "passed" | "blocked">("all");
@@ -84,6 +94,11 @@ export default function AutomationRunExecutionPanel({
   }, [myItems]);
 
   const runProgress = useMemo(() => getAutomationRunProgress(myItems), [myItems]);
+  const liveProgress = useMemo(
+    () => formatAutomationLiveProgress(selectedRun?.automationProgress, runProgress),
+    [selectedRun?.automationProgress, runProgress],
+  );
+  const canRetryFailed = runIsCompleted && summary.fail > 0 && canControlRun;
 
   return (
     <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)_320px]">
@@ -278,9 +293,33 @@ export default function AutomationRunExecutionPanel({
 
       <section className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-4 py-4">
-          <div className="text-sm font-semibold text-slate-900">Tổng kết</div>
-          <div className="text-xs text-slate-500">
-            {runIsCompleted ? "Run đã hoàn tất" : runIsRunning ? "Run đang chạy" : "Trạng thái run"}
+          <div className="flex flex-wrap items-start gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold text-slate-900">Tổng kết</div>
+              <div className="text-xs text-slate-500">
+                {runIsCompleted ? "Run đã hoàn tất" : runIsRunning ? liveProgress : "Trạng thái run"}
+              </div>
+            </div>
+            {runIsRunning && canControlRun && onCancelRun ? (
+              <button
+                type="button"
+                disabled={cancellingRun || Boolean(selectedRun?.automationProgress?.cancelRequested)}
+                onClick={() => void onCancelRun()}
+                className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {cancellingRun || selectedRun?.automationProgress?.cancelRequested ? "Đang dừng..." : "Stop run"}
+              </button>
+            ) : null}
+            {canRetryFailed && onRetryFailed ? (
+              <button
+                type="button"
+                disabled={retryingRun}
+                onClick={() => void onRetryFailed()}
+                className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-semibold text-violet-700 hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {retryingRun ? "Đang retry..." : `Retry ${summary.fail} fail`}
+              </button>
+            ) : null}
           </div>
         </div>
         <div className="flex-1 space-y-4 px-4 py-4">
@@ -313,7 +352,7 @@ export default function AutomationRunExecutionPanel({
             {runIsCompleted
               ? "Run automation đã hoàn tất. Bạn có thể xem log từng case và Log Bug cho các case fail."
               : runIsRunning
-                ? `Automation đang chạy nền — Case ${runProgress.finished}/${runProgress.total} (${runProgress.percent}%). Trang tự cập nhật mỗi 3 giây.`
+                ? `${liveProgress} · ${runProgress.percent}% hoàn thành · Trang tự cập nhật mỗi 3 giây.`
                 : "Chế độ xem automation — không thể chỉnh sửa kết quả thủ công."}
           </div>
 

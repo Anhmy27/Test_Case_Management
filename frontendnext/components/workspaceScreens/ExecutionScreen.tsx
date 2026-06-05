@@ -26,12 +26,17 @@ type Props = {
   updateResult: (resultId: string, status: "pass" | "fail" | "blocked" | "skip", note: string, notes: string) => Promise<void>;
   endRun: (runId: string) => Promise<void>;
   canEditSelectedRun: boolean;
+  canControlAutomationRun?: boolean;
+  cancellingRun?: boolean;
+  retryingRun?: boolean;
+  onCancelAutomationRun?: () => Promise<void>;
+  onRetryFailedAutomation?: () => Promise<void>;
   token: string;
   onLogBug?: (run: RecordAny, result: RecordAny) => void;
 };
 
 export default function ExecutionScreen(props: Props) {
-  const { runForm, setRunForm, startRun, startingRun = false, scopedPlans, selectedRunPlanIsAutomation, selectedRun, myItems, selectedItemId, setSelectedItemId, selectedItem, notes, setNotes, updateResult, endRun, canEditSelectedRun, token, onLogBug } = props;
+  const { runForm, setRunForm, startRun, startingRun = false, scopedPlans, selectedRunPlanIsAutomation, selectedRun, myItems, selectedItemId, setSelectedItemId, selectedItem, notes, setNotes, updateResult, endRun, canEditSelectedRun, canControlAutomationRun = false, cancellingRun = false, retryingRun = false, onCancelAutomationRun, onRetryFailedAutomation, token, onLogBug } = props;
   
   const handleEndRun = async () => {
     if (!selectedRun || String(selectedRun.status || "") !== "running") {
@@ -175,6 +180,11 @@ export default function ExecutionScreen(props: Props) {
             notes={notes}
             setNotes={setNotes}
             token={token}
+            canControlRun={canControlAutomationRun}
+            cancellingRun={cancellingRun}
+            retryingRun={retryingRun}
+            onCancelRun={onCancelAutomationRun}
+            onRetryFailed={onRetryFailedAutomation}
             onLogBug={onLogBug}
           />
         ) : (

@@ -17,14 +17,41 @@ const TestRun = require('../../models/TestRun');
 const { httpError } = require('../../utils/httpError');
 const { findTestPlanByReference } = require('../../utils/entityResolvers');
 const { createAuthManager } = require('../auth/authManager');
-const { runAutomationSteps, DEFAULT_TIMEOUT } = require('./playwrightExecutor');
 const { captureFailureScreenshot } = require('./failureScreenshotCapture');
+const { executeSingleCaseAutomation } = require('./singleCaseExecutor');
 
 const authManager = createAuthManager();
 
-// ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
+const isCancelledError = (error) => error?.code === 'AUTOMATION_CANCELLED';
+
+const ensureProgress = (testRun) => {
+  if (!testRun.automationProgress) {
+    testRun.automationProgress = {};
+  }
+  return testRun.automationProgress;
+};
+
+const updateAutomationProgress = async (testRun, partial) => {
+  const progress = ensureProgress(testRun);
+  Object.assign(progress, partial);
+  testRun.markModified('automationProgress');
+  await testRun.save();
+};
+
+const isCancelRequested = async (testRunId) => {
+  const doc = await TestRun.findById(testRunId).select('automationProgress.cancelRequested').lean();
+  return Boolean(doc?.automationProgress?.cancelRequested);
+};
+
+const buildSummaryFromResults = (results) => {
+  const summary = { total: results.length, pass: 0, fail: 0, blocked: 0, skip: 0 };
+  for (const result of results) {
+    if (Object.prototype.hasOwnProperty.call(summary, result.status)) {
+      summary[result.status] += 1;
+    }
+  }
+  return summary;
+};
 
 const buildBlockedResults = (testRun, message, executedBy) => {
   const summary = { total: testRun.results.length, pass: 0, fail: 0, blocked: 0, skip: 0 };
@@ -50,60 +77,37 @@ const buildBlockedResults = (testRun, message, executedBy) => {
   return { summary, report };
 };
 
-const runSingleTestCase = async ({ page, result, testCase, authManager: am, authContext, baseUrl, testRunId }) => {
-  const automation = testCase?.automation || {};
-  const caseSteps = Array.isArray(automation.steps) ? automation.steps : [];
-  const logLines = [];
-  let finalStatus = 'blocked';
-  let finalNote = 'Automation spec is missing';
-  let failureScreenshot = '';
-
-  try {
-    if (!automation.enabled || caseSteps.length === 0) {
-      finalStatus = 'blocked';
-      finalNote = 'Automation spec is not configured for this test case';
-      logLines.push(finalNote);
-    } else {
-      page.setDefaultTimeout(Number(automation.timeoutMs) > 0 ? Number(automation.timeoutMs) : DEFAULT_TIMEOUT);
-      await page.setViewportSize({ width: 1440, height: 900 });
-
-      const stepLogs = await runAutomationSteps({ page, steps: caseSteps, baseUrl });
-      logLines.push(...stepLogs);
-
-      finalStatus = 'pass';
-      finalNote = logLines.join(' | ') || 'Automation run passed';
-    }
-  } catch (error) {
-    finalStatus = 'fail';
-    finalNote = [
-      'Automation step failed',
-      error?.message || 'Unknown error',
-      'Execution log:',
-      ...logLines,
-    ].join('\n');
-    logLines.push(error?.message || 'Unknown error');
-
-    const screenshotCapture = await captureFailureScreenshot({
-      page,
-      runId: testRunId,
-      resultId: result._id,
-    });
-    if (screenshotCapture.relativePath) {
-      failureScreenshot = screenshotCapture.relativePath;
-      logLines.push(`Failure screenshot saved: ${failureScreenshot}`);
-    } else if (screenshotCapture.error) {
-      logLines.push(`Failure screenshot capture failed: ${screenshotCapture.error}`);
+const finalizeCancelledRun = async (testRun, executedBy) => {
+  for (const result of testRun.results) {
+    if (result.status === 'untested') {
+      result.status = 'skip';
+      result.note = 'Run cancelled by user';
+      result.automationLogs = ['Run cancelled by user'];
+      result.executedAt = new Date();
+      result.tester = executedBy;
     }
   }
 
-  return { finalStatus, finalNote, logLines, failureScreenshot };
+  const progress = ensureProgress(testRun);
+  progress.cancelRequested = false;
+  progress.currentCaseIndex = 0;
+  progress.currentStepIndex = 0;
+  progress.currentStepTotal = 0;
+  progress.currentCaseKey = '';
+
+  testRun.status = 'completed';
+  testRun.endedAt = new Date();
+  testRun.endedBy = executedBy;
+  testRun.markModified('automationProgress');
+  await testRun.save();
 };
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
-const executeAutomationRun = async ({ testRunId, baseUrl = '', executedBy }) => {
+const executeAutomationRun = async ({
+  testRunId,
+  baseUrl = '',
+  executedBy,
+  resultIds = null,
+}) => {
   const testRun = await TestRun.findById(testRunId);
   if (!testRun) throw httpError(404, 'Test run not found');
 
@@ -113,33 +117,75 @@ const executeAutomationRun = async ({ testRunId, baseUrl = '', executedBy }) => 
     throw httpError(400, 'Test plan is not automation execution mode');
   }
 
-  const testCaseIds = testRun.results.map((result) => result.testCase).filter(Boolean);
+  const resolvedBaseUrl = baseUrl || testRun.automationBaseUrl || '';
+  if (resolvedBaseUrl && resolvedBaseUrl !== testRun.automationBaseUrl) {
+    testRun.automationBaseUrl = resolvedBaseUrl;
+  }
+
+  const allowedResultIds = Array.isArray(resultIds) && resultIds.length > 0
+    ? new Set(resultIds.map(String))
+    : null;
+
+  const testCaseIds = testRun.results
+    .filter((result) => !allowedResultIds || allowedResultIds.has(String(result._id)))
+    .map((result) => result.testCase)
+    .filter(Boolean);
+
   const testCases = await TestCase.find({ _id: { $in: testCaseIds } }).lean();
   const testCaseMap = new Map(testCases.map((tc) => [String(tc._id), tc]));
 
-  const summary = { total: testRun.results.length, pass: 0, fail: 0, blocked: 0, skip: 0 };
   const report = [];
   let browser;
+  let cancelled = false;
+  const runCaseTotal = allowedResultIds ? allowedResultIds.size : testRun.results.length;
+
+  await updateAutomationProgress(testRun, {
+    totalCases: runCaseTotal,
+    currentCaseIndex: 0,
+    currentStepIndex: 0,
+    currentStepTotal: 0,
+    currentCaseKey: '',
+    cancelRequested: false,
+  });
 
   try {
     if (!chromium) {
       const message = 'Playwright is not installed. Run npm install in backend before executing automation.';
       const blocked = buildBlockedResults(testRun, message, executedBy);
-      Object.assign(summary, blocked.summary);
       report.push(...blocked.report);
       testRun.status = 'completed';
       testRun.endedAt = new Date();
       testRun.endedBy = executedBy;
       await testRun.save();
-      return { testRun, summary, report };
+      return { testRun, summary: buildSummaryFromResults(testRun.results), report };
     }
 
     browser = await chromium.launch({ headless: true });
 
+    let processedCaseIndex = 0;
     for (const result of testRun.results) {
+      if (allowedResultIds && !allowedResultIds.has(String(result._id))) {
+        continue;
+      }
+
+      if (await isCancelRequested(testRunId)) {
+        cancelled = true;
+        break;
+      }
+
       const testCase = testCaseMap.get(String(result.testCase));
       const automation = testCase?.automation || {};
-      const caseBaseUrl = baseUrl || automation.baseUrl || '';
+      const caseSteps = Array.isArray(automation.steps) ? automation.steps : [];
+      const caseBaseUrl = resolvedBaseUrl || automation.baseUrl || '';
+      processedCaseIndex += 1;
+
+      await updateAutomationProgress(testRun, {
+        currentCaseIndex: processedCaseIndex,
+        totalCases: runCaseTotal,
+        currentStepIndex: 0,
+        currentStepTotal: caseSteps.length,
+        currentCaseKey: testCase?.caseKey || '',
+      });
 
       const authContext = await authManager.createContext({
         browser,
@@ -150,14 +196,31 @@ const executeAutomationRun = async ({ testRunId, baseUrl = '', executedBy }) => 
       const { context } = authContext;
       const page = await context.newPage();
 
-      const { finalStatus, finalNote, logLines, failureScreenshot } = await runSingleTestCase({
+      const shouldAbort = () => isCancelRequested(testRunId);
+      const onStepStart = async (stepIndex, stepTotal) => {
+        await updateAutomationProgress(testRun, {
+          currentStepIndex: stepIndex,
+          currentStepTotal: stepTotal,
+        });
+      };
+
+      const {
+        finalStatus,
+        finalNote,
+        logLines,
+        failureScreenshot,
+        cancelled: caseCancelled,
+      } = await executeSingleCaseAutomation({
         page,
-        result,
-        testCase,
-        authManager,
-        authContext,
+        automation,
         baseUrl: caseBaseUrl,
-        testRunId: testRun._id,
+        onStepStart,
+        shouldAbort,
+        captureFailureScreenshot: async (activePage) => captureFailureScreenshot({
+          page: activePage,
+          runId: testRun._id,
+          resultId: result._id,
+        }),
       });
 
       await authManager
@@ -169,11 +232,10 @@ const executeAutomationRun = async ({ testRunId, baseUrl = '', executedBy }) => 
       result.status = finalStatus;
       result.note = finalNote.slice(0, 5000);
       result.automationLogs = logLines.slice(0, 200);
-      result.failureScreenshot = failureScreenshot;
+      result.failureScreenshot = failureScreenshot || '';
       result.executedAt = new Date();
       result.tester = executedBy;
 
-      summary[finalStatus] += 1;
       report.push({
         planItemId: String(result.planItemId),
         testCaseId: String(result.testCase),
@@ -184,9 +246,30 @@ const executeAutomationRun = async ({ testRunId, baseUrl = '', executedBy }) => 
         logs: logLines,
       });
 
-      // Persist after each case so polling clients see incremental progress.
       await testRun.save();
+
+      if (caseCancelled || await isCancelRequested(testRunId)) {
+        cancelled = true;
+        break;
+      }
     }
+
+    if (cancelled) {
+      await finalizeCancelledRun(testRun, executedBy);
+      return {
+        testRun,
+        summary: buildSummaryFromResults(testRun.results),
+        report,
+        cancelled: true,
+      };
+    }
+
+    await updateAutomationProgress(testRun, {
+      currentCaseIndex: 0,
+      currentStepIndex: 0,
+      currentStepTotal: 0,
+      currentCaseKey: '',
+    });
 
     testRun.status = 'completed';
     testRun.endedAt = new Date();
@@ -196,22 +279,23 @@ const executeAutomationRun = async ({ testRunId, baseUrl = '', executedBy }) => 
     const fatalNote = error?.message || 'Automation runner failed to start';
 
     for (const result of testRun.results) {
-      if (!result.executedAt) {
-        result.status = 'blocked';
-        result.note = fatalNote.slice(0, 5000);
-        result.automationLogs = [fatalNote];
-        result.executedAt = new Date();
-        result.tester = executedBy;
-        summary.blocked += 1;
-        report.push({
-          planItemId: String(result.planItemId),
-          testCaseId: String(result.testCase),
-          caseKey: '',
-          title: 'Automation runner failed',
-          status: 'blocked',
-          note: fatalNote,
-          logs: [fatalNote],
-        });
+      if (!allowedResultIds || allowedResultIds.has(String(result._id))) {
+        if (!result.executedAt || result.status === 'untested') {
+          result.status = 'blocked';
+          result.note = fatalNote.slice(0, 5000);
+          result.automationLogs = [fatalNote];
+          result.executedAt = new Date();
+          result.tester = executedBy;
+          report.push({
+            planItemId: String(result.planItemId),
+            testCaseId: String(result.testCase),
+            caseKey: '',
+            title: 'Automation runner failed',
+            status: 'blocked',
+            note: fatalNote,
+            logs: [fatalNote],
+          });
+        }
       }
     }
 
@@ -223,7 +307,11 @@ const executeAutomationRun = async ({ testRunId, baseUrl = '', executedBy }) => 
     if (browser) await browser.close().catch(() => {});
   }
 
-  return { testRun, summary, report };
+  return {
+    testRun,
+    summary: buildSummaryFromResults(testRun.results),
+    report,
+  };
 };
 
 module.exports = { executeAutomationRun };

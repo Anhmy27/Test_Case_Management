@@ -22,7 +22,7 @@ const {
   attachRunTestPlan,
   attachRunProjectAndVersion,
 } = require('../utils/entityResolvers');
-const { scheduleAutomationRun } = require('./automation/automationJobRunner');
+const { scheduleAutomationRun, isAutomationRunActive } = require('./automation/automationJobRunner');
 
 // ---------------------------------------------------------------------------
 // Start run
@@ -124,6 +124,15 @@ const startTestRunService = async ({ testPlanId, name, baseUrl, user }) => {
     startedBy: user.id,
     ownerSnapshot,
     assigneeSnapshot,
+    automationBaseUrl: baseUrl || '',
+    automationProgress: {
+      totalCases: results.length,
+      currentCaseIndex: 0,
+      currentStepIndex: 0,
+      currentStepTotal: 0,
+      currentCaseKey: '',
+      cancelRequested: false,
+    },
     results,
   });
 
@@ -390,6 +399,119 @@ const endTestRunService = async (runId, user) => {
   return { testRun };
 };
 
+// ---------------------------------------------------------------------------
+// Cancel automation run
+// ---------------------------------------------------------------------------
+
+const assertAutomationRunPermission = (testRun, user) => {
+  const isStarter = String(testRun.startedBy) === user.id;
+  const isAdmin = user.role === 'admin';
+  if (!isStarter && !isAdmin) {
+    throw httpError(403, 'You do not have permission to control this automation run');
+  }
+};
+
+const cancelAutomationRunService = async (runId, user) => {
+  const testRun = await TestRun.findById(toObjectId(runId, 'runId'));
+  if (!testRun) throw httpError(404, 'Test run not found');
+  if (testRun.status !== 'running') {
+    throw httpError(400, 'Only running automation can be cancelled');
+  }
+
+  const parentPlan = await findTestPlanByReference(testRun.testPlan);
+  if (!parentPlan || parentPlan.executionMode !== 'automation') {
+    throw httpError(400, 'Test plan is not automation execution mode');
+  }
+
+  assertAutomationRunPermission(testRun, user);
+
+  if (!testRun.automationProgress) {
+    testRun.automationProgress = {};
+  }
+  testRun.automationProgress.cancelRequested = true;
+  testRun.markModified('automationProgress');
+  await testRun.save();
+
+  return { testRun, cancelRequested: true };
+};
+
+// ---------------------------------------------------------------------------
+// Retry failed automation cases
+// ---------------------------------------------------------------------------
+
+const retryFailedAutomationRunService = async (runId, user, baseUrl = '') => {
+  const testRun = await TestRun.findById(toObjectId(runId, 'runId'));
+  if (!testRun) throw httpError(404, 'Test run not found');
+  if (testRun.status !== 'completed') {
+    throw httpError(400, 'Only completed runs can retry failed cases');
+  }
+
+  const parentPlan = await findTestPlanByReference(testRun.testPlan);
+  if (!parentPlan || parentPlan.executionMode !== 'automation') {
+    throw httpError(400, 'Test plan is not automation execution mode');
+  }
+
+  assertAutomationRunPermission(testRun, user);
+
+  if (isAutomationRunActive(runId)) {
+    throw httpError(409, 'Automation is already running for this test run');
+  }
+
+  const failedResults = testRun.results.filter((result) => result.status === 'fail');
+  if (failedResults.length === 0) {
+    throw httpError(400, 'No failed cases to retry');
+  }
+
+  const resultIds = failedResults.map((result) => String(result._id));
+
+  for (const result of failedResults) {
+    result.status = 'untested';
+    result.note = '';
+    result.notes = '';
+    result.automationLogs = [];
+    result.failureScreenshot = '';
+    result.executedAt = null;
+  }
+
+  if (baseUrl) {
+    testRun.automationBaseUrl = baseUrl;
+  }
+
+  testRun.status = 'running';
+  testRun.endedAt = undefined;
+  testRun.endedBy = undefined;
+  testRun.automationProgress = {
+    totalCases: resultIds.length,
+    currentCaseIndex: 0,
+    currentStepIndex: 0,
+    currentStepTotal: 0,
+    currentCaseKey: '',
+    cancelRequested: false,
+  };
+
+  await testRun.save();
+
+  const queued = scheduleAutomationRun({
+    testRunId: testRun._id,
+    baseUrl: baseUrl || testRun.automationBaseUrl || '',
+    executedBy: user.id,
+    resultIds,
+  });
+
+  if (!queued) {
+    throw httpError(409, 'Automation retry could not be queued');
+  }
+
+  const populatedRun = await TestRun.findById(testRun._id).lean();
+  const runPayload = await attachRunProjectAndVersion(await attachRunTestPlan(populatedRun));
+
+  return {
+    testRun: runPayload,
+    automationQueued: true,
+    retryCount: resultIds.length,
+  };
+};
+
 module.exports = {
   startTestRunService,
   applyAutomationResultsService,
@@ -397,4 +519,6 @@ module.exports = {
   getMyRunItemsService,
   updateRunResultService,
   endTestRunService,
+  cancelAutomationRunService,
+  retryFailedAutomationRunService,
 };

@@ -697,6 +697,7 @@ export default function RoleWorkspace({ workspace, overrideContent }: WorkspaceP
 
         {isAdmin && visibleTab === "test-cases" && (
           <AdminTestCasesScreen
+            token={token}
             editingTestCaseId={editingTestCaseId}
             testCaseForm={testCaseForm}
             setTestCaseForm={setTestCaseForm}

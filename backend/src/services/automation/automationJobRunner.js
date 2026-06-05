@@ -37,7 +37,7 @@ const finalizeUnexpectedFailure = async (testRunId, executedBy, error) => {
 /**
  * Queue automation for a running TestRun. Returns false if already queued/running.
  */
-const scheduleAutomationRun = ({ testRunId, baseUrl = '', executedBy }) => {
+const scheduleAutomationRun = ({ testRunId, baseUrl = '', executedBy, resultIds = null }) => {
   const runKey = String(testRunId);
   if (activeRunIds.has(runKey)) {
     return false;
@@ -52,7 +52,12 @@ const scheduleAutomationRun = ({ testRunId, baseUrl = '', executedBy }) => {
         return;
       }
 
-      await executeAutomationRun({ testRunId, baseUrl, executedBy });
+      await executeAutomationRun({
+        testRunId,
+        baseUrl,
+        executedBy,
+        resultIds,
+      });
     } catch (error) {
       console.error(`[automationJobRunner] Run ${runKey} failed:`, error);
       try {

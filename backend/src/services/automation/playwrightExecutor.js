@@ -439,11 +439,21 @@ const executeStep = async (page, step, baseUrl) => {
   throw new Error(`Unsupported automation action: ${step.action}`);
 };
 
-const runAutomationSteps = async ({ page, steps, baseUrl }) => {
+const runAutomationSteps = async ({ page, steps, baseUrl, onStepStart, shouldAbort }) => {
   const sortedSteps = [...steps].sort((left, right) => Number(left.order || 0) - Number(right.order || 0));
   const logLines = [];
 
   for (const [stepIndex, step] of sortedSteps.entries()) {
+    if (typeof shouldAbort === 'function' && (await shouldAbort())) {
+      const error = new Error('Automation run cancelled');
+      error.code = 'AUTOMATION_CANCELLED';
+      throw error;
+    }
+
+    if (typeof onStepStart === 'function') {
+      await onStepStart(stepIndex + 1, sortedSteps.length, step);
+    }
+
     try {
       const stepLog = await executeStep(page, step, baseUrl);
       logLines.push(stepLog);
