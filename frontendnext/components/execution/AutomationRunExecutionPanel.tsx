@@ -3,8 +3,9 @@
 
 import { useMemo, useState } from "react";
 import FailureScreenshot from "./FailureScreenshot";
-import { formatAutomationLiveProgress, getAutomationRunProgress, getId } from "@/lib/api";
+import { formatAutomationLiveProgress, getAutomationRunProgress, getId, summarizeRunResults } from "@/lib/api";
 import type { Dispatch, SetStateAction } from "react";
+import { StatusBadge } from "../workspaceScreens/shared";
 
 type RecordAny = Record<string, any>;
 
@@ -55,18 +56,7 @@ export default function AutomationRunExecutionPanel({
     return "bg-slate-100 text-slate-500";
   };
 
-  const summary = myItems.reduce(
-    (acc, item: RecordAny) => {
-      const status = String(item.status || "untested");
-      if (status === "pass") acc.pass += 1;
-      else if (status === "fail") acc.fail += 1;
-      else if (status === "blocked") acc.blocked += 1;
-      else if (status === "skip") acc.skip += 1;
-      else acc.pending += 1;
-      return acc;
-    },
-    { pass: 0, fail: 0, blocked: 0, skip: 0, pending: 0 },
-  );
+  const summary = useMemo(() => summarizeRunResults(myItems), [myItems]);
 
   const queueItems = useMemo(() => {
     const normalized = queueSearch.trim().toLowerCase();
@@ -337,8 +327,8 @@ export default function AutomationRunExecutionPanel({
               <div className="text-xl font-semibold text-amber-600">{summary.blocked}</div>
             </div>
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <div className="text-xs text-slate-500">Pending</div>
-              <div className="text-xl font-semibold text-slate-600">{summary.pending}</div>
+              <div className="text-xs text-slate-500">Untested</div>
+              <div className="text-xl font-semibold text-slate-600">{summary.untested}</div>
             </div>
           </div>
 

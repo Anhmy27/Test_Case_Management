@@ -85,10 +85,15 @@ const findTestPlanByReference = async (testPlanRef) => {
 
 const getTestPlanVersionIds = async (testPlan) => {
   if (!testPlan) return [];
+
   const planEntityId = testPlan.entityId || testPlan._id;
-  const versionIds = await TestPlan.distinct('_id', { entityId: planEntityId, deletedAt: null });
-  if (versionIds.length > 0) return versionIds;
-  return testPlan._id ? [testPlan._id] : [];
+  const versionDocIds = await TestPlan.distinct('_id', { entityId: planEntityId });
+
+  const ids = new Set(versionDocIds.map((id) => String(id)));
+  if (testPlan._id) ids.add(String(testPlan._id));
+  ids.add(String(planEntityId));
+
+  return Array.from(ids).map((value) => toObjectId(value, 'testPlanId'));
 };
 
 const findLatestTestCaseByReference = async (testCaseRef) => {
@@ -170,8 +175,37 @@ const repointVersionReferences = async (versionEntityId, latestVersionDoc) => {
 // Run payload enrichers — attach resolved references to a plain TestRun object
 // ---------------------------------------------------------------------------
 
+const findTestPlanSnapshotForRun = async (testPlanRef) => {
+  if (!testPlanRef) return null;
+
+  const objectId = toObjectId(testPlanRef, 'testPlanId');
+  const referencedPlan = await TestPlan.findOne({
+    $or: [{ _id: objectId }, { entityId: objectId }],
+  }).lean();
+
+  if (!referencedPlan) return null;
+
+  const entityId = referencedPlan.entityId || referencedPlan._id;
+  const latestPlan = await TestPlan.findOne({
+    entityId,
+    deletedAt: null,
+    $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+  })
+    .select('name executionMode entityId')
+    .lean();
+
+  const snapshot = latestPlan || referencedPlan;
+
+  return {
+    _id: snapshot._id,
+    entityId,
+    name: snapshot.name,
+    executionMode: snapshot.executionMode,
+  };
+};
+
 const attachRunTestPlan = async (testRun) => {
-  const resolvedPlan = await findTestPlanByReference(testRun?.testPlan);
+  const resolvedPlan = await findTestPlanSnapshotForRun(testRun?.testPlan);
   return {
     ...testRun,
     testPlan: resolvedPlan
@@ -220,6 +254,7 @@ module.exports = {
   resolvePlanItemAssignment,
   findTestPlanByReference,
   getTestPlanVersionIds,
+  findTestPlanSnapshotForRun,
   findLatestTestCaseByReference,
   findProjectByReference,
   findVersionByReference,

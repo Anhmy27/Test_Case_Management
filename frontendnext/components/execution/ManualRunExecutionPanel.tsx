@@ -2,8 +2,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { getId } from "@/lib/api";
+import { getEndRunPolicy, setEndRunPolicy, summarizeRunResults, getId, type EndRunPolicy } from "@/lib/api";
 import type { Dispatch, SetStateAction } from "react";
+import { ConfirmDialog, StatusBadge } from "../workspaceScreens/shared";
 
 type RecordAny = Record<string, any>;
 
@@ -41,8 +42,10 @@ export default function ManualRunExecutionPanel({
   canEndRun = false,
   onLogBug,
 }: ManualRunExecutionPanelProps) {
-  const [queueFilter, setQueueFilter] = useState<"all" | "pending" | "failed" | "passed" | "blocked">("all");
+  const [queueFilter, setQueueFilter] = useState<"all" | "pending" | "failed" | "passed" | "blocked" | "skip">("all");
   const [queueSearch, setQueueSearch] = useState("");
+  const [showEndRunDialog, setShowEndRunDialog] = useState(false);
+  const [endRunPolicy, setEndRunPolicyState] = useState<EndRunPolicy>("flexible");
 
   const getExpectedResultText = (testCase: RecordAny) => {
     const overall = String(testCase?.expected || "").trim();
@@ -68,29 +71,24 @@ export default function ManualRunExecutionPanel({
     : undefined;
   const previousItem = currentIndex > 0 ? myItems[currentIndex - 1] : undefined;
 
-  const summary = myItems.reduce(
-    (acc, item: RecordAny) => {
-      const status = String(item.status || "untested");
-      if (status === "pass") acc.pass += 1;
-      else if (status === "fail") acc.fail += 1;
-      else if (status === "blocked") acc.blocked += 1;
-      else if (status === "skip") acc.skip += 1;
-      else acc.pending += 1;
-      return acc;
-    },
-    { pass: 0, fail: 0, blocked: 0, skip: 0, pending: 0 },
-  );
+  const summary = useMemo(() => summarizeRunResults(myItems), [myItems]);
+
+  useEffect(() => {
+    setEndRunPolicyState(getEndRunPolicy());
+  }, [showEndRunDialog]);
 
   const canLogBug = selectedRun?.status === "completed" && selectedItem?.status === "fail";
+  const strictEndBlocked = endRunPolicy === "strict" && summary.untested > 0;
 
   const queueItems = useMemo(() => {
     const normalized = queueSearch.trim().toLowerCase();
     return myItems.filter((item: RecordAny) => {
       const status = String(item.status || "untested");
-      if (queueFilter === "pending" && !["untested", "skip"].includes(status)) return false;
+      if (queueFilter === "pending" && status !== "untested") return false;
       if (queueFilter === "failed" && status !== "fail") return false;
       if (queueFilter === "passed" && status !== "pass") return false;
       if (queueFilter === "blocked" && status !== "blocked") return false;
+      if (queueFilter === "skip" && status !== "skip") return false;
       if (!normalized) return true;
       const key = String(item.testCase?.caseKey || "").toLowerCase();
       const title = String(item.testCase?.title || "").toLowerCase();
@@ -170,6 +168,7 @@ export default function ManualRunExecutionPanel({
               { key: "failed", label: "Failed" },
               { key: "passed", label: "Passed" },
               { key: "blocked", label: "Blocked" },
+              { key: "skip", label: "Skip" },
             ].map((tab) => (
               <button
                 key={tab.key}
@@ -207,7 +206,7 @@ export default function ManualRunExecutionPanel({
                   }`}
                   onClick={() => setSelectedItemId(getId(item))}
                 >
-                  <span className="text-xs font-semibold text-slate-500">{item.status}</span>
+                  <StatusBadge status={String(item.status || "untested")} />
                   <div>
                     <div className="text-sm font-semibold text-slate-900">
                       {item.testCase?.caseKey || "TC"}
@@ -336,8 +335,12 @@ export default function ManualRunExecutionPanel({
               <div className="text-xl font-semibold text-amber-600">{summary.blocked}</div>
             </div>
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-              <div className="text-xs text-slate-500">Pending</div>
-              <div className="text-xl font-semibold text-slate-600">{summary.pending}</div>
+              <div className="text-xs text-slate-500">Skip</div>
+              <div className="text-xl font-semibold text-slate-600">{summary.skip}</div>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 col-span-2">
+              <div className="text-xs text-slate-500">Untested</div>
+              <div className="text-xl font-semibold text-slate-600">{summary.untested}</div>
             </div>
           </div>
 
@@ -357,7 +360,7 @@ export default function ManualRunExecutionPanel({
                       {item.testCase?.caseKey || "TC"}
                     </div>
                     <div className="text-xs text-slate-500">
-                      {item.status} · {new Date(item.executedAt || item.updatedAt || 0).toLocaleString()}
+                      <StatusBadge status={String(item.status || "untested")} /> · {new Date(item.executedAt || item.updatedAt || 0).toLocaleString()}
                     </div>
                   </div>
                 ))
@@ -449,7 +452,7 @@ export default function ManualRunExecutionPanel({
               <button
                 type="button"
                 className="flex-1 rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
-                onClick={() => void onEndRun()}
+                onClick={() => setShowEndRunDialog(true)}
                 disabled={!canEndRun}
                 title={canEndRun ? "End this test run" : "Only an active manual run you can edit can be ended"}
               >
@@ -459,6 +462,53 @@ export default function ManualRunExecutionPanel({
           </div>
         </div>
       </section>
+
+      <ConfirmDialog
+        open={showEndRunDialog}
+        title="End test run?"
+        description="Review the summary below before completing this run."
+        confirmLabel="End run"
+        cancelLabel="Keep running"
+        confirmVariant="danger"
+        confirmDisabled={strictEndBlocked}
+        onCancel={() => setShowEndRunDialog(false)}
+        onConfirm={() => {
+          setShowEndRunDialog(false);
+          void onEndRun();
+        }}
+      >
+        <div className="space-y-3 text-sm text-slate-700">
+          <div className="grid grid-cols-2 gap-2">
+            <div>Pass: <strong>{summary.pass}</strong></div>
+            <div>Fail: <strong>{summary.fail}</strong></div>
+            <div>Blocked: <strong>{summary.blocked}</strong></div>
+            <div>Skip: <strong>{summary.skip}</strong></div>
+            <div className="col-span-2">Untested: <strong>{summary.untested}</strong></div>
+          </div>
+          {summary.untested > 0 ? (
+            <div className={`rounded-lg border px-3 py-2 text-xs ${strictEndBlocked ? "border-rose-200 bg-rose-50 text-rose-800" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
+              {strictEndBlocked
+                ? "Strict mode is enabled. Complete or skip all remaining cases before ending this run."
+                : "This run still has untested cases. You can end now, but the report will remain incomplete."}
+            </div>
+          ) : null}
+          <label className="flex flex-col gap-1 text-xs text-slate-600">
+            End run policy
+            <select
+              className="rounded-lg border border-slate-200 px-3 py-2 text-sm"
+              value={endRunPolicy}
+              onChange={(event) => {
+                const nextPolicy = event.target.value as EndRunPolicy;
+                setEndRunPolicyState(nextPolicy);
+                setEndRunPolicy(nextPolicy);
+              }}
+            >
+              <option value="flexible">Flexible — allow end with untested cases</option>
+              <option value="strict">Strict — block end while untested cases remain</option>
+            </select>
+          </label>
+        </div>
+      </ConfirmDialog>
     </div>
   );
 }

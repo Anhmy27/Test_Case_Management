@@ -7,16 +7,12 @@
 
 
 import type { Dispatch, SetStateAction } from "react";
-
+import { useMemo } from "react";
 import ManualRunExecutionPanel from "../execution/ManualRunExecutionPanel";
-
 import AutomationRunExecutionPanel from "../execution/AutomationRunExecutionPanel";
-
 import TestRunListSection from "./TestRunListSection";
-
-import { Button, Field, INPUT_CLS, SectionCard } from "./shared";
-
-import { getId } from "@/lib/api";
+import { Button, Field, INPUT_CLS, SectionCard, StatusBadge } from "./shared";
+import { buildDefaultRunName, getPlanCaseCount, summarizeRunResults, getId, validateStartRunForm } from "@/lib/api";
 
 
 
@@ -82,6 +78,8 @@ type Props = {
 
   matchesSearch?: (...values: Array<string | number | undefined | null>) => boolean;
 
+  startRunError?: string;
+
 };
 
 
@@ -140,13 +138,39 @@ export default function ExecutionScreen(props: Props) {
 
     onOpenRun,
 
-    currentUserId = "",
-
     userName = () => "Unassigned",
 
     matchesSearch = () => true,
 
+    startRunError = "",
+
   } = props;
+
+  const selectedRunPlan = useMemo(
+    () => scopedPlans.find((plan: RecordAny) => getId(plan) === runForm.testPlanId) || selectedRun?.testPlan || null,
+    [runForm.testPlanId, scopedPlans, selectedRun],
+  );
+
+  const runSummary = useMemo(() => summarizeRunResults(myItems), [myItems]);
+  const defaultRunNamePreview = useMemo(
+    () => buildDefaultRunName(selectedRunPlan?.name || "", selectedRunPlan?.version?.name),
+    [selectedRunPlan],
+  );
+  const liveStartRunError = useMemo(() => {
+    if (!runForm.testPlanId || !selectedRunPlan) {
+      return "";
+    }
+
+    return validateStartRunForm({
+      testPlanId: runForm.testPlanId,
+      name: runForm.name,
+      baseUrl: runForm.baseUrl || "",
+      plan: selectedRunPlan,
+      existingRuns: adminRuns || [],
+      allPlans: scopedPlans,
+    }) || "";
+  }, [adminRuns, runForm.baseUrl, runForm.name, runForm.testPlanId, scopedPlans, selectedRunPlan]);
+  const displayedStartRunError = startRunError || liveStartRunError;
 
 
 
@@ -197,24 +221,15 @@ export default function ExecutionScreen(props: Props) {
     String(selectedRun?.testPlan?.executionMode || "") === "automation";
 
   const canEndRun =
-
     Boolean(selectedRun) &&
-
     String(selectedRun?.status || "") === "running" &&
-
     !isAutomationRun &&
-
     canEditSelectedRun;
 
-  const totalItems = myItems.length;
-
-  const completedItems = myItems.filter((item) =>
-
-    ["pass", "fail", "blocked", "skip"].includes(String(item.status)),
-
-  ).length;
-
   const showRunList = Array.isArray(adminRuns) && typeof onOpenRun === "function";
+  const startedAtLabel = selectedRun?.startedAt
+    ? new Date(selectedRun.startedAt).toLocaleString()
+    : "-";
 
 
 
@@ -270,7 +285,7 @@ export default function ExecutionScreen(props: Props) {
 
                 onChange={(e) => setRunForm((prev: any) => ({ ...prev, name: e.target.value }))}
 
-                required
+                placeholder={defaultRunNamePreview}
 
                 disabled={startingRun}
 
@@ -279,6 +294,18 @@ export default function ExecutionScreen(props: Props) {
             </Field>
 
           </div>
+
+          {selectedRunPlan && getPlanCaseCount(selectedRunPlan) === 0 ? (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+              Selected plan has no test cases. Add cases to the plan before starting a run.
+            </div>
+          ) : null}
+
+          {displayedStartRunError ? (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200">
+              {displayedStartRunError}
+            </div>
+          ) : null}
 
           {selectedRunPlanIsAutomation && (
 
@@ -293,6 +320,8 @@ export default function ExecutionScreen(props: Props) {
                 onChange={(e) => setRunForm((prev: any) => ({ ...prev, baseUrl: e.target.value }))}
 
                 placeholder="https://app.example.com"
+
+                required
 
                 disabled={startingRun}
 
@@ -312,7 +341,16 @@ export default function ExecutionScreen(props: Props) {
 
           )}
 
-          <Button type="submit" variant="primary" loading={startingRun} disabled={startingRun}>
+          <Button
+            type="submit"
+            variant="primary"
+            loading={startingRun}
+            disabled={
+              startingRun
+              || Boolean(displayedStartRunError)
+              || (Boolean(selectedRunPlan) && getPlanCaseCount(selectedRunPlan) === 0)
+            }
+          >
 
             {startingRun
 
@@ -338,9 +376,9 @@ export default function ExecutionScreen(props: Props) {
 
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
 
-            <div className="flex flex-wrap items-center gap-4">
+            <div className="flex flex-wrap items-start gap-4">
 
-              <div>
+              <div className="min-w-0 flex-1">
 
                 <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
 
@@ -350,9 +388,19 @@ export default function ExecutionScreen(props: Props) {
 
                 <div className="text-xl font-semibold text-slate-900">{selectedRun.name}</div>
 
-                <div className="text-sm text-slate-500">
+                <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2 xl:grid-cols-3">
 
-                  Queue, case detail, and result panel in one workspace
+                  <div><span className="font-medium text-slate-500">Project:</span> {selectedRun.project?.name || "-"}</div>
+
+                  <div><span className="font-medium text-slate-500">Version:</span> {selectedRun.version?.name || "-"}</div>
+
+                  <div><span className="font-medium text-slate-500">Plan:</span> {selectedRun.testPlan?.name || "-"}</div>
+
+                  <div><span className="font-medium text-slate-500">Started by:</span> {userName(selectedRun.startedBy)}</div>
+
+                  <div><span className="font-medium text-slate-500">Started at:</span> {startedAtLabel}</div>
+
+                  <div><span className="font-medium text-slate-500">Progress:</span> {runSummary.done}/{runSummary.total} done ({runSummary.progressPercent.toFixed(1)}%)</div>
 
                 </div>
 
@@ -360,33 +408,13 @@ export default function ExecutionScreen(props: Props) {
 
               <div className="ml-auto flex flex-wrap items-center gap-2">
 
-                <span
+                <StatusBadge status={String(selectedRun.status || "running")} />
 
-                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
-
-                    selectedRun.status === "running"
-
-                      ? "bg-emerald-50 text-emerald-700"
-
-                      : "bg-slate-100 text-slate-600"
-
-                  }`}
-
-                >
-
-                  {selectedRun.status}
-
-                </span>
+                <StatusBadge status={String(selectedRun.testPlan?.executionMode || "manual")} />
 
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
 
-                  {selectedRun.testPlan?.executionMode || "manual"}
-
-                </span>
-
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-
-                  {completedItems}/{totalItems} done
+                  {runSummary.done}/{runSummary.total} done
 
                 </span>
 
@@ -497,8 +525,6 @@ export default function ExecutionScreen(props: Props) {
           matchesSearch={matchesSearch}
 
           userName={userName}
-
-          currentUserId={currentUserId}
 
           onOpenRun={onOpenRun}
 

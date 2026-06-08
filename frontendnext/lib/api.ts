@@ -202,6 +202,30 @@ export function userName(value: unknown): string {
   return 'Unknown';
 }
 
+export const CASE_STATUSES = ['untested', 'pass', 'fail', 'blocked', 'skip'] as const;
+export type CaseStatus = (typeof CASE_STATUSES)[number];
+
+export const RUN_STATUSES = ['running', 'completed'] as const;
+export type RunStatus = (typeof RUN_STATUSES)[number];
+
+export const EXECUTION_MODES = ['manual', 'automation'] as const;
+
+export const END_RUN_POLICY_STORAGE_KEY = 'tcm_end_run_policy';
+export const END_RUN_POLICIES = ['flexible', 'strict'] as const;
+export type EndRunPolicy = (typeof END_RUN_POLICIES)[number];
+
+export type RunResultsSummary = {
+  total: number;
+  pass: number;
+  fail: number;
+  blocked: number;
+  skip: number;
+  untested: number;
+  done: number;
+  progressPercent: number;
+  passRate: number;
+};
+
 export type AutomationRunSummary = {
   total?: number;
   pass?: number;
@@ -209,6 +233,279 @@ export type AutomationRunSummary = {
   blocked?: number;
   skip?: number;
 };
+
+export function normalizeCaseStatus(status?: string | null): CaseStatus {
+  const key = String(status || 'untested').toLowerCase();
+  return (CASE_STATUSES as readonly string[]).includes(key) ? (key as CaseStatus) : 'untested';
+}
+
+export function summarizeRunResults(items: Array<{ status?: string }>): RunResultsSummary {
+  const summary: RunResultsSummary = {
+    total: items.length,
+    pass: 0,
+    fail: 0,
+    blocked: 0,
+    skip: 0,
+    untested: 0,
+    done: 0,
+    progressPercent: 0,
+    passRate: 0,
+  };
+
+  for (const item of items) {
+    const status = normalizeCaseStatus(item.status);
+    if (status === 'pass') summary.pass += 1;
+    else if (status === 'fail') summary.fail += 1;
+    else if (status === 'blocked') summary.blocked += 1;
+    else if (status === 'skip') summary.skip += 1;
+    else summary.untested += 1;
+  }
+
+  summary.done = summary.pass + summary.fail + summary.blocked + summary.skip;
+  summary.progressPercent = summary.total > 0
+    ? Number(((summary.done / summary.total) * 100).toFixed(2))
+    : 0;
+
+  const verdictCount = summary.pass + summary.fail + summary.blocked;
+  summary.passRate = verdictCount > 0
+    ? Number(((summary.pass / verdictCount) * 100).toFixed(2))
+    : 0;
+
+  return summary;
+}
+
+export function isValidHttpUrl(value: string): boolean {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+export function buildDefaultRunName(planName: string, versionName?: string): string {
+  const safePlan = String(planName || 'Test plan').trim() || 'Test plan';
+  const safeVersion = String(versionName || '').trim();
+  const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+  return safeVersion ? `${safePlan} - ${safeVersion} - ${stamp}` : `${safePlan} - ${stamp}`;
+}
+
+export function getPlanCaseCount(plan: { items?: unknown[] } | null | undefined): number {
+  return Array.isArray(plan?.items) ? plan.items.length : 0;
+}
+
+export type StartRunValidationInput = {
+  testPlanId: string;
+  name: string;
+  baseUrl: string;
+  plan: {
+    executionMode?: string;
+    items?: unknown[];
+    name?: string;
+    version?: { name?: string };
+    entityId?: string;
+    _id?: string;
+  } | null;
+  existingRuns?: Array<{ name?: string; testPlan?: unknown }>;
+  allPlans?: Array<{ entityId?: string; _id?: string }>;
+};
+
+export function getPlanEntityId(value: unknown): string {
+  if (!value) {
+    return '';
+  }
+
+  if (typeof value === 'object' && value !== null) {
+    const obj = value as { entityId?: unknown; _id?: unknown };
+    const entityId = String(obj.entityId || '').trim();
+    if (entityId) {
+      return entityId;
+    }
+    return String(obj._id || getId(value) || '').trim();
+  }
+
+  return String(value).trim();
+}
+
+function buildPlanMatchIds(
+  plan: unknown,
+  allPlans: Array<{ entityId?: string; _id?: string }> = [],
+): Set<string> {
+  const ids = new Set<string>();
+  const entityId = getPlanEntityId(plan);
+
+  collectEntityIds(plan).forEach((id) => ids.add(id));
+
+  if (!entityId) {
+    return ids;
+  }
+
+  ids.add(entityId);
+  for (const candidate of allPlans) {
+    if (getPlanEntityId(candidate) === entityId) {
+      collectEntityIds(candidate).forEach((id) => ids.add(id));
+    }
+  }
+
+  return ids;
+}
+
+function resolveRunPlanEntityId(
+  runPlan: unknown,
+  allPlans: Array<{ entityId?: string; _id?: string }> = [],
+): string {
+  if (typeof runPlan === 'object' && runPlan !== null) {
+    const entityId = getPlanEntityId(runPlan);
+    if (entityId) {
+      return entityId;
+    }
+  }
+
+  const runPlanIds = collectEntityIds(runPlan);
+  for (const candidate of allPlans) {
+    const candidateIds = collectEntityIds(candidate);
+    for (const id of runPlanIds) {
+      if (candidateIds.has(id)) {
+        return getPlanEntityId(candidate);
+      }
+    }
+  }
+
+  return [...runPlanIds][0] || '';
+}
+
+export function isDuplicateRunInPlan(
+  runs: Array<{ name?: string; testPlan?: unknown }>,
+  plan: unknown,
+  name: string,
+  allPlans: Array<{ entityId?: string; _id?: string }> = [],
+): boolean {
+  const normalizedName = normalizeRunName(name).toLowerCase();
+  if (!normalizedName) {
+    return false;
+  }
+
+  const targetEntityId = getPlanEntityId(plan);
+  const targetPlanIds = buildPlanMatchIds(plan, allPlans);
+  if (!targetEntityId && !targetPlanIds.size) {
+    return false;
+  }
+
+  return runs.some((run) => {
+    const runName = normalizeRunName(run.name).toLowerCase();
+    if (runName !== normalizedName) {
+      return false;
+    }
+
+    const runEntityId = resolveRunPlanEntityId(run.testPlan, allPlans);
+    if (targetEntityId && runEntityId && runEntityId === targetEntityId) {
+      return true;
+    }
+
+    const runPlanIds = collectEntityIds(run.testPlan);
+    for (const id of runPlanIds) {
+      if (targetPlanIds.has(id)) {
+        return true;
+      }
+    }
+
+    return false;
+  });
+}
+
+export function normalizeRunName(value: unknown): string {
+  return String(value || '').trim();
+}
+
+export function validateStartRunForm(input: StartRunValidationInput): string | null {
+  if (!input.testPlanId) {
+    return 'Test plan is required';
+  }
+
+  if (!input.plan) {
+    return 'Test plan not found';
+  }
+
+  if (getPlanCaseCount(input.plan) === 0) {
+    return 'Plan has no test cases';
+  }
+
+  const resolvedName = normalizeRunName(input.name)
+    || buildDefaultRunName(input.plan.name || '', input.plan.version?.name);
+
+  if (!resolvedName) {
+    return 'Run name is required';
+  }
+
+  if (isDuplicateRunInPlan(input.existingRuns || [], input.plan, resolvedName, input.allPlans || [])) {
+    return 'Run name already exists in this plan';
+  }
+
+  if (String(input.plan.executionMode || 'manual') === 'automation') {
+    if (!isValidHttpUrl(input.baseUrl)) {
+      return 'Base URL is invalid';
+    }
+  }
+
+  return null;
+}
+
+export function resolveStartRunPayload(input: StartRunValidationInput) {
+  const error = validateStartRunForm(input);
+  if (error) {
+    return { error, payload: null as null };
+  }
+
+  const plan = input.plan!;
+  const name = normalizeRunName(input.name)
+    || buildDefaultRunName(plan.name || '', plan.version?.name);
+
+  return {
+    error: null as null,
+    payload: {
+      testPlanId: input.testPlanId,
+      name,
+      baseUrl: String(input.baseUrl || '').trim(),
+    },
+  };
+}
+
+export function getEndRunPolicy(): EndRunPolicy {
+  if (typeof window === 'undefined') {
+    return 'flexible';
+  }
+
+  const stored = String(window.localStorage.getItem(END_RUN_POLICY_STORAGE_KEY) || '').trim();
+  return (END_RUN_POLICIES as readonly string[]).includes(stored)
+    ? (stored as EndRunPolicy)
+    : 'flexible';
+}
+
+export function setEndRunPolicy(policy: EndRunPolicy) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  window.localStorage.setItem(END_RUN_POLICY_STORAGE_KEY, policy);
+}
+
+export function getRunListActionLabel(runStatus: string, isActive: boolean): string {
+  if (isActive) {
+    return 'Active';
+  }
+
+  return String(runStatus || '').toLowerCase() === 'running' ? 'Open' : 'View';
+}
+
+export function formatRunProgressPercent(value: number | undefined | null): string {
+  const numeric = typeof value === 'number' && Number.isFinite(value) ? value : 0;
+  return `${numeric.toFixed(1)}%`;
+}
 
 export function formatAutomationRunMessage(summary?: AutomationRunSummary | null): string {
   if (!summary) {
@@ -219,34 +516,23 @@ export function formatAutomationRunMessage(summary?: AutomationRunSummary | null
 }
 
 export function summarizeAutomationResults(items: Array<{ status?: string }>): AutomationRunSummary {
-  const summary: AutomationRunSummary = {
-    total: items.length,
-    pass: 0,
-    fail: 0,
-    blocked: 0,
-    skip: 0,
+  const summary = summarizeRunResults(items);
+  return {
+    total: summary.total,
+    pass: summary.pass,
+    fail: summary.fail,
+    blocked: summary.blocked,
+    skip: summary.skip,
   };
-
-  for (const item of items) {
-    const status = String(item.status || 'untested');
-    if (status === 'pass') summary.pass = (summary.pass ?? 0) + 1;
-    else if (status === 'fail') summary.fail = (summary.fail ?? 0) + 1;
-    else if (status === 'blocked') summary.blocked = (summary.blocked ?? 0) + 1;
-    else if (status === 'skip') summary.skip = (summary.skip ?? 0) + 1;
-  }
-
-  return summary;
 }
 
 export function getAutomationRunProgress(items: Array<{ status?: string }>) {
-  const total = items.length;
-  const finished = items.filter((item) => {
-    const status = String(item.status || 'untested');
-    return status !== 'untested';
-  }).length;
-  const percent = total > 0 ? Math.round((finished / total) * 100) : 0;
-
-  return { total, finished, percent };
+  const summary = summarizeRunResults(items);
+  return {
+    total: summary.total,
+    finished: summary.done,
+    percent: Math.round(summary.progressPercent),
+  };
 }
 
 export type AutomationProgress = {

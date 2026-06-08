@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import AdminTestPlansScreen from "@/components/workspaceScreens/AdminTestPlansScreen";
 import { useAdminWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
 import { TOPBAR_INPUT_CLS, WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
-import { apiRequest, createTextMatcher, getId, matchesSelectedEntity, userName } from "@/lib/api";
+import { apiRequest, buildDefaultRunName, createTextMatcher, getId, matchesSelectedEntity, userName } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
 
@@ -211,7 +211,11 @@ export default function AdminTestPlansRoute() {
     });
     await refreshAll();
   };
-  const openExecutionForPlan = (plan: RecordAny) => { const planId = getId(plan); const runName = `${plan.name || "Test plan"} - ${new Date().toISOString().slice(0, 16).replace("T", " ")}`; router.push(`/workspace/admin/test-runs-execution?testPlanId=${encodeURIComponent(planId)}&runName=${encodeURIComponent(runName)}`); };
+  const openExecutionForPlan = (plan: RecordAny) => {
+    const planId = getId(plan);
+    const runName = buildDefaultRunName(plan.name || "Test plan", plan.version?.name);
+    router.push(`/workspace/admin/test-runs-execution?testPlanId=${encodeURIComponent(planId)}&runName=${encodeURIComponent(runName)}`);
+  };
   const setActiveTab = (tab: string) => router.push(`/workspace/admin/${tab}`);
   const matchesSearch = useMemo(() => createTextMatcher(searchTerm), [searchTerm]);
   const versionFilter = versions.find((version) => matchesSelectedEntity(version, versionIdFromUrl)) || null;

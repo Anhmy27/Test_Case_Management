@@ -23,7 +23,9 @@ function errorMiddleware(err, req, res, next) {
     // Check if it's a compound index error from the duplicate key value
     const indexInfo = err.keyValue;
     if (indexInfo) {
-      if (indexInfo.project && indexInfo.name && !indexInfo.group) {
+    if (indexInfo.testPlanEntityId && indexInfo.name) {
+        message = 'Run name already exists in this plan';
+      } else if (indexInfo.project && indexInfo.name && !indexInfo.group) {
         message = `Name already exists in this project`;
       } else if (indexInfo.project && indexInfo.name && indexInfo.group) {
         message = `Key already exists in this group`;

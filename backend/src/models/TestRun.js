@@ -104,6 +104,10 @@ const testRunSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    testPlanEntityId: {
+      type: mongoose.Schema.Types.ObjectId,
+      index: true,
+    },
     status: {
       type: String,
       enum: ['running', 'completed'],
@@ -155,6 +159,17 @@ const testRunSchema = new mongoose.Schema(
   {
     timestamps: true,
   }
+);
+
+testRunSchema.index(
+  { testPlanEntityId: 1, name: 1 },
+  {
+    unique: true,
+    collation: { locale: 'en', strength: 2 },
+    partialFilterExpression: {
+      testPlanEntityId: { $exists: true, $type: 'objectId' },
+    },
+  },
 );
 
 module.exports = mongoose.model('TestRun', testRunSchema);

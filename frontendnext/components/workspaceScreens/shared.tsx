@@ -147,6 +147,7 @@ const STATUS_STYLES: Record<string, string> = {
   fail:      "bg-rose-50 text-rose-700 ring-rose-200/60 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-500/30",
   blocked:   "bg-amber-50 text-amber-800 ring-amber-200/60 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-500/30",
   skip:      "bg-slate-100 text-slate-600 ring-slate-200/60 dark:bg-zinc-800 dark:text-zinc-300 dark:ring-zinc-600/40",
+  untested:  "bg-slate-100 text-slate-500 ring-slate-200/60 dark:bg-zinc-800 dark:text-zinc-400 dark:ring-zinc-600/40",
   running:   "bg-sky-50 text-sky-700 ring-sky-200/60 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-500/30",
   completed: "bg-slate-100 text-slate-700 ring-slate-200/60 dark:bg-zinc-800 dark:text-zinc-200 dark:ring-zinc-600/40",
   pending:   "bg-amber-50 text-amber-700 ring-amber-200/60 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-500/30",
@@ -156,14 +157,34 @@ const STATUS_STYLES: Record<string, string> = {
   inactive:  "bg-slate-100 text-slate-500 ring-slate-200/60 dark:bg-zinc-800 dark:text-zinc-400 dark:ring-zinc-600/40",
 };
 
+const STATUS_LABELS: Record<string, string> = {
+  pass: "Pass",
+  fail: "Fail",
+  blocked: "Blocked",
+  skip: "Skip",
+  untested: "Untested",
+  running: "Running",
+  completed: "Completed",
+  pending: "Pending",
+  automation: "Automation",
+  manual: "Manual",
+  active: "Active",
+  inactive: "Inactive",
+};
+
+export function getStatusLabel(status: string): string {
+  const key = String(status || "").toLowerCase();
+  return STATUS_LABELS[key] ?? status;
+}
+
 export function StatusBadge({ status }: { status: string }) {
   const key = String(status || "").toLowerCase();
   const cls = STATUS_STYLES[key] ?? "bg-slate-100 text-slate-600 ring-slate-200/60";
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ring-1 ring-inset ${cls}`}
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ring-inset ${cls}`}
     >
-      {status}
+      {getStatusLabel(status)}
     </span>
   );
 }
@@ -441,6 +462,67 @@ export function DataTable({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+type ConfirmDialogProps = {
+  open: boolean;
+  title: string;
+  description?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  confirmDisabled?: boolean;
+  confirmVariant?: ButtonVariant;
+  onConfirm: () => void;
+  onCancel: () => void;
+  children?: ReactNode;
+};
+
+export function ConfirmDialog({
+  open,
+  title,
+  description,
+  confirmLabel = "Confirm",
+  cancelLabel = "Cancel",
+  confirmDisabled = false,
+  confirmVariant = "primary",
+  onConfirm,
+  onCancel,
+  children,
+}: ConfirmDialogProps) {
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 dark:bg-black/60">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-dialog-title"
+        className="tcm-confirm-modal w-full max-w-md rounded-2xl border border-slate-200 bg-white p-5 shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+      >
+        <h3 id="confirm-dialog-title" className="text-lg font-semibold text-slate-900 dark:text-zinc-50">
+          {title}
+        </h3>
+        {description ? (
+          <p className="mt-2 text-sm text-slate-600 dark:text-zinc-300">{description}</p>
+        ) : null}
+        {children ? <div className="mt-4">{children}</div> : null}
+        <div className="mt-5 flex justify-end gap-2">
+          <Button variant="secondary" onClick={onCancel}>
+            {cancelLabel}
+          </Button>
+          <Button
+            variant={confirmVariant}
+            onClick={onConfirm}
+            disabled={confirmDisabled}
+          >
+            {confirmLabel}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 }

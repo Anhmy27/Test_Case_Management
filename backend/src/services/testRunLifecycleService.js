@@ -25,12 +25,65 @@ const {
 } = require('../utils/entityResolvers');
 const { scheduleAutomationRun, isAutomationRunActive } = require('./automation/automationJobRunner');
 
+const isValidHttpUrl = (value) => {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
+const computeRunProgress = (results) => {
+  const items = Array.isArray(results) ? results : [];
+  const summary = {
+    total: items.length,
+    pass: 0,
+    fail: 0,
+    blocked: 0,
+    skip: 0,
+    untested: 0,
+    done: 0,
+    progress: 0,
+    passRate: 0,
+  };
+
+  for (const item of items) {
+    const status = String(item?.status || 'untested').toLowerCase();
+    if (status === 'pass') summary.pass += 1;
+    else if (status === 'fail') summary.fail += 1;
+    else if (status === 'blocked') summary.blocked += 1;
+    else if (status === 'skip') summary.skip += 1;
+    else summary.untested += 1;
+  }
+
+  summary.done = summary.pass + summary.fail + summary.blocked + summary.skip;
+  summary.progress = summary.total > 0
+    ? Number(((summary.done / summary.total) * 100).toFixed(2))
+    : 0;
+
+  const verdictCount = summary.pass + summary.fail + summary.blocked;
+  summary.passRate = verdictCount > 0
+    ? Number(((summary.pass / verdictCount) * 100).toFixed(2))
+    : 0;
+
+  return summary;
+};
+
 // ---------------------------------------------------------------------------
 // Start run
 // ---------------------------------------------------------------------------
 
+const normalizeRunName = (value) => String(value || '').trim();
+
 const startTestRunService = async ({ testPlanId, name, baseUrl, user }) => {
-  if (!testPlanId || !name) {
+  const trimmedName = normalizeRunName(name);
+  if (!testPlanId || !trimmedName) {
     throw httpError(400, 'testPlanId and name are required');
   }
 
@@ -57,13 +110,27 @@ const startTestRunService = async ({ testPlanId, name, baseUrl, user }) => {
   if (!resolvedProject) throw httpError(404, 'Project not found');
   if (!resolvedVersion) throw httpError(404, 'Version not found');
 
+  if (!Array.isArray(resolvedTestPlan.items) || resolvedTestPlan.items.length === 0) {
+    throw httpError(400, 'Plan has no test cases');
+  }
+
+  if (resolvedTestPlan.executionMode === 'automation' && !isValidHttpUrl(baseUrl)) {
+    throw httpError(400, 'Base URL is invalid');
+  }
+
+  const testPlanEntityId = resolvedTestPlan.entityId || resolvedTestPlan._id;
   const relatedPlanIds = await getTestPlanVersionIds(resolvedTestPlan);
   const existingRun = await TestRun.findOne({
-    testPlan: { $in: relatedPlanIds },
-    name: name.trim(),
-  }).lean();
+    name: trimmedName,
+    $or: [
+      { testPlanEntityId },
+      { testPlan: { $in: relatedPlanIds } },
+    ],
+  })
+    .collation({ locale: 'en', strength: 2 })
+    .lean();
   if (existingRun) {
-    throw httpError(409, `A test run with name "${name}" already exists for this test plan`);
+    throw httpError(409, 'Run name already exists in this plan');
   }
 
   const latestTestCases = await Promise.all(
@@ -118,10 +185,11 @@ const startTestRunService = async ({ testPlanId, name, baseUrl, user }) => {
     : [];
 
   const testRun = await TestRun.create({
-    name,
+    name: trimmedName,
     project: resolvedProject._id,
     version: resolvedVersion._id,
     testPlan: resolvedTestPlan._id,
+    testPlanEntityId,
     status: 'running',
     startedAt: new Date(),
     startedBy: user.id,
@@ -255,17 +323,16 @@ const listTestRunsService = async ({ projectId, versionId, status }, user) => {
   for (const testRun of testRuns) {
     const withPlan = await attachRunTestPlan(testRun);
     const withAll = await attachRunProjectAndVersion(withPlan);
-    const results = Array.isArray(testRun.results) ? testRun.results : [];
-    const total = results.length;
-    const executed = results.filter((r) => !['untested', 'skip'].includes(r.status)).length;
-    const passCount = results.filter((r) => r.status === 'pass').length;
+    const progressSummary = computeRunProgress(testRun.results);
 
     testRunsWithProgress.push({
       ...withAll,
-      progress: total > 0 ? Number(((executed / total) * 100).toFixed(2)) : 0,
-      passRate: executed > 0 ? Number(((passCount / executed) * 100).toFixed(2)) : 0,
-      totalResults: total,
-      executedResults: executed,
+      progress: progressSummary.progress,
+      passRate: progressSummary.passRate,
+      totalResults: progressSummary.total,
+      executedResults: progressSummary.done,
+      doneResults: progressSummary.done,
+      untestedResults: progressSummary.untested,
     });
   }
 
@@ -278,6 +345,7 @@ const listTestRunsService = async ({ projectId, versionId, status }, user) => {
 
 const getMyRunItemsService = async (runId, user) => {
   const testRun = await TestRun.findById(toObjectId(runId, 'runId'))
+    .populate('startedBy', 'name email role')
     .populate('results.testCase', 'caseKey title description expected steps priority severity automation')
     .populate('results.owner', 'name email role')
     .populate('results.assignees', 'name email role')
@@ -524,4 +592,5 @@ module.exports = {
   endTestRunService,
   cancelAutomationRunService,
   retryFailedAutomationRunService,
+  computeRunProgress,
 };

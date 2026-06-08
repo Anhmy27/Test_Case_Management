@@ -4,11 +4,12 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
   type ReactNode,
 } from "react";
+import { usePathname } from "next/navigation";
 
 export type ThemeMode = "light" | "dark";
 
@@ -24,31 +25,60 @@ type ThemeContextValue = {
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function applyTheme(theme: ThemeMode) {
-  document.documentElement.classList.toggle("dark", theme === "dark");
-  document.documentElement.style.colorScheme = theme;
+  const root = document.documentElement;
+  root.classList.toggle("dark", theme === "dark");
+  root.style.colorScheme = theme;
 }
 
 function readStoredTheme(): ThemeMode {
   if (typeof window === "undefined") {
     return "light";
   }
+
   const stored = window.localStorage.getItem(STORAGE_KEY);
   if (stored === "light" || stored === "dark") {
     return stored;
   }
+
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
   const [theme, setThemeState] = useState<ThemeMode>("light");
   const [ready, setReady] = useState(false);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const initial = readStoredTheme();
     setThemeState(initial);
     applyTheme(initial);
     setReady(true);
   }, []);
+
+  useLayoutEffect(() => {
+    if (!ready) {
+      return;
+    }
+    applyTheme(theme);
+  }, [ready, theme, pathname]);
+
+  useLayoutEffect(() => {
+    if (!ready) {
+      return;
+    }
+
+    const root = document.documentElement;
+    const observer = new MutationObserver(() => {
+      const shouldBeDark = theme === "dark";
+      const hasDark = root.classList.contains("dark");
+      if (shouldBeDark !== hasDark) {
+        applyTheme(theme);
+      }
+    });
+
+    observer.observe(root, { attributes: true, attributeFilter: ["class"] });
+    return () => observer.disconnect();
+  }, [ready, theme]);
 
   const setTheme = useCallback((next: ThemeMode) => {
     setThemeState(next);
@@ -88,12 +118,13 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
     <button
       type="button"
       onClick={toggleTheme}
+      disabled={!ready}
       aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
       title={theme === "dark" ? "Light mode" : "Dark mode"}
-      className={`inline-flex h-8 items-center gap-2 rounded-md border border-black/[0.06] bg-white/80 px-2.5 text-[12px] font-medium text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900 dark:border-white/[0.08] dark:bg-zinc-900/80 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 ${className}`}
+      className={`inline-flex h-8 items-center gap-2 rounded-md border border-black/[0.06] bg-white/80 px-2.5 text-[12px] font-medium text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-900 disabled:cursor-wait disabled:opacity-60 dark:border-white/[0.08] dark:bg-zinc-900/80 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 ${className}`}
     >
       {!ready ? (
-        <span className="inline-block h-4 w-4" />
+        <span className="inline-block h-4 w-4 animate-pulse rounded-full bg-zinc-300 dark:bg-zinc-600" />
       ) : theme === "dark" ? (
         <>
           <SunIcon />

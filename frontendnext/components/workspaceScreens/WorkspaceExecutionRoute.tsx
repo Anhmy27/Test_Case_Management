@@ -6,8 +6,8 @@ import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ExecutionScreen from "@/components/workspaceScreens/ExecutionScreen";
 import { useAdminWorkspace, useEmployeeWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
-import { WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
-import { apiRequest, createTextMatcher, formatAutomationRunMessage, getId, summarizeAutomationResults, userName } from "@/lib/api";
+import { WorkspaceContentSkeleton, TOPBAR_INPUT_CLS } from "@/components/workspaceScreens/shared";
+import { apiRequest, createTextMatcher, formatAutomationRunMessage, getId, resolveStartRunPayload, summarizeAutomationResults, userName } from "@/lib/api";
 import {
   buildEmployeeTopbar,
   useEmployeeProjectScope,
@@ -31,7 +31,8 @@ function AdminWorkspaceExecutionRoute() {
   const testPlanIdFromUrl = String(searchParams.get("testPlanId") || "").trim();
   const runNameFromUrl = String(searchParams.get("runName") || "").trim();
   const adminExecutionPath = "/workspace/admin/test-runs-execution";
-  const { token, currentUser, selectedProjectId, setTopbar } = useAdminWorkspace();
+  const { token, currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
+  const [projects, setProjects] = useState<RecordAny[]>([]);
   const [plans, setPlans] = useState<RecordAny[]>([]);
   const [runs, setRuns] = useState<RecordAny[]>([]);
   const [selectedRun, setSelectedRun] = useState<RecordAny | null>(null);
@@ -44,6 +45,8 @@ function AdminWorkspaceExecutionRoute() {
   const [cancellingRun, setCancellingRun] = useState(false);
   const [retryingRun, setRetryingRun] = useState(false);
   const [message, setMessage] = useState("");
+  const [startRunError, setStartRunError] = useState("");
+  const [pollError, setPollError] = useState("");
   const { openJiraBugDialog, jiraBugDialogNode } = useJiraBugDialog({
     token,
     onNotice: setMessage,
@@ -60,7 +63,7 @@ function AdminWorkspaceExecutionRoute() {
       setMessage("");
 
       try {
-        const [plansResponse, runsResponse] = await Promise.all([
+        const [plansResponse, runsResponse, projectsResponse] = await Promise.all([
           apiRequest<{ testPlans: RecordAny[] }>(
             selectedProjectId ? `/api/test-plans?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-plans",
             token,
@@ -69,11 +72,13 @@ function AdminWorkspaceExecutionRoute() {
             selectedProjectId ? `/api/test-runs?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-runs",
             token,
           ),
+          apiRequest<{ projects: RecordAny[] }>("/api/projects", token),
         ]);
         if (cancelled) return;
 
         setPlans(Array.isArray(plansResponse.testPlans) ? plansResponse.testPlans : []);
         setRuns(Array.isArray(runsResponse.testRuns) ? runsResponse.testRuns : []);
+        setProjects(Array.isArray(projectsResponse.projects) ? projectsResponse.projects : []);
         if (testPlanIdFromUrl) {
           setRunForm((prev) => ({ ...prev, testPlanId: testPlanIdFromUrl, name: runNameFromUrl || prev.name }));
         }
@@ -164,6 +169,10 @@ function AdminWorkspaceExecutionRoute() {
   const selectedItem = activeMyItems.find((item) => getId(item) === selectedItemId);
 
   useEffect(() => {
+    setStartRunError("");
+  }, [runForm.name, runForm.testPlanId]);
+
+  useEffect(() => {
     if (!activeMyItems.length) {
       setSelectedItemId("");
       return;
@@ -195,6 +204,7 @@ function AdminWorkspaceExecutionRoute() {
 
   useEffect(() => {
     if (!shouldPollAutomationRun || !token) {
+      setPollError("");
       return;
     }
 
@@ -217,8 +227,11 @@ function AdminWorkspaceExecutionRoute() {
           }
         }
         setMyItems(Array.isArray(response.results) ? response.results : []);
+        setPollError("");
       } catch {
-        // Keep polling passive to avoid noisy UI.
+        if (!cancelled) {
+          setPollError("Connection lost while refreshing automation progress. Retrying...");
+        }
       }
     };
 
@@ -249,8 +262,25 @@ function AdminWorkspaceExecutionRoute() {
   const startRun = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!runForm.testPlanId || startingRun) return;
+
+    const selectedPlan = scopedPlans.find((plan) => getId(plan) === runForm.testPlanId) || null;
+    const resolved = resolveStartRunPayload({
+      testPlanId: runForm.testPlanId,
+      name: runForm.name,
+      baseUrl: runForm.baseUrl,
+      plan: selectedPlan,
+      existingRuns: runs,
+      allPlans: scopedPlans,
+    });
+
+    if (resolved.error || !resolved.payload) {
+      setStartRunError(resolved.error || "Unable to start run");
+      return;
+    }
+
     setStartingRun(true);
     setMessage("");
+    setStartRunError("");
     try {
       const response = await apiRequest<{
         testRun?: RecordAny | null;
@@ -258,14 +288,11 @@ function AdminWorkspaceExecutionRoute() {
         automationSummary?: RecordAny;
       }>("/api/test-runs", token, {
         method: "POST",
-        body: JSON.stringify({
-          testPlanId: runForm.testPlanId,
-          name: runForm.name,
-          baseUrl: runForm.baseUrl || "",
-        }),
+        body: JSON.stringify(resolved.payload),
       });
       if (response.testRun) {
         setSelectedRun(response.testRun);
+        setRunForm((prev) => ({ ...prev, name: resolved.payload!.name }));
         setRuns((prev) => [response.testRun as RecordAny, ...prev.filter((run) => getId(run) !== getId(response.testRun))]);
         const runId = getId(response.testRun);
         if (runId) {
@@ -282,7 +309,7 @@ function AdminWorkspaceExecutionRoute() {
       }
       await refreshRuns();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to start run");
+      setStartRunError(error instanceof Error ? error.message : "Unable to start run");
     } finally {
       setStartingRun(false);
     }
@@ -363,13 +390,32 @@ function AdminWorkspaceExecutionRoute() {
   };
 
   useLayoutEffect(() => {
-    setTopbar(<h1 className="text-xl font-semibold text-slate-900">Test Runs + Execution</h1>);
+    setTopbar(
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="text-xl font-semibold text-slate-900">Test Runs + Execution</h1>
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <select
+            value={selectedProjectId}
+            onChange={(event) => setSelectedProjectId(event.target.value)}
+            className={TOPBAR_INPUT_CLS}
+          >
+            <option value="">All projects</option>
+            {projects.map((project) => (
+              <option key={getId(project)} value={getId(project)}>
+                {project.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>,
+    );
     return () => setTopbar(null);
-  }, [setTopbar]);
+  }, [projects, selectedProjectId, setSelectedProjectId, setTopbar]);
 
   return (
     <>
       {message ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{message}</div> : null}
+      {pollError ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{pollError}</div> : null}
       {loading ? (
         <WorkspaceContentSkeleton />
       ) : (
@@ -402,6 +448,7 @@ function AdminWorkspaceExecutionRoute() {
           currentUserId={currentUserId}
           userName={userName}
           matchesSearch={matchesSearch}
+          startRunError={startRunError}
         />
       )}
       {jiraBugDialogNode}
@@ -429,6 +476,7 @@ function EmployeeWorkspaceExecutionRoute() {
   const [cancellingRun, setCancellingRun] = useState(false);
   const [retryingRun, setRetryingRun] = useState(false);
   const [message, setMessage] = useState("");
+  const [startRunError, setStartRunError] = useState("");
   const { openJiraBugDialog, jiraBugDialogNode } = useJiraBugDialog({
     token,
     onNotice: setMessage,
@@ -548,6 +596,10 @@ function EmployeeWorkspaceExecutionRoute() {
   const selectedItem = activeMyItems.find((item) => getId(item) === selectedItemId);
 
   useEffect(() => {
+    setStartRunError("");
+  }, [runForm.name, runForm.testPlanId]);
+
+  useEffect(() => {
     if (!activeMyItems.length) {
       setSelectedItemId("");
       return;
@@ -621,8 +673,25 @@ function EmployeeWorkspaceExecutionRoute() {
   const startRun = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!runForm.testPlanId || startingRun) return;
+
+    const selectedPlan = scopedPlans.find((plan) => getId(plan) === runForm.testPlanId) || null;
+    const resolved = resolveStartRunPayload({
+      testPlanId: runForm.testPlanId,
+      name: runForm.name,
+      baseUrl: runForm.baseUrl,
+      plan: selectedPlan,
+      existingRuns: runs,
+      allPlans: scopedPlans,
+    });
+
+    if (resolved.error || !resolved.payload) {
+      setStartRunError(resolved.error || "Unable to start run");
+      return;
+    }
+
     setStartingRun(true);
     setMessage("");
+    setStartRunError("");
     try {
       const response = await apiRequest<{
         testRun?: RecordAny | null;
@@ -630,11 +699,7 @@ function EmployeeWorkspaceExecutionRoute() {
         automationSummary?: RecordAny;
       }>("/api/test-runs", token, {
         method: "POST",
-        body: JSON.stringify({
-          testPlanId: runForm.testPlanId,
-          name: runForm.name,
-          baseUrl: runForm.baseUrl || "",
-        }),
+        body: JSON.stringify(resolved.payload),
       });
       if (response.testRun) {
         setSelectedRun(response.testRun);
@@ -653,7 +718,7 @@ function EmployeeWorkspaceExecutionRoute() {
         }
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to start run");
+      setStartRunError(error instanceof Error ? error.message : "Unable to start run");
     } finally {
       setStartingRun(false);
     }
@@ -779,6 +844,7 @@ function EmployeeWorkspaceExecutionRoute() {
           onRetryFailedAutomation={retryFailedAutomation}
           token={token}
           onLogBug={openJiraBugDialog}
+          startRunError={startRunError}
         />
       )}
       {jiraBugDialogNode}
