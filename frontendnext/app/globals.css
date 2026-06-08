@@ -1,6 +1,7 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:where(.dark, .dark *));
+/* Class toggle on <html> (see ThemeProvider / ThemeScript). Must stay right after @import. */
+@custom-variant dark (&:where([class~=dark], [class~=dark] *));
 
 :root {
   --background: #fafafa;
@@ -78,6 +79,10 @@ textarea,
 select,
 button {
   font: inherit;
+}
+
+button:not(:disabled) {
+  cursor: pointer;
 }
 
 /* ── Shared button variants (used in Jira modal) ── */
@@ -547,6 +552,26 @@ html.dark .bg-slate-50,
 html.dark .bg-slate-50\/80,
 html.dark .bg-slate-50\/70 {
   background-color: var(--surface-2) !important;
+}
+
+html.dark .bg-zinc-50,
+html.dark .bg-zinc-50\/90,
+html.dark [class*="bg-zinc-50/"] {
+  background-color: var(--app-bg) !important;
+}
+
+html.dark .bg-zinc-100,
+html.dark .bg-zinc-800,
+html.dark .bg-zinc-800\/60,
+html.dark [class*="bg-zinc-800/"] {
+  background-color: var(--surface-3) !important;
+}
+
+html.dark .border-zinc-200,
+html.dark .border-zinc-200\/80,
+html.dark .border-zinc-800,
+html.dark [class*="border-zinc-200/"] {
+  border-color: var(--line) !important;
 }
 
 html.dark .bg-slate-100,
