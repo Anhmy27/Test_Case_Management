@@ -43,6 +43,8 @@ type Props = {
   userName: (value: unknown) => string;
   getId: (value: unknown) => string;
   matchesSearch: (...values: Array<string | number | undefined | null>) => boolean;
+  isProjectScoped: boolean;
+  scopedProjectName?: string;
 };
 
 export default function AdminTestPlansScreen(props: Props) {
@@ -80,6 +82,8 @@ export default function AdminTestPlansScreen(props: Props) {
     userName,
     getId,
     matchesSearch,
+    isProjectScoped,
+    scopedProjectName,
   } = props;
 
   const selectAllCasesRef = useRef<HTMLInputElement | null>(null);
@@ -87,12 +91,13 @@ export default function AdminTestPlansScreen(props: Props) {
   const emptyPlanDraft = {
     name: "",
     description: "",
-    projectId: "",
+    projectId: isProjectScoped ? String(planForm.projectId || "") : "",
     versionId: "",
     executionMode: "manual",
     selectedGroupIds: [] as string[],
     caseIds: [] as string[],
   };
+  const effectivePlanProjectId = String(planForm.projectId || "");
 
   const visibleCaseIds = useMemo(
     () =>
@@ -110,16 +115,16 @@ export default function AdminTestPlansScreen(props: Props) {
   );
 
   const selectedPlanProject = useMemo(() => {
-    if (!planForm.projectId) {
+    if (!effectivePlanProjectId) {
       return planProjectGroups[0]?.project || null;
     }
 
     return (
-      scopedProjects.find((project: RecordAny) => String(getId(project) || getId(project)) === String(planForm.projectId)) ||
+      scopedProjects.find((project: RecordAny) => String(getId(project) || getId(project)) === effectivePlanProjectId) ||
       planProjectGroups[0]?.project ||
       null
     );
-  }, [getId, planForm.projectId, planProjectGroups, scopedProjects]);
+  }, [effectivePlanProjectId, getId, planProjectGroups, scopedProjects]);
 
   const selectedVisibleCaseCount = visibleCaseIds.filter((caseId) =>
     selectedPlanCaseIds.has(caseId),
@@ -472,17 +477,25 @@ export default function AdminTestPlansScreen(props: Props) {
             }}>
               <div className="grid gap-4 sm:grid-cols-2">
                 <Field label="Project">
-                  <select
-                    className={INPUT_CLS}
-                    value={planForm.projectId}
-                    onChange={(e) => setPlanForm((prev: any) => ({ ...prev, projectId: e.target.value, versionId: "", selectedGroupIds: [], caseIds: [] }))}
-                    required
-                  >
-                    <option value="">Select project</option>
-                    {scopedProjects.map((project: RecordAny) => (
-                      <option key={getId(project)} value={getId(project)}>{project.name}</option>
-                    ))}
-                  </select>
+                  {isProjectScoped ? (
+                    <input
+                      className={`${INPUT_CLS} bg-slate-50`}
+                      value={scopedProjectName || "Selected project"}
+                      readOnly
+                    />
+                  ) : (
+                    <select
+                      className={INPUT_CLS}
+                      value={planForm.projectId}
+                      onChange={(e) => setPlanForm((prev: any) => ({ ...prev, projectId: e.target.value, versionId: "", selectedGroupIds: [], caseIds: [] }))}
+                      required
+                    >
+                      <option value="">Select project</option>
+                      {scopedProjects.map((project: RecordAny) => (
+                        <option key={getId(project)} value={getId(project)}>{project.name}</option>
+                      ))}
+                    </select>
+                  )}
                 </Field>
                 <Field label="Version">
                   <select
@@ -493,7 +506,7 @@ export default function AdminTestPlansScreen(props: Props) {
                   >
                     <option value="">Select version</option>
                     {scopedVersions
-                      .filter((version: RecordAny) => getId(version.project) === planForm.projectId)
+                      .filter((version: RecordAny) => getId(version.project) === effectivePlanProjectId)
                       .map((version: RecordAny) => (
                         <option key={getId(version)} value={getId(version)}>{version.name}</option>
                       ))}

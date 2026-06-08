@@ -101,6 +101,8 @@ export default function AdminTestPlansRoute() {
   const scopedProjects = selectedProjectId
     ? projects.filter((project) => matchesSelectedEntity(project, selectedProjectId))
     : projects;
+  const isProjectScoped = Boolean(selectedProjectId);
+  const scopedProjectName = scopedProjects[0]?.name || "";
   const scopedVersions = selectedProjectId
     ? versions.filter((version) => matchesSelectedEntity(version.project, selectedProjectId))
     : versions;
@@ -117,6 +119,17 @@ export default function AdminTestPlansRoute() {
     planProjectGroups.filter((group) => selectedPlanGroupIds.has(getId(group))),
     planProjectCases,
   );
+
+  useEffect(() => {
+    if (!selectedProjectId) {
+      return;
+    }
+
+    setPlanForm((prev: RecordAny) => ({
+      ...prev,
+      projectId: selectedProjectId,
+    }));
+  }, [selectedProjectId]);
 
   const togglePlanGroup = (groupId: string) => {
     setPlanForm((prev: any) => {
@@ -152,7 +165,7 @@ export default function AdminTestPlansRoute() {
       }
       setEditingPlanId("");
       setEditingExecutionMode("");
-      setPlanForm({ name: "", description: "", projectId: "", versionId: "", executionMode: "manual", selectedGroupIds: [], caseIds: [] });
+      setPlanForm({ name: "", description: "", projectId: selectedProjectId || "", versionId: "", executionMode: "manual", selectedGroupIds: [], caseIds: [] });
       await refreshAll();
       return true;
     } catch (error) {
@@ -266,6 +279,8 @@ export default function AdminTestPlansRoute() {
           userName={userName}
           getId={getId}
           matchesSearch={matchesSearch}
+          isProjectScoped={isProjectScoped}
+          scopedProjectName={scopedProjectName}
         />
       )}
     </>

@@ -58,6 +58,19 @@ export default function AdminGroupsRoute() {
   const matchesSearch = (...values: Array<string | number | undefined | null>) =>
     !normalizedSearch || values.some((value) => String(value || "").toLowerCase().includes(normalizedSearch));
   const scopedProjects = selectedProjectId ? projects.filter((project) => getId(project) === selectedProjectId) : projects;
+  const isProjectScoped = Boolean(selectedProjectId);
+  const scopedProjectName = scopedProjects[0]?.name || "";
+
+  useEffect(() => {
+    if (!selectedProjectId) {
+      return;
+    }
+
+    setGroupForm((prev) => ({
+      ...prev,
+      projectId: selectedProjectId,
+    }));
+  }, [selectedProjectId]);
 
   const refreshGroups = async () => {
     const response = await apiRequest<{ groups: RecordAny[] }>(
@@ -77,7 +90,7 @@ export default function AdminGroupsRoute() {
       });
       setMessage(editingGroupId ? "Group updated" : "Group created");
       setEditingGroupId("");
-      setGroupForm({ projectId: "", name: "", description: "" });
+      setGroupForm({ projectId: selectedProjectId || "", name: "", description: "" });
       await refreshGroups();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to save group");
@@ -91,7 +104,7 @@ export default function AdminGroupsRoute() {
 
   const cancelGroupEdit = () => {
     setEditingGroupId("");
-    setGroupForm({ projectId: "", name: "", description: "" });
+    setGroupForm({ projectId: selectedProjectId || "", name: "", description: "" });
   };
 
   const deleteGroup = async (groupId: string) => {
@@ -152,6 +165,8 @@ export default function AdminGroupsRoute() {
           testCases={testCases}
           startTestCaseEdit={startTestCaseEdit}
           matchesSearch={matchesSearch}
+          isProjectScoped={isProjectScoped}
+          scopedProjectName={scopedProjectName}
         />
       )}
     </>

@@ -20,6 +20,8 @@ type Props = {
   projects: RecordAny[];
   matchesSearch: (...values: Array<string | number | undefined | null>) => boolean;
   getId: (value: unknown) => string;
+  isProjectScoped: boolean;
+  scopedProjectName?: string;
 };
 
 export default function AdminVersionsScreen({
@@ -35,6 +37,8 @@ export default function AdminVersionsScreen({
   projects,
   matchesSearch,
   getId,
+  isProjectScoped,
+  scopedProjectName,
 }: Props) {
   const isEditing = Boolean(editingVersionId);
 
@@ -43,21 +47,31 @@ export default function AdminVersionsScreen({
       <SectionCard title="Versions" subtitle="Tạo version trong workspace">
         <form className="space-y-4" onSubmit={createVersion}>
           <div className="grid gap-4 sm:grid-cols-3">
-            <Field label="Project">
-              <select
-                className={INPUT_CLS}
-                value={versionForm.projectId}
-                onChange={(e) => setVersionForm((prev) => ({ ...prev, projectId: e.target.value }))}
-                required
-              >
-                <option value="">Select project</option>
-                {scopedProjects.map((project: RecordAny) => (
-                  <option key={getId(project)} value={getId(project)}>
-                    {project.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
+            {isProjectScoped ? (
+              <Field label="Project">
+                <input
+                  className={`${INPUT_CLS} bg-slate-50`}
+                  value={scopedProjectName || "Selected project"}
+                  readOnly
+                />
+              </Field>
+            ) : (
+              <Field label="Project">
+                <select
+                  className={INPUT_CLS}
+                  value={versionForm.projectId}
+                  onChange={(e) => setVersionForm((prev) => ({ ...prev, projectId: e.target.value }))}
+                  required
+                >
+                  <option value="">Select project</option>
+                  {scopedProjects.map((project: RecordAny) => (
+                    <option key={getId(project)} value={getId(project)}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
             <Field label="Name">
               <input
                 className={INPUT_CLS}

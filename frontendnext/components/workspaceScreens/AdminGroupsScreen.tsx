@@ -23,6 +23,8 @@ type AdminGroupsScreenProps = {
   groups: RecordAny[];
   testCases: RecordAny[];
   startTestCaseEdit: (testCase: RecordAny) => void;
+  isProjectScoped: boolean;
+  scopedProjectName?: string;
   matchesSearch: (
     ...values: Array<string | number | undefined | null>
   ) => boolean;
@@ -40,6 +42,8 @@ export default function AdminGroupsScreen({
   groups,
   testCases,
   startTestCaseEdit,
+  isProjectScoped,
+  scopedProjectName,
   matchesSearch,
 }: AdminGroupsScreenProps) {
   const isEditing = Boolean(editingGroupId);
@@ -220,21 +224,31 @@ export default function AdminGroupsScreen({
       >
         <form className="space-y-4" onSubmit={createGroup}>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Project">
-              <select
-                className={INPUT_CLS}
-                value={groupForm.projectId}
-                onChange={(e) => setGroupForm((prev) => ({ ...prev, projectId: e.target.value }))}
-                required
-              >
-                <option value="">Select project</option>
-                {scopedProjects.map((project: RecordAny) => (
-                  <option key={getId(project)} value={getId(project)}>
-                    {project.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
+            {isProjectScoped ? (
+              <Field label="Project">
+                <input
+                  className={`${INPUT_CLS} bg-slate-50`}
+                  value={scopedProjectName || "Selected project"}
+                  readOnly
+                />
+              </Field>
+            ) : (
+              <Field label="Project">
+                <select
+                  className={INPUT_CLS}
+                  value={groupForm.projectId}
+                  onChange={(e) => setGroupForm((prev) => ({ ...prev, projectId: e.target.value }))}
+                  required
+                >
+                  <option value="">Select project</option>
+                  {scopedProjects.map((project: RecordAny) => (
+                    <option key={getId(project)} value={getId(project)}>
+                      {project.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
             <Field label="Name">
               <input
                 className={INPUT_CLS}
