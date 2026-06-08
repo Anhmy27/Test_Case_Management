@@ -30,8 +30,8 @@ export default function AdminDashboardRoute() {
   const { token, currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [plans, setPlans] = useState<RecordAny[]>([]);
-  const [users, setUsers] = useState<RecordAny[]>([]);
   const [dashboard, setDashboard] = useState<RecordAny | null>(null);
+  const [testRuns, setTestRuns] = useState<RecordAny[]>([]);
   const [versionHealth, setVersionHealth] = useState<RecordAny[]>([]);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [loading, setLoading] = useState(true);
@@ -50,14 +50,16 @@ export default function AdminDashboardRoute() {
 
       try {
         const dashboardQuery = selectedProjectId ? `?projectId=${encodeURIComponent(selectedProjectId)}` : "";
+        const testRunsQuery = selectedProjectId ? `?projectId=${encodeURIComponent(selectedProjectId)}` : "";
         const versionDashboardQuery = selectedProjectId
           ? `/api/dashboard/versions?projectId=${encodeURIComponent(selectedProjectId)}`
           : null;
-        const [projectsResponse, plansResponse, dashboardResponse, usersResponse, versionDashboardResponse] = await Promise.all([
+        const [projectsResponse, plansResponse, dashboardResponse, testRunsResponse, versionDashboardResponse] =
+          await Promise.all([
           apiRequest<{ projects: RecordAny[] }>("/api/projects", token),
           apiRequest<{ testPlans: RecordAny[] }>(selectedProjectId ? `/api/test-plans?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-plans", token),
           apiRequest<RecordAny>(`/api/dashboard${dashboardQuery}`, token),
-          apiRequest<{ users: RecordAny[] }>("/api/users", token),
+          apiRequest<{ testRuns: RecordAny[] }>(`/api/test-runs${testRunsQuery}`, token),
           versionDashboardQuery
             ? apiRequest<{ versions: RecordAny[] }>(versionDashboardQuery, token)
             : Promise.resolve({ versions: [] }),
@@ -69,8 +71,8 @@ export default function AdminDashboardRoute() {
 
         setProjects(Array.isArray(projectsResponse.projects) ? projectsResponse.projects : []);
         setPlans(Array.isArray(plansResponse.testPlans) ? plansResponse.testPlans : []);
-        setUsers(Array.isArray(usersResponse.users) ? usersResponse.users : []);
         setDashboard(dashboardResponse || null);
+        setTestRuns(Array.isArray(testRunsResponse.testRuns) ? testRunsResponse.testRuns : []);
         setVersionHealth(Array.isArray(versionDashboardResponse.versions) ? versionDashboardResponse.versions : []);
       } catch (error) {
         if (!cancelled) {
@@ -98,11 +100,7 @@ export default function AdminDashboardRoute() {
   const isGlobalScope = !selectedProjectId;
   const selectedProject = safeProjects.find((project) => getId(project) === selectedProjectId) || null;
   const scopedProjectName = selectedProject?.name || "";
-  const totalProjects = isGlobalScope ? safeProjects.length : (selectedProjectId ? 1 : 0);
-  const totalPlans = safePlans.length;
-  const totalCases = Number(dashboardSummary.totalCases || 0);
   const runningRunsCount = Number(dashboardSummary.runningRuns || 0);
-  const totalUsers = isGlobalScope ? users.length : Number(dashboardSummary.activeUsers || 0);
   const normalizedSearch = searchTerm.trim().toLowerCase();
 
   const matchesSearch = (...values: Array<string | number | undefined | null>) => {
@@ -188,16 +186,14 @@ export default function AdminDashboardRoute() {
         <AdminDashboardScreen
           isGlobalScope={isGlobalScope}
           scopedProjectName={scopedProjectName}
-          totalProjects={totalProjects}
-          totalPlans={totalPlans}
-          totalCases={totalCases}
           runningRunsCount={runningRunsCount}
-          totalUsers={totalUsers}
           dashboardSummary={dashboardSummary}
           dashboardData={safeDashboard}
+          testRuns={testRuns}
           versionHealth={versionHealth}
           projectOverview={dashboardProjectOverview}
           projects={safeProjects}
+          plans={safePlans}
           selectedProjectId={selectedProjectId}
           matchesSearch={matchesSearch}
           userName={userName}
