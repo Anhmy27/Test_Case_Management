@@ -4,6 +4,11 @@
 
 import type { ReactNode } from "react";
 import StatusBreakdownDonut from "@/components/dashboard/StatusBreakdownDonut";
+import ExecutionStatusBarChart from "@/components/dashboard/ExecutionStatusBarChart";
+import TesterThroughputChart from "@/components/dashboard/TesterThroughputChart";
+import PassRateRadial from "@/components/dashboard/PassRateRadial";
+import VersionHealthPanel from "@/components/dashboard/VersionHealthPanel";
+import type { DashboardNavigateOptions } from "@/components/workspaceScreens/AdminDashboardRoute";
 
 type RecordAny = Record<string, any>;
 
@@ -17,12 +22,14 @@ type AdminDashboardScreenProps = {
   totalUsers: number;
   dashboardSummary: RecordAny;
   dashboardData: RecordAny;
+  versionHealth: RecordAny[];
   projectOverview: RecordAny[];
   projects: RecordAny[];
+  selectedProjectId?: string;
   matchesSearch: (...values: Array<string | number | undefined | null>) => boolean;
   userName: (value: unknown) => string;
   getId: (value: unknown) => string;
-  onNavigate?: (tab: string, projectId?: string) => void;
+  onNavigate?: (tab: string, options?: string | DashboardNavigateOptions) => void;
 };
 
 type DataGridColumn = {
@@ -177,8 +184,10 @@ export default function AdminDashboardScreen({
   totalUsers,
   dashboardSummary,
   dashboardData,
+  versionHealth,
   projectOverview,
   projects,
+  selectedProjectId,
   matchesSearch,
   userName,
   getId,
@@ -210,7 +219,7 @@ export default function AdminDashboardScreen({
     { key: "pass", label: "Pass", value: passCount, color: "#16a34a" },
     { key: "fail", label: "Fail", value: failCount, color: "#ef4444" },
     { key: "blocked", label: "Blocked", value: blockedCount, color: "#f59e0b" },
-    { key: "untested", label: "Not Run", value: untestedCount, color: "#64748b" },
+    { key: "untested", label: "Not Run", value: untestedCount, color: "#6366f1" },
   ];
   const kpiDefinitions: KpiDefinition[] = [
     { label: "Pass Rate", formula: "pass / (pass + fail + blocked)" },
@@ -253,7 +262,11 @@ export default function AdminDashboardScreen({
         <button
           key="action"
           type="button"
-          onClick={() => onNavigate?.("test-runs-execution", projectId)}
+          onClick={() => {
+            const runId = getId(run);
+            if (!runId) return;
+            onNavigate?.("test-runs-execution", { projectId, query: { runId } });
+          }}
           className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-900"
         >
           Open
@@ -317,7 +330,12 @@ export default function AdminDashboardScreen({
         <button
           key="action"
           type="button"
-          onClick={() => onNavigate?.("test-cases-history", getId(item.project))}
+          onClick={() =>
+            onNavigate?.("test-cases-history", {
+              projectId: getId(item.project) || undefined,
+              query: { caseKey: item.caseKey || item.title },
+            })
+          }
           className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-900"
         >
           Investigate
@@ -396,14 +414,18 @@ export default function AdminDashboardScreen({
         <div key="fail" className="text-sm text-rose-600">
           {item.failCount}
         </div>,
-        <button
-          key="action"
-          type="button"
-          onClick={() => onNavigate?.("users")}
-          className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-900"
-        >
-          Review
-        </button>,
+        ...(isGlobalScope
+          ? [
+              <button
+                key="action"
+                type="button"
+                onClick={() => onNavigate?.("users")}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:border-slate-300 hover:text-slate-900"
+              >
+                Review
+              </button>,
+            ]
+          : []),
       ],
     }));
 
@@ -417,11 +439,6 @@ export default function AdminDashboardScreen({
         { label: "Latest Version", value: scopedProjectStats.latestVersion || "N/A" },
         { label: "Total Tests", value: Number(scopedProjectStats.totalTests || 0) },
         { label: "Blocked", value: Number(scopedProjectStats.blockedCount || 0), helper: "Blocked during execution" },
-        {
-          label: "Project Pass Rate",
-          value: `${Number(scopedProjectStats.passRate || 0)}%`,
-          helper: `${Number(scopedProjectStats.passCount || 0)} pass / ${Number(scopedProjectStats.failCount || 0)} fail`,
-        },
       ]
     : [];
 
@@ -454,7 +471,11 @@ export default function AdminDashboardScreen({
             value={isGlobalScope ? totalProjects : (scopedProjectName || "Selected")}
           />
           <MetricCard label="Test plan" value={totalPlans} />
-          <MetricCard label="Test case" value={totalCases} />
+          <MetricCard
+            label="Executed items"
+            value={totalCases}
+            helper="Total case results across runs in scope"
+          />
           <MetricCard label={isGlobalScope ? "Users" : "Active Users"} value={totalUsers} />
         </div>
         <div className="grid grid-cols-1 gap-4 px-6 pb-6 md:grid-cols-2 xl:grid-cols-4">
@@ -481,11 +502,22 @@ export default function AdminDashboardScreen({
               ))}
             </div>
           </div>
-          <StatusBreakdownDonut
-            title="Execution Status Mix"
-            subtitle="Quickly scan pass/fail/blocked distribution"
-            items={statusBreakdown}
-          />
+          <div className="grid min-w-0 gap-6 xl:grid-cols-2">
+            <div className="min-w-0">
+              <StatusBreakdownDonut
+                title="Execution Status Mix"
+                subtitle="Donut view — pass / fail / blocked / not run"
+                items={statusBreakdown}
+              />
+            </div>
+            <div className="min-w-0">
+              <ExecutionStatusBarChart
+                title="Status Comparison"
+                subtitle="Bar view — same metrics, different perspective"
+                items={statusBreakdown}
+              />
+            </div>
+          </div>
         </div>
       </section>
 
@@ -528,11 +560,37 @@ export default function AdminDashboardScreen({
       </div>
 
       {!isGlobalScope && (
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <>
+          <VersionHealthPanel
+            versions={versionHealth.map((version: RecordAny) => ({
+              _id: String(getId(version) || version._id || ""),
+              name: String(version.name || "Untitled"),
+              totalTestPlans: Number(version.totalTestPlans || 0),
+              totalTests: Number(version.totalTests || 0),
+              passCount: Number(version.passCount || 0),
+              failCount: Number(version.failCount || 0),
+              notRunCount: Number(version.notRunCount || 0),
+              progress: Number(version.progress || 0),
+              passRate: Number(version.passRate || 0),
+            }))}
+            matchesSearch={matchesSearch}
+            onNavigate={onNavigate}
+            projectId={selectedProjectId}
+          />
+
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
           <div className="space-y-4">
             <SectionHeader
               title="Tester Activity"
               subtitle="Pass/fail distribution by tester"
+            />
+            <TesterThroughputChart
+              rows={testerActivity.map((item: RecordAny) => ({
+                name: item.name,
+                passCount: item.passCount,
+                failCount: item.failCount,
+                blockedCount: item.blockedCount,
+              }))}
             />
             <DataGrid
               columns={[
@@ -540,7 +598,7 @@ export default function AdminDashboardScreen({
                 { key: "total", label: "Total" },
                 { key: "pass", label: "Pass" },
                 { key: "fail", label: "Fail" },
-                { key: "action", label: "Action", align: "right", width: "120px" },
+                ...(isGlobalScope ? [{ key: "action", label: "Action", align: "right" as const, width: "120px" }] : []),
               ]}
               rows={testerRows}
               emptyText="No tester activity"
@@ -554,7 +612,11 @@ export default function AdminDashboardScreen({
             />
             {scopedProjectStats ? (
               <>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+                  <PassRateRadial
+                    passRate={Number(scopedProjectStats.passRate || 0)}
+                    label="Project pass rate"
+                  />
                   {scopedSnapshotCards.map((card: SummaryCard) => (
                     <MetricCard
                       key={card.label}
@@ -603,6 +665,7 @@ export default function AdminDashboardScreen({
             )}
           </div>
         </div>
+        </>
       )}
 
       {isGlobalScope && (

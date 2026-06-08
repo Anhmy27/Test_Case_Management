@@ -20,6 +20,11 @@ const PROJECT_SCOPE_TABS = new Set([
   "test-runs-execution",
 ]);
 
+export type DashboardNavigateOptions = {
+  projectId?: string;
+  query?: Record<string, string | undefined>;
+};
+
 export default function AdminDashboardRoute() {
   const router = useRouter();
   const { token, currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
@@ -27,6 +32,7 @@ export default function AdminDashboardRoute() {
   const [plans, setPlans] = useState<RecordAny[]>([]);
   const [users, setUsers] = useState<RecordAny[]>([]);
   const [dashboard, setDashboard] = useState<RecordAny | null>(null);
+  const [versionHealth, setVersionHealth] = useState<RecordAny[]>([]);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string>("");
@@ -44,11 +50,17 @@ export default function AdminDashboardRoute() {
 
       try {
         const dashboardQuery = selectedProjectId ? `?projectId=${encodeURIComponent(selectedProjectId)}` : "";
-        const [projectsResponse, plansResponse, dashboardResponse, usersResponse] = await Promise.all([
+        const versionDashboardQuery = selectedProjectId
+          ? `/api/dashboard/versions?projectId=${encodeURIComponent(selectedProjectId)}`
+          : null;
+        const [projectsResponse, plansResponse, dashboardResponse, usersResponse, versionDashboardResponse] = await Promise.all([
           apiRequest<{ projects: RecordAny[] }>("/api/projects", token),
           apiRequest<{ testPlans: RecordAny[] }>(selectedProjectId ? `/api/test-plans?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-plans", token),
           apiRequest<RecordAny>(`/api/dashboard${dashboardQuery}`, token),
           apiRequest<{ users: RecordAny[] }>("/api/users", token),
+          versionDashboardQuery
+            ? apiRequest<{ versions: RecordAny[] }>(versionDashboardQuery, token)
+            : Promise.resolve({ versions: [] }),
         ]);
 
         if (cancelled) {
@@ -59,6 +71,7 @@ export default function AdminDashboardRoute() {
         setPlans(Array.isArray(plansResponse.testPlans) ? plansResponse.testPlans : []);
         setUsers(Array.isArray(usersResponse.users) ? usersResponse.users : []);
         setDashboard(dashboardResponse || null);
+        setVersionHealth(Array.isArray(versionDashboardResponse.versions) ? versionDashboardResponse.versions : []);
       } catch (error) {
         if (!cancelled) {
           setMessage(error instanceof Error ? error.message : "Unable to load dashboard");
@@ -100,8 +113,10 @@ export default function AdminDashboardRoute() {
     return values.some((value) => String(value || "").toLowerCase().includes(normalizedSearch));
   };
 
-  const handleNavigate = (tab: string, projectId?: string) => {
-    const explicitProjectId = typeof projectId === "string" ? projectId.trim() : "";
+  const handleNavigate = (tab: string, options?: string | DashboardNavigateOptions) => {
+    const normalized: DashboardNavigateOptions =
+      typeof options === "string" ? { projectId: options } : options ?? {};
+    const explicitProjectId = normalized.projectId?.trim() || "";
     const nextProjectId = explicitProjectId || selectedProjectId;
 
     if (PROJECT_SCOPE_TABS.has(tab)) {
@@ -112,16 +127,19 @@ export default function AdminDashboardRoute() {
 
       setSelectedProjectId(nextProjectId);
       window.localStorage.setItem(PROJECT_SCOPE_STORAGE_KEY, nextProjectId);
-      router.push(`/workspace/admin/${tab}`);
-      return;
-    }
-
-    if (explicitProjectId) {
+    } else if (explicitProjectId) {
       setSelectedProjectId(explicitProjectId);
       window.localStorage.setItem(PROJECT_SCOPE_STORAGE_KEY, explicitProjectId);
     }
 
-    router.push(`/workspace/admin/${tab}`);
+    const params = new URLSearchParams();
+    Object.entries(normalized.query || {}).forEach(([key, value]) => {
+      if (value) {
+        params.set(key, value);
+      }
+    });
+    const query = params.toString();
+    router.push(`/workspace/admin/${tab}${query ? `?${query}` : ""}`);
   };
 
   useLayoutEffect(() => {
@@ -177,8 +195,10 @@ export default function AdminDashboardRoute() {
           totalUsers={totalUsers}
           dashboardSummary={dashboardSummary}
           dashboardData={safeDashboard}
+          versionHealth={versionHealth}
           projectOverview={dashboardProjectOverview}
           projects={safeProjects}
+          selectedProjectId={selectedProjectId}
           matchesSearch={matchesSearch}
           userName={userName}
           getId={getId}

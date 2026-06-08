@@ -15,11 +15,13 @@ const {
   toObjectId,
   findTestPlanByReference,
   findProjectByReference,
+  repointVersionReferences,
 } = require('../utils/entityResolvers');
 
-// ---------------------------------------------------------------------------
-// Empty payload shape (used on early exits)
-// ---------------------------------------------------------------------------
+const activeLatestFilter = () => ({
+  deletedAt: null,
+  $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+});
 
 const emptyDashboardPayload = () => ({
   summary: {
@@ -440,10 +442,14 @@ const getVersionDashboardService = async ({ projectId }) => {
 
   const versions = await Version.find({
     project: { $in: projectIds.map((v) => toObjectId(v, 'projectId')) },
-    deletedAt: null,
+    ...activeLatestFilter(),
   })
     .sort({ createdAt: -1 })
     .lean();
+
+  await Promise.all(
+    versions.map((version) => repointVersionReferences(version.entityId || version._id, version)),
+  );
 
   const versionStats = await Promise.all(versions.map(async (version) => {
     const versionRefs = await Version.find({ entityId: version.entityId }).select('_id entityId').lean();
@@ -453,6 +459,7 @@ const getVersionDashboardService = async ({ projectId }) => {
 
     const testPlans = await TestPlan.find({
       version: { $in: versionIds.map((v) => toObjectId(v, 'versionId')) },
+      ...activeLatestFilter(),
     }).lean();
 
     const runs = await TestRun.aggregate([
@@ -474,7 +481,7 @@ const getVersionDashboardService = async ({ projectId }) => {
     const executed = passCount + failCount;
 
     return {
-      _id: String(version._id),
+      _id: String(version.entityId || version._id),
       name: version.name,
       project: String(version.project),
       totalTestPlans: testPlans.length,
@@ -504,10 +511,14 @@ const getTestPlanStatsService = async ({ versionId }) => {
   }).lean();
   if (!versionDoc) return { testPlans: [] };
 
+  const versionRefs = await Version.find({ entityId: versionDoc.entityId }).select('_id entityId').lean();
+  const versionIds = Array.from(new Set(
+    versionRefs.flatMap((item) => [String(item._id), String(item.entityId || '')]).filter(Boolean),
+  ));
+
   const testPlans = await TestPlan.find({
-    version: versionDoc._id,
-    deletedAt: null,
-    $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+    version: { $in: versionIds.map((v) => toObjectId(v, 'versionId')) },
+    ...activeLatestFilter(),
   })
     .populate('owner', 'name email role')
     .populate('assignees', 'name email role')

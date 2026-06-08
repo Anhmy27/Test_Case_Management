@@ -3,6 +3,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useEffect, useLayoutEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import AdminTestCasesHistoryScreen from "@/components/workspaceScreens/AdminTestCasesHistoryScreen";
 import { useAdminWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
 import { WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
@@ -11,6 +12,8 @@ import { apiRequest, createTextMatcher, getId } from "@/lib/api";
 type RecordAny = Record<string, any>;
 
 export default function AdminTestCasesHistoryRoute() {
+  const searchParams = useSearchParams();
+  const caseKeyFromUrl = String(searchParams.get("caseKey") || "").trim();
   const { token, currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [groups, setGroups] = useState<RecordAny[]>([]);
@@ -69,6 +72,11 @@ export default function AdminTestCasesHistoryRoute() {
     setTopbar(
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-xl font-semibold text-slate-900">Execution History</h1>
+        {caseKeyFromUrl ? (
+          <span className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
+            Filter: {caseKeyFromUrl}
+          </span>
+        ) : null}
         <div className="ml-auto">
           <select
             value={selectedProjectId}
@@ -87,7 +95,7 @@ export default function AdminTestCasesHistoryRoute() {
     );
 
     return () => setTopbar(null);
-  }, [projects, selectedProjectId, setSelectedProjectId, setTopbar]);
+  }, [caseKeyFromUrl, projects, selectedProjectId, setSelectedProjectId, setTopbar]);
 
   return (
     <>
@@ -102,7 +110,8 @@ export default function AdminTestCasesHistoryRoute() {
           scopedGroups={groups}
           detailLoading={loading}
           detailRows={detailRows}
-          matchesSearch={createTextMatcher()}
+          highlightCaseKey={caseKeyFromUrl}
+          matchesSearch={createTextMatcher(caseKeyFromUrl)}
         />
       )}
     </>

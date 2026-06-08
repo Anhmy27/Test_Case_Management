@@ -2,7 +2,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { DataTable, Field, INPUT_CLS, SectionCard, StatusBadge } from "./shared";
 import { getId } from "@/lib/api";
 
@@ -15,12 +15,44 @@ type Props = {
   scopedGroups: RecordAny[];
   detailLoading: boolean;
   detailRows: RecordAny[];
+  highlightCaseKey?: string;
   matchesSearch: (...values: Array<string | number | undefined | null>) => boolean;
 };
 
-export default function AdminTestCasesHistoryScreen({ selectedProjectId, detailGroupId, setDetailGroupId, scopedGroups, detailLoading, detailRows, matchesSearch }: Props) {
+export default function AdminTestCasesHistoryScreen({
+  selectedProjectId,
+  detailGroupId,
+  setDetailGroupId,
+  scopedGroups,
+  detailLoading,
+  detailRows,
+  highlightCaseKey = "",
+  matchesSearch,
+}: Props) {
   const safeDetailRows = Array.isArray(detailRows) ? detailRows : [];
   const [focusedCase, setFocusedCase] = useState<RecordAny | null>(null);
+  const consumedHighlightRef = useRef("");
+
+  useEffect(() => {
+    const query = highlightCaseKey.trim().toLowerCase();
+    if (!query || detailLoading || safeDetailRows.length === 0) {
+      return;
+    }
+    if (consumedHighlightRef.current === query) {
+      return;
+    }
+
+    const matched = safeDetailRows.find((testCase: RecordAny) => {
+      const caseKey = String(testCase.caseKey || testCase.key || "").toLowerCase();
+      const title = String(testCase.title || testCase.name || "").toLowerCase();
+      return caseKey.includes(query) || title.includes(query) || query.includes(caseKey);
+    });
+
+    if (matched) {
+      setFocusedCase(matched);
+      consumedHighlightRef.current = query;
+    }
+  }, [detailLoading, highlightCaseKey, safeDetailRows]);
 
   const focusedHistory = useMemo(
     () =>
@@ -47,7 +79,7 @@ export default function AdminTestCasesHistoryScreen({ selectedProjectId, detailG
 
   return (
     <div className="space-y-5">
-      {(selectedProjectId === undefined || selectedProjectId === null) ? (
+      {!selectedProjectId ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           Hãy chọn project trong Project scope để xem Execution History.
         </div>
