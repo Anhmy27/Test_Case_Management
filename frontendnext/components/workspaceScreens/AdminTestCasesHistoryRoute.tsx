@@ -2,11 +2,11 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import AdminTestCasesHistoryScreen from "@/components/workspaceScreens/AdminTestCasesHistoryScreen";
 import { useAdminWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
-import { WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
+import { TOPBAR_INPUT_CLS, WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
 import { apiRequest, createTextMatcher, getId } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
@@ -68,12 +68,17 @@ export default function AdminTestCasesHistoryRoute() {
     };
   }, [currentUser, detailGroupId, selectedProjectId, token]);
 
+  const highlightMatcher = useMemo(
+    () => createTextMatcher(caseKeyFromUrl),
+    [caseKeyFromUrl],
+  );
+
   useLayoutEffect(() => {
     setTopbar(
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-xl font-semibold text-slate-900">Execution History</h1>
+        <h1 className="text-xl font-semibold text-slate-900 dark:text-zinc-50">Execution History</h1>
         {caseKeyFromUrl ? (
-          <span className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
+          <span className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700 dark:border-indigo-500/40 dark:bg-indigo-950/40 dark:text-indigo-300">
             Filter: {caseKeyFromUrl}
           </span>
         ) : null}
@@ -81,7 +86,7 @@ export default function AdminTestCasesHistoryRoute() {
           <select
             value={selectedProjectId}
             onChange={(event) => setSelectedProjectId(event.target.value)}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-400 focus:outline-none"
+            className={TOPBAR_INPUT_CLS}
           >
             <option value="">All projects</option>
             {projects.map((project) => (
@@ -111,7 +116,7 @@ export default function AdminTestCasesHistoryRoute() {
           detailLoading={loading}
           detailRows={detailRows}
           highlightCaseKey={caseKeyFromUrl}
-          matchesSearch={createTextMatcher(caseKeyFromUrl)}
+          matchesSearch={highlightMatcher}
         />
       )}
     </>

@@ -4,17 +4,17 @@ const { httpError } = require('../utils/httpError');
 const { asyncHandler } = require('../utils/asyncHandler');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'replace-me-secret';
+const AUTOMATION_SECRET_HEADER = 'x-automation-secret';
 
-const authenticate = asyncHandler(async (req, res, next) => {
+async function attachUserFromBearerToken(req) {
   const authHeader = req.headers.authorization;
-
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    throw httpError(401, 'Missing or invalid authorization token');
+    return null;
   }
 
   const token = authHeader.slice(7);
-
   let payload;
+
   try {
     payload = jwt.verify(token, JWT_SECRET);
   } catch (error) {
@@ -33,7 +33,57 @@ const authenticate = asyncHandler(async (req, res, next) => {
     email: user.email,
   };
 
+  return req.user;
+}
+
+function readAutomationSecret(req) {
+  return String(req.headers[AUTOMATION_SECRET_HEADER] || '').trim();
+}
+
+function isValidAutomationSecret(providedSecret) {
+  const configuredSecret = String(process.env.AUTOMATION_SECRET || '').trim();
+  if (!configuredSecret) {
+    return false;
+  }
+
+  return providedSecret === configuredSecret;
+}
+
+const authenticate = asyncHandler(async (req, res, next) => {
+  const user = await attachUserFromBearerToken(req);
+  if (!user) {
+    throw httpError(401, 'Missing or invalid authorization token');
+  }
+
   next();
+});
+
+/**
+ * CI/CD shared secret OR admin JWT for POST /test-runs/:runId/automation-results.
+ * Mount before global authenticate on that route only.
+ */
+const authenticateAutomationIngest = asyncHandler(async (req, res, next) => {
+  const secret = readAutomationSecret(req);
+  if (isValidAutomationSecret(secret)) {
+    req.automationIngest = { source: 'secret' };
+    return next();
+  }
+
+  const user = await attachUserFromBearerToken(req);
+  if (user) {
+    if (user.role !== 'admin') {
+      throw httpError(403, 'Not authorized to submit automation results');
+    }
+
+    req.automationIngest = { source: 'admin' };
+    return next();
+  }
+
+  if (!process.env.AUTOMATION_SECRET) {
+    throw httpError(503, 'Automation ingest is not configured');
+  }
+
+  throw httpError(401, 'Invalid automation secret or authorization token');
 });
 
 function authorize(...roles) {
@@ -65,4 +115,9 @@ function signAccessToken(user) {
   );
 }
 
-module.exports = { authenticate, authorize, signAccessToken };
+module.exports = {
+  authenticate,
+  authenticateAutomationIngest,
+  authorize,
+  signAccessToken,
+};

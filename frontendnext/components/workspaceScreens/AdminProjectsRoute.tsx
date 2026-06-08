@@ -2,11 +2,11 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import AdminProjectsScreen from "@/components/workspaceScreens/AdminProjectsScreen";
 import { useAdminWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
-import { WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
-import { apiRequest, getId } from "@/lib/api";
+import { TOPBAR_INPUT_CLS, WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
+import { apiRequest, createTextMatcher, getId } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
 
@@ -55,11 +55,7 @@ export default function AdminProjectsRoute() {
     };
   }, [currentUser, token]);
 
-  const normalizedSearch = searchTerm.trim().toLowerCase();
-  const matchesSearch = (...values: Array<string | number | undefined | null>) => {
-    if (!normalizedSearch) return true;
-    return values.some((value) => String(value || "").toLowerCase().includes(normalizedSearch));
-  };
+  const matchesSearch = useMemo(() => createTextMatcher(searchTerm), [searchTerm]);
 
   const refreshProjects = async () => {
     const response = await apiRequest<{ projects: RecordAny[] }>("/api/projects", token);
@@ -114,12 +110,12 @@ export default function AdminProjectsRoute() {
   useLayoutEffect(() => {
     setTopbar(
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-xl font-semibold text-slate-900">Projects</h1>
+        <h1 className="text-xl font-semibold text-slate-900 dark:text-zinc-50">Projects</h1>
         <div className="ml-auto">
           <input
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
-            className="w-52 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20"
+            className={`w-52 ${TOPBAR_INPUT_CLS}`}
             placeholder="Filter projects..."
           />
         </div>

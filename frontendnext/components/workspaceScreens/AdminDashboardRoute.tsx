@@ -7,7 +7,8 @@ import { useRouter } from "next/navigation";
 import AdminDashboardScreen from "@/components/workspaceScreens/AdminDashboardScreen";
 import { useAdminWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
 import { WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
-import { apiRequest, getId, userName } from "@/lib/api";
+import { apiRequest, createTextMatcher, getId, userName } from "@/lib/api";
+import { dashboardInputClassName } from "@/components/dashboard/chartTheme";
 
 type RecordAny = Record<string, any>;
 const PROJECT_SCOPE_STORAGE_KEY = "tcm_selected_project_id";
@@ -101,15 +102,7 @@ export default function AdminDashboardRoute() {
   const selectedProject = safeProjects.find((project) => getId(project) === selectedProjectId) || null;
   const scopedProjectName = selectedProject?.name || "";
   const runningRunsCount = Number(dashboardSummary.runningRuns || 0);
-  const normalizedSearch = searchTerm.trim().toLowerCase();
-
-  const matchesSearch = (...values: Array<string | number | undefined | null>) => {
-    if (!normalizedSearch) {
-      return true;
-    }
-
-    return values.some((value) => String(value || "").toLowerCase().includes(normalizedSearch));
-  };
+  const matchesSearch = useMemo(() => createTextMatcher(searchTerm), [searchTerm]);
 
   const handleNavigate = (tab: string, options?: string | DashboardNavigateOptions) => {
     const normalized: DashboardNavigateOptions =
@@ -142,19 +135,26 @@ export default function AdminDashboardRoute() {
 
   useLayoutEffect(() => {
     setTopbar(
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-xl font-semibold text-slate-900">Dashboard</h1>
-        <div className="ml-auto flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="min-w-0">
+          <h1 className="text-[15px] font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">Dashboard</h1>
+          <p className="mt-0.5 text-[13px] text-zinc-500 dark:text-zinc-400">
+            {isGlobalScope
+              ? "Portfolio-wide execution health"
+              : scopedProjectName || "Project-scoped metrics"}
+          </p>
+        </div>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           <input
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
-            className="w-52 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20"
-            placeholder="Search dashboard..."
+            className={`${dashboardInputClassName()} w-44`}
+            placeholder="Filter..."
           />
           <select
             value={selectedProjectId}
             onChange={(event) => setSelectedProjectId(event.target.value)}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-400 focus:outline-none"
+            className={`${dashboardInputClassName()} min-w-[148px]`}
           >
             <option value="">All projects</option>
             {safeProjects.map((project) => {
@@ -171,12 +171,12 @@ export default function AdminDashboardRoute() {
     );
 
     return () => setTopbar(null);
-  }, [safeProjects, searchTerm, selectedProjectId, setSelectedProjectId, setTopbar]);
+  }, [isGlobalScope, safeProjects, scopedProjectName, searchTerm, selectedProjectId, setSelectedProjectId, setTopbar]);
 
   return (
     <>
       {message ? (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div className="rounded-md border border-amber-200/80 bg-amber-50 px-4 py-3 text-[13px] text-amber-900">
           {message}
         </div>
       ) : null}
@@ -185,7 +185,6 @@ export default function AdminDashboardRoute() {
       ) : (
         <AdminDashboardScreen
           isGlobalScope={isGlobalScope}
-          scopedProjectName={scopedProjectName}
           runningRunsCount={runningRunsCount}
           dashboardSummary={dashboardSummary}
           dashboardData={safeDashboard}

@@ -10,7 +10,19 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { chartCardClassName, chartHeaderClassName } from "./chartTheme";
+import ChartVisualDefs, { chartGradientId } from "./ChartVisualDefs";
+import {
+  CHART_COLORS,
+  chartBodyClassName,
+  chartEmptyClassName,
+  chartHeaderClassName,
+  chartPlotClassName,
+  chartSubtitleClassName,
+  chartSurfaceClassName,
+  chartTitleClassName,
+  dashboardPanelClassName,
+} from "./chartTheme";
+import { truncateChartLabel } from "./chartUtils";
 
 export type ScopeCompareItem = {
   id: string;
@@ -26,28 +38,23 @@ type Props = {
   subtitle?: string;
   items: ScopeCompareItem[];
   emptyText?: string;
+  embedded?: boolean;
   onItemClick?: (item: ScopeCompareItem) => void;
 };
 
-function progressBarColor(progress: number, totalTests: number) {
+const GRAD_PREFIX = "tcm-prog";
+
+function progressBarFill(progress: number, totalTests: number) {
   if (totalTests <= 0) {
-    return "#94a3b8";
+    return chartGradientId(GRAD_PREFIX, "prog-empty");
   }
   if (progress >= 80) {
-    return "#10b981";
+    return chartGradientId(GRAD_PREFIX, "prog-high");
   }
   if (progress >= 40) {
-    return "#f59e0b";
+    return chartGradientId(GRAD_PREFIX, "prog-mid");
   }
-  return "#f43f5e";
-}
-
-function truncateLabel(value: string, maxLength = 18) {
-  const text = String(value || "").trim();
-  if (text.length <= maxLength) {
-    return text;
-  }
-  return `${text.slice(0, maxLength - 1)}…`;
+  return chartGradientId(GRAD_PREFIX, "prog-low");
 }
 
 export default function ScopeCompareBarChart({
@@ -55,55 +62,59 @@ export default function ScopeCompareBarChart({
   subtitle,
   items,
   emptyText = "No items to compare",
+  embedded = false,
   onItemClick,
 }: Props) {
   const data = items.map((item) => ({
     ...item,
     value: Math.max(0, Math.min(100, Number(item.progress || 0))),
   }));
-  const chartHeight = Math.max(160, Math.min(420, data.length * 46 + 32));
+  const chartHeight = Math.max(140, Math.min(360, data.length * 38 + 28));
+  const outer = embedded ? chartSurfaceClassName() : dashboardPanelClassName();
 
   return (
-    <section className={chartCardClassName()}>
+    <section className={outer}>
       <div className={chartHeaderClassName()}>
-        <div className="text-base font-semibold text-slate-900">{title}</div>
-        {subtitle ? <div className="mt-0.5 text-sm text-slate-500">{subtitle}</div> : null}
+        <div className={chartTitleClassName()}>{title}</div>
+        {subtitle ? <div className={chartSubtitleClassName()}>{subtitle}</div> : null}
       </div>
 
       {data.length === 0 ? (
-        <div className="px-5 py-10 text-center text-sm text-slate-500">{emptyText}</div>
+        <div className={chartEmptyClassName()}>{emptyText}</div>
       ) : (
-        <div className="w-full min-w-0 px-4 pb-4 pt-1" style={{ height: chartHeight }}>
-          <ResponsiveContainer width="100%" height={chartHeight} minWidth={0}>
+        <div className={chartBodyClassName()}>
+          <div className={`${chartPlotClassName()} w-full min-w-0`} style={{ height: chartHeight }}>
+            <ResponsiveContainer width="100%" height={chartHeight - 8} minWidth={0}>
               <BarChart
                 data={data}
                 layout="vertical"
-                margin={{ top: 4, right: 52, left: 4, bottom: 4 }}
+                margin={{ top: 2, right: 48, left: 0, bottom: 2 }}
               >
+                <ChartVisualDefs prefix={GRAD_PREFIX} sets={["progressBar", "failBar"]} />
                 <XAxis type="number" domain={[0, 100]} hide />
                 <YAxis
                   type="category"
                   dataKey="name"
-                  width={132}
-                  tick={{ fill: "#475569", fontSize: 12, fontWeight: 500 }}
-                  tickFormatter={(value) => truncateLabel(String(value))}
+                  width={120}
+                  tick={{ fill: CHART_COLORS.muted, fontSize: 11, fontWeight: 500 }}
+                  tickFormatter={(value) => truncateChartLabel(String(value))}
                   axisLine={false}
                   tickLine={false}
                 />
                 <Tooltip
-                  cursor={{ fill: "rgba(148, 163, 184, 0.12)", radius: 6 }}
+                  cursor={{ fill: "rgba(0,0,0,0.04)", radius: 4 }}
                   content={({ active, payload }) => {
                     if (!active || !payload?.length) {
                       return null;
                     }
                     const item = payload[0]?.payload as ScopeCompareItem & { value: number };
                     return (
-                      <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg">
-                        <div className="font-semibold text-slate-900">{item.name}</div>
+                      <div className="rounded-lg border border-black/[0.08] bg-white px-3 py-2 text-[12px] shadow-[0_4px_16px_rgba(0,0,0,0.1)]">
+                        <div className="font-medium text-zinc-900">{item.name}</div>
                         {item.detail ? (
-                          <div className="mt-0.5 text-slate-500">{item.detail}</div>
+                          <div className="mt-0.5 text-zinc-500">{item.detail}</div>
                         ) : null}
-                        <div className="mt-2 space-y-0.5 text-slate-600">
+                        <div className="mt-2 space-y-0.5 text-zinc-600">
                           <div>Progress: {item.value}%</div>
                           <div>
                             Pass rate:{" "}
@@ -117,8 +128,9 @@ export default function ScopeCompareBarChart({
                 />
                 <Bar
                   dataKey="value"
-                  radius={[0, 8, 8, 0]}
-                  maxBarSize={24}
+                  radius={[0, 5, 5, 0]}
+                  maxBarSize={16}
+                  background={{ fill: chartGradientId(GRAD_PREFIX, "bar-track"), radius: 5 }}
                   onClick={(_data, index) => {
                     const item = data[index];
                     if (item?.id) {
@@ -129,21 +141,22 @@ export default function ScopeCompareBarChart({
                   {data.map((entry) => (
                     <Cell
                       key={entry.id}
-                      fill={progressBarColor(entry.value, entry.totalTests)}
+                      fill={progressBarFill(entry.value, entry.totalTests)}
                       className={onItemClick ? "cursor-pointer" : undefined}
                     />
                   ))}
                   <LabelList
                     dataKey="value"
                     position="right"
-                    fill="#475569"
-                    fontSize={11}
+                    fill={CHART_COLORS.muted}
+                    fontSize={10}
                     fontWeight={600}
                     formatter={(value) => `${value ?? 0}%`}
                   />
                 </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       )}
     </section>

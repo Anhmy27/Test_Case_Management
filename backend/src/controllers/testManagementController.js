@@ -34,7 +34,7 @@ const applyAutomationResults = asyncHandler(async (req, res) => {
     runId: req.params.runId,
     results: req.body?.results,
     user: req.user,
-    automationSecret: req.headers['x-automation-secret'],
+    ingestSource: req.automationIngest?.source,
   });
   res.json(result);
 });

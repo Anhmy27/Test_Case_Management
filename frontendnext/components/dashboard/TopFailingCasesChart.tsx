@@ -11,7 +11,21 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { chartCardClassName, chartHeaderClassName } from "./chartTheme";
+import ChartVisualDefs, { chartGradientId } from "./ChartVisualDefs";
+import {
+  CHART_COLORS,
+  chartBodyClassName,
+  chartEmptyClassName,
+  chartHeaderClassName,
+  chartPlotClassName,
+  chartSubtitleClassName,
+  chartSurfaceClassName,
+  chartTitleClassName,
+  dashboardBadgeClassName,
+  dashboardGhostButtonClassName,
+  dashboardPanelClassName,
+} from "./chartTheme";
+import { truncateChartLabel } from "./chartUtils";
 
 export type TopFailingCaseItem = {
   id: string;
@@ -35,31 +49,25 @@ type Props = {
   showProject?: boolean;
   emptyText?: string;
   maxItems?: number;
+  embedded?: boolean;
   onItemClick?: (item: TopFailingCaseItem) => void;
 };
 
 const DEFAULT_MAX_ITEMS = 8;
+const GRAD_PREFIX = "tcm-fail";
 
-function truncateLabel(value: string, maxLength = 20) {
-  const text = String(value || "").trim();
-  if (text.length <= maxLength) {
-    return text;
-  }
-  return `${text.slice(0, maxLength - 1)}…`;
-}
-
-function failBarColor(failCount: number, maxFailCount: number) {
+function failBarFill(failCount: number, maxFailCount: number) {
   if (failCount <= 0) {
-    return "#94a3b8";
+    return chartGradientId(GRAD_PREFIX, "bar-track");
   }
   const ratio = maxFailCount > 0 ? failCount / maxFailCount : 0;
   if (ratio >= 0.66) {
-    return "#e11d48";
+    return chartGradientId(GRAD_PREFIX, "fail-high");
   }
   if (ratio >= 0.33) {
-    return "#f43f5e";
+    return chartGradientId(GRAD_PREFIX, "fail-mid");
   }
-  return "#fb7185";
+  return chartGradientId(GRAD_PREFIX, "fail-low");
 }
 
 function normalizeRows(items: TopFailingCaseItem[]): ChartRow[] {
@@ -84,37 +92,39 @@ function FailingCasesBarChart({
   showProject: boolean;
   onItemClick?: (item: TopFailingCaseItem) => void;
 }) {
-  const chartHeight = Math.max(120, data.length * 34 + 24);
+  const chartHeight = Math.max(100, data.length * 32 + 20);
 
   return (
-    <div className="w-full min-w-0 px-4 pb-4 pt-1" style={{ height: chartHeight }}>
-      <ResponsiveContainer width="100%" height={chartHeight} minWidth={0}>
-        <BarChart data={data} layout="vertical" margin={{ top: 0, right: 36, left: 0, bottom: 0 }}>
+    <div className={`${chartBodyClassName()} w-full min-w-0 pt-0`}>
+      <div className={`${chartPlotClassName()} w-full min-w-0`} style={{ height: chartHeight }}>
+        <ResponsiveContainer width="100%" height={chartHeight - 8} minWidth={0}>
+          <BarChart data={data} layout="vertical" margin={{ top: 0, right: 32, left: 0, bottom: 0 }}>
+            <ChartVisualDefs prefix={GRAD_PREFIX} sets={["failBar"]} />
           <XAxis type="number" domain={[0, Math.max(maxFailCount, 1)]} hide />
           <YAxis
             type="category"
             dataKey="label"
             width={128}
-            tick={{ fill: "#334155", fontSize: 12, fontWeight: 600 }}
-            tickFormatter={(value) => truncateLabel(String(value))}
+            tick={{ fill: CHART_COLORS.muted, fontSize: 12, fontWeight: 500 }}
+            tickFormatter={(value) => truncateChartLabel(String(value), 20)}
             axisLine={false}
             tickLine={false}
           />
           <Tooltip
-            cursor={{ fill: "rgba(244, 63, 94, 0.08)", radius: 6 }}
+            cursor={{ fill: "rgba(239,68,68,0.06)", radius: 4 }}
             content={({ active, payload }) => {
               if (!active || !payload?.length) {
                 return null;
               }
               const item = payload[0]?.payload as ChartRow;
               return (
-                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs shadow-lg">
-                  <div className="font-semibold text-slate-900">{item.caseKey || item.label}</div>
-                  <div className="mt-0.5 text-slate-600">{item.title}</div>
+                <div className="rounded-md border border-black/[0.08] bg-white px-3 py-2 text-[12px] shadow-[0_4px_16px_rgba(0,0,0,0.08)]">
+                  <div className="font-medium text-zinc-900">{item.caseKey || item.label}</div>
+                  <div className="mt-0.5 text-zinc-600">{item.title}</div>
                   {showProject && item.projectName ? (
-                    <div className="mt-0.5 text-slate-500">{item.projectName}</div>
+                    <div className="mt-0.5 text-zinc-500">{item.projectName}</div>
                   ) : null}
-                  <div className="mt-2 font-semibold text-rose-700">
+                  <div className="mt-2 font-medium text-rose-600">
                     {item.value} fail{item.value === 1 ? "" : "s"} · Click to open
                   </div>
                 </div>
@@ -123,8 +133,9 @@ function FailingCasesBarChart({
           />
           <Bar
             dataKey="value"
-            radius={[0, 6, 6, 0]}
-            maxBarSize={20}
+            radius={[0, 5, 5, 0]}
+            maxBarSize={16}
+            background={{ fill: chartGradientId(GRAD_PREFIX, "bar-track"), radius: 5 }}
             onClick={(_data, index) => {
               const item = data[index];
               if (item?.id) {
@@ -135,25 +146,27 @@ function FailingCasesBarChart({
             {data.map((entry) => (
               <Cell
                 key={entry.id}
-                fill={failBarColor(entry.value, maxFailCount)}
+                fill={failBarFill(entry.value, maxFailCount)}
                 className={onItemClick ? "cursor-pointer" : undefined}
               />
             ))}
-            <LabelList dataKey="value" position="right" fill="#be123c" fontSize={11} fontWeight={600} />
+            <LabelList dataKey="value" position="right" fill={CHART_COLORS.muted} fontSize={10} fontWeight={600} />
           </Bar>
         </BarChart>
       </ResponsiveContainer>
+      </div>
     </div>
   );
 }
 
 export default function TopFailingCasesChart({
-  title = "Top Failing Cases",
-  subtitle = "Sorted by fail count — click a bar to open the test case",
+  title = "Top failing cases",
+  subtitle = "Click a bar to open the test case",
   items,
   showProject = true,
   emptyText = "No failing cases found",
   maxItems = DEFAULT_MAX_ITEMS,
+  embedded = false,
   onItemClick,
 }: Props) {
   const [showAllModal, setShowAllModal] = useState(false);
@@ -168,25 +181,24 @@ export default function TopFailingCasesChart({
     setShowAllModal(false);
     onItemClick?.(item);
   };
+  const outer = embedded ? chartSurfaceClassName() : dashboardPanelClassName();
 
   return (
     <>
-      <section className={chartCardClassName()}>
+      <section className={outer}>
         <div className={chartHeaderClassName()}>
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
-              <div className="text-base font-semibold text-slate-900">{title}</div>
-              {subtitle ? <div className="mt-0.5 text-sm text-slate-500">{subtitle}</div> : null}
+              <div className={chartTitleClassName()}>{title}</div>
+              {subtitle ? <div className={chartSubtitleClassName()}>{subtitle}</div> : null}
             </div>
             {previewData.length > 0 ? (
               <div className="flex items-center gap-2">
-                <span className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">
-                  Top {previewData.length}
-                </span>
+                <span className={dashboardBadgeClassName("neutral")}>{previewData.length} shown</span>
                 <button
                   type="button"
                   onClick={() => setShowAllModal(true)}
-                  className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-900"
+                  className={dashboardGhostButtonClassName()}
                 >
                   View all
                 </button>
@@ -196,7 +208,7 @@ export default function TopFailingCasesChart({
         </div>
 
         {previewData.length === 0 ? (
-          <div className="px-5 py-8 text-center text-sm text-slate-500">{emptyText}</div>
+          <div className={chartEmptyClassName()}>{emptyText}</div>
         ) : (
           <FailingCasesBarChart
             data={previewData}
@@ -209,17 +221,17 @@ export default function TopFailingCasesChart({
 
       {showAllModal ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-[2px]"
           onClick={() => setShowAllModal(false)}
         >
           <div
-            className="flex max-h-[min(85vh,640px)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl"
+            className="flex max-h-[min(85vh,640px)] w-full max-w-lg flex-col overflow-hidden rounded-lg border border-black/[0.08] bg-white shadow-[0_24px_48px_rgba(0,0,0,0.12)]"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4">
+            <div className="flex items-start justify-between gap-3 border-b border-black/[0.06] px-5 py-4">
               <div>
-                <div className="text-base font-semibold text-slate-900">All failing cases</div>
-                <div className="mt-0.5 text-sm text-slate-500">
+                <div className={chartTitleClassName()}>All failing cases</div>
+                <div className={chartSubtitleClassName()}>
                   {allData.length} case{allData.length === 1 ? "" : "s"} · highest fail count first
                   {hasMoreThanPreview ? ` · showing all (not just top ${maxItems})` : ""}
                 </div>
@@ -227,7 +239,7 @@ export default function TopFailingCasesChart({
               <button
                 type="button"
                 onClick={() => setShowAllModal(false)}
-                className="rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-500 hover:text-slate-900"
+                className={dashboardGhostButtonClassName()}
                 aria-label="Close"
               >
                 ✕
@@ -241,7 +253,7 @@ export default function TopFailingCasesChart({
                     <button
                       type="button"
                       onClick={() => handleItemClick(item)}
-                      className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-rose-50/70"
+                      className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left transition-colors hover:bg-zinc-50"
                     >
                       <span className="w-5 shrink-0 text-xs font-semibold tabular-nums text-slate-400">
                         {index + 1}

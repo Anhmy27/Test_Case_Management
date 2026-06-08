@@ -2,12 +2,12 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import AdminGroupsScreen from "@/components/workspaceScreens/AdminGroupsScreen";
 import { useAdminWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
-import { WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
-import { apiRequest, getId } from "@/lib/api";
+import { TOPBAR_INPUT_CLS, WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
+import { apiRequest, createTextMatcher, getId } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
 
@@ -54,9 +54,7 @@ export default function AdminGroupsRoute() {
     };
   }, [currentUser, selectedProjectId, token]);
 
-  const normalizedSearch = searchTerm.trim().toLowerCase();
-  const matchesSearch = (...values: Array<string | number | undefined | null>) =>
-    !normalizedSearch || values.some((value) => String(value || "").toLowerCase().includes(normalizedSearch));
+  const matchesSearch = useMemo(() => createTextMatcher(searchTerm), [searchTerm]);
   const scopedProjects = selectedProjectId ? projects.filter((project) => getId(project) === selectedProjectId) : projects;
   const isProjectScoped = Boolean(selectedProjectId);
   const scopedProjectName = scopedProjects[0]?.name || "";
@@ -119,18 +117,18 @@ export default function AdminGroupsRoute() {
   useLayoutEffect(() => {
     setTopbar(
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-xl font-semibold text-slate-900">Groups</h1>
+        <h1 className="text-xl font-semibold text-slate-900 dark:text-zinc-50">Groups</h1>
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <input
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
-            className="w-52 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20"
+            className={`w-52 ${TOPBAR_INPUT_CLS}`}
             placeholder="Filter groups..."
           />
           <select
             value={selectedProjectId}
             onChange={(event) => setSelectedProjectId(event.target.value)}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-400 focus:outline-none"
+            className={TOPBAR_INPUT_CLS}
           >
             <option value="">All projects</option>
             {projects.map((project) => (
@@ -165,6 +163,7 @@ export default function AdminGroupsRoute() {
           testCases={testCases}
           startTestCaseEdit={startTestCaseEdit}
           matchesSearch={matchesSearch}
+          searchTerm={searchTerm}
           isProjectScoped={isProjectScoped}
           scopedProjectName={scopedProjectName}
         />

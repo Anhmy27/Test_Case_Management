@@ -8,7 +8,7 @@ import EmployeeMyTestPlansScreen from "@/components/workspaceScreens/EmployeeMyT
 import { buildEmployeeTopbar, useEmployeeProjectScope } from "@/components/workspaceScreens/employeeNav";
 import { useEmployeeWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
 import { WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
-import { apiRequest, getId } from "@/lib/api";
+import { apiRequest, createTextMatcher, getId } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
 
@@ -66,15 +66,7 @@ export default function EmployeeMyTestPlansRoute() {
     () => projectScope.filterPlans(plans),
     [plans, projectScope],
   );
-  const normalizedSearch = searchTerm.trim().toLowerCase();
-
-  const matchesSearch = (...values: Array<string | number | undefined | null>) => {
-    if (!normalizedSearch) {
-      return true;
-    }
-
-    return values.some((value) => String(value || "").toLowerCase().includes(normalizedSearch));
-  };
+  const matchesSearch = useMemo(() => createTextMatcher(searchTerm), [searchTerm]);
 
   const openExecutionForPlan = (plan: RecordAny) => {
     const planId = getId(plan);

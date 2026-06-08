@@ -6,6 +6,11 @@ import { useMemo } from "react";
 import StatusBreakdownDonut from "@/components/dashboard/StatusBreakdownDonut";
 import ExecutionTrendLineChart from "@/components/dashboard/ExecutionTrendLineChart";
 import { buildExecutionTrendPoints } from "@/components/dashboard/buildExecutionTrend";
+import {
+  DASHBOARD_GUTTER,
+  dashboardPanelClassName,
+  dashboardSectionLabelClassName,
+} from "@/components/dashboard/chartTheme";
 import ScopeCompareBarChart, {
   type ScopeCompareItem,
 } from "@/components/dashboard/ScopeCompareBarChart";
@@ -23,7 +28,6 @@ type RecordAny = Record<string, any>;
 
 type AdminDashboardScreenProps = {
   isGlobalScope: boolean;
-  scopedProjectName?: string;
   runningRunsCount: number;
   dashboardSummary: RecordAny;
   dashboardData: RecordAny;
@@ -64,11 +68,10 @@ function buildDashboardKpis({
   return [
     {
       id: "pass-rate",
-      label: "Pass Rate",
+      label: "Pass rate",
       value: `${passRate}%`,
       helper: "Across executed results in scope",
       hint: "pass / (pass + fail + blocked)",
-      accent: "emerald" as const,
     },
     {
       id: "completion",
@@ -76,23 +79,20 @@ function buildDashboardKpis({
       value: `${completionRate}%`,
       helper: "Share of planned results executed",
       hint: "(pass + fail + blocked) / total results in runs",
-      accent: "indigo" as const,
     },
     {
       id: "running-runs",
-      label: "Running Runs",
+      label: "Running runs",
       value: runningRunsCount,
       helper: "Test runs currently in progress",
-      accent: "sky" as const,
     },
     isGlobalScope
       ? {
           id: "at-risk",
-          label: "At Risk",
+          label: "At risk",
           value: atRiskCount,
           helper: "Delayed plans + high-failure cases",
           hint: "Count of delayed plans and top failing cases in scope",
-          accent: "rose" as const,
         }
       : {
           id: "blocked",
@@ -100,7 +100,6 @@ function buildDashboardKpis({
           value: blockedCount,
           helper: "Results blocked during execution",
           hint: "Blocked results across runs in this project",
-          accent: "amber" as const,
         },
   ];
 }
@@ -137,7 +136,6 @@ function resolveRunVersionName(
 
 export default function AdminDashboardScreen({
   isGlobalScope,
-  scopedProjectName,
   runningRunsCount,
   dashboardSummary,
   dashboardData,
@@ -178,10 +176,10 @@ export default function AdminDashboardScreen({
   );
 
   const statusBreakdown = [
-    { key: "pass", label: "Pass", value: passCount, color: "#16a34a" },
-    { key: "fail", label: "Fail", value: failCount, color: "#ef4444" },
-    { key: "blocked", label: "Blocked", value: blockedCount, color: "#f59e0b" },
-    { key: "untested", label: "Not Run", value: untestedCount, color: "#6366f1" },
+    { key: "pass", label: "Pass", value: passCount },
+    { key: "fail", label: "Fail", value: failCount },
+    { key: "blocked", label: "Blocked", value: blockedCount },
+    { key: "untested", label: "Not run", value: untestedCount },
   ];
 
   const mappedRunningRuns: MappedRunningRun[] = runningRuns
@@ -205,7 +203,6 @@ export default function AdminDashboardScreen({
           projectName,
           projectId,
           versionName,
-          testerName: userName(run.startedBy),
           runId: String(runId || ""),
         },
       };
@@ -305,75 +302,54 @@ export default function AdminDashboardScreen({
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-slate-900">
-            {isGlobalScope ? "Portfolio Overview" : "Project Dashboard"}
-          </h2>
-          <p className="mt-0.5 text-sm text-slate-500">
-            {isGlobalScope
-              ? "Cross-project execution health and priority risks"
-              : `Execution health for ${scopedProjectName || "selected project"}`}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm">
-            {isGlobalScope ? "Global" : "Project"}
-          </span>
-          {!isGlobalScope && scopedProjectName ? (
-            <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-              {scopedProjectName}
-            </span>
-          ) : null}
-        </div>
-      </div>
-
+    <div className="space-y-5">
       <DashboardKpiRow items={dashboardKpis} />
 
-      <ExecutionTrendLineChart
-        subtitle={
-          isGlobalScope
-            ? "Runs started and pass/fail results across all projects (last 14 days)"
-            : "Runs started and pass/fail results for this project (last 14 days)"
-        }
-        points={executionTrendPoints}
-      />
-
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
-        <StatusBreakdownDonut
-          title="Execution Status Mix"
-          subtitle="Pass, fail, blocked, and not run"
-          items={statusBreakdown}
-        />
-        <aside className="min-w-0 lg:sticky lg:top-4">
-          <DashboardActionCenter
-            runs={actionCenterRuns}
-            delayedPlans={actionCenterDelayedPlans}
-            showProject={isGlobalScope}
-            onNavigate={onNavigate}
+      <section>
+        <div className={`${dashboardSectionLabelClassName()} ${DASHBOARD_GUTTER}`}>Overview</div>
+        <div className={dashboardPanelClassName()}>
+          <ExecutionTrendLineChart
+            embedded
+            subtitle={
+              isGlobalScope ? "Last 14 days · all projects" : "Last 14 days · this project"
+            }
+            points={executionTrendPoints}
           />
-        </aside>
-      </div>
+          <div className="border-t border-black/[0.05] lg:grid lg:grid-cols-[minmax(0,1.2fr)_260px] lg:items-stretch dark:border-white/[0.06]">
+            <StatusBreakdownDonut embedded title="Status mix" items={statusBreakdown} />
+            <DashboardActionCenter
+              embedded
+              className="border-t border-black/[0.05] lg:border-t-0 lg:border-l lg:border-black/[0.05] dark:border-white/[0.06]"
+              runs={actionCenterRuns}
+              delayedPlans={actionCenterDelayedPlans}
+              showProject={isGlobalScope}
+              onNavigate={onNavigate}
+            />
+          </div>
+        </div>
+      </section>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <TopFailingCasesChart
-          items={topFailingCaseItems}
-          showProject={isGlobalScope}
-          onItemClick={handleTopFailingCaseClick}
-        />
-        <ScopeCompareBarChart
-          title={isGlobalScope ? "Project Progress" : "Version Progress"}
-          subtitle={
-            isGlobalScope
-              ? "Execution completion by project — click a bar to open versions"
-              : "Progress by version — click a bar to open plans"
-          }
-          items={scopeCompareItems}
-          emptyText={isGlobalScope ? "No projects found" : "No versions found for this project"}
-          onItemClick={handleScopeCompareClick}
-        />
-      </div>
+      <section>
+        <div className={`${dashboardSectionLabelClassName()} ${DASHBOARD_GUTTER}`}>Insights</div>
+        <div className={dashboardPanelClassName()}>
+          <div className="grid xl:grid-cols-2 xl:divide-x xl:divide-black/[0.05]">
+            <TopFailingCasesChart
+              embedded
+              items={topFailingCaseItems}
+              showProject={isGlobalScope}
+              onItemClick={handleTopFailingCaseClick}
+            />
+            <ScopeCompareBarChart
+              embedded
+              title={isGlobalScope ? "Project progress" : "Version progress"}
+              subtitle="Click a bar to drill down"
+              items={scopeCompareItems}
+              emptyText={isGlobalScope ? "No projects found" : "No versions found"}
+              onItemClick={handleScopeCompareClick}
+            />
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

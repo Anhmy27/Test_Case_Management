@@ -163,8 +163,12 @@ const startTestRunService = async ({ testPlanId, name, baseUrl, user }) => {
 // ---------------------------------------------------------------------------
 
 const applyAutomationResultsService = async ({
-  runId, results, user, automationSecret,
+  runId, results, user, ingestSource,
 }) => {
+  if (!ingestSource) {
+    throw httpError(403, 'Not authorized to submit automation results');
+  }
+
   if (!Array.isArray(results) || results.length === 0) {
     throw httpError(400, 'results[] is required');
   }
@@ -178,11 +182,7 @@ const applyAutomationResultsService = async ({
     throw httpError(400, 'Test plan is not automation execution mode');
   }
 
-  const allowedBySecret = process.env.AUTOMATION_SECRET && automationSecret === process.env.AUTOMATION_SECRET;
-  const isAdmin = user && user.role === 'admin';
-  if (!isAdmin && !allowedBySecret) {
-    throw httpError(403, 'Not authorized to submit automation results');
-  }
+  const isAdmin = ingestSource === 'admin' && user && user.role === 'admin';
 
   for (const item of results) {
     const { planItemId, status, note, notes } = item || {};

@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 
 /** Shared Tailwind class for all text inputs, selects, and textareas */
 export const INPUT_CLS =
-  "w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20 disabled:cursor-not-allowed disabled:opacity-50";
+  "w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-blue-500 dark:focus:ring-blue-500/20";
 
 /** Wraps a label + field slot pair */
 export function Field({
@@ -19,11 +19,64 @@ export function Field({
 }) {
   return (
     <label className="flex flex-col gap-1.5">
-      <span className="text-xs font-medium text-slate-600">{label}</span>
+      <span className="text-xs font-medium text-slate-600 dark:text-zinc-400">{label}</span>
       {children}
     </label>
   );
 }
+
+/** Readonly project when scoped, otherwise a project `<select>`. */
+export function ScopedProjectField({
+  isProjectScoped,
+  scopedProjectName,
+  projectId,
+  projects,
+  onProjectChange,
+  getId,
+  required = true,
+}: {
+  isProjectScoped: boolean;
+  scopedProjectName?: string;
+  projectId: string;
+  projects: Array<{ name?: string } & Record<string, unknown>>;
+  onProjectChange: (projectId: string) => void;
+  getId: (value: unknown) => string;
+  required?: boolean;
+}) {
+  if (isProjectScoped) {
+    return (
+      <Field label="Project">
+        <input
+          className={`${INPUT_CLS} bg-slate-50 dark:bg-zinc-800/50`}
+          value={scopedProjectName || "Selected project"}
+          readOnly
+        />
+      </Field>
+    );
+  }
+
+  return (
+    <Field label="Project">
+      <select
+        className={INPUT_CLS}
+        value={projectId}
+        onChange={(event) => onProjectChange(event.target.value)}
+        required={required}
+      >
+        <option value="">Select project</option>
+        {projects.map((project) => (
+          <option key={getId(project)} value={getId(project)}>
+            {project.name}
+          </option>
+        ))}
+      </select>
+    </Field>
+  );
+}
+
+/** Compact input/select styling for workspace route topbars. */
+export const TOPBAR_INPUT_CLS =
+  "rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:focus:border-blue-500 dark:focus:ring-blue-500/20";
 
 // ─── FilterBar ────────────────────────────────────────────────────────────
 
@@ -43,7 +96,7 @@ export function FilterBar({
   cols?: number;
 }) {
   return (
-    <div className="flex flex-wrap items-start gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+    <div className="flex flex-wrap items-start gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 dark:border-zinc-700 dark:bg-zinc-900">
       {(label || description) && (
         <div className="w-40 shrink-0">
           {label && (
@@ -80,9 +133,9 @@ export function FilterControl({ children }: { children: ReactNode }) {
 export function WorkspaceContentSkeleton() {
   return (
     <div className="animate-pulse space-y-4">
-      <div className="h-20 rounded-2xl bg-slate-200/70" />
-      <div className="h-56 rounded-2xl bg-slate-200/50" />
-      <div className="h-80 rounded-2xl bg-slate-200/40" />
+      <div className="h-20 rounded-2xl bg-slate-200/70 dark:bg-zinc-800" />
+      <div className="h-56 rounded-2xl bg-slate-200/50 dark:bg-zinc-800/80" />
+      <div className="h-80 rounded-2xl bg-slate-200/40 dark:bg-zinc-800/60" />
     </div>
   );
 }
@@ -90,17 +143,17 @@ export function WorkspaceContentSkeleton() {
 // ─── StatusBadge ───────────────────────────────────────────────────────────
 
 const STATUS_STYLES: Record<string, string> = {
-  pass:      "bg-emerald-50 text-emerald-700 ring-emerald-200/60",
-  fail:      "bg-rose-50 text-rose-700 ring-rose-200/60",
-  blocked:   "bg-amber-50 text-amber-800 ring-amber-200/60",
-  skip:      "bg-slate-100 text-slate-600 ring-slate-200/60",
-  running:   "bg-sky-50 text-sky-700 ring-sky-200/60",
-  completed: "bg-slate-100 text-slate-700 ring-slate-200/60",
-  pending:   "bg-amber-50 text-amber-700 ring-amber-200/60",
-  automation:"bg-violet-50 text-violet-700 ring-violet-200/60",
-  manual:    "bg-slate-100 text-slate-600 ring-slate-200/60",
-  active:    "bg-emerald-50 text-emerald-700 ring-emerald-200/60",
-  inactive:  "bg-slate-100 text-slate-500 ring-slate-200/60",
+  pass:      "bg-emerald-50 text-emerald-700 ring-emerald-200/60 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-500/30",
+  fail:      "bg-rose-50 text-rose-700 ring-rose-200/60 dark:bg-rose-950/40 dark:text-rose-300 dark:ring-rose-500/30",
+  blocked:   "bg-amber-50 text-amber-800 ring-amber-200/60 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-500/30",
+  skip:      "bg-slate-100 text-slate-600 ring-slate-200/60 dark:bg-zinc-800 dark:text-zinc-300 dark:ring-zinc-600/40",
+  running:   "bg-sky-50 text-sky-700 ring-sky-200/60 dark:bg-sky-950/40 dark:text-sky-300 dark:ring-sky-500/30",
+  completed: "bg-slate-100 text-slate-700 ring-slate-200/60 dark:bg-zinc-800 dark:text-zinc-200 dark:ring-zinc-600/40",
+  pending:   "bg-amber-50 text-amber-700 ring-amber-200/60 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-500/30",
+  automation:"bg-violet-50 text-violet-700 ring-violet-200/60 dark:bg-violet-950/40 dark:text-violet-300 dark:ring-violet-500/30",
+  manual:    "bg-slate-100 text-slate-600 ring-slate-200/60 dark:bg-zinc-800 dark:text-zinc-300 dark:ring-zinc-600/40",
+  active:    "bg-emerald-50 text-emerald-700 ring-emerald-200/60 dark:bg-emerald-950/40 dark:text-emerald-300 dark:ring-emerald-500/30",
+  inactive:  "bg-slate-100 text-slate-500 ring-slate-200/60 dark:bg-zinc-800 dark:text-zinc-400 dark:ring-zinc-600/40",
 };
 
 export function StatusBadge({ status }: { status: string }) {
@@ -137,13 +190,13 @@ type ButtonProps = {
 
 const BTN_VARIANT: Record<ButtonVariant, string> = {
   primary:
-    "border-blue-600 bg-blue-600 text-white hover:bg-blue-700 hover:border-blue-700 shadow-sm",
+    "border-blue-600 bg-blue-600 text-white hover:bg-blue-700 hover:border-blue-700 shadow-sm dark:border-indigo-500 dark:bg-indigo-500 dark:hover:bg-indigo-400",
   secondary:
-    "border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50 shadow-sm",
+    "border-slate-200 bg-white text-slate-800 hover:border-slate-300 hover:bg-slate-50 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:border-zinc-600 dark:hover:bg-zinc-700",
   danger:
-    "border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-300 hover:bg-rose-100",
+    "border-rose-200 bg-rose-50 text-rose-700 hover:border-rose-300 hover:bg-rose-100 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-950/60",
   ghost:
-    "border-transparent bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900",
+    "border-transparent bg-transparent text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-50",
 };
 
 const BTN_SIZE: Record<ButtonSize, string> = {
@@ -204,13 +257,13 @@ export function Card({
   noPadding?: boolean;
 }) {
   return (
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
       {(title || actions) && (
-        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-5 py-4 dark:border-zinc-800">
           {title ? (
             <div>
-              <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
-              {subtitle && <p className="mt-0.5 text-xs text-slate-500">{subtitle}</p>}
+              <h2 className="text-sm font-semibold text-slate-900 dark:text-zinc-50">{title}</h2>
+              {subtitle && <p className="mt-0.5 text-xs text-slate-500 dark:text-zinc-400">{subtitle}</p>}
             </div>
           ) : null}
           {actions ? (
@@ -258,8 +311,8 @@ export function PageHeader({
   return (
     <div className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0">
-        <h1 className="text-xl font-semibold text-slate-900">{title}</h1>
-        {subtitle && <p className="mt-0.5 text-sm text-slate-500">{subtitle}</p>}
+        <h1 className="text-xl font-semibold text-slate-900 dark:text-zinc-50">{title}</h1>
+        {subtitle && <p className="mt-0.5 text-sm text-slate-500 dark:text-zinc-400">{subtitle}</p>}
         {meta && (
           <div className="mt-2 flex flex-wrap items-center gap-2">{meta}</div>
         )}

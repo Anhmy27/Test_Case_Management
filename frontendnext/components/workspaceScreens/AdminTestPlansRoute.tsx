@@ -2,11 +2,11 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AdminTestPlansScreen from "@/components/workspaceScreens/AdminTestPlansScreen";
 import { useAdminWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
-import { WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
+import { TOPBAR_INPUT_CLS, WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
 import { apiRequest, createTextMatcher, getId, matchesSelectedEntity, userName } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
@@ -34,7 +34,7 @@ export default function AdminTestPlansRoute() {
   const [assignDraft, setAssignDraft] = useState({ ownerId: "", assigneeIds: [] as string[] });
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [editingPlanId, setEditingPlanId] = useState("");
-  const [editingExecutionMode, setEditingExecutionMode] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
@@ -166,7 +166,6 @@ export default function AdminTestPlansRoute() {
         setMessage("Test plan created");
       }
       setEditingPlanId("");
-      setEditingExecutionMode("");
       setPlanForm({ name: "", description: "", projectId: selectedProjectId || "", versionId: "", executionMode: "manual", selectedGroupIds: [], caseIds: [] });
       await refreshAll();
       return true;
@@ -214,18 +213,24 @@ export default function AdminTestPlansRoute() {
   };
   const openExecutionForPlan = (plan: RecordAny) => { const planId = getId(plan); const runName = `${plan.name || "Test plan"} - ${new Date().toISOString().slice(0, 16).replace("T", " ")}`; router.push(`/workspace/admin/test-runs-execution?testPlanId=${encodeURIComponent(planId)}&runName=${encodeURIComponent(runName)}`); };
   const setActiveTab = (tab: string) => router.push(`/workspace/admin/${tab}`);
-  const matchesSearch = createTextMatcher();
+  const matchesSearch = useMemo(() => createTextMatcher(searchTerm), [searchTerm]);
   const versionFilter = versions.find((version) => matchesSelectedEntity(version, versionIdFromUrl)) || null;
 
   useLayoutEffect(() => {
     setTopbar(
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-xl font-semibold text-slate-900">Test Plans</h1>
-        <div className="ml-auto">
+        <h1 className="text-xl font-semibold text-slate-900 dark:text-zinc-50">Test Plans</h1>
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <input
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            className={`w-52 ${TOPBAR_INPUT_CLS}`}
+            placeholder="Filter plans..."
+          />
           <select
             value={selectedProjectId}
             onChange={(event) => handleProjectScopeChange(event.target.value)}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-400 focus:outline-none"
+            className={TOPBAR_INPUT_CLS}
           >
             <option value="">All projects</option>
             {projects.map((project) => (
@@ -239,7 +244,7 @@ export default function AdminTestPlansRoute() {
     );
 
     return () => setTopbar(null);
-  }, [handleProjectScopeChange, projects, selectedProjectId, setTopbar]);
+  }, [handleProjectScopeChange, projects, searchTerm, selectedProjectId, setTopbar]);
 
   return (
     <>
@@ -283,9 +288,7 @@ export default function AdminTestPlansRoute() {
           scopedPlans={plans}
           versionFilterId={versionIdFromUrl}
           editingPlanId={editingPlanId}
-          editingExecutionMode={editingExecutionMode}
           setEditingPlanId={setEditingPlanId}
-          setEditingExecutionMode={setEditingExecutionMode}
           updatePlanExecutionMode={updatePlanExecutionMode}
           deletePlan={deletePlan}
           duplicatePlan={duplicatePlan}

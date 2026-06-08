@@ -8,7 +8,7 @@ import EmployeeRunningTestsScreen from "@/components/workspaceScreens/EmployeeRu
 import { buildEmployeeTopbar, useEmployeeProjectScope } from "@/components/workspaceScreens/employeeNav";
 import { useEmployeeWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
 import { WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
-import { apiRequest, getId, userName } from "@/lib/api";
+import { apiRequest, createTextMatcher, getId, userName } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
 
@@ -66,15 +66,7 @@ export default function EmployeeRunningTestsRoute() {
     () => projectScope.filterMyRuns(runs, getId(currentUser)),
     [currentUser, projectScope, runs],
   );
-  const normalizedSearch = searchTerm.trim().toLowerCase();
-
-  const matchesSearch = (...values: Array<string | number | undefined | null>) => {
-    if (!normalizedSearch) {
-      return true;
-    }
-
-    return values.some((value) => String(value || "").toLowerCase().includes(normalizedSearch));
-  };
+  const matchesSearch = useMemo(() => createTextMatcher(searchTerm), [searchTerm]);
 
   const loadMyItems = async (runId: string) => {
     if (!runId) {

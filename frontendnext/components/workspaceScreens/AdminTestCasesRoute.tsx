@@ -2,11 +2,11 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import AdminTestCasesScreen from "@/components/workspaceScreens/AdminTestCasesScreen";
 import { useAdminWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
-import { WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
+import { TOPBAR_INPUT_CLS, WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
 import { apiRequest, createTextMatcher, getId, matchesSelectedEntity } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
@@ -29,6 +29,7 @@ export default function AdminTestCasesRoute() {
   const [testCaseForm, setTestCaseForm] = useState({ projectId: "", groupId: "", caseKey: "", title: "", priority: "medium", severity: "major", type: "functional", description: "", expected: "", steps: [{ action: "", expected: "" }] });
   const [automationForm, setAutomationForm] = useState({ enabled: false, webId: "", baseUrl: "", userKey: "", timeoutMs: "30", steps: [{ stepId: "1", stepName: "", action: "goto", targetType: "css", target: "", value: "", expected: "", timeoutMs: "15" }] });
   const [editingTestCaseId, setEditingTestCaseId] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const importInputRef = useRef<HTMLInputElement | null>(null);
@@ -284,17 +285,23 @@ export default function AdminTestCasesRoute() {
     : groups;
   const isProjectScoped = Boolean(selectedProjectId);
   const scopedProjectName = scopedProjects[0]?.name || "";
-  const matchesSearch = createTextMatcher();
+  const matchesSearch = useMemo(() => createTextMatcher(searchTerm), [searchTerm]);
 
   useLayoutEffect(() => {
     setTopbar(
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-xl font-semibold text-slate-900">Test Cases</h1>
-        <div className="ml-auto">
+        <h1 className="text-xl font-semibold text-slate-900 dark:text-zinc-50">Test Cases</h1>
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <input
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            className={`w-52 ${TOPBAR_INPUT_CLS}`}
+            placeholder="Filter cases..."
+          />
           <select
             value={selectedProjectId}
             onChange={(event) => handleProjectScopeChange(event.target.value)}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-400 focus:outline-none"
+            className={TOPBAR_INPUT_CLS}
           >
             <option value="">All projects</option>
             {projects.map((project) => (
@@ -308,7 +315,7 @@ export default function AdminTestCasesRoute() {
     );
 
     return () => setTopbar(null);
-  }, [handleProjectScopeChange, projects, selectedProjectId, setTopbar]);
+  }, [handleProjectScopeChange, projects, searchTerm, selectedProjectId, setTopbar]);
 
   return (
     <>

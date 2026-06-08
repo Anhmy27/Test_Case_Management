@@ -1,15 +1,52 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #f8fafc;
-  --foreground: #0f172a;
+  --background: #fafafa;
+  --foreground: #18181b;
   --surface: #ffffff;
-  --surface-2: #f1f5f9;
-  --line: #e2e8f0;
-  --accent: #2563eb;
-  --accent-2: #0f172a;
-  --muted: #64748b;
-  --app-bg: #f8fafc;
+  --surface-2: #f4f4f5;
+  --surface-3: #e4e4e7;
+  --line: rgba(0, 0, 0, 0.06);
+  --accent: #18181b;
+  --accent-2: #27272a;
+  --muted: #71717a;
+  --app-bg: #fafafa;
+  --text-primary: #18181b;
+  --text-secondary: #3f3f46;
+  --text-muted: #71717a;
+  --color-success: #047857;
+  --color-warning: #b45309;
+  --color-danger: #be123c;
+  --color-info: #4338ca;
+  --color-violet: #6d28d9;
+  --color-sky: #0369a1;
+  color-scheme: light;
+}
+
+html.dark,
+.dark {
+  --background: #09090b;
+  --foreground: #fafafa;
+  --surface: #18181b;
+  --surface-2: #27272a;
+  --surface-3: #3f3f46;
+  --line: rgba(255, 255, 255, 0.1);
+  --accent: #fafafa;
+  --accent-2: #e4e4e7;
+  --muted: #a1a1aa;
+  --app-bg: #09090b;
+  --text-primary: #fafafa;
+  --text-secondary: #e4e4e7;
+  --text-muted: #a1a1aa;
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
+  --color-danger: #fb7185;
+  --color-info: #a5b4fc;
+  --color-violet: #c4b5fd;
+  --color-sky: #7dd3fc;
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -20,18 +57,20 @@
   --color-brand-600: #2563eb;
   --color-brand-700: #1d4ed8;
   --color-brand-800: #1e40af;
-  /* Surface */
-  --color-app-bg: #f8fafc;
-  --color-surface: #ffffff;
+  /* Surface — follow CSS vars for light/dark */
+  --color-app-bg: var(--app-bg);
+  --color-surface: var(--surface);
   /* Fonts */
   --font-sans: var(--font-heading);
   --font-mono: var(--font-mono);
 }
 
 body {
-  background: #f8fafc;
-  color: #0f172a;
+  background: var(--background);
+  color: var(--foreground);
   font-family: var(--font-sans, "Inter", "Segoe UI", sans-serif);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 input,
@@ -451,6 +490,272 @@ button {
 .jira-bug-modal .workspace-form textarea:focus {
   border-color: rgba(15, 23, 42, 0.36);
   box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.08);
+}
+
+html.dark .workspace-form input,
+html.dark .workspace-form textarea,
+html.dark .workspace-form select,
+html.dark .workspace-pill,
+html.dark .tcm-confirm-modal,
+html.dark .jira-bug-modal {
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--foreground);
+}
+
+html.dark .tcm-confirm-modal {
+  background: rgba(24, 24, 27, 0.98);
+}
+
+html.dark .jira-bug-modal {
+  background: rgba(24, 24, 27, 0.98);
+}
+
+/* ── Global theme: light = dark text, dark = light text, accents pop ── */
+
+/* Light surfaces → near-black primary text */
+:root:not(.dark) .text-slate-900,
+:root:not(.dark) .text-slate-800,
+:root:not(.dark) .text-zinc-900,
+:root:not(.dark) .text-zinc-800 {
+  color: var(--text-primary);
+}
+
+:root:not(.dark) .text-slate-700,
+:root:not(.dark) .text-slate-600,
+:root:not(.dark) .text-zinc-700,
+:root:not(.dark) .text-zinc-600 {
+  color: var(--text-secondary);
+}
+
+:root:not(.dark) .text-slate-500,
+:root:not(.dark) .text-slate-400,
+:root:not(.dark) .text-zinc-500,
+:root:not(.dark) .text-zinc-400 {
+  color: var(--text-muted);
+}
+
+/* Dark surfaces */
+html.dark .bg-white,
+html.dark .bg-white\/80,
+html.dark .bg-white\/70,
+html.dark [class*="bg-white/"] {
+  background-color: var(--surface) !important;
+}
+
+html.dark .bg-slate-50,
+html.dark .bg-slate-50\/80,
+html.dark .bg-slate-50\/70 {
+  background-color: var(--surface-2) !important;
+}
+
+html.dark .bg-slate-100,
+html.dark .bg-slate-200,
+html.dark .bg-slate-200\/70,
+html.dark .bg-slate-200\/50,
+html.dark .bg-slate-200\/40 {
+  background-color: var(--surface-3) !important;
+}
+
+html.dark .border-slate-100,
+html.dark .border-slate-200,
+html.dark .border-slate-300,
+html.dark .border-white,
+html.dark .border-white\/70,
+html.dark [class*="border-white/"] {
+  border-color: var(--line) !important;
+}
+
+html.dark .border-indigo-100 {
+  border-color: rgba(129, 140, 248, 0.22) !important;
+}
+
+html.dark [class*="from-indigo-50"][class*="bg-gradient"] {
+  background-image: linear-gradient(
+    to right,
+    rgba(49, 46, 129, 0.42),
+    rgba(12, 74, 110, 0.28),
+    var(--surface)
+  ) !important;
+}
+
+html.dark .text-slate-900,
+html.dark .text-slate-800,
+html.dark .text-zinc-900,
+html.dark .text-zinc-800,
+html.dark .font-semibold.text-slate-900,
+html.dark strong.text-slate-900 {
+  color: var(--text-primary) !important;
+}
+
+html.dark .text-slate-700,
+html.dark .text-slate-600,
+html.dark .text-zinc-700,
+html.dark .text-zinc-600 {
+  color: var(--text-secondary) !important;
+}
+
+html.dark .text-slate-500,
+html.dark .text-slate-400,
+html.dark .text-zinc-500,
+html.dark .text-zinc-400 {
+  color: var(--text-muted) !important;
+}
+
+html.dark .placeholder\:text-slate-400::placeholder,
+html.dark .placeholder\:text-zinc-400::placeholder {
+  color: var(--text-muted) !important;
+}
+
+/* Semantic accent text — brighter in dark */
+html.dark .text-emerald-700,
+html.dark .text-emerald-600 {
+  color: var(--color-success) !important;
+}
+
+html.dark .text-amber-700,
+html.dark .text-amber-800,
+html.dark .text-amber-600 {
+  color: var(--color-warning) !important;
+}
+
+html.dark .text-rose-700,
+html.dark .text-rose-600 {
+  color: var(--color-danger) !important;
+}
+
+html.dark .text-violet-700,
+html.dark .text-violet-600 {
+  color: var(--color-violet) !important;
+}
+
+html.dark .text-indigo-700,
+html.dark .text-indigo-600 {
+  color: var(--color-info) !important;
+}
+
+html.dark .text-indigo-800,
+html.dark .hover\:text-indigo-800:hover {
+  color: #c7d2fe !important;
+}
+
+html.dark .text-sky-700,
+html.dark .text-blue-800,
+html.dark .text-blue-600 {
+  color: var(--color-sky) !important;
+}
+
+:root:not(.dark) .text-emerald-700,
+:root:not(.dark) .text-emerald-600 {
+  color: var(--color-success);
+}
+
+:root:not(.dark) .text-amber-700,
+:root:not(.dark) .text-amber-800 {
+  color: var(--color-warning);
+}
+
+:root:not(.dark) .text-rose-700,
+:root:not(.dark) .text-rose-600 {
+  color: var(--color-danger);
+}
+
+:root:not(.dark) .text-violet-700 {
+  color: var(--color-violet);
+}
+
+:root:not(.dark) .text-indigo-700,
+:root:not(.dark) .text-indigo-600 {
+  color: var(--color-info);
+}
+
+html.dark .shadow-sm,
+html.dark .shadow-md {
+  --tw-shadow-color: rgba(0, 0, 0, 0.35);
+}
+
+html.dark .hover\:bg-slate-50:hover,
+html.dark .hover\:bg-white:hover {
+  background-color: var(--surface-2) !important;
+}
+
+html.dark .hover\:bg-slate-50\/70:hover {
+  background-color: rgba(39, 39, 42, 0.72) !important;
+}
+
+html.dark thead.bg-slate-50,
+html.dark .sticky.top-0.bg-slate-50 {
+  background-color: var(--surface-2) !important;
+}
+
+html.dark .bg-indigo-50,
+html.dark .bg-indigo-50\/60 {
+  background-color: rgba(49, 46, 129, 0.32) !important;
+}
+
+html.dark .ring-slate-200\/60 {
+  --tw-ring-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+html.dark .bg-emerald-50 {
+  background-color: rgba(6, 78, 59, 0.32) !important;
+}
+
+html.dark .bg-rose-50 {
+  background-color: rgba(136, 19, 55, 0.32) !important;
+}
+
+html.dark .bg-amber-50 {
+  background-color: rgba(120, 53, 15, 0.32) !important;
+}
+
+html.dark .bg-sky-50 {
+  background-color: rgba(12, 74, 110, 0.32) !important;
+}
+
+html.dark .bg-violet-50 {
+  background-color: rgba(76, 29, 149, 0.32) !important;
+}
+
+html.dark .bg-blue-50 {
+  background-color: rgba(30, 58, 138, 0.32) !important;
+}
+
+html.dark .bg-indigo-50.text-indigo-700,
+html.dark .rounded-full.bg-indigo-50 {
+  color: var(--color-info) !important;
+}
+
+html.dark .border-amber-200,
+html.dark .border-rose-200,
+html.dark .border-emerald-200,
+html.dark .border-blue-200,
+html.dark .border-indigo-200 {
+  border-color: var(--line) !important;
+}
+
+html.dark .rounded-2xl.border.border-amber-200.bg-amber-50,
+html.dark .bg-amber-50.px-4 {
+  background-color: rgba(120, 53, 15, 0.28) !important;
+  color: var(--color-warning) !important;
+}
+
+html.dark .border-slate-200.bg-white.text-slate-700,
+html.dark button.border-slate-200.bg-white {
+  background-color: var(--surface-2) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--line) !important;
+}
+
+html.dark .bg-indigo-600.text-white {
+  background-color: #4f46e5 !important;
+  color: #ffffff !important;
+}
+
+html.dark select,
+html.dark input:not([type="checkbox"]):not([type="radio"]),
+html.dark textarea {
+  color: var(--text-primary);
 }
 
 @keyframes tcm-toast-in {

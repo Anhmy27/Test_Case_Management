@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import type { Dispatch, SetStateAction } from "react";
-import { Button, DataTable, Field, INPUT_CLS, SectionCard } from "./shared";
+import { Button, DataTable, Field, INPUT_CLS, ScopedProjectField, SectionCard } from "./shared";
 
 type RecordAny = Record<string, any>;
 
@@ -47,31 +47,16 @@ export default function AdminVersionsScreen({
       <SectionCard title="Versions" subtitle="Tạo version trong workspace">
         <form className="space-y-4" onSubmit={createVersion}>
           <div className="grid gap-4 sm:grid-cols-3">
-            {isProjectScoped ? (
-              <Field label="Project">
-                <input
-                  className={`${INPUT_CLS} bg-slate-50`}
-                  value={scopedProjectName || "Selected project"}
-                  readOnly
-                />
-              </Field>
-            ) : (
-              <Field label="Project">
-                <select
-                  className={INPUT_CLS}
-                  value={versionForm.projectId}
-                  onChange={(e) => setVersionForm((prev) => ({ ...prev, projectId: e.target.value }))}
-                  required
-                >
-                  <option value="">Select project</option>
-                  {scopedProjects.map((project: RecordAny) => (
-                    <option key={getId(project)} value={getId(project)}>
-                      {project.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            )}
+            <ScopedProjectField
+              isProjectScoped={isProjectScoped}
+              scopedProjectName={scopedProjectName}
+              projectId={versionForm.projectId}
+              projects={scopedProjects}
+              onProjectChange={(projectId) =>
+                setVersionForm((prev) => ({ ...prev, projectId }))
+              }
+              getId={getId}
+            />
             <Field label="Name">
               <input
                 className={INPUT_CLS}

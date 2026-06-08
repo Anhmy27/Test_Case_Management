@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode, RefObject } from "react";
+import { ThemeToggle } from "@/components/theme/ThemeProvider";
 
 export type AppShellNavItem = {
   key: string;
@@ -121,7 +122,6 @@ export default function AppShell({
   mainRef,
   children,
 }: AppShellProps) {
-  // Group nav items by their `group` field, preserving insertion order
   const groups = navItems.reduce<{ label: string; items: AppShellNavItem[] }[]>(
     (acc, item) => {
       const g = item.group ?? "";
@@ -137,35 +137,30 @@ export default function AppShell({
   );
 
   return (
-    <div className="h-screen overflow-hidden bg-slate-50 text-slate-900">
+    <div className="h-screen overflow-hidden bg-zinc-50 text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
       <div className="flex h-full">
-
-        {/* ── Sidebar ───────────────────────────────────────────────── */}
-        <aside className="flex h-full w-64 shrink-0 flex-col bg-slate-950">
-
-          {/* Brand */}
-          <div className="flex shrink-0 items-center gap-3 border-b border-slate-800 px-5 py-5">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-sm font-bold text-white select-none">
+        <aside className="flex h-full w-[232px] shrink-0 flex-col border-r border-zinc-200/80 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950">
+          <div className="flex shrink-0 items-center gap-3 px-5 py-5">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-zinc-900 text-[11px] font-semibold tracking-tight text-white select-none dark:bg-zinc-100 dark:text-zinc-900">
               TCM
             </div>
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold text-white">
+              <div className="truncate text-[13px] font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">
                 {brand.title}
               </div>
               {brand.subtitle && (
-                <div className="truncate text-[11px] text-slate-500">
+                <div className="truncate text-[11px] text-zinc-500 dark:text-zinc-400">
                   {brand.subtitle}
                 </div>
               )}
             </div>
           </div>
 
-          {/* Nav */}
-          <nav className="flex-1 overflow-y-auto px-3 py-4">
+          <nav className="flex-1 overflow-y-auto px-3 pb-4">
             {groups.map((group, gi) => (
-              <div key={group.label || gi} className={gi > 0 ? "mt-5" : ""}>
+              <div key={group.label || gi} className={gi > 0 ? "mt-6" : ""}>
                 {group.label && (
-                  <div className="mb-1.5 px-2 text-[10px] font-semibold uppercase tracking-widest text-slate-600">
+                  <div className="mb-2 px-2 text-[11px] font-medium text-zinc-400 dark:text-zinc-500">
                     {group.label}
                   </div>
                 )}
@@ -177,23 +172,20 @@ export default function AppShell({
                         key={item.key}
                         type="button"
                         onClick={() => onNavChange(item.key)}
-                        className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-colors ${
+                        className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[13px] font-medium transition-colors ${
                           isActive
-                            ? "bg-blue-600/20 text-blue-300"
-                            : "text-slate-400 hover:bg-slate-800/70 hover:text-slate-200"
+                            ? "bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100"
+                            : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/60 dark:hover:text-zinc-100"
                         }`}
                       >
                         <span
-                          className={`shrink-0 ${isActive ? "text-blue-400" : "text-slate-600"}`}
+                          className={`shrink-0 ${isActive ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-400 dark:text-zinc-500"}`}
                         >
                           {NAV_ICONS[item.key] ?? (
-                            <span className="inline-block h-4 w-4 rounded-full border border-current opacity-50" />
+                            <span className="inline-block h-4 w-4 rounded-full border border-current opacity-40" />
                           )}
                         </span>
                         <span className="truncate">{item.label}</span>
-                        {isActive && (
-                          <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-blue-400" />
-                        )}
                       </button>
                     );
                   })}
@@ -202,38 +194,36 @@ export default function AppShell({
             ))}
           </nav>
 
-          {/* Bottom: optional slot + user card */}
-          <div className="shrink-0 border-t border-slate-800">
+          <div className="shrink-0 border-t border-zinc-200/80 dark:border-zinc-800">
             {bottomSlot}
-            <div className="flex items-center gap-3 px-4 py-4">
-              {/* Avatar */}
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-700 text-xs font-semibold text-slate-200 select-none">
+            <div className="px-4 py-3">
+              <ThemeToggle className="w-full justify-center" />
+            </div>
+            <div className="flex items-center gap-3 px-4 pb-4">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-[11px] font-semibold text-zinc-700 select-none dark:bg-zinc-800 dark:text-zinc-200">
                 {getInitials(user.name)}
               </div>
-              {/* Info */}
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-medium text-slate-200">
+                <div className="truncate text-[13px] font-medium text-zinc-900 dark:text-zinc-100">
                   {user.name}
                 </div>
                 {user.email && (
-                  <div className="truncate text-[11px] text-slate-500">
+                  <div className="truncate text-[11px] text-zinc-500 dark:text-zinc-400">
                     {user.email}
                   </div>
                 )}
               </div>
-              {/* Role badge */}
               {user.role && (
-                <span className="shrink-0 rounded-md bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                <span className="shrink-0 rounded-md bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
                   {user.role}
                 </span>
               )}
-              {/* Logout */}
               {onLogout && (
                 <button
                   type="button"
                   onClick={onLogout}
                   title="Đăng xuất"
-                  className="shrink-0 rounded-lg p-1.5 text-slate-600 transition hover:bg-slate-800 hover:text-slate-300"
+                  className="shrink-0 rounded-md p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
                 >
                   <LogoutIcon />
                 </button>
@@ -242,18 +232,14 @@ export default function AppShell({
           </div>
         </aside>
 
-        {/* ── Main ─────────────────────────────────────────────────── */}
         <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          {/* Topbar */}
-          <header className="shrink-0 border-b border-slate-200 bg-white/90 backdrop-blur-sm">
-            <div className="min-h-[72px] px-6 py-4">{topbar}</div>
+          <header className="shrink-0 border-b border-zinc-200/80 bg-zinc-50/90 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/90">
+            <div className="min-h-[52px] px-6 py-2">{topbar}</div>
           </header>
-          {/* Content */}
-          <main ref={mainRef} className="flex-1 overflow-y-auto bg-slate-50 px-6 py-6">
-            <div className="mx-auto w-full max-w-7xl space-y-6">{children}</div>
+          <main ref={mainRef} className="flex-1 overflow-y-auto bg-zinc-50 px-6 py-5 dark:bg-zinc-950">
+            <div className="mx-auto w-full max-w-[1360px] space-y-5">{children}</div>
           </main>
         </div>
-
       </div>
     </div>
   );

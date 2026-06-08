@@ -69,7 +69,7 @@ const {
   dryRunAutomation,
   getDryRunFailureScreenshot,
 } = require('../controllers/testManagementController');
-const { authenticate, authorize } = require('../middlewares/authMiddleware');
+const { authenticate, authenticateAutomationIngest, authorize } = require('../middlewares/authMiddleware');
 const { httpError } = require('../utils/httpError');
 
 const router = express.Router();
@@ -98,9 +98,13 @@ const upload = multer({
   },
 });
 
-router.use(authenticate);
+router.post(
+  '/test-runs/:runId/automation-results',
+  authenticateAutomationIngest,
+  applyAutomationResults,
+);
 
-router.post('/test-runs/:runId/automation-results', applyAutomationResults);
+router.use(authenticate);
 
 router.get('/projects', listProjects);
 router.get('/projects/:projectId', getProject);

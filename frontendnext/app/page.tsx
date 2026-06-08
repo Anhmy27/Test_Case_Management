@@ -2,6 +2,7 @@
 
 import { type FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ThemeToggle } from "@/components/theme/ThemeProvider";
 import { apiRequest } from "@/lib/api";
 
 function getWorkspaceHome(role?: string) {
@@ -78,7 +79,10 @@ export default function Home() {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="relative flex min-h-screen bg-slate-50 dark:bg-zinc-950">
+      <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
+        <ThemeToggle />
+      </div>
 
       {/* ── Left branding (hidden on small screens) ──────────────── */}
       <div className="relative hidden flex-1 flex-col items-center justify-center overflow-hidden bg-slate-950 px-12 lg:flex">
@@ -119,24 +123,21 @@ export default function Home() {
       </div>
 
       {/* ── Right form ────────────────────────────────────────────── */}
-      <div className="flex flex-1 items-center justify-center px-6 py-12">
+      <div className="flex flex-1 items-center justify-center px-6 py-12 dark:bg-zinc-950">
         <div className="w-full max-w-sm">
-
-          {/* Mobile logo */}
           <div className="mb-8 flex items-center gap-3 lg:hidden">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-sm font-bold text-white">
               TCM
             </div>
-            <span className="text-lg font-bold text-slate-900">
+            <span className="text-lg font-bold text-slate-900 dark:text-zinc-100">
               Test Case Management
             </span>
           </div>
 
-          {/* Title */}
-          <h2 className="text-2xl font-bold text-slate-900">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-zinc-100">
             {mode === "login" ? "Đăng nhập" : "Đăng ký tài khoản"}
           </h2>
-          <p className="mt-1.5 text-sm text-slate-500">
+          <p className="mt-1.5 text-sm text-slate-500 dark:text-zinc-400">
             {mode === "login"
               ? "Nhập email và mật khẩu để tiếp tục."
               : "Tạo tài khoản mới để bắt đầu."}
@@ -158,7 +159,7 @@ export default function Home() {
               <div>
                 <label
                   htmlFor="name"
-                  className="mb-1.5 block text-sm font-medium text-slate-700"
+                  className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-zinc-300"
                 >
                   Họ tên
                 </label>
@@ -169,7 +170,7 @@ export default function Home() {
                   onChange={(e) => setName(e.target.value)}
                   required
                   placeholder="Nguyễn Văn A"
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20"
+                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-blue-500 dark:focus:ring-blue-500/20"
                 />
               </div>
             )}
@@ -177,7 +178,7 @@ export default function Home() {
             <div>
               <label
                 htmlFor="email"
-                className="mb-1.5 block text-sm font-medium text-slate-700"
+                className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-zinc-300"
               >
                 Email
               </label>
@@ -188,14 +189,14 @@ export default function Home() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 placeholder="email@company.com"
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20"
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-blue-500 dark:focus:ring-blue-500/20"
               />
             </div>
 
             <div>
               <label
                 htmlFor="password"
-                className="mb-1.5 block text-sm font-medium text-slate-700"
+                className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-zinc-300"
               >
                 Mật khẩu
               </label>
@@ -207,7 +208,7 @@ export default function Home() {
                 required
                 minLength={6}
                 placeholder="Tối thiểu 6 ký tự"
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20"
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-blue-500 dark:focus:ring-blue-500/20"
               />
             </div>
 
@@ -224,7 +225,7 @@ export default function Home() {
           </form>
 
           {/* Switch mode */}
-          <p className="mt-6 text-center text-sm text-slate-500">
+          <p className="mt-6 text-center text-sm text-slate-500 dark:text-zinc-400">
             {mode === "login" ? "Chưa có tài khoản?" : "Đã có tài khoản?"}{" "}
             <button
               type="button"

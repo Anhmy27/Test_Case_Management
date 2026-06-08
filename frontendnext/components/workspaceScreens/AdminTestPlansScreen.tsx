@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction, FormEvent } from "react";
-import { ActionButton, Button, Field, INPUT_CLS } from "./shared";
+import { ActionButton, Button, Field, INPUT_CLS, ScopedProjectField } from "./shared";
 import { matchesSelectedEntity } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
@@ -33,9 +33,7 @@ type Props = {
   scopedPlans: RecordAny[];
   versionFilterId?: string;
   editingPlanId: string;
-  editingExecutionMode: string;
   setEditingPlanId: Dispatch<SetStateAction<string>>;
-  setEditingExecutionMode: Dispatch<SetStateAction<string>>;
   updatePlanExecutionMode: (planId: string, mode: string) => Promise<void>;
   deletePlan: (planId: string) => Promise<void>;
   duplicatePlan: (plan: RecordAny) => Promise<void>;
@@ -75,7 +73,6 @@ export default function AdminTestPlansScreen(props: Props) {
     versionFilterId = "",
     editingPlanId,
     setEditingPlanId,
-    setEditingExecutionMode,
     updatePlanExecutionMode,
     deletePlan,
     duplicatePlan,
@@ -276,7 +273,6 @@ export default function AdminTestPlansScreen(props: Props) {
 
   function openCreatePlanModal() {
     setEditingPlanId("");
-    setEditingExecutionMode("");
     setPlanForm(emptyPlanDraft);
     setShowCreateModal(true);
   }
@@ -287,7 +283,6 @@ export default function AdminTestPlansScreen(props: Props) {
       : [];
 
     setEditingPlanId(getId(plan));
-    setEditingExecutionMode(String(plan.executionMode || "manual"));
     setPlanForm({
       name: plan.name || "",
       description: plan.description || "",
@@ -303,7 +298,6 @@ export default function AdminTestPlansScreen(props: Props) {
   function closePlanModal() {
     setShowCreateModal(false);
     setEditingPlanId("");
-    setEditingExecutionMode("");
     setPlanForm(emptyPlanDraft);
   }
 
@@ -482,27 +476,22 @@ export default function AdminTestPlansScreen(props: Props) {
               if (saved) setShowCreateModal(false);
             }}>
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Project">
-                  {isProjectScoped ? (
-                    <input
-                      className={`${INPUT_CLS} bg-slate-50`}
-                      value={scopedProjectName || "Selected project"}
-                      readOnly
-                    />
-                  ) : (
-                    <select
-                      className={INPUT_CLS}
-                      value={planForm.projectId}
-                      onChange={(e) => setPlanForm((prev: any) => ({ ...prev, projectId: e.target.value, versionId: "", selectedGroupIds: [], caseIds: [] }))}
-                      required
-                    >
-                      <option value="">Select project</option>
-                      {scopedProjects.map((project: RecordAny) => (
-                        <option key={getId(project)} value={getId(project)}>{project.name}</option>
-                      ))}
-                    </select>
-                  )}
-                </Field>
+                <ScopedProjectField
+                  isProjectScoped={isProjectScoped}
+                  scopedProjectName={scopedProjectName}
+                  projectId={String(planForm.projectId || "")}
+                  projects={scopedProjects}
+                  onProjectChange={(projectId) =>
+                    setPlanForm((prev: any) => ({
+                      ...prev,
+                      projectId,
+                      versionId: "",
+                      selectedGroupIds: [],
+                      caseIds: [],
+                    }))
+                  }
+                  getId={getId}
+                />
                 <Field label="Version">
                   <select
                     className={INPUT_CLS}
