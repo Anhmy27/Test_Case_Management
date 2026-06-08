@@ -34,12 +34,12 @@ export default function AdminTestCasesRoute() {
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const consumedCaseIdRef = useRef<string>("");
 
-  const handleProjectScopeChange = (projectId: string) => {
+  const handleProjectScopeChange = useCallback((projectId: string) => {
     setSelectedProjectId(projectId);
     if (projectId) {
       setTestCaseForm((prev) => ({ ...prev, projectId }));
     }
-  };
+  }, [setSelectedProjectId, setTestCaseForm]);
 
   useEffect(() => {
     if (!token || !currentUser) {
@@ -132,7 +132,7 @@ export default function AdminTestCasesRoute() {
         setMessage("Test case created");
       }
       setEditingTestCaseId("");
-      setTestCaseForm({ projectId: "", groupId: "", caseKey: "", title: "", priority: "medium", severity: "major", type: "functional", description: "", expected: "", steps: [{ action: "", expected: "" }] });
+      setTestCaseForm({ projectId: selectedProjectId || "", groupId: "", caseKey: "", title: "", priority: "medium", severity: "major", type: "functional", description: "", expected: "", steps: [{ action: "", expected: "" }] });
       setAutomationForm({ enabled: false, webId: "", baseUrl: "", userKey: "", timeoutMs: "30", steps: [{ stepId: generateStepId(), stepName: "", action: "goto", targetType: "css", target: "", value: "", expected: "", timeoutMs: "15" }] });
       await refreshAll();
       return true;
@@ -144,7 +144,7 @@ export default function AdminTestCasesRoute() {
 
   const cancelTestCaseEdit = () => {
     setEditingTestCaseId("");
-    setTestCaseForm({ projectId: "", groupId: "", caseKey: "", title: "", priority: "medium", severity: "major", type: "functional", description: "", expected: "", steps: [{ action: "", expected: "" }] });
+    setTestCaseForm({ projectId: selectedProjectId || "", groupId: "", caseKey: "", title: "", priority: "medium", severity: "major", type: "functional", description: "", expected: "", steps: [{ action: "", expected: "" }] });
     setAutomationForm({ enabled: false, webId: "", baseUrl: "", userKey: "", timeoutMs: "30", steps: [{ stepId: generateStepId(), stepName: "", action: "goto", targetType: "css", target: "", value: "", expected: "", timeoutMs: "15" }] });
   };
 
@@ -282,6 +282,8 @@ export default function AdminTestCasesRoute() {
   const scopedGroups = selectedProjectId
     ? groups.filter((group) => matchesSelectedEntity(group.project, selectedProjectId))
     : groups;
+  const isProjectScoped = Boolean(selectedProjectId);
+  const scopedProjectName = scopedProjects[0]?.name || "";
   const matchesSearch = createTextMatcher();
 
   useLayoutEffect(() => {
@@ -341,6 +343,8 @@ export default function AdminTestCasesRoute() {
           scopedProjects={scopedProjects}
           scopedGroups={scopedGroups}
           selectedProjectId={selectedProjectId}
+          isProjectScoped={isProjectScoped}
+          scopedProjectName={scopedProjectName}
           downloadTestCaseTemplate={downloadTestCaseTemplate}
           importTestCases={importTestCases}
           importInputRef={importInputRef}

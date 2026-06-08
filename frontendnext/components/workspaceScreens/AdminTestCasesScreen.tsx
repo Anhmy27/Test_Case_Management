@@ -59,6 +59,8 @@ type Props = {
   scopedProjects: RecordAny[];
   scopedGroups: RecordAny[];
   selectedProjectId: string;
+  isProjectScoped: boolean;
+  scopedProjectName?: string;
   downloadTestCaseTemplate: () => void;
   importTestCases: (file: File) => Promise<void>;
   importInputRef: MutableRefObject<HTMLInputElement | null>;
@@ -95,6 +97,8 @@ export default function AdminTestCasesScreen(props: Props) {
     scopedProjects,
     scopedGroups,
     selectedProjectId,
+    isProjectScoped,
+    scopedProjectName,
     downloadTestCaseTemplate,
     importTestCases,
     importInputRef,
@@ -619,25 +623,33 @@ export default function AdminTestCasesScreen(props: Props) {
                 <div className="grid grid-cols-2 gap-3">
                   <label className="text-xs font-semibold text-slate-500">
                     Project
-                    <select
-                      value={testCaseForm.projectId}
-                      onChange={(e) =>
-                        setTestCaseForm((prev) => ({
-                          ...prev,
-                          projectId: e.target.value,
-                          groupId: "",
-                        }))
-                      }
-                      className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
-                      required
-                    >
-                      <option value="">Chọn project</option>
-                      {scopedProjects.map((project) => (
-                        <option key={getId(project)} value={getId(project)}>
-                          {project.name}
-                        </option>
-                      ))}
-                    </select>
+                    {isProjectScoped ? (
+                      <input
+                        value={scopedProjectName || "Selected project"}
+                        className="mt-1.5 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+                        readOnly
+                      />
+                    ) : (
+                      <select
+                        value={testCaseForm.projectId}
+                        onChange={(e) =>
+                          setTestCaseForm((prev) => ({
+                            ...prev,
+                            projectId: e.target.value,
+                            groupId: "",
+                          }))
+                        }
+                        className="mt-1.5 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                        required
+                      >
+                        <option value="">Chọn project</option>
+                        {scopedProjects.map((project) => (
+                          <option key={getId(project)} value={getId(project)}>
+                            {project.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </label>
                   <label className="text-xs font-semibold text-slate-500">
                     Group

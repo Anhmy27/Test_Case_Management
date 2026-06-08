@@ -53,6 +53,19 @@ export default function AdminVersionsRoute() {
   const matchesSearch = (...values: Array<string | number | undefined | null>) =>
     !normalizedSearch || values.some((value) => String(value || "").toLowerCase().includes(normalizedSearch));
   const scopedProjects = selectedProjectId ? projects.filter((project) => getId(project) === selectedProjectId) : projects;
+  const isProjectScoped = Boolean(selectedProjectId);
+  const scopedProjectName = scopedProjects[0]?.name || "";
+
+  useEffect(() => {
+    if (!selectedProjectId) {
+      return;
+    }
+
+    setVersionForm((prev) => ({
+      ...prev,
+      projectId: selectedProjectId,
+    }));
+  }, [selectedProjectId]);
 
   const refreshVersions = async () => {
     const response = await apiRequest<{ versions: RecordAny[] }>(
@@ -74,7 +87,7 @@ export default function AdminVersionsRoute() {
         setMessage("Version created");
       }
       setEditingVersionId("");
-      setVersionForm({ projectId: "", name: "", releaseDate: "" });
+      setVersionForm({ projectId: selectedProjectId || "", name: "", releaseDate: "" });
       await refreshVersions();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to save version");
@@ -92,7 +105,7 @@ export default function AdminVersionsRoute() {
 
   const cancelVersionEdit = () => {
     setEditingVersionId("");
-    setVersionForm({ projectId: "", name: "", releaseDate: "" });
+    setVersionForm({ projectId: selectedProjectId || "", name: "", releaseDate: "" });
   };
 
   const deleteVersion = async (versionId: string) => {
@@ -149,6 +162,8 @@ export default function AdminVersionsRoute() {
           projects={projects}
           matchesSearch={matchesSearch}
           getId={getId}
+          isProjectScoped={isProjectScoped}
+          scopedProjectName={scopedProjectName}
         />
       )}
     </>
