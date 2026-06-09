@@ -1,4 +1,5 @@
 const { ZodError } = require('zod');
+const { isProduction, sanitizeClientErrorMessage } = require('../utils/runtimeEnv');
 
 function errorMiddleware(err, req, res, next) {
   if (res.headersSent) {
@@ -70,12 +71,19 @@ function errorMiddleware(err, req, res, next) {
     }));
   }
 
-  res.status(statusCode).json({
+  message = sanitizeClientErrorMessage(message, { statusCode });
+
+  const payload = {
     message,
     ...(err.conflict && { conflict: err.conflict }),
     ...(err.details && { details: err.details }),
-    stack: process.env.NODE_ENV === 'production' ? undefined : err.stack,
-  });
+  };
+
+  if (!isProduction() && err.stack) {
+    payload.stack = err.stack;
+  }
+
+  res.status(statusCode).json(payload);
 }
 
 module.exports = { errorMiddleware };

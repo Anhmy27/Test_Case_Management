@@ -1,5 +1,21 @@
 const { request } = require('playwright');
 const { httpError } = require('../utils/httpError');
+const { isProduction, stripHtml } = require('../utils/runtimeEnv');
+
+const throwJiraError = (statusCode, fallbackMessage, rawBody) => {
+  if (!isProduction() && rawBody) {
+    const excerpt = stripHtml(rawBody).slice(0, 500);
+    throw httpError(statusCode, excerpt || fallbackMessage);
+  }
+
+  if (rawBody) {
+    console.error('[Jira]', fallbackMessage, {
+      preview: stripHtml(rawBody).slice(0, 200),
+    });
+  }
+
+  throw httpError(statusCode, fallbackMessage);
+};
 
 const getJiraConfig = () => {
   const baseURL = String(
@@ -53,7 +69,7 @@ const verifyJiraSession = async (context) => {
 
   if (!dashboardResponse.ok()) {
     const body = await dashboardResponse.text();
-    throw httpError(502, body || 'Jira session verification failed');
+    throwJiraError(502, 'Jira session verification failed', body);
   }
 
   return dashboardResponse;
@@ -152,7 +168,7 @@ const createLoggedInContext = async () => {
       status: loginResponse.status(),
       loginReason: loginReason || '',
     });
-    throw httpError(502, body || 'Jira login failed');
+    throwJiraError(502, 'Jira login failed', body);
   }
 
   console.log('[Jira] login response ok', {
@@ -197,7 +213,7 @@ const createBugIssue = async ({
       console.log('[Jira] create issue page failed', {
         status: createPage.status(),
       });
-      throw httpError(502, body || 'Unable to open Jira create issue page');
+      throwJiraError(502, 'Unable to open Jira create issue page', body);
     }
 
     const createHtml = await createPage.text();
@@ -250,14 +266,7 @@ const createBugIssue = async ({
     const issueKey = location.match(/\/browse\/([A-Z][A-Z0-9_]+-\d+)/)?.[1] || result.body.match(/([A-Z][A-Z0-9_]+-\d+)/)?.[1] || '';
 
     if (!(response.status() === 200 || response.status() === 302)) {
-      const textOnly = String(result.body || '')
-        .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-        .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-
-      throw httpError(502, textOnly || 'Jira issue creation failed');
+      throwJiraError(502, 'Jira issue creation failed', result.body);
     }
 
     return {
@@ -288,7 +297,7 @@ const suggestLabels = async ({ query = '' } = {}) => {
 
     if (!response.ok()) {
       const body = await response.text();
-      throw httpError(502, body || 'Unable to load Jira label suggestions');
+      throwJiraError(502, 'Unable to load Jira label suggestions', body);
     }
 
     const rawBody = await response.text();
@@ -348,7 +357,7 @@ const suggestVersions = async ({
 
     if (!response.ok()) {
       const body = await response.text();
-      throw httpError(502, body || 'Unable to load Jira version suggestions');
+      throwJiraError(502, 'Unable to load Jira version suggestions', body);
     }
 
     const rawBody = await response.text();
@@ -390,7 +399,7 @@ const searchAssignableUsers = async ({
 
     if (!response.ok()) {
       const body = await response.text();
-      throw httpError(502, body || 'Unable to load Jira assignable users');
+      throwJiraError(502, 'Unable to load Jira assignable users', body);
     }
 
     const data = await response.json();
