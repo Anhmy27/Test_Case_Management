@@ -8,7 +8,7 @@ const {
   updateTestPlanService,
   deleteTestPlanService,
   restoreTestPlanService,
-} = require('../services/testManagementService');
+} = require('../services/testPlanServices');
 
 const createTestPlan = asyncHandler(async (req, res) => {
   const testPlan = await createTestPlanService({

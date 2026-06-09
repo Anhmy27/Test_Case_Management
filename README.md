@@ -94,6 +94,14 @@ The backend exposes REST endpoints under `/api` and includes:
 - admin user seeding on first startup
 - Playwright automation execution for automation-mode test plans
 
+Service layer is now split by domain:
+
+- `backend/src/services/projectVersionServices.js` - project + version use cases
+- `backend/src/services/issueTypeGroupServices.js` - issue type + test case group use cases
+- `backend/src/services/testCaseServices.js` - test case CRUD/import/history use cases
+- `backend/src/services/testPlanServices.js` - test plan CRUD/assignment/versioning use cases
+- shared helpers in `backend/src/services/shared/` (`versioningCore.js`, `testManagementResolvers.js`)
+
 The backend starts from [backend/index.js](backend/index.js) and connects to MongoDB before starting Express.
 
 ## Frontend Overview
@@ -236,7 +244,7 @@ The backend mounts routes as:
 ### Test cases
 
 - `GET /api/test-cases`
-- `GET /api/test-cases/detail`
+- `GET /api/test-cases/history`
 - `GET /api/test-cases/:testCaseId`
 - `GET /api/test-cases/:testCaseId/versions`
 - `POST /api/test-cases` - admin only
@@ -290,6 +298,7 @@ The backend mounts routes as:
 cd backend
 npm install
 npm start
+npm test
 ```
 
 ### Frontend

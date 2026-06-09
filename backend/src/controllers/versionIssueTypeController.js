@@ -6,12 +6,14 @@ const {
   updateVersionService,
   deleteVersionService,
   restoreVersionService,
+} = require('../services/projectVersionServices');
+const {
   createIssueTypeService,
   listIssueTypesService,
   getIssueTypeService,
   updateIssueTypeService,
   deleteIssueTypeService,
-} = require('../services/testManagementService');
+} = require('../services/issueTypeGroupServices');
 
 const createVersion = asyncHandler(async (req, res) => {
   const version = await createVersionService({

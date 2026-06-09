@@ -9,7 +9,7 @@ const {
   updateTestCaseService,
   deleteTestCaseService,
   restoreTestCaseService,
-} = require('../services/testManagementService');
+} = require('../services/testCaseServices');
 
 const createTestCase = asyncHandler(async (req, res) => {
   const testCase = await createTestCaseService({

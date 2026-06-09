@@ -6,7 +6,7 @@ const {
   updateProjectService,
   deleteProjectService,
   restoreProjectService,
-} = require('../services/testManagementService');
+} = require('../services/projectVersionServices');
 
 const createProject = asyncHandler(async (req, res) => {
   const project = await createProjectService({

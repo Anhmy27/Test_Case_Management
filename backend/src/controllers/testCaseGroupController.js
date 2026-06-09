@@ -7,7 +7,7 @@ const {
   updateTestCaseGroupService,
   deleteTestCaseGroupService,
   restoreTestCaseGroupService,
-} = require('../services/testManagementService');
+} = require('../services/issueTypeGroupServices');
 
 const createTestCaseGroup = asyncHandler(async (req, res) => {
   const group = await createTestCaseGroupService({
