@@ -27,6 +27,7 @@ const versionSchema = new mongoose.Schema(
       type: String,
       default: '',
       trim: true,
+      index: true,
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,

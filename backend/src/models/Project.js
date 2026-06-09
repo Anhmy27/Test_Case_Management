@@ -35,6 +35,7 @@ const projectSchema = new mongoose.Schema(
       type: String,
       default: '',
       trim: true,
+      index: true,
     },
     status: {
       type: String,

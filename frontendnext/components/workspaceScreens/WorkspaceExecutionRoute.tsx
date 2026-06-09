@@ -156,8 +156,9 @@ function AdminWorkspaceExecutionRoute() {
   const activeMyItems = runIdFromUrl ? myItems : [];
   const currentUserId = getId(currentUser);
   const matchesSearch = useMemo(() => createTextMatcher(), []);
-  const selectedRunPlan = scopedPlans.find((plan) => getId(plan) === runForm.testPlanId) || activeRun?.testPlan || null;
-  const selectedRunPlanIsAutomation = String(selectedRunPlan?.executionMode || "manual") === "automation";
+  const selectedStartPlan = scopedPlans.find((plan) => getId(plan) === runForm.testPlanId) || null;
+  const selectedRunPlan = activeRun?.testPlan || null;
+  const selectedRunPlanIsAutomation = String(selectedStartPlan?.executionMode || "manual") === "automation";
   const isActiveRunAutomation =
     String(activeRun?.testPlan?.executionMode || selectedRunPlan?.executionMode || "manual") === "automation";
   const shouldPollAutomationRun = Boolean(
@@ -583,8 +584,9 @@ function EmployeeWorkspaceExecutionRoute() {
   }, [employeeProjectScope, plans]);
   const activeRun = runIdFromUrl ? selectedRun : null;
   const activeMyItems = runIdFromUrl ? myItems : [];
-  const selectedRunPlan = scopedPlans.find((plan) => getId(plan) === runForm.testPlanId) || activeRun?.testPlan || null;
-  const selectedRunPlanIsAutomation = String(selectedRunPlan?.executionMode || "manual") === "automation";
+  const selectedStartPlan = scopedPlans.find((plan) => getId(plan) === runForm.testPlanId) || null;
+  const selectedRunPlan = activeRun?.testPlan || null;
+  const selectedRunPlanIsAutomation = String(selectedStartPlan?.executionMode || "manual") === "automation";
   const isActiveRunAutomation =
     String(activeRun?.testPlan?.executionMode || selectedRunPlan?.executionMode || "manual") === "automation";
   const shouldPollAutomationRun = Boolean(

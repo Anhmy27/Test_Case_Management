@@ -67,6 +67,7 @@ const testCaseSchema = new mongoose.Schema(
       type: String,
       default: '',
       trim: true,
+      index: true,
     },
     expected: {
       type: String,

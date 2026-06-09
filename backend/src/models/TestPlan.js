@@ -53,6 +53,7 @@ const testPlanSchema = new mongoose.Schema(
       type: String,
       default: '',
       trim: true,
+      index: true,
     },
     project: {
       type: mongoose.Schema.Types.ObjectId,

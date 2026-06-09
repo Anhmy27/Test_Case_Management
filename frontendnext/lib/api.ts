@@ -495,11 +495,11 @@ export function setEndRunPolicy(policy: EndRunPolicy) {
 }
 
 export function getRunListActionLabel(runStatus: string, isActive: boolean): string {
-  if (isActive) {
-    return 'Active';
+  const normalizedStatus = String(runStatus || '').toLowerCase();
+  if (normalizedStatus === 'running') {
+    return 'Open';
   }
-
-  return String(runStatus || '').toLowerCase() === 'running' ? 'Open' : 'View';
+  return isActive ? 'Viewing' : 'View';
 }
 
 export function formatRunProgressPercent(value: number | undefined | null): string {

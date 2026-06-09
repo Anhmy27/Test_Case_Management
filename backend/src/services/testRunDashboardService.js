@@ -169,14 +169,32 @@ const getDashboardService = async ({ projectId, versionId }) => {
     .populate('assignees', 'name email role')
     .lean();
 
-  const plansWithRuns = await TestRun.find({ ...match }).select('testPlan').lean();
-  const startedPlanIds = new Set(plansWithRuns.map((run) => String(run.testPlan)));
+  const plansWithRuns = await TestRun.find({ ...match }).select('testPlan testPlanEntityId').lean();
+  const startedPlanEntityIds = new Set(
+    plansWithRuns
+      .map((run) => String(run.testPlanEntityId || ''))
+      .filter(Boolean),
+  );
+  const runsMissingEntityId = plansWithRuns.filter(
+    (run) => !run.testPlanEntityId && run.testPlan,
+  );
+  if (runsMissingEntityId.length > 0) {
+    const testPlanIds = Array.from(
+      new Set(runsMissingEntityId.map((run) => String(run.testPlan)).filter(Boolean)),
+    ).map((value) => toObjectId(value, 'testPlanId'));
+    const planRefs = await TestPlan.find({ _id: { $in: testPlanIds } })
+      .select('_id entityId')
+      .lean();
+    planRefs.forEach((planRef) => {
+      startedPlanEntityIds.add(String(planRef.entityId || planRef._id));
+    });
+  }
   const delayedPlans = delayedTestPlans
     .filter((plan) => (Array.isArray(plan.assignees) && plan.assignees.length > 0) || plan.owner)
-    .filter((plan) => !startedPlanIds.has(String(plan._id)))
+    .filter((plan) => !startedPlanEntityIds.has(String(plan.entityId || plan._id)))
     .slice(0, 8)
     .map((plan) => ({
-      _id: String(plan._id),
+      _id: String(plan.entityId || plan._id),
       name: plan.name,
       project: plan.project,
       version: plan.version,

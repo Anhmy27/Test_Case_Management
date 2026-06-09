@@ -11,6 +11,7 @@ const normalizeKey = (value) => String(value || '')
   .toUpperCase();
 
 const normalizeName = (value) => String(value || '').trim();
+const escapeRegex = (value) => String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const pickPagination = (query) => {
   const page = Math.max(Number(query.page || 1), 1);
@@ -25,9 +26,11 @@ const buildSearchMatch = (search, fields) => {
   if (!normalized) {
     return {};
   }
+  // Prefix match helps MongoDB leverage B-tree indexes better than contains regex.
+  const escapedSearch = `^${escapeRegex(normalized)}`;
 
   return {
-    $or: fields.map((field) => ({ [field]: { $regex: normalized, $options: 'i' } })),
+    $or: fields.map((field) => ({ [field]: { $regex: escapedSearch, $options: 'i' } })),
   };
 };
 

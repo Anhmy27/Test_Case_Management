@@ -146,18 +146,18 @@ export default function ExecutionScreen(props: Props) {
 
   } = props;
 
-  const selectedRunPlan = useMemo(
-    () => scopedPlans.find((plan: RecordAny) => getId(plan) === runForm.testPlanId) || selectedRun?.testPlan || null,
-    [runForm.testPlanId, scopedPlans, selectedRun],
+  const selectedStartPlan = useMemo(
+    () => scopedPlans.find((plan: RecordAny) => getId(plan) === runForm.testPlanId) || null,
+    [runForm.testPlanId, scopedPlans],
   );
 
   const runSummary = useMemo(() => summarizeRunResults(myItems), [myItems]);
   const defaultRunNamePreview = useMemo(
-    () => buildDefaultRunName(selectedRunPlan?.name || "", selectedRunPlan?.version?.name),
-    [selectedRunPlan],
+    () => buildDefaultRunName(selectedStartPlan?.name || "", selectedStartPlan?.version?.name),
+    [selectedStartPlan],
   );
   const liveStartRunError = useMemo(() => {
-    if (!runForm.testPlanId || !selectedRunPlan) {
+    if (!runForm.testPlanId || !selectedStartPlan) {
       return "";
     }
 
@@ -165,11 +165,11 @@ export default function ExecutionScreen(props: Props) {
       testPlanId: runForm.testPlanId,
       name: runForm.name,
       baseUrl: runForm.baseUrl || "",
-      plan: selectedRunPlan,
+      plan: selectedStartPlan,
       existingRuns: adminRuns || [],
       allPlans: scopedPlans,
     }) || "";
-  }, [adminRuns, runForm.baseUrl, runForm.name, runForm.testPlanId, scopedPlans, selectedRunPlan]);
+  }, [adminRuns, runForm.baseUrl, runForm.name, runForm.testPlanId, scopedPlans, selectedStartPlan]);
   const displayedStartRunError = startRunError || liveStartRunError;
 
 
@@ -295,7 +295,7 @@ export default function ExecutionScreen(props: Props) {
 
           </div>
 
-          {selectedRunPlan && getPlanCaseCount(selectedRunPlan) === 0 ? (
+          {selectedStartPlan && getPlanCaseCount(selectedStartPlan) === 0 ? (
             <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
               Selected plan has no test cases. Add cases to the plan before starting a run.
             </div>
@@ -348,7 +348,7 @@ export default function ExecutionScreen(props: Props) {
             disabled={
               startingRun
               || Boolean(displayedStartRunError)
-              || (Boolean(selectedRunPlan) && getPlanCaseCount(selectedRunPlan) === 0)
+              || (Boolean(selectedStartPlan) && getPlanCaseCount(selectedStartPlan) === 0)
             }
           >
 
