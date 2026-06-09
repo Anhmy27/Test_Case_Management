@@ -81,11 +81,17 @@ const computeRunProgress = (results) => {
 
 const normalizeRunName = (value) => String(value || '').trim();
 
+const resultHasUserAssignment = (result, userId) => {
+  const normalizedUserId = String(userId || '');
+  const ownerId = String(result?.owner || '');
+  const assigneeIds = Array.isArray(result?.assignees)
+    ? result.assignees.map((assignee) => String(assignee || ''))
+    : [];
+  return ownerId === normalizedUserId || assigneeIds.includes(normalizedUserId);
+};
+
 const startTestRunService = async ({ testPlanId, name, baseUrl, user }) => {
   const trimmedName = normalizeRunName(name);
-  if (!testPlanId || !trimmedName) {
-    throw httpError(400, 'testPlanId and name are required');
-  }
 
   const resolvedTestPlan = await TestPlan.findOne({
     $and: [
@@ -237,10 +243,6 @@ const applyAutomationResultsService = async ({
     throw httpError(403, 'Not authorized to submit automation results');
   }
 
-  if (!Array.isArray(results) || results.length === 0) {
-    throw httpError(400, 'results[] is required');
-  }
-
   const testRun = await TestRun.findById(toObjectId(runId, 'runId'));
   if (!testRun) throw httpError(404, 'Test run not found');
 
@@ -311,7 +313,15 @@ const listTestRunsService = async ({ projectId, versionId, status }, user) => {
   }
 
   if (status) query.status = status;
-  if (user.role !== 'admin') query.startedBy = toObjectId(user.id, 'userId');
+  if (user.role !== 'admin') {
+    const userObjectId = toObjectId(user.id, 'userId');
+    query.$or = [
+      { startedBy: userObjectId },
+      { 'results.owner': userObjectId },
+      { 'results.assignees': userObjectId },
+      { 'results.tester': userObjectId },
+    ];
+  }
 
   const testRuns = await TestRun.find(query)
     .sort({ createdAt: -1 })
@@ -428,7 +438,8 @@ const updateRunResultService = async (runId, resultId, payload, user) => {
 
   const isStarter = String(testRun.startedBy) === user.id;
   const isAdmin = user.role === 'admin';
-  if (!isStarter && !isAdmin) {
+  const isAssigned = resultHasUserAssignment(result, user.id);
+  if (!isStarter && !isAdmin && !isAssigned) {
     throw httpError(403, 'You do not have permission to update this test run');
   }
 
@@ -451,7 +462,9 @@ const endTestRunService = async (runId, user) => {
 
   const isStarter = String(testRun.startedBy) === user.id;
   const isAdmin = user.role === 'admin';
-  if (!isStarter && !isAdmin) {
+  const hasAssignedItems = Array.isArray(testRun.results)
+    && testRun.results.some((result) => resultHasUserAssignment(result, user.id));
+  if (!isStarter && !isAdmin && !hasAssignedItems) {
     throw httpError(403, 'You do not have permission to end this test run');
   }
   if (testRun.status === 'completed') {

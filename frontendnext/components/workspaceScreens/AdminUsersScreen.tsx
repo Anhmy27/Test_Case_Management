@@ -66,6 +66,9 @@ export default function AdminUsersScreen({
                 required={!isEditing}
                 placeholder={isEditing ? "Leave blank to keep current" : undefined}
               />
+              <p className="mt-1 text-xs text-slate-500">
+                Password must be at least 6 characters.
+              </p>
             </Field>
             <Field label="Role">
               <select

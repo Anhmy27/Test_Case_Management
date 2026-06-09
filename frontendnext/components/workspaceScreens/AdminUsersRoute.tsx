@@ -61,11 +61,15 @@ export default function AdminUsersRoute() {
   const createUser = async (event: React.FormEvent) => {
     event.preventDefault();
     try {
+      const payload: RecordAny = { ...newUserForm };
+      if (editingUserId && !String(payload.password || "").trim()) {
+        delete payload.password;
+      }
       if (editingUserId) {
-        await apiRequest(`/api/users/${editingUserId}`, token, { method: "PUT", body: JSON.stringify(newUserForm) });
+        await apiRequest(`/api/users/${editingUserId}`, token, { method: "PUT", body: JSON.stringify(payload) });
         setMessage("User updated");
       } else {
-        await apiRequest(`/api/users`, token, { method: "POST", body: JSON.stringify(newUserForm) });
+        await apiRequest(`/api/users`, token, { method: "POST", body: JSON.stringify(payload) });
         setMessage("User created");
       }
       setEditingUserId("");

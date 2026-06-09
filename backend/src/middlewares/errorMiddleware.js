@@ -1,3 +1,5 @@
+const { ZodError } = require('zod');
+
 function errorMiddleware(err, req, res, next) {
   if (res.headersSent) {
     return next(err);
@@ -56,6 +58,16 @@ function errorMiddleware(err, req, res, next) {
     } else {
       message = err.message || 'Invalid upload file';
     }
+  }
+
+  if (err instanceof ZodError) {
+    statusCode = 400;
+    message = 'Validation failed';
+    err.details = err.issues.map((issue) => ({
+      path: Array.isArray(issue.path) ? issue.path.join('.') : '',
+      message: issue.message,
+      code: issue.code,
+    }));
   }
 
   res.status(statusCode).json({

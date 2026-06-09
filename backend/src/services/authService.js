@@ -12,10 +12,6 @@ const toPublicUser = (user) => ({
 });
 
 const registerService = async ({ name, email, password }) => {
-  if (!name || !email || !password) {
-    throw httpError(400, 'name, email and password are required');
-  }
-
   const normalizedEmail = String(email).toLowerCase();
   const existingUser = await User.findOne({ email: normalizedEmail }).lean();
   if (existingUser) {
@@ -34,10 +30,6 @@ const registerService = async ({ name, email, password }) => {
 };
 
 const loginService = async ({ email, password }) => {
-  if (!email || !password) {
-    throw httpError(400, 'email and password are required');
-  }
-
   const normalizedEmail = String(email).toLowerCase();
   const user = await User.findOne({ email: normalizedEmail });
   if (!user || !user.isActive) {

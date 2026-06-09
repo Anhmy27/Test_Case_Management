@@ -203,8 +203,6 @@ export function useJiraBugDialog({ token, onNotice }: Options) {
         method: "POST",
         body: JSON.stringify({
           projectId: jiraBugDialog.projectId,
-          runId: jiraBugDialog.runId,
-          resultId: jiraBugDialog.resultId,
           summary: jiraBugDialog.summary,
           description: jiraBugDialog.description,
           issueType: jiraBugDialog.issueType,

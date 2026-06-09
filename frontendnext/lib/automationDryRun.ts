@@ -46,9 +46,10 @@ function buildDryRunPayload({
   baseUrlOverride?: string;
 }) {
   const resolvedBaseUrl = String(baseUrlOverride || automationForm.baseUrl || "").trim();
+  const normalizedTestCaseId = String(testCaseId || "").trim();
 
   return {
-    testCaseId: testCaseId ? String(testCaseId) : "",
+    ...(normalizedTestCaseId ? { testCaseId: normalizedTestCaseId } : {}),
     baseUrl: resolvedBaseUrl,
     automation: {
       enabled: true,

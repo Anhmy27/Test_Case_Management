@@ -7,7 +7,7 @@
     "start": "node index.js",
     "dev": "node index.js",
     "seed:admin": "node src/runSeedAdmin.js",
-    "test": "echo \"No tests yet\""
+    "test": "node --test"
   },
   "keywords": [],
   "author": "",
@@ -22,6 +22,7 @@
     "mongoose": "^9.6.2",
     "multer": "^2.1.1",
     "playwright": "^1.55.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "zod": "^4.4.3"
   }
 }

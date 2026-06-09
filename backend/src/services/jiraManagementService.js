@@ -39,18 +39,21 @@ const logBugService = async ({
   issueType,
   priority,
   assignee,
+  timetracking_originalestimate,
+  originalEstimate,
   labels,
   versions,
 }) => {
-  if (!projectId || !summary || !description || !issueType) {
-    throw httpError(400, 'projectId, summary, description and issueType are required');
-  }
+  const resolvedOriginalEstimate = String(
+    timetracking_originalestimate ?? originalEstimate ?? '',
+  ).trim();
 
   console.log('[Jira] logBug request received', {
     projectId,
     issueType,
     priority: priority || '3',
     hasAssignee: Boolean(assignee),
+    hasOriginalEstimate: Boolean(resolvedOriginalEstimate),
     labels: labels || '',
   });
 
@@ -67,6 +70,7 @@ const logBugService = async ({
     description,
     priority,
     assignee,
+    originalEstimate: resolvedOriginalEstimate,
     labels,
     versions,
   });
@@ -88,9 +92,6 @@ const getAssignableUsersService = async ({
   projectKeys, projectKey, username = '', maxResults = '100',
 }) => {
   const resolvedProjectKeys = String(projectKeys || projectKey || '').trim();
-  if (!resolvedProjectKeys) {
-    throw httpError(400, 'projectKeys is required');
-  }
 
   const users = await searchAssignableUsers({
     projectKeys: resolvedProjectKeys,
@@ -114,10 +115,6 @@ const getVersionSuggestionsService = async ({
   maxResults = '100',
   startAt = '0',
 } = {}) => {
-  if (!projectId) {
-    throw httpError(400, 'projectId is required');
-  }
-
   const project = await getProjectById(projectId);
   const versions = await suggestVersions({
     projectIds: String(project.pid || ''),

@@ -168,6 +168,7 @@ function AdminWorkspaceExecutionRoute() {
       selectedRunPlanIsAutomation,
   );
   const selectedItem = activeMyItems.find((item) => getId(item) === selectedItemId);
+  const hasRunAssignments = activeMyItems.length > 0;
 
   useEffect(() => {
     setStartRunError("");
@@ -193,7 +194,8 @@ function AdminWorkspaceExecutionRoute() {
       activeRun.status === "running" &&
       !isActiveRunAutomation &&
       (String(getId(activeRun.startedBy) || "") === String(getId(currentUser) || "") ||
-        currentUser?.role === "admin"),
+        currentUser?.role === "admin" ||
+        hasRunAssignments),
   );
   const canControlAutomationRun = Boolean(
     activeRun &&
@@ -596,6 +598,7 @@ function EmployeeWorkspaceExecutionRoute() {
       selectedRunPlanIsAutomation,
   );
   const selectedItem = activeMyItems.find((item) => getId(item) === selectedItemId);
+  const hasRunAssignments = activeMyItems.length > 0;
 
   useEffect(() => {
     setStartRunError("");
@@ -621,7 +624,8 @@ function EmployeeWorkspaceExecutionRoute() {
       activeRun.status === "running" &&
       !isActiveRunAutomation &&
       (String(getId(activeRun.startedBy) || "") === String(getId(currentUser) || "") ||
-        currentUser?.role === "admin"),
+        currentUser?.role === "admin" ||
+        hasRunAssignments),
   );
   const canControlAutomationRun = Boolean(
     activeRun &&

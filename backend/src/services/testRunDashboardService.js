@@ -444,8 +444,6 @@ const getProjectDashboardService = async () => {
 // ---------------------------------------------------------------------------
 
 const getVersionDashboardService = async ({ projectId }) => {
-  if (!projectId) throw httpError(400, 'projectId is required');
-
   const projectDoc = await Project.findOne({
     entityId: toObjectId(projectId, 'projectId'),
     $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
@@ -520,8 +518,6 @@ const getVersionDashboardService = async ({ projectId }) => {
 // ---------------------------------------------------------------------------
 
 const getTestPlanStatsService = async ({ versionId }) => {
-  if (!versionId) throw httpError(400, 'versionId is required');
-
   const versionDoc = await Version.findOne({
     entityId: toObjectId(versionId, 'versionId'),
     $or: [{ isLatest: true }, { isLatest: { $exists: false } }],

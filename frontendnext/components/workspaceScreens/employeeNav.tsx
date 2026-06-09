@@ -94,9 +94,13 @@ export function useEmployeeProjectScope(projects: RecordAny[]) {
       return [];
     }
 
-    return filterRuns(runs).filter(
-      (run) => String(getId(run.startedBy) || "") === normalizedUserId,
-    );
+    return filterRuns(runs).filter((run) => {
+      const startedByMatch = String(getId(run.startedBy) || "") === normalizedUserId;
+      const ownerSnapshotMatch = String(getId((run as { ownerSnapshot?: unknown }).ownerSnapshot) || "") === normalizedUserId;
+      const assigneeSnapshotMatch = Array.isArray((run as { assigneeSnapshot?: unknown[] }).assigneeSnapshot)
+        && (run as { assigneeSnapshot: unknown[] }).assigneeSnapshot.some((assignee) => String(getId(assignee) || "") === normalizedUserId);
+      return startedByMatch || ownerSnapshotMatch || assigneeSnapshotMatch;
+    });
   };
 
   return {

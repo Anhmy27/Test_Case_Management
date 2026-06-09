@@ -2,7 +2,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import AdminTestPlansScreen from "@/components/workspaceScreens/AdminTestPlansScreen";
 import { useAdminWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
@@ -36,12 +36,12 @@ export default function AdminTestPlansRoute() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
 
-  const handleProjectScopeChange = (projectId: string) => {
+  const handleProjectScopeChange = useCallback((projectId: string) => {
     setSelectedProjectId(projectId);
     if (projectId) {
       setPlanForm((prev: RecordAny) => ({ ...prev, projectId }));
     }
-  };
+  }, [setSelectedProjectId]);
 
   useEffect(() => {
     if (!token || !currentUser) {
@@ -120,17 +120,6 @@ export default function AdminTestPlansRoute() {
     planProjectCases,
   );
 
-  useEffect(() => {
-    if (!selectedProjectId) {
-      return;
-    }
-
-    setPlanForm((prev: RecordAny) => ({
-      ...prev,
-      projectId: selectedProjectId,
-    }));
-  }, [selectedProjectId]);
-
   const togglePlanGroup = (groupId: string) => {
     setPlanForm((prev: any) => {
       const nextGroupIds = new Set<string>(prev.selectedGroupIds || []);
@@ -156,6 +145,10 @@ export default function AdminTestPlansRoute() {
     event.preventDefault();
     try {
       const payload = { ...planForm, projectId: planForm.projectId || selectedProjectId };
+      if (!Array.isArray(payload.caseIds) || payload.caseIds.length === 0) {
+        setMessage("Please select at least one test case before saving the plan.");
+        return false;
+      }
       if (editingPlanId) {
         await apiRequest(`/api/test-plans/${editingPlanId}`, token, { method: "PUT", body: JSON.stringify(payload) });
         setMessage("Test plan updated");
@@ -184,6 +177,10 @@ export default function AdminTestPlansRoute() {
   const saveAssignments = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!selectedPlanId) return;
+    if (!Array.isArray(assignDraft.assigneeIds) || assignDraft.assigneeIds.length === 0) {
+      setMessage("Please assign at least one assignee before saving.");
+      return;
+    }
     await apiRequest(`/api/test-plans/${selectedPlanId}/assign`, token, { method: "PUT", body: JSON.stringify({ assigneeIds: assignDraft.assigneeIds, ownerId: assignDraft.ownerId || getId(currentUser) }) });
     await refreshAll();
   };

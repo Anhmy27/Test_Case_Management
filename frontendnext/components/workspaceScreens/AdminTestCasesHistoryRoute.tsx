@@ -34,15 +34,17 @@ export default function AdminTestCasesHistoryRoute() {
       setMessage("");
 
       try {
+        const detailRequest = selectedProjectId
+          ? apiRequest<{ testCases: RecordAny[] }>(
+              `/api/test-cases/history?projectId=${encodeURIComponent(selectedProjectId)}${detailGroupId ? `&groupId=${encodeURIComponent(detailGroupId)}` : ""}`,
+              token,
+            )
+          : Promise.resolve<{ testCases: RecordAny[] }>({ testCases: [] });
+
         const [projectsResponse, groupsResponse, detailResponse] = await Promise.all([
           apiRequest<{ projects: RecordAny[] }>("/api/projects", token),
           apiRequest<{ groups: RecordAny[] }>(selectedProjectId ? `/api/test-case-groups?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-case-groups", token),
-          apiRequest<{ testCases: RecordAny[] }>(
-            selectedProjectId
-              ? `/api/test-cases/history?projectId=${encodeURIComponent(selectedProjectId)}${detailGroupId ? `&groupId=${encodeURIComponent(detailGroupId)}` : ""}`
-              : "/api/test-cases/history",
-            token,
-          ),
+          detailRequest,
         ]);
 
         if (cancelled) return;
@@ -119,6 +121,11 @@ export default function AdminTestCasesHistoryRoute() {
           matchesSearch={highlightMatcher}
         />
       )}
+      {!selectedProjectId && !loading ? (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+          Select a project to view execution history details.
+        </div>
+      ) : null}
     </>
   );
 }

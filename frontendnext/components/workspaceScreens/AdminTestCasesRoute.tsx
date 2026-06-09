@@ -158,7 +158,7 @@ export default function AdminTestCasesRoute() {
       title: testCase.title || "",
       priority: testCase.priority || "medium",
       severity: testCase.severity || "major",
-      type: testCase.type || "manual",
+      type: testCase.type || "functional",
       description: testCase.description || "",
       expected: testCase.expected || "",
       steps: Array.isArray(testCase.steps) && testCase.steps.length

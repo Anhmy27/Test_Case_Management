@@ -174,6 +174,7 @@ const createBugIssue = async ({
   description,
   priority,
   assignee,
+  originalEstimate,
   labels,
   versions,
 }) => {
@@ -218,7 +219,7 @@ const createBugIssue = async ({
         isCreateIssue: 'true',
         hasWorkStarted: 'true',
         summary,
-        timetracking_originalestimate: '0',
+        timetracking_originalestimate: String(originalEstimate || '').trim() || '0',
         customfield_10106: '',
         assignee: assignee || '',
         duedate: '',
