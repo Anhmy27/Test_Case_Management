@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction, FormEvent } from "react";
 import { ActionButton, Button, Field, INPUT_CLS, ScopedProjectField } from "./shared";
+import { matchesSelectedEntity } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
 
@@ -88,7 +89,7 @@ export default function AdminTestPlansScreen(props: Props) {
   const emptyPlanDraft = {
     name: "",
     description: "",
-    projectId: isProjectScoped ? String(planForm.projectId || "") : "",
+    projectId: isProjectScoped ? String(planForm.projectId || getId(scopedProjects[0]) || "") : "",
     versionId: "",
     executionMode: "manual",
     selectedGroupIds: [] as string[],
@@ -122,6 +123,16 @@ export default function AdminTestPlansScreen(props: Props) {
       null
     );
   }, [effectivePlanProjectId, getId, planProjectGroups, scopedProjects]);
+
+  const versionOptions = useMemo(() => {
+    if (!effectivePlanProjectId) {
+      return isProjectScoped ? scopedVersions : [];
+    }
+
+    return scopedVersions.filter((version: RecordAny) =>
+      matchesSelectedEntity(version.project, effectivePlanProjectId),
+    );
+  }, [effectivePlanProjectId, isProjectScoped, scopedVersions]);
 
   const selectedVisibleCaseCount = visibleCaseIds.filter((caseId) =>
     selectedPlanCaseIds.has(caseId),
@@ -494,11 +505,9 @@ export default function AdminTestPlansScreen(props: Props) {
                     required
                   >
                     <option value="">Select version</option>
-                    {scopedVersions
-                      .filter((version: RecordAny) => getId(version.project) === effectivePlanProjectId)
-                      .map((version: RecordAny) => (
-                        <option key={getId(version)} value={getId(version)}>{version.name}</option>
-                      ))}
+                    {versionOptions.map((version: RecordAny) => (
+                      <option key={getId(version)} value={getId(version)}>{version.name}</option>
+                    ))}
                   </select>
                 </Field>
               </div>

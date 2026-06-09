@@ -295,7 +295,8 @@ function AdminWorkspaceExecutionRoute() {
       });
       if (response.testRun) {
         setSelectedRun(response.testRun);
-        setRunForm((prev) => ({ ...prev, name: resolved.payload!.name }));
+        // Reset form after successful creation to avoid stale duplicate-name warning.
+        setRunForm({ testPlanId: "", name: "", baseUrl: "" });
         setRuns((prev) => [response.testRun as RecordAny, ...prev.filter((run) => getId(run) !== getId(response.testRun))]);
         const runId = getId(response.testRun);
         if (runId) {
@@ -709,6 +710,8 @@ function EmployeeWorkspaceExecutionRoute() {
       });
       if (response.testRun) {
         setSelectedRun(response.testRun);
+        // Reset form after successful creation to avoid stale duplicate-name warning.
+        setRunForm({ testPlanId: "", name: "", baseUrl: "" });
         setRuns((prev) => [response.testRun as RecordAny, ...prev.filter((run) => getId(run) !== getId(response.testRun))]);
         const runId = getId(response.testRun);
         if (runId) {
