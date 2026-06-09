@@ -171,15 +171,20 @@ export default function AppShell({
                       <button
                         key={item.key}
                         type="button"
+                        aria-current={isActive ? "page" : undefined}
                         onClick={() => onNavChange(item.key)}
-                        className={`flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-[13px] font-medium transition-colors ${
+                        className={`flex w-full cursor-pointer items-center gap-2.5 rounded-md border-l-[3px] py-2 pl-2 pr-2.5 text-left text-[13px] transition-colors ${
                           isActive
-                            ? "bg-zinc-100 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-100"
-                            : "text-zinc-600 hover:bg-zinc-50 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/60 dark:hover:text-zinc-100"
+                            ? "border-l-blue-600 bg-white font-semibold text-zinc-900 shadow-sm ring-1 ring-inset ring-zinc-200/80 dark:border-l-blue-400 dark:bg-zinc-800 dark:text-zinc-50 dark:ring-zinc-600/70"
+                            : "border-l-transparent font-medium text-zinc-600 hover:border-l-zinc-300 hover:bg-zinc-100/80 hover:text-zinc-900 dark:text-zinc-400 dark:hover:border-l-zinc-600 dark:hover:bg-zinc-800/50 dark:hover:text-zinc-100"
                         }`}
                       >
                         <span
-                          className={`shrink-0 ${isActive ? "text-zinc-900 dark:text-zinc-100" : "text-zinc-400 dark:text-zinc-500"}`}
+                          className={`shrink-0 ${
+                            isActive
+                              ? "text-blue-600 dark:text-blue-400"
+                              : "text-zinc-400 dark:text-zinc-500"
+                          }`}
                         >
                           {NAV_ICONS[item.key] ?? (
                             <span className="inline-block h-4 w-4 rounded-full border border-current opacity-40" />
@@ -223,7 +228,7 @@ export default function AppShell({
                   type="button"
                   onClick={onLogout}
                   title="Đăng xuất"
-                  className="shrink-0 rounded-md p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                  className="shrink-0 cursor-pointer rounded-md p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
                 >
                   <LogoutIcon />
                 </button>

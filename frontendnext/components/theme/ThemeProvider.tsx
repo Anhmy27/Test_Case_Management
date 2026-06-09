@@ -27,6 +27,7 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 function applyTheme(theme: ThemeMode) {
   const root = document.documentElement;
   root.classList.toggle("dark", theme === "dark");
+  root.dataset.theme = theme;
   root.style.colorScheme = theme;
 }
 
