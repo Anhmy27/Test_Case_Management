@@ -18,7 +18,7 @@ import AppShell from "@/components/AppShell";
 import { useAdminSidebarNav } from "@/components/workspaceScreens/adminNav";
 import { EMPLOYEE_NAV_ITEMS } from "@/components/workspaceScreens/employeeNav";
 import { WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
-import { apiRequest, userName } from "@/lib/api";
+import { apiRequest, getId, matchesSelectedEntity, userName } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
 
@@ -79,11 +79,15 @@ export function AdminWorkspaceShell({ children }: { children: ReactNode }) {
   const activeKey = resolveAdminActiveKey(pathname);
   const mainRef = useRef<HTMLElement | null>(null);
   const [token, setToken] = useState("");
-  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [selectedProjectId, setSelectedProjectIdState] = useState("");
   const [clientReady, setClientReady] = useState(false);
   const [currentUser, setCurrentUser] = useState<RecordAny | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [topbar, setTopbar] = useState<ReactNode | null>(null);
+
+  const setSelectedProjectId = useCallback((projectId: string) => {
+    setSelectedProjectIdState(String(projectId || "").trim());
+  }, []);
 
   const navItems = useAdminSidebarNav(selectedProjectId, activeKey, router, {
     enabled: clientReady,
@@ -93,7 +97,7 @@ export function AdminWorkspaceShell({ children }: { children: ReactNode }) {
     setToken(window.localStorage.getItem("tcm_token") || "");
     setSelectedProjectId(window.localStorage.getItem(PROJECT_STORAGE_KEY) || "");
     setClientReady(true);
-  }, []);
+  }, [setSelectedProjectId]);
 
   useEffect(() => {
     if (selectedProjectId) {
@@ -102,6 +106,41 @@ export function AdminWorkspaceShell({ children }: { children: ReactNode }) {
       window.localStorage.removeItem(PROJECT_STORAGE_KEY);
     }
   }, [selectedProjectId]);
+
+  useEffect(() => {
+    if (!selectedProjectId || !token || !currentUser) {
+      return;
+    }
+
+    let cancelled = false;
+    const normalizeScope = async () => {
+      try {
+        const response = await apiRequest<{ projects: RecordAny[] }>("/api/projects", token);
+        if (cancelled) {
+          return;
+        }
+        const projects = Array.isArray(response.projects) ? response.projects : [];
+        const matchedProject = projects.find((project) =>
+          matchesSelectedEntity(project, selectedProjectId),
+        );
+        if (!matchedProject) {
+          setSelectedProjectId("");
+          return;
+        }
+        const canonicalProjectId = getId(matchedProject);
+        if (canonicalProjectId && canonicalProjectId !== selectedProjectId) {
+          setSelectedProjectId(canonicalProjectId);
+        }
+      } catch {
+        // Ignore scope normalization failure; page-level fetch will show API errors if needed.
+      }
+    };
+
+    void normalizeScope();
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser, selectedProjectId, setSelectedProjectId, token]);
 
   useLayoutEffect(() => {
     setTopbar(null);

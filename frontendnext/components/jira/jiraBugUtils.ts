@@ -1,4 +1,4 @@
-import { getId } from "@/lib/api";
+import { collectEntityIds, getId } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
 
@@ -31,20 +31,27 @@ export function getRunDocumentId(value: unknown) {
 }
 
 export function findProjectByReference(projects: RecordAny[], reference: unknown) {
-  const referenceId = String(getId(reference) || reference || "").trim();
-  if (!referenceId) {
+  const referenceIds = collectEntityIds(reference);
+  if (typeof reference === "string") {
+    const rawReference = String(reference).trim();
+    if (rawReference) {
+      referenceIds.add(rawReference);
+    }
+  }
+
+  if (referenceIds.size === 0) {
     return null;
   }
 
   return (
     projects.find((project) => {
-      const projectIds = [
-        String(project?._id || "").trim(),
-        String(project?.entityId || "").trim(),
-        String(getId(project) || "").trim(),
-      ].filter(Boolean);
-
-      return projectIds.includes(referenceId);
+      const projectIds = collectEntityIds(project);
+      for (const projectId of projectIds) {
+        if (referenceIds.has(projectId)) {
+          return true;
+        }
+      }
+      return false;
     }) || null
   );
 }

@@ -142,7 +142,8 @@ const getDashboardService = async ({ projectId, versionId }) => {
         ...run,
         project: resolvedProject
           ? {
-              _id: String(resolvedProject.entityId || resolvedProject._id),
+              _id: String(resolvedProject._id),
+              entityId: String(resolvedProject.entityId || resolvedProject._id),
               name: resolvedProject.name,
               code: resolvedProject.code,
             }
@@ -194,7 +195,8 @@ const getDashboardService = async ({ projectId, versionId }) => {
     .filter((plan) => !startedPlanEntityIds.has(String(plan.entityId || plan._id)))
     .slice(0, 8)
     .map((plan) => ({
-      _id: String(plan.entityId || plan._id),
+      _id: String(plan._id),
+      entityId: String(plan.entityId || plan._id),
       name: plan.name,
       project: plan.project,
       version: plan.version,
@@ -234,7 +236,8 @@ const getDashboardService = async ({ projectId, versionId }) => {
       failCount: item.failCount,
       project: project
         ? {
-            _id: String(project.entityId || project._id),
+            _id: String(project._id),
+            entityId: String(project.entityId || project._id),
             name: project.name,
             code: project.code,
           }
@@ -339,7 +342,8 @@ const getDashboardService = async ({ projectId, versionId }) => {
     const executed = passCount + failCount + blockedCount;
 
     return {
-      _id: String(project.entityId || project._id),
+      _id: String(project._id),
+      entityId: String(project.entityId || project._id),
       name: project.name,
       code: project.code,
       latestVersion: latestVersion?.name || latestRunWithVersion?.version?.name || 'N/A',
@@ -426,6 +430,7 @@ const getProjectDashboardService = async () => {
 
     return {
       _id: String(project._id),
+      entityId: String(project.entityId || project._id),
       name: project.name,
       code: project.code,
       latestVersion: latestVersion?.name || latestRunWithVersion?.version?.name || 'N/A',
@@ -497,7 +502,8 @@ const getVersionDashboardService = async ({ projectId }) => {
     const executed = passCount + failCount;
 
     return {
-      _id: String(version.entityId || version._id),
+      _id: String(version._id),
+      entityId: String(version.entityId || version._id),
       name: version.name,
       project: String(version.project),
       totalTestPlans: testPlans.length,

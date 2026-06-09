@@ -50,7 +50,7 @@ const extractReferenceId = (value) => {
       return value.toHexString();
     }
 
-    const candidate = value._id || value.entityId || value.id;
+    const candidate = value.entityId || value._id || value.id;
     return candidate ? String(candidate) : '';
   }
 

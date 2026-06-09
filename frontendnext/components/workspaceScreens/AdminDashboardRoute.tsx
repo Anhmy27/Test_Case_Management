@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import AdminDashboardScreen from "@/components/workspaceScreens/AdminDashboardScreen";
 import { useAdminWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
 import { WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
-import { apiRequest, createTextMatcher, getId, userName } from "@/lib/api";
+import { apiRequest, createTextMatcher, getId, matchesSelectedEntity, userName } from "@/lib/api";
 import { dashboardInputClassName } from "@/components/dashboard/chartTheme";
 
 type RecordAny = Record<string, any>;
@@ -103,6 +103,25 @@ export default function AdminDashboardRoute() {
   const scopedProjectName = selectedProject?.name || "";
   const runningRunsCount = Number(dashboardSummary.runningRuns || 0);
   const matchesSearch = useMemo(() => createTextMatcher(searchTerm), [searchTerm]);
+
+  useEffect(() => {
+    if (!selectedProjectId) {
+      return;
+    }
+
+    const matchedProject = safeProjects.find((project) =>
+      matchesSelectedEntity(project, selectedProjectId),
+    );
+    if (!matchedProject) {
+      setSelectedProjectId("");
+      return;
+    }
+
+    const canonicalProjectId = getId(matchedProject);
+    if (canonicalProjectId && canonicalProjectId !== selectedProjectId) {
+      setSelectedProjectId(canonicalProjectId);
+    }
+  }, [safeProjects, selectedProjectId, setSelectedProjectId]);
 
   const handleNavigate = (tab: string, options?: string | DashboardNavigateOptions) => {
     const normalized: DashboardNavigateOptions =

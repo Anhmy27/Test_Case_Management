@@ -8,7 +8,7 @@ import type {
   MutableRefObject,
   SetStateAction,
 } from "react";
-import { getId } from "@/lib/api";
+import { collectEntityIds, getId } from "@/lib/api";
 import AutomationConfigPanel from "@/components/automation/AutomationConfigPanel";
 import AutomationDryRunPanel from "@/components/automation/AutomationDryRunPanel";
 import TestCaseWorkbenchModal from "@/components/testCases/TestCaseWorkbenchModal";
@@ -115,33 +115,20 @@ export default function AdminTestCasesScreen(props: Props) {
   const [draggingStep, setDraggingStep] = useState<ManualDragPayload | null>(null);
   const [showRecentModal, setShowRecentModal] = useState(false);
   const resolveScopedValue = (value: RecordAny, items: RecordAny[]) => {
-    const candidateIds = new Set(
-      [getId(value), typeof value === "string" ? value : ""]
-        .concat(
-          typeof value === "object" && value !== null
-            ? [
-                String(value._id || ""),
-                String(value.entityId || ""),
-                String(value.id || ""),
-              ]
-            : [],
-        )
-        .map((item) => String(item || "").trim())
-        .filter(Boolean),
-    );
+    const candidateIds = collectEntityIds(value);
+    if (typeof value === "string") {
+      candidateIds.add(String(value).trim());
+    }
 
     return (
       items.find((item) => {
-        const itemIds = [
-          getId(item),
-          String(item?._id || ""),
-          String(item?.entityId || ""),
-          String(item?.id || ""),
-        ]
-          .map((itemId) => String(itemId || "").trim())
-          .filter(Boolean);
-
-        return itemIds.some((itemId) => candidateIds.has(itemId));
+        const itemIds = collectEntityIds(item);
+        for (const itemId of itemIds) {
+          if (candidateIds.has(itemId)) {
+            return true;
+          }
+        }
+        return false;
       }) || null
     );
   };

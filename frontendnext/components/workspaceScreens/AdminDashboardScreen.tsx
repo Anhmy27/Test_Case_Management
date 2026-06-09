@@ -186,9 +186,7 @@ export default function AdminDashboardScreen({
     .map((run: RecordAny, index: number) => {
       const rawProject = run.project ?? run.testPlan?.project ?? null;
       const pid = getId(rawProject) || (typeof rawProject === "string" ? rawProject : "");
-      const project = projects.find((p: RecordAny) =>
-        getId(p) === pid || String(p._id || "") === pid,
-      );
+      const project = projects.find((p: RecordAny) => getId(p) === pid);
       const projectName = run.project?.name || project?.name || (pid ? pid : "-");
       const projectId = getId(project) || pid;
       const runId = getId(run);
@@ -270,7 +268,7 @@ export default function AdminDashboardScreen({
             detail: item.latestVersion ? `Latest: ${item.latestVersion}` : undefined,
           }
         : {
-            id: String(getId(item) || item._id || item.name),
+            id: String(getId(item) || item.name),
             name: String(item.name || "Untitled"),
             progress: Number(item.progress || 0),
             passRate: Number(item.passRate || 0),

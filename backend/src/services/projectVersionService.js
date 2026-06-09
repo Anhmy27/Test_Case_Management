@@ -103,7 +103,8 @@ const buildProjectVersionServices = ({
           ...project,
           latestVersion: latestVersion
             ? {
-                _id: String(latestVersion.entityId || latestVersion._id),
+                _id: String(latestVersion._id),
+                entityId: String(latestVersion.entityId || latestVersion._id),
                 name: latestVersion.name,
               }
             : null,
