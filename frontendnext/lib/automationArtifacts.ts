@@ -1,4 +1,15 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
+const CSRF_COOKIE = "tcm_csrf";
+const CSRF_HEADER = "X-CSRF-Token";
+
+function readBrowserCookie(name: string): string {
+  if (typeof document === "undefined") {
+    return "";
+  }
+
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : "";
+}
 
 export function runResultFailureScreenshotPath(runId: string, resultId: string) {
   return `/api/test-runs/${encodeURIComponent(runId)}/results/${encodeURIComponent(resultId)}/failure-screenshot`;
@@ -12,11 +23,16 @@ export function hasFailureScreenshot(failureScreenshot?: string | null) {
   return Boolean(String(failureScreenshot || "").trim());
 }
 
-async function fetchAuthenticatedScreenshot(path: string, token: string) {
+async function fetchAuthenticatedScreenshot(path: string) {
+  const headers: Record<string, string> = {};
+  const csrfToken = readBrowserCookie(CSRF_COOKIE);
+  if (csrfToken) {
+    headers[CSRF_HEADER] = csrfToken;
+  }
+
   const response = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
+    headers,
+    credentials: "include",
     cache: "no-store",
   });
 
@@ -40,21 +56,21 @@ async function fetchAuthenticatedScreenshot(path: string, token: string) {
 export async function fetchRunResultFailureScreenshot({
   runId,
   resultId,
-  token,
+  token: _token,
 }: {
   runId: string;
   resultId: string;
-  token: string;
+  token?: string;
 }) {
-  return fetchAuthenticatedScreenshot(runResultFailureScreenshotPath(runId, resultId), token);
+  void _token;
+  return fetchAuthenticatedScreenshot(runResultFailureScreenshotPath(runId, resultId));
 }
 
 export async function fetchDryRunFailureScreenshot({
   dryRunId,
-  token,
 }: {
   dryRunId: string;
-  token: string;
+  token?: string;
 }) {
-  return fetchAuthenticatedScreenshot(dryRunFailureScreenshotPath(dryRunId), token);
+  return fetchAuthenticatedScreenshot(dryRunFailureScreenshotPath(dryRunId));
 }

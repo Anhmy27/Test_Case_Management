@@ -2,17 +2,17 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { httpError } = require('../utils/httpError');
 const { asyncHandler } = require('../utils/asyncHandler');
+const { readAccessTokenFromRequest } = require('../utils/authCookies');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'replace-me-secret';
 const AUTOMATION_SECRET_HEADER = 'x-automation-secret';
 
-async function attachUserFromBearerToken(req) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+async function attachUserFromRequest(req) {
+  const token = readAccessTokenFromRequest(req);
+  if (!token) {
     return null;
   }
 
-  const token = authHeader.slice(7);
   let payload;
 
   try {
@@ -50,7 +50,7 @@ function isValidAutomationSecret(providedSecret) {
 }
 
 const authenticate = asyncHandler(async (req, res, next) => {
-  const user = await attachUserFromBearerToken(req);
+  const user = await attachUserFromRequest(req);
   if (!user) {
     throw httpError(401, 'Missing or invalid authorization token');
   }
@@ -69,7 +69,7 @@ const authenticateAutomationIngest = asyncHandler(async (req, res, next) => {
     return next();
   }
 
-  const user = await attachUserFromBearerToken(req);
+  const user = await attachUserFromRequest(req);
   if (user) {
     if (user.role !== 'admin') {
       throw httpError(403, 'Not authorized to submit automation results');
@@ -111,7 +111,7 @@ function signAccessToken(user) {
     JWT_SECRET,
     {
       expiresIn: process.env.JWT_EXPIRES_IN || '7d',
-    }
+    },
   );
 }
 

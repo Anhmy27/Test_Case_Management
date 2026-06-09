@@ -189,8 +189,10 @@ Failed run items can be logged to Jira from the execution screen.
 
 The frontend stores a few client-side keys in `localStorage`:
 
-- `tcm_token` - JWT token
 - `tcm_selected_project_id` - selected project scope
+- `tcm_theme` - light/dark theme preference
+
+JWT is **not** stored in `localStorage`; session is kept in httpOnly cookies set by the backend.
 
 ## API Highlights
 
@@ -204,7 +206,12 @@ The backend mounts routes as:
 
 - `POST /api/auth/register`
 - `POST /api/auth/login`
+- `POST /api/auth/logout`
 - `GET /api/auth/me`
+
+Auth uses **httpOnly cookies** (`tcm_access_token`) instead of storing JWT in `localStorage`.
+Mutating API calls from the browser must send `X-CSRF-Token` matching the `tcm_csrf` cookie.
+All browser API requests use `credentials: 'include'`.
 
 ### Users
 

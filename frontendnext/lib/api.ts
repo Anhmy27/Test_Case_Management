@@ -1,4 +1,15 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:5000';
+const CSRF_COOKIE = 'tcm_csrf';
+const CSRF_HEADER = 'X-CSRF-Token';
+
+function readBrowserCookie(name: string): string {
+  if (typeof document === 'undefined') {
+    return '';
+  }
+
+  const match = document.cookie.match(new RegExp(`(?:^|; )${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}=([^;]*)`));
+  return match ? decodeURIComponent(match[1]) : '';
+}
 
 // short in-memory cache + in-flight dedupe for GET requests to reduce burst pressure
 const _inflight = new Map<string, Promise<unknown>>();
@@ -18,7 +29,7 @@ export async function apiRequest<T>(
   );
 
   // build a stable key including authorization to avoid leaking other users' cache
-  const authKey = token ? `|${token}` : '';
+  const authKey = token ? `|${token}` : '|cookie';
   const cacheKey = `${method}:${path}${authKey}`;
 
   if (method !== 'GET') {
@@ -56,9 +67,17 @@ export async function apiRequest<T>(
     headers.Authorization = `Bearer ${token}`;
   }
 
+  if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+    const csrfToken = readBrowserCookie(CSRF_COOKIE);
+    if (csrfToken) {
+      headers[CSRF_HEADER] = csrfToken;
+    }
+  }
+
   const fetchPromise = fetch(`${API_BASE}${path}`, {
     ...options,
     cache: "no-store",
+    credentials: 'include',
     headers,
   }).then(async (response) => {
     // Safely handle empty responses (204 No Content or empty body)

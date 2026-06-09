@@ -7,10 +7,10 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
@@ -23,6 +23,36 @@ import { apiRequest, getId, matchesSelectedEntity, userName } from "@/lib/api";
 type RecordAny = Record<string, any>;
 
 const PROJECT_STORAGE_KEY = "tcm_selected_project_id";
+const LEGACY_TOKEN_STORAGE_KEY = "tcm_token";
+
+function useIsClient() {
+  return useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+}
+
+function readInitialProjectScope() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  window.localStorage.removeItem(LEGACY_TOKEN_STORAGE_KEY);
+  return window.localStorage.getItem(PROJECT_STORAGE_KEY) || "";
+}
+
+function useRouteTopbar(pathname: string) {
+  const [topbarEntry, setTopbarEntry] = useState<{ path: string; node: ReactNode | null } | null>(null);
+
+  const setTopbar = useCallback((node: ReactNode | null) => {
+    setTopbarEntry({ path: pathname, node });
+  }, [pathname]);
+
+  const topbar = topbarEntry?.path === pathname ? topbarEntry.node : null;
+
+  return { topbar, setTopbar };
+}
 
 type AdminWorkspaceContextValue = {
   token: string;
@@ -78,26 +108,19 @@ export function AdminWorkspaceShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const activeKey = resolveAdminActiveKey(pathname);
   const mainRef = useRef<HTMLElement | null>(null);
-  const [token, setToken] = useState("");
-  const [selectedProjectId, setSelectedProjectIdState] = useState("");
-  const [clientReady, setClientReady] = useState(false);
+  const isClient = useIsClient();
+  const [selectedProjectId, setSelectedProjectIdState] = useState(readInitialProjectScope);
   const [currentUser, setCurrentUser] = useState<RecordAny | null>(null);
   const [authReady, setAuthReady] = useState(false);
-  const [topbar, setTopbar] = useState<ReactNode | null>(null);
+  const { topbar, setTopbar } = useRouteTopbar(pathname);
 
   const setSelectedProjectId = useCallback((projectId: string) => {
     setSelectedProjectIdState(String(projectId || "").trim());
   }, []);
 
   const navItems = useAdminSidebarNav(selectedProjectId, activeKey, router, {
-    enabled: clientReady,
+    enabled: isClient,
   });
-
-  useEffect(() => {
-    setToken(window.localStorage.getItem("tcm_token") || "");
-    setSelectedProjectId(window.localStorage.getItem(PROJECT_STORAGE_KEY) || "");
-    setClientReady(true);
-  }, [setSelectedProjectId]);
 
   useEffect(() => {
     if (selectedProjectId) {
@@ -108,14 +131,14 @@ export function AdminWorkspaceShell({ children }: { children: ReactNode }) {
   }, [selectedProjectId]);
 
   useEffect(() => {
-    if (!selectedProjectId || !token || !currentUser) {
+    if (!selectedProjectId || !currentUser) {
       return;
     }
 
     let cancelled = false;
     const normalizeScope = async () => {
       try {
-        const response = await apiRequest<{ projects: RecordAny[] }>("/api/projects", token);
+        const response = await apiRequest<{ projects: RecordAny[] }>("/api/projects");
         if (cancelled) {
           return;
         }
@@ -140,30 +163,21 @@ export function AdminWorkspaceShell({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, selectedProjectId, setSelectedProjectId, token]);
-
-  useLayoutEffect(() => {
-    setTopbar(null);
-  }, [pathname]);
+  }, [currentUser, selectedProjectId, setSelectedProjectId]);
 
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0, left: 0 });
   }, [pathname]);
 
   useEffect(() => {
-    if (!clientReady) {
-      return;
-    }
-
-    if (!token) {
-      router.replace("/");
+    if (!isClient) {
       return;
     }
 
     let cancelled = false;
     const loadAuth = async () => {
       try {
-        const me = await apiRequest<{ user: RecordAny | null }>("/api/auth/me", token);
+        const me = await apiRequest<{ user: RecordAny | null }>("/api/auth/me");
         if (!me.user) {
           router.replace("/");
           return;
@@ -190,16 +204,19 @@ export function AdminWorkspaceShell({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [clientReady, router, token]);
+  }, [isClient, router]);
 
   const handleNavigate = (tab: string) => {
     router.push(`/workspace/admin/${tab}`);
   };
 
   const handleLogout = useCallback(() => {
-    window.localStorage.removeItem("tcm_token");
-    window.localStorage.removeItem(PROJECT_STORAGE_KEY);
-    router.replace("/");
+    void apiRequest("/api/auth/logout", undefined, { method: "POST" })
+      .catch(() => undefined)
+      .finally(() => {
+        window.localStorage.removeItem(PROJECT_STORAGE_KEY);
+        router.replace("/");
+      });
   }, [router]);
 
   const contextValue = useMemo<AdminWorkspaceContextValue | null>(() => {
@@ -208,14 +225,14 @@ export function AdminWorkspaceShell({ children }: { children: ReactNode }) {
     }
 
     return {
-      token,
+      token: "cookie-session",
       currentUser,
       selectedProjectId,
       setSelectedProjectId,
       setTopbar,
       handleLogout,
     };
-  }, [currentUser, handleLogout, selectedProjectId, token]);
+  }, [currentUser, handleLogout, selectedProjectId, setSelectedProjectId, setTopbar]);
 
   const defaultTopbar = (
     <div className="flex min-h-[40px] items-center">
@@ -245,7 +262,7 @@ export function AdminWorkspaceShell({ children }: { children: ReactNode }) {
         topbar={topbar ?? defaultTopbar}
         mainRef={mainRef}
       >
-        {!clientReady || !authReady || !currentUser || !contextValue ? (
+        {!isClient || !authReady || !currentUser || !contextValue ? (
           <WorkspaceContentSkeleton />
         ) : (
           children
@@ -260,41 +277,33 @@ export function EmployeeWorkspaceShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const activeKey = resolveEmployeeActiveKey(pathname);
   const mainRef = useRef<HTMLElement | null>(null);
-  const [token, setToken] = useState("");
-  const [clientReady, setClientReady] = useState(false);
+  const isClient = useIsClient();
   const [currentUser, setCurrentUser] = useState<RecordAny | null>(null);
   const [authReady, setAuthReady] = useState(false);
-  const [topbar, setTopbar] = useState<ReactNode | null>(null);
+  const { topbar, setTopbar } = useRouteTopbar(pathname);
 
   useEffect(() => {
-    setToken(window.localStorage.getItem("tcm_token") || "");
-    setClientReady(true);
-  }, []);
+    if (!isClient) {
+      return;
+    }
 
-  useLayoutEffect(() => {
-    setTopbar(null);
-  }, [pathname]);
+    window.localStorage.removeItem(LEGACY_TOKEN_STORAGE_KEY);
+  }, [isClient]);
 
   useEffect(() => {
     mainRef.current?.scrollTo({ top: 0, left: 0 });
   }, [pathname]);
 
   useEffect(() => {
-    if (!clientReady) {
-      return;
-    }
-
-    if (!token) {
-      router.replace("/");
+    if (!isClient) {
       return;
     }
 
     let cancelled = false;
     const loadAuth = async () => {
       try {
-        const me = await apiRequest<{ user: RecordAny | null }>("/api/auth/me", token);
+        const me = await apiRequest<{ user: RecordAny | null }>("/api/auth/me");
         if (!me.user) {
-          window.localStorage.removeItem("tcm_token");
           router.replace("/");
           return;
         }
@@ -320,16 +329,19 @@ export function EmployeeWorkspaceShell({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [clientReady, router, token]);
+  }, [isClient, router]);
 
   const handleNavigate = (tab: string) => {
     router.push(`/workspace/employee/${tab}`);
   };
 
   const handleLogout = useCallback(() => {
-    window.localStorage.removeItem("tcm_token");
-    window.localStorage.removeItem(PROJECT_STORAGE_KEY);
-    router.replace("/");
+    void apiRequest("/api/auth/logout", undefined, { method: "POST" })
+      .catch(() => undefined)
+      .finally(() => {
+        window.localStorage.removeItem(PROJECT_STORAGE_KEY);
+        router.replace("/");
+      });
   }, [router]);
 
   const contextValue = useMemo<EmployeeWorkspaceContextValue | null>(() => {
@@ -338,12 +350,12 @@ export function EmployeeWorkspaceShell({ children }: { children: ReactNode }) {
     }
 
     return {
-      token,
+      token: "cookie-session",
       currentUser,
       setTopbar,
       handleLogout,
     };
-  }, [currentUser, handleLogout, token]);
+  }, [currentUser, handleLogout, setTopbar]);
 
   const defaultTopbar = (
     <div className="flex min-h-[40px] items-center">
@@ -373,7 +385,7 @@ export function EmployeeWorkspaceShell({ children }: { children: ReactNode }) {
         topbar={topbar ?? defaultTopbar}
         mainRef={mainRef}
       >
-        {!clientReady || !authReady || !currentUser || !contextValue ? (
+        {!isClient || !authReady || !currentUser || !contextValue ? (
           <WorkspaceContentSkeleton />
         ) : (
           children

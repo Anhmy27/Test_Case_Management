@@ -1,10 +1,13 @@
 const express = require('express');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
+const helmet = require('helmet');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const jiraRoutes = require('./routes/jiraRoutes');
 const testManagementRoutes = require('./routes/testManagementRoutes');
 const { errorMiddleware } = require('./middlewares/errorMiddleware');
+const { csrfProtection } = require('./middlewares/csrfMiddleware');
 
 const app = express();
 
@@ -13,12 +16,16 @@ const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000')
   .map((origin) => origin.trim())
   .filter(Boolean);
 
+app.use(helmet());
 app.use(
   cors({
     origin: corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins,
-  })
+    credentials: true,
+  }),
 );
+app.use(cookieParser());
 app.use(express.json({ limit: '2mb' }));
+app.use('/api', csrfProtection);
 
 app.get('/', (req, res) => {
   res.json({ message: 'Test Case Management API is running' });

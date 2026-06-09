@@ -19,20 +19,14 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const token =
-      typeof window !== "undefined"
-        ? window.localStorage.getItem("tcm_token") || ""
-        : "";
-    if (!token) return;
     void (async () => {
       try {
-        const resp = await apiRequest<{ user: { role?: string } }>(
-          "/api/auth/me",
-          token,
-        );
-        router.replace(getWorkspaceHome(resp.user?.role));
+        const resp = await apiRequest<{ user: { role?: string } | null }>("/api/auth/me");
+        if (resp.user) {
+          router.replace(getWorkspaceHome(resp.user.role));
+        }
       } catch {
-        window.localStorage.removeItem("tcm_token");
+        // Not logged in yet.
       }
     })();
   }, [router]);
@@ -49,18 +43,16 @@ export default function Home() {
           ? { email, password }
           : { name, email, password };
       const resp = await apiRequest<{
-        token: string;
         user: Record<string, unknown>;
       }>(endpoint, undefined, { method: "POST", body: JSON.stringify(body) });
-      if (resp?.token) {
-        window.localStorage.setItem("tcm_token", resp.token);
+      if (resp?.user) {
         router.replace(
           getWorkspaceHome(
             (resp.user as { role?: string } | undefined)?.role,
           ),
         );
       } else {
-        setMessage("Không nhận được token");
+        setMessage("Đăng nhập thất bại");
       }
     } catch (err: unknown) {
       let msg = "Đăng nhập thất bại";
@@ -84,13 +76,10 @@ export default function Home() {
         <ThemeToggle />
       </div>
 
-      {/* ── Left branding (hidden on small screens) ──────────────── */}
       <div className="relative hidden flex-1 flex-col items-center justify-center overflow-hidden bg-slate-950 px-12 lg:flex">
-        {/* Subtle radial glow */}
         <div className="pointer-events-none absolute left-1/2 top-1/2 h-[480px] w-[480px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-600/10 blur-3xl" />
 
         <div className="relative z-10 max-w-md">
-          {/* Logo */}
           <div className="mb-8 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-600 text-lg font-bold text-white shadow-lg shadow-blue-600/30">
             TCM
           </div>
@@ -103,7 +92,6 @@ export default function Home() {
             execution trong một hệ thống duy nhất.
           </p>
 
-          {/* Feature list */}
           <ul className="mt-8 space-y-3">
             {[
               "Quản lý test case & automation steps",
@@ -122,7 +110,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* ── Right form ────────────────────────────────────────────── */}
       <div className="flex flex-1 items-center justify-center px-6 py-12 dark:bg-zinc-950">
         <div className="w-full max-w-sm">
           <div className="mb-8 flex items-center gap-3 lg:hidden">
@@ -143,7 +130,6 @@ export default function Home() {
               : "Tạo tài khoản mới để bắt đầu."}
           </p>
 
-          {/* Error */}
           {message && (
             <div className="mt-5 flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
               <svg className="mt-0.5 h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -153,7 +139,6 @@ export default function Home() {
             </div>
           )}
 
-          {/* Form */}
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             {mode === "register" && (
               <div>
@@ -224,7 +209,6 @@ export default function Home() {
             </button>
           </form>
 
-          {/* Switch mode */}
           <p className="mt-6 text-center text-sm text-slate-500 dark:text-zinc-400">
             {mode === "login" ? "Chưa có tài khoản?" : "Đã có tài khoản?"}{" "}
             <button
@@ -240,7 +224,6 @@ export default function Home() {
           </p>
         </div>
       </div>
-
     </div>
   );
 }
