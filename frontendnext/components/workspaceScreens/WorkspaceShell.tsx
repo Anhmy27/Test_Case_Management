@@ -32,14 +32,6 @@ function useIsClient() {
   );
 }
 
-function readInitialProjectScope() {
-  if (typeof window === "undefined") {
-    return "";
-  }
-
-  return window.localStorage.getItem(PROJECT_STORAGE_KEY) || "";
-}
-
 function useRouteTopbar(pathname: string) {
   const [topbarEntry, setTopbarEntry] = useState<{ path: string; node: ReactNode | null } | null>(null);
 
@@ -105,7 +97,8 @@ export function AdminWorkspaceShell({ children }: { children: ReactNode }) {
   const activeKey = resolveAdminActiveKey(pathname);
   const mainRef = useRef<HTMLElement | null>(null);
   const isClient = useIsClient();
-  const [selectedProjectId, setSelectedProjectIdState] = useState(readInitialProjectScope);
+  const didHydrateScopeRef = useRef(false);
+  const [selectedProjectId, setSelectedProjectIdState] = useState("");
   const [currentUser, setCurrentUser] = useState<RecordAny | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const { topbar, setTopbar } = useRouteTopbar(pathname);
@@ -119,12 +112,23 @@ export function AdminWorkspaceShell({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
+    if (!isClient || didHydrateScopeRef.current) {
+      return;
+    }
+    didHydrateScopeRef.current = true;
+    setSelectedProjectId(window.localStorage.getItem(PROJECT_STORAGE_KEY) || "");
+  }, [isClient, setSelectedProjectId]);
+
+  useEffect(() => {
+    if (!isClient || !didHydrateScopeRef.current) {
+      return;
+    }
     if (selectedProjectId) {
       window.localStorage.setItem(PROJECT_STORAGE_KEY, selectedProjectId);
     } else {
       window.localStorage.removeItem(PROJECT_STORAGE_KEY);
     }
-  }, [selectedProjectId]);
+  }, [isClient, selectedProjectId]);
 
   useEffect(() => {
     if (!selectedProjectId || !currentUser) {
