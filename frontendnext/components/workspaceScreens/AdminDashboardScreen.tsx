@@ -297,7 +297,6 @@ export default function AdminDashboardScreen({
     }
     onNavigate?.("test-plans", {
       projectId: selectedProjectId,
-      query: { versionId: item.id },
     });
   };
 

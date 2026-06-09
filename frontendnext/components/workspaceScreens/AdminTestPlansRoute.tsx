@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import AdminTestPlansScreen from "@/components/workspaceScreens/AdminTestPlansScreen";
 import { useAdminWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
 import { TOPBAR_INPUT_CLS, WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
@@ -20,8 +20,6 @@ function groupCasesByGroup(groups: RecordAny[], cases: RecordAny[]) {
 
 export default function AdminTestPlansRoute() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const versionIdFromUrl = String(searchParams.get("versionId") || "").trim();
   const { token, currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [versions, setVersions] = useState<RecordAny[]>([]);
@@ -218,7 +216,6 @@ export default function AdminTestPlansRoute() {
   };
   const setActiveTab = (tab: string) => router.push(`/workspace/admin/${tab}`);
   const matchesSearch = useMemo(() => createTextMatcher(searchTerm), [searchTerm]);
-  const versionFilter = versions.find((version) => matchesSelectedEntity(version, versionIdFromUrl)) || null;
 
   useLayoutEffect(() => {
     setTopbar(
@@ -253,18 +250,6 @@ export default function AdminTestPlansRoute() {
   return (
     <>
       {message ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{message}</div> : null}
-      {versionFilter ? (
-        <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-          Showing plans for version <span className="font-semibold">{versionFilter.name}</span>.
-          <button
-            type="button"
-            onClick={() => router.push("/workspace/admin/test-plans")}
-            className="ml-3 rounded-lg border border-sky-200 bg-white px-2.5 py-1 text-xs font-semibold text-sky-700 hover:border-sky-300"
-          >
-            Clear filter
-          </button>
-        </div>
-      ) : null}
       {loading ? (
         <WorkspaceContentSkeleton />
       ) : (
@@ -290,7 +275,6 @@ export default function AdminTestPlansRoute() {
           setAssignDraft={setAssignDraft}
           saveAssignments={saveAssignments}
           scopedPlans={plans}
-          versionFilterId={versionIdFromUrl}
           editingPlanId={editingPlanId}
           setEditingPlanId={setEditingPlanId}
           updatePlanExecutionMode={updatePlanExecutionMode}
