@@ -13,7 +13,7 @@ type RecordAny = Record<string, any>;
 
 export default function AdminGroupsRoute() {
   const router = useRouter();
-  const { token, currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
+  const { currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [groups, setGroups] = useState<RecordAny[]>([]);
   const [testCases, setTestCases] = useState<RecordAny[]>([]);
@@ -24,7 +24,7 @@ export default function AdminGroupsRoute() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    if (!token || !currentUser) {
+    if (!currentUser) {
       return;
     }
 
@@ -34,9 +34,9 @@ export default function AdminGroupsRoute() {
       setMessage("");
       try {
         const [projectsResponse, groupsResponse, testCasesResponse] = await Promise.all([
-          apiRequest<{ projects: RecordAny[] }>("/api/projects", token),
-          apiRequest<{ groups: RecordAny[] }>(selectedProjectId ? `/api/test-case-groups?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-case-groups", token),
-          apiRequest<{ testCases: RecordAny[] }>(selectedProjectId ? `/api/test-cases?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-cases", token),
+          apiRequest<{ projects: RecordAny[] }>("/api/projects"),
+          apiRequest<{ groups: RecordAny[] }>(selectedProjectId ? `/api/test-case-groups?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-case-groups"),
+          apiRequest<{ testCases: RecordAny[] }>(selectedProjectId ? `/api/test-cases?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-cases"),
         ]);
         if (cancelled) return;
         setProjects(Array.isArray(projectsResponse.projects) ? projectsResponse.projects : []);
@@ -52,7 +52,7 @@ export default function AdminGroupsRoute() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, selectedProjectId, token]);
+  }, [currentUser, selectedProjectId]);
 
   const matchesSearch = useMemo(() => createTextMatcher(searchTerm), [searchTerm]);
   const scopedProjects = selectedProjectId ? projects.filter((project) => getId(project) === selectedProjectId) : projects;
@@ -73,7 +73,7 @@ export default function AdminGroupsRoute() {
   const refreshGroups = async () => {
     const response = await apiRequest<{ groups: RecordAny[] }>(
       selectedProjectId ? `/api/test-case-groups?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-case-groups",
-      token,
+      undefined,
     );
     setGroups(Array.isArray(response.groups) ? response.groups : []);
   };
@@ -82,7 +82,7 @@ export default function AdminGroupsRoute() {
     event.preventDefault();
     try {
       const payload = { ...groupForm, projectId: groupForm.projectId || selectedProjectId };
-      await apiRequest(`/api/test-case-groups${editingGroupId ? `/${editingGroupId}` : ""}`, token, {
+      await apiRequest(`/api/test-case-groups${editingGroupId ? `/${editingGroupId}` : ""}`, undefined, {
         method: editingGroupId ? "PUT" : "POST",
         body: JSON.stringify(payload),
       });
@@ -106,7 +106,7 @@ export default function AdminGroupsRoute() {
   };
 
   const deleteGroup = async (groupId: string) => {
-    await apiRequest(`/api/test-case-groups/${groupId}`, token, { method: "DELETE" });
+    await apiRequest(`/api/test-case-groups/${groupId}`, undefined, { method: "DELETE" });
     await refreshGroups();
   };
 

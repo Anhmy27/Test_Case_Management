@@ -7,6 +7,15 @@ Test Case Management System is a full-stack test management app with:
 - Playwright-based automation execution for automation test plans
 - Jira-backed bug logging for failed run items
 
+## Recent improvements (2026-06-09)
+
+- **Security**: JWT moved from `localStorage` to httpOnly cookies; CSRF protection on mutating API calls; `helmet` security headers; production error sanitization (`NODE_ENV=production`).
+- **Backend architecture**: monolithic `testManagementService.js` split into domain services; Zod validation at route boundary via `validateRequest` middleware.
+- **Performance / safety**: regex-escaped search (ReDoS fix), prefix regex + indexes on searched fields, delayed-plan dashboard fix for versioned plans.
+- **Frontend UX**: full-app light/dark theme, clearer sidebar active state, dashboard differs by project scope (all projects vs selected project), various execution/planning bug fixes.
+- **Identity model**: `entityId` is the canonical business id across API/UI; `_id` retained for test-run runtime access and future extension.
+- **Tests**: 21 backend unit tests (`npm test` → Node built-in `node --test` runner).
+
 ## Repository Layout
 
 - `backend/` - REST API, authentication, test management, automation runner
@@ -41,6 +50,8 @@ MONGO_URI=mongodb://admin:admin123@localhost:27018/Test_Case_Management?authSour
 JWT_SECRET=super-secret-change-me
 JWT_EXPIRES_IN=7d
 CORS_ORIGIN=http://localhost:3000
+# Uncomment for production-style API errors (no stack / no raw Jira HTML in responses):
+# NODE_ENV=production
 
 ADMIN_NAME=Admin Root
 ADMIN_EMAIL=admin@example.com
@@ -89,10 +100,12 @@ The execution screen keeps `Actual result` and `Notes` persisted on run items, a
 
 The backend exposes REST endpoints under `/api` and includes:
 
-- JWT authentication
+- cookie-based JWT authentication (httpOnly session cookie + CSRF)
+- Zod request validation at the route boundary
 - project, version, group, test case, test plan, and test run management
 - admin user seeding on first startup
 - Playwright automation execution for automation-mode test plans
+- production-safe error responses when `NODE_ENV=production`
 
 Service layer is now split by domain:
 
@@ -103,6 +116,21 @@ Service layer is now split by domain:
 - shared helpers in `backend/src/services/shared/` (`versioningCore.js`, `testManagementResolvers.js`)
 
 The backend starts from [backend/index.js](backend/index.js) and connects to MongoDB before starting Express.
+
+### Running backend tests
+
+```bash
+cd backend
+npm test
+```
+
+This runs `node --test`, Node's built-in test runner. It auto-discovers files under `backend/test/` matching `*.test.js` — no separate Jest/Mocha config.
+
+Current test files:
+
+- `backend/test/validators.test.js` — Zod schemas and validation middleware
+- `backend/test/auth-security.test.js` — auth cookies, CSRF, error sanitization
+- `backend/test/auth-controller.test.js` — register/login/logout/me flows
 
 ## Frontend Overview
 
@@ -115,6 +143,8 @@ Key points:
 - admin screens handle CRUD and planning
 - employee screens handle assigned plans, running tests, and execution
 - the execution UI persists both `Actual result` and `Notes` for each run item
+- admin dashboard adapts to project scope: cross-project overview when **All projects** is selected, project-specific metrics when one project is scoped
+- project scope (`tcm_selected_project_id`) persists in `localStorage`; JWT session does not
 
 ## Roles
 
@@ -212,6 +242,13 @@ The backend mounts routes as:
 Auth uses **httpOnly cookies** (`tcm_access_token`) instead of storing JWT in `localStorage`.
 Mutating API calls from the browser must send `X-CSRF-Token` matching the `tcm_csrf` cookie.
 All browser API requests use `credentials: 'include'`.
+The backend reads the session JWT from the cookie only (no `Authorization: Bearer` fallback).
+
+Security middleware enabled on the API:
+
+- `helmet` — baseline HTTP security headers
+- `cookie-parser` — session + CSRF cookies
+- CSRF double-submit check on mutating `/api/*` routes (login/register/logout and automation ingest are excluded)
 
 ### Users
 
@@ -305,7 +342,7 @@ All browser API requests use `credentials: 'include'`.
 cd backend
 npm install
 npm start
-npm test
+npm test          # node --test — auto-runs backend/test/*.test.js
 ```
 
 ### Frontend
@@ -330,6 +367,8 @@ docker compose down -v
 - If the backend cannot connect to MongoDB, confirm the Docker container is healthy on port `27018`.
 - If automation runs are blocked with a Playwright message, reinstall backend dependencies and make sure Playwright browsers are available.
 - If the UI points to the wrong backend, set `NEXT_PUBLIC_API_BASE` in the frontend environment.
+- If API errors look too generic during local debugging, comment out `# NODE_ENV=production` in `backend/.env` to see stack traces again.
+- If mutating API calls return 403 CSRF errors, ensure the browser sends cookies (`credentials: 'include'`) and that login ran successfully so `tcm_csrf` is set.
 
 ## Notes
 

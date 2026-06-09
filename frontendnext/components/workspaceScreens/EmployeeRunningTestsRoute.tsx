@@ -14,7 +14,7 @@ type RecordAny = Record<string, any>;
 
 export default function EmployeeRunningTestsRoute() {
   const router = useRouter();
-  const { token, currentUser, setTopbar } = useEmployeeWorkspace();
+  const { currentUser, setTopbar } = useEmployeeWorkspace();
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [runs, setRuns] = useState<RecordAny[]>([]);
   const [loading, setLoading] = useState(true);
@@ -23,7 +23,7 @@ export default function EmployeeRunningTestsRoute() {
   const projectScope = useEmployeeProjectScope(projects);
 
   useEffect(() => {
-    if (!token || !currentUser) {
+    if (!currentUser) {
       return;
     }
 
@@ -35,8 +35,8 @@ export default function EmployeeRunningTestsRoute() {
 
       try {
         const [projectsResponse, runsResponse] = await Promise.all([
-          apiRequest<{ projects: RecordAny[] }>("/api/projects", token),
-          apiRequest<{ testRuns: RecordAny[] }>("/api/test-runs", token),
+          apiRequest<{ projects: RecordAny[] }>("/api/projects"),
+          apiRequest<{ testRuns: RecordAny[] }>("/api/test-runs"),
         ]);
         if (cancelled) {
           return;
@@ -60,7 +60,7 @@ export default function EmployeeRunningTestsRoute() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, token]);
+  }, [currentUser]);
 
   const myScopedRuns = useMemo(
     () => projectScope.filterMyRuns(runs, getId(currentUser)),

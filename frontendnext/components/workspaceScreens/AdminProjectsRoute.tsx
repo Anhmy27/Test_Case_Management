@@ -22,7 +22,7 @@ function getProjectJiraProjectKey(project?: RecordAny | null) {
 }
 
 export default function AdminProjectsRoute() {
-  const { token, currentUser, setTopbar } = useAdminWorkspace();
+  const { currentUser, setTopbar } = useAdminWorkspace();
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [editingProjectId, setEditingProjectId] = useState<string>("");
   const [projectForm, setProjectForm] = useState({ name: "", code: "", pid: "", jiraProjectKey: "", description: "" });
@@ -31,7 +31,7 @@ export default function AdminProjectsRoute() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    if (!token || !currentUser) {
+    if (!currentUser) {
       return;
     }
 
@@ -40,7 +40,7 @@ export default function AdminProjectsRoute() {
       setLoading(true);
       setMessage("");
       try {
-        const response = await apiRequest<{ projects: RecordAny[] }>("/api/projects", token);
+        const response = await apiRequest<{ projects: RecordAny[] }>("/api/projects");
         if (cancelled) return;
         setProjects(Array.isArray(response.projects) ? response.projects : []);
       } catch (error) {
@@ -53,12 +53,12 @@ export default function AdminProjectsRoute() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, token]);
+  }, [currentUser]);
 
   const matchesSearch = useMemo(() => createTextMatcher(searchTerm), [searchTerm]);
 
   const refreshProjects = async () => {
-    const response = await apiRequest<{ projects: RecordAny[] }>("/api/projects", token);
+    const response = await apiRequest<{ projects: RecordAny[] }>("/api/projects");
     setProjects(Array.isArray(response.projects) ? response.projects : []);
   };
 
@@ -72,10 +72,10 @@ export default function AdminProjectsRoute() {
 
     try {
       if (editingProjectId) {
-        await apiRequest(`/api/projects/${editingProjectId}`, token, { method: "PUT", body: JSON.stringify(payload) });
+        await apiRequest(`/api/projects/${editingProjectId}`, undefined, { method: "PUT", body: JSON.stringify(payload) });
         setMessage("Project updated");
       } else {
-        await apiRequest(`/api/projects`, token, { method: "POST", body: JSON.stringify(payload) });
+        await apiRequest(`/api/projects`, undefined, { method: "POST", body: JSON.stringify(payload) });
         setMessage("Project created");
       }
       setEditingProjectId("");
@@ -103,7 +103,7 @@ export default function AdminProjectsRoute() {
   };
 
   const deleteProject = async (projectId: string) => {
-    await apiRequest(`/api/projects/${projectId}`, token, { method: "DELETE" });
+    await apiRequest(`/api/projects/${projectId}`, undefined, { method: "DELETE" });
     await refreshProjects();
   };
 

@@ -31,7 +31,8 @@ function AdminWorkspaceExecutionRoute() {
   const testPlanIdFromUrl = String(searchParams.get("testPlanId") || "").trim();
   const runNameFromUrl = String(searchParams.get("runName") || "").trim();
   const adminExecutionPath = "/workspace/admin/test-runs-execution";
-  const { token, currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
+  const { currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
+  const token = "";
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [plans, setPlans] = useState<RecordAny[]>([]);
   const [runs, setRuns] = useState<RecordAny[]>([]);
@@ -52,7 +53,7 @@ function AdminWorkspaceExecutionRoute() {
     onNotice: setMessage,
   });
   useEffect(() => {
-    if (!token || !currentUser) {
+    if (!currentUser) {
       return;
     }
 
@@ -66,13 +67,13 @@ function AdminWorkspaceExecutionRoute() {
         const [plansResponse, runsResponse, projectsResponse] = await Promise.all([
           apiRequest<{ testPlans: RecordAny[] }>(
             selectedProjectId ? `/api/test-plans?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-plans",
-            token,
+            undefined,
           ),
           apiRequest<{ testRuns: RecordAny[] }>(
             selectedProjectId ? `/api/test-runs?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-runs",
-            token,
+            undefined,
           ),
-          apiRequest<{ projects: RecordAny[] }>("/api/projects", token),
+          apiRequest<{ projects: RecordAny[] }>("/api/projects"),
         ]);
         if (cancelled) return;
 
@@ -98,10 +99,10 @@ function AdminWorkspaceExecutionRoute() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, runNameFromUrl, selectedProjectId, testPlanIdFromUrl, token]);
+  }, [currentUser, runNameFromUrl, selectedProjectId, testPlanIdFromUrl]);
 
   useEffect(() => {
-    if (!token || !currentUser) {
+    if (!currentUser) {
       return;
     }
 
@@ -115,7 +116,7 @@ function AdminWorkspaceExecutionRoute() {
       try {
         const response = await apiRequest<{ testRun?: RecordAny | null; results: RecordAny[] }>(
           `/api/test-runs/${encodeURIComponent(runIdFromUrl)}/my-items`,
-          token,
+          undefined,
         );
 
         if (cancelled) {
@@ -149,7 +150,7 @@ function AdminWorkspaceExecutionRoute() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, runIdFromUrl, token]);
+  }, [currentUser, runIdFromUrl]);
 
   const scopedPlans = useMemo(() => (Array.isArray(plans) ? plans : []), [plans]);
   const activeRun = runIdFromUrl ? selectedRun : null;
@@ -206,7 +207,7 @@ function AdminWorkspaceExecutionRoute() {
   );
 
   useEffect(() => {
-    if (!shouldPollAutomationRun || !token) {
+    if (!shouldPollAutomationRun) {
       setPollError("");
       return;
     }
@@ -217,7 +218,7 @@ function AdminWorkspaceExecutionRoute() {
       try {
         const response = await apiRequest<{ testRun?: RecordAny | null; results: RecordAny[] }>(
           `/api/test-runs/${encodeURIComponent(runIdFromUrl)}/my-items`,
-          token,
+          undefined,
         );
         if (cancelled) {
           return;
@@ -248,12 +249,12 @@ function AdminWorkspaceExecutionRoute() {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [runIdFromUrl, shouldPollAutomationRun, token]);
+  }, [runIdFromUrl, shouldPollAutomationRun]);
 
   const refreshRuns = async () => {
     const response = await apiRequest<{ testRuns: RecordAny[] }>(
       selectedProjectId ? `/api/test-runs?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-runs",
-      token,
+      undefined,
     );
     setRuns(Array.isArray(response.testRuns) ? response.testRuns : []);
   };
@@ -289,7 +290,7 @@ function AdminWorkspaceExecutionRoute() {
         testRun?: RecordAny | null;
         automationQueued?: boolean;
         automationSummary?: RecordAny;
-      }>("/api/test-runs", token, {
+      }>("/api/test-runs", undefined, {
         method: "POST",
         body: JSON.stringify(resolved.payload),
       });
@@ -320,7 +321,7 @@ function AdminWorkspaceExecutionRoute() {
   };
 
   const loadMyItems = async (runId: string) => {
-    const response = await apiRequest<{ testRun?: RecordAny | null; results: RecordAny[] }>(`/api/test-runs/${runId}/my-items`, token);
+    const response = await apiRequest<{ testRun?: RecordAny | null; results: RecordAny[] }>(`/api/test-runs/${runId}/my-items`, undefined);
     if (response.testRun) {
       setSelectedRun(response.testRun);
       setRuns((prev) => {
@@ -334,13 +335,13 @@ function AdminWorkspaceExecutionRoute() {
 
   const updateResult = async (resultId: string, status: "pass" | "fail" | "blocked" | "skip", note: string, resultNotes: string) => {
     if (!selectedRun) return;
-    await apiRequest(`/api/test-runs/${getId(selectedRun)}/results/${resultId}`, token, { method: "PATCH", body: JSON.stringify({ status, note, notes: resultNotes }) });
+    await apiRequest(`/api/test-runs/${getId(selectedRun)}/results/${resultId}`, undefined, { method: "PATCH", body: JSON.stringify({ status, note, notes: resultNotes }) });
     await loadMyItems(getId(selectedRun));
     await refreshRuns();
   };
 
   const endRun = async (runId: string) => {
-    await apiRequest(`/api/test-runs/${runId}/end`, token, { method: "PATCH" });
+    await apiRequest(`/api/test-runs/${runId}/end`, undefined, { method: "PATCH" });
     if (runId) {
       await loadMyItems(runId);
       await refreshRuns();
@@ -348,11 +349,11 @@ function AdminWorkspaceExecutionRoute() {
   };
 
   const cancelAutomationRun = async () => {
-    if (!activeRun || !token) return;
+    if (!activeRun) return;
     setCancellingRun(true);
     setMessage("");
     try {
-      await apiRequest(`/api/test-runs/${encodeURIComponent(getId(activeRun))}/cancel`, token, {
+      await apiRequest(`/api/test-runs/${encodeURIComponent(getId(activeRun))}/cancel`, undefined, {
         method: "POST",
       });
       setMessage("Đang dừng automation run...");
@@ -366,7 +367,7 @@ function AdminWorkspaceExecutionRoute() {
   };
 
   const retryFailedAutomation = async () => {
-    if (!activeRun || !token) return;
+    if (!activeRun) return;
     setRetryingRun(true);
     setMessage("");
     try {
@@ -374,7 +375,7 @@ function AdminWorkspaceExecutionRoute() {
         testRun?: RecordAny | null;
         automationQueued?: boolean;
         retryCount?: number;
-      }>(`/api/test-runs/${encodeURIComponent(getId(activeRun))}/retry-failed`, token, {
+      }>(`/api/test-runs/${encodeURIComponent(getId(activeRun))}/retry-failed`, undefined, {
         method: "POST",
         body: JSON.stringify({
           baseUrl: runForm.baseUrl || activeRun.automationBaseUrl || "",
@@ -466,7 +467,8 @@ function EmployeeWorkspaceExecutionRoute() {
   const runIdFromUrl = String(searchParams.get("runId") || "").trim();
   const testPlanIdFromUrl = String(searchParams.get("testPlanId") || "").trim();
   const runNameFromUrl = String(searchParams.get("runName") || "").trim();
-  const { token, currentUser, setTopbar } = useEmployeeWorkspace();
+  const { currentUser, setTopbar } = useEmployeeWorkspace();
+  const token = "";
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [plans, setPlans] = useState<RecordAny[]>([]);
   const [runs, setRuns] = useState<RecordAny[]>([]);
@@ -488,7 +490,7 @@ function EmployeeWorkspaceExecutionRoute() {
   const employeeProjectScope = useEmployeeProjectScope(projects);
 
   useEffect(() => {
-    if (!token || !currentUser) {
+    if (!currentUser) {
       return;
     }
 
@@ -500,9 +502,9 @@ function EmployeeWorkspaceExecutionRoute() {
 
       try {
         const [plansResponse, runsResponse, projectsResponse] = await Promise.all([
-          apiRequest<{ testPlans: RecordAny[] }>("/api/test-plans", token),
-          apiRequest<{ testRuns: RecordAny[] }>("/api/test-runs", token),
-          apiRequest<{ projects: RecordAny[] }>("/api/projects", token),
+          apiRequest<{ testPlans: RecordAny[] }>("/api/test-plans"),
+          apiRequest<{ testRuns: RecordAny[] }>("/api/test-runs"),
+          apiRequest<{ projects: RecordAny[] }>("/api/projects"),
         ]);
         if (cancelled) return;
 
@@ -528,10 +530,10 @@ function EmployeeWorkspaceExecutionRoute() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, runNameFromUrl, testPlanIdFromUrl, token]);
+  }, [currentUser, runNameFromUrl, testPlanIdFromUrl]);
 
   useEffect(() => {
-    if (!token || !currentUser) {
+    if (!currentUser) {
       return;
     }
 
@@ -545,7 +547,7 @@ function EmployeeWorkspaceExecutionRoute() {
       try {
         const response = await apiRequest<{ testRun?: RecordAny | null; results: RecordAny[] }>(
           `/api/test-runs/${encodeURIComponent(runIdFromUrl)}/my-items`,
-          token,
+          undefined,
         );
 
         if (cancelled) {
@@ -579,7 +581,7 @@ function EmployeeWorkspaceExecutionRoute() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, runIdFromUrl, token]);
+  }, [currentUser, runIdFromUrl]);
 
   const scopedPlans = useMemo(() => {
     const safePlans = Array.isArray(plans) ? plans : [];
@@ -637,7 +639,7 @@ function EmployeeWorkspaceExecutionRoute() {
   );
 
   useEffect(() => {
-    if (!shouldPollAutomationRun || !token) {
+    if (!shouldPollAutomationRun) {
       return;
     }
 
@@ -647,7 +649,7 @@ function EmployeeWorkspaceExecutionRoute() {
       try {
         const response = await apiRequest<{ testRun?: RecordAny | null; results: RecordAny[] }>(
           `/api/test-runs/${encodeURIComponent(runIdFromUrl)}/my-items`,
-          token,
+          undefined,
         );
         if (cancelled) {
           return;
@@ -675,7 +677,7 @@ function EmployeeWorkspaceExecutionRoute() {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [runIdFromUrl, shouldPollAutomationRun, token]);
+  }, [runIdFromUrl, shouldPollAutomationRun]);
 
   const startRun = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -704,7 +706,7 @@ function EmployeeWorkspaceExecutionRoute() {
         testRun?: RecordAny | null;
         automationQueued?: boolean;
         automationSummary?: RecordAny;
-      }>("/api/test-runs", token, {
+      }>("/api/test-runs", undefined, {
         method: "POST",
         body: JSON.stringify(resolved.payload),
       });
@@ -734,30 +736,30 @@ function EmployeeWorkspaceExecutionRoute() {
   };
 
   const loadMyItems = async (runId: string) => {
-    const response = await apiRequest<{ testRun?: RecordAny | null; results: RecordAny[] }>(`/api/test-runs/${runId}/my-items`, token);
+    const response = await apiRequest<{ testRun?: RecordAny | null; results: RecordAny[] }>(`/api/test-runs/${runId}/my-items`, undefined);
     if (response.testRun) setSelectedRun(response.testRun);
     setMyItems(Array.isArray(response.results) ? response.results : []);
   };
 
   const updateResult = async (resultId: string, status: "pass" | "fail" | "blocked" | "skip", note: string, resultNotes: string) => {
     if (!selectedRun) return;
-    await apiRequest(`/api/test-runs/${getId(selectedRun)}/results/${resultId}`, token, { method: "PATCH", body: JSON.stringify({ status, note, notes: resultNotes }) });
+    await apiRequest(`/api/test-runs/${getId(selectedRun)}/results/${resultId}`, undefined, { method: "PATCH", body: JSON.stringify({ status, note, notes: resultNotes }) });
     await loadMyItems(getId(selectedRun));
   };
 
   const endRun = async (runId: string) => {
-    await apiRequest(`/api/test-runs/${runId}/end`, token, { method: "PATCH" });
+    await apiRequest(`/api/test-runs/${runId}/end`, undefined, { method: "PATCH" });
     if (runId) {
       await loadMyItems(runId);
     }
   };
 
   const cancelAutomationRun = async () => {
-    if (!activeRun || !token) return;
+    if (!activeRun) return;
     setCancellingRun(true);
     setMessage("");
     try {
-      await apiRequest(`/api/test-runs/${encodeURIComponent(getId(activeRun))}/cancel`, token, {
+      await apiRequest(`/api/test-runs/${encodeURIComponent(getId(activeRun))}/cancel`, undefined, {
         method: "POST",
       });
       setMessage("Äang dá»«ng automation run...");
@@ -770,7 +772,7 @@ function EmployeeWorkspaceExecutionRoute() {
   };
 
   const retryFailedAutomation = async () => {
-    if (!activeRun || !token) return;
+    if (!activeRun) return;
     setRetryingRun(true);
     setMessage("");
     try {
@@ -778,7 +780,7 @@ function EmployeeWorkspaceExecutionRoute() {
         testRun?: RecordAny | null;
         automationQueued?: boolean;
         retryCount?: number;
-      }>(`/api/test-runs/${encodeURIComponent(getId(activeRun))}/retry-failed`, token, {
+      }>(`/api/test-runs/${encodeURIComponent(getId(activeRun))}/retry-failed`, undefined, {
         method: "POST",
         body: JSON.stringify({
           baseUrl: runForm.baseUrl || activeRun.automationBaseUrl || "",

@@ -52,7 +52,7 @@ function isValidAutomationSecret(providedSecret) {
 const authenticate = asyncHandler(async (req, res, next) => {
   const user = await attachUserFromRequest(req);
   if (!user) {
-    throw httpError(401, 'Missing or invalid authorization token');
+    throw httpError(401, 'Missing or invalid auth session');
   }
 
   next();
@@ -83,7 +83,7 @@ const authenticateAutomationIngest = asyncHandler(async (req, res, next) => {
     throw httpError(503, 'Automation ingest is not configured');
   }
 
-  throw httpError(401, 'Invalid automation secret or authorization token');
+  throw httpError(401, 'Invalid automation secret or auth session');
 });
 
 function authorize(...roles) {

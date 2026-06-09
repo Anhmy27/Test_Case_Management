@@ -23,7 +23,6 @@ import { apiRequest, getId, matchesSelectedEntity, userName } from "@/lib/api";
 type RecordAny = Record<string, any>;
 
 const PROJECT_STORAGE_KEY = "tcm_selected_project_id";
-const LEGACY_TOKEN_STORAGE_KEY = "tcm_token";
 
 function useIsClient() {
   return useSyncExternalStore(
@@ -38,7 +37,6 @@ function readInitialProjectScope() {
     return "";
   }
 
-  window.localStorage.removeItem(LEGACY_TOKEN_STORAGE_KEY);
   return window.localStorage.getItem(PROJECT_STORAGE_KEY) || "";
 }
 
@@ -55,7 +53,6 @@ function useRouteTopbar(pathname: string) {
 }
 
 type AdminWorkspaceContextValue = {
-  token: string;
   currentUser: RecordAny;
   selectedProjectId: string;
   setSelectedProjectId: (projectId: string) => void;
@@ -64,7 +61,6 @@ type AdminWorkspaceContextValue = {
 };
 
 type EmployeeWorkspaceContextValue = {
-  token: string;
   currentUser: RecordAny;
   setTopbar: (node: ReactNode | null) => void;
   handleLogout: () => void;
@@ -225,7 +221,6 @@ export function AdminWorkspaceShell({ children }: { children: ReactNode }) {
     }
 
     return {
-      token: "cookie-session",
       currentUser,
       selectedProjectId,
       setSelectedProjectId,
@@ -286,8 +281,6 @@ export function EmployeeWorkspaceShell({ children }: { children: ReactNode }) {
     if (!isClient) {
       return;
     }
-
-    window.localStorage.removeItem(LEGACY_TOKEN_STORAGE_KEY);
   }, [isClient]);
 
   useEffect(() => {
@@ -350,7 +343,6 @@ export function EmployeeWorkspaceShell({ children }: { children: ReactNode }) {
     }
 
     return {
-      token: "cookie-session",
       currentUser,
       setTopbar,
       handleLogout,

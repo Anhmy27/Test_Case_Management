@@ -11,7 +11,7 @@ import { apiRequest, createTextMatcher, getId } from "@/lib/api";
 type RecordAny = Record<string, any>;
 
 export default function AdminVersionsRoute() {
-  const { token, currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
+  const { currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [versions, setVersions] = useState<RecordAny[]>([]);
   const [editingVersionId, setEditingVersionId] = useState("");
@@ -21,7 +21,7 @@ export default function AdminVersionsRoute() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    if (!token || !currentUser) {
+    if (!currentUser) {
       return;
     }
 
@@ -31,8 +31,8 @@ export default function AdminVersionsRoute() {
       setMessage("");
       try {
         const [projectsResponse, versionsResponse] = await Promise.all([
-          apiRequest<{ projects: RecordAny[] }>("/api/projects", token),
-          apiRequest<{ versions: RecordAny[] }>(selectedProjectId ? `/api/versions?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/versions", token),
+          apiRequest<{ projects: RecordAny[] }>("/api/projects"),
+          apiRequest<{ versions: RecordAny[] }>(selectedProjectId ? `/api/versions?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/versions"),
         ]);
         if (cancelled) return;
         setProjects(Array.isArray(projectsResponse.projects) ? projectsResponse.projects : []);
@@ -47,7 +47,7 @@ export default function AdminVersionsRoute() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, selectedProjectId, token]);
+  }, [currentUser, selectedProjectId]);
 
   const matchesSearch = useMemo(() => createTextMatcher(searchTerm), [searchTerm]);
   const scopedProjects = selectedProjectId ? projects.filter((project) => getId(project) === selectedProjectId) : projects;
@@ -68,7 +68,7 @@ export default function AdminVersionsRoute() {
   const refreshVersions = async () => {
     const response = await apiRequest<{ versions: RecordAny[] }>(
       selectedProjectId ? `/api/versions?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/versions",
-      token,
+      undefined,
     );
     setVersions(Array.isArray(response.versions) ? response.versions : []);
   };
@@ -78,10 +78,10 @@ export default function AdminVersionsRoute() {
     try {
       const payload = { ...versionForm, projectId: versionForm.projectId || selectedProjectId };
       if (editingVersionId) {
-        await apiRequest(`/api/versions/${editingVersionId}`, token, { method: "PUT", body: JSON.stringify(payload) });
+        await apiRequest(`/api/versions/${editingVersionId}`, undefined, { method: "PUT", body: JSON.stringify(payload) });
         setMessage("Version updated");
       } else {
-        await apiRequest(`/api/versions`, token, { method: "POST", body: JSON.stringify(payload) });
+        await apiRequest(`/api/versions`, undefined, { method: "POST", body: JSON.stringify(payload) });
         setMessage("Version created");
       }
       setEditingVersionId("");
@@ -107,7 +107,7 @@ export default function AdminVersionsRoute() {
   };
 
   const deleteVersion = async (versionId: string) => {
-    await apiRequest(`/api/versions/${versionId}`, token, { method: "DELETE" });
+    await apiRequest(`/api/versions/${versionId}`, undefined, { method: "DELETE" });
     await refreshVersions();
   };
 

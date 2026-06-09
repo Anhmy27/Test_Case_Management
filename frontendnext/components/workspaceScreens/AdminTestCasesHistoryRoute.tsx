@@ -14,7 +14,7 @@ type RecordAny = Record<string, any>;
 export default function AdminTestCasesHistoryRoute() {
   const searchParams = useSearchParams();
   const caseKeyFromUrl = String(searchParams.get("caseKey") || "").trim();
-  const { token, currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
+  const { currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [groups, setGroups] = useState<RecordAny[]>([]);
   const [detailGroupId, setDetailGroupId] = useState("");
@@ -23,7 +23,7 @@ export default function AdminTestCasesHistoryRoute() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    if (!token || !currentUser) {
+    if (!currentUser) {
       return;
     }
 
@@ -37,13 +37,13 @@ export default function AdminTestCasesHistoryRoute() {
         const detailRequest = selectedProjectId
           ? apiRequest<{ testCases: RecordAny[] }>(
               `/api/test-cases/history?projectId=${encodeURIComponent(selectedProjectId)}${detailGroupId ? `&groupId=${encodeURIComponent(detailGroupId)}` : ""}`,
-              token,
+              undefined,
             )
           : Promise.resolve<{ testCases: RecordAny[] }>({ testCases: [] });
 
         const [projectsResponse, groupsResponse, detailResponse] = await Promise.all([
-          apiRequest<{ projects: RecordAny[] }>("/api/projects", token),
-          apiRequest<{ groups: RecordAny[] }>(selectedProjectId ? `/api/test-case-groups?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-case-groups", token),
+          apiRequest<{ projects: RecordAny[] }>("/api/projects"),
+          apiRequest<{ groups: RecordAny[] }>(selectedProjectId ? `/api/test-case-groups?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-case-groups"),
           detailRequest,
         ]);
 
@@ -68,7 +68,7 @@ export default function AdminTestCasesHistoryRoute() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, detailGroupId, selectedProjectId, token]);
+  }, [currentUser, detailGroupId, selectedProjectId]);
 
   const highlightMatcher = useMemo(
     () => createTextMatcher(caseKeyFromUrl),

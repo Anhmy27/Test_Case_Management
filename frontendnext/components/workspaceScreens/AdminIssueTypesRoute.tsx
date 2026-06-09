@@ -11,7 +11,7 @@ import { apiRequest, createTextMatcher, getId } from "@/lib/api";
 type RecordAny = Record<string, any>;
 
 export default function AdminIssueTypesRoute() {
-  const { token, currentUser, setTopbar } = useAdminWorkspace();
+  const { currentUser, setTopbar } = useAdminWorkspace();
   const [issueTypes, setIssueTypes] = useState<RecordAny[]>([]);
   const [issueTypeForm, setIssueTypeForm] = useState({ name: "", idjira: "" });
   const [editingIssueTypeId, setEditingIssueTypeId] = useState("");
@@ -20,7 +20,7 @@ export default function AdminIssueTypesRoute() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    if (!token || !currentUser) {
+    if (!currentUser) {
       return;
     }
 
@@ -29,7 +29,7 @@ export default function AdminIssueTypesRoute() {
       setLoading(true);
       setMessage("");
       try {
-        const response = await apiRequest<{ issueTypes: RecordAny[] }>("/api/issue-types", token);
+        const response = await apiRequest<{ issueTypes: RecordAny[] }>("/api/issue-types");
         if (cancelled) return;
         setIssueTypes(Array.isArray(response.issueTypes) ? response.issueTypes : []);
       } catch (error) {
@@ -42,12 +42,12 @@ export default function AdminIssueTypesRoute() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, token]);
+  }, [currentUser]);
 
   const matchesSearch = useMemo(() => createTextMatcher(searchTerm), [searchTerm]);
 
   const refreshIssueTypes = async () => {
-    const response = await apiRequest<{ issueTypes: RecordAny[] }>("/api/issue-types", token);
+    const response = await apiRequest<{ issueTypes: RecordAny[] }>("/api/issue-types");
     setIssueTypes(Array.isArray(response.issueTypes) ? response.issueTypes : []);
   };
 
@@ -55,10 +55,10 @@ export default function AdminIssueTypesRoute() {
     event.preventDefault();
     try {
       if (editingIssueTypeId) {
-        await apiRequest(`/api/issue-types/${editingIssueTypeId}`, token, { method: "PUT", body: JSON.stringify(issueTypeForm) });
+        await apiRequest(`/api/issue-types/${editingIssueTypeId}`, undefined, { method: "PUT", body: JSON.stringify(issueTypeForm) });
         setMessage("Issue type updated");
       } else {
-        await apiRequest(`/api/issue-types`, token, { method: "POST", body: JSON.stringify(issueTypeForm) });
+        await apiRequest(`/api/issue-types`, undefined, { method: "POST", body: JSON.stringify(issueTypeForm) });
         setMessage("Issue type created");
       }
       setEditingIssueTypeId("");
@@ -80,7 +80,7 @@ export default function AdminIssueTypesRoute() {
   };
 
   const deleteIssueType = async (issueTypeId: string) => {
-    await apiRequest(`/api/issue-types/${issueTypeId}`, token, { method: "DELETE" });
+    await apiRequest(`/api/issue-types/${issueTypeId}`, undefined, { method: "DELETE" });
     await refreshIssueTypes();
   };
 

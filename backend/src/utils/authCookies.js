@@ -65,11 +65,6 @@ const readAccessTokenFromRequest = (req) => {
     return cookieToken;
   }
 
-  const authHeader = String(req.headers.authorization || '');
-  if (authHeader.startsWith('Bearer ')) {
-    return authHeader.slice(7).trim();
-  }
-
   return '';
 };
 

@@ -28,7 +28,7 @@ export type DashboardNavigateOptions = {
 
 export default function AdminDashboardRoute() {
   const router = useRouter();
-  const { token, currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
+  const { currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [plans, setPlans] = useState<RecordAny[]>([]);
   const [dashboard, setDashboard] = useState<RecordAny | null>(null);
@@ -39,7 +39,7 @@ export default function AdminDashboardRoute() {
   const [message, setMessage] = useState<string>("");
 
   useEffect(() => {
-    if (!token || !currentUser) {
+    if (!currentUser) {
       return;
     }
 
@@ -57,12 +57,12 @@ export default function AdminDashboardRoute() {
           : null;
         const [projectsResponse, plansResponse, dashboardResponse, testRunsResponse, versionDashboardResponse] =
           await Promise.all([
-          apiRequest<{ projects: RecordAny[] }>("/api/projects", token),
-          apiRequest<{ testPlans: RecordAny[] }>(selectedProjectId ? `/api/test-plans?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-plans", token),
-          apiRequest<RecordAny>(`/api/dashboard${dashboardQuery}`, token),
-          apiRequest<{ testRuns: RecordAny[] }>(`/api/test-runs${testRunsQuery}`, token),
+          apiRequest<{ projects: RecordAny[] }>("/api/projects"),
+          apiRequest<{ testPlans: RecordAny[] }>(selectedProjectId ? `/api/test-plans?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-plans"),
+          apiRequest<RecordAny>(`/api/dashboard${dashboardQuery}`),
+          apiRequest<{ testRuns: RecordAny[] }>(`/api/test-runs${testRunsQuery}`),
           versionDashboardQuery
-            ? apiRequest<{ versions: RecordAny[] }>(versionDashboardQuery, token)
+            ? apiRequest<{ versions: RecordAny[] }>(versionDashboardQuery)
             : Promise.resolve({ versions: [] }),
         ]);
 
@@ -91,7 +91,7 @@ export default function AdminDashboardRoute() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, selectedProjectId, token]);
+  }, [currentUser, selectedProjectId]);
 
   const safeProjects = useMemo(() => (Array.isArray(projects) ? projects : []), [projects]);
   const safePlans = useMemo(() => (Array.isArray(plans) ? plans : []), [plans]);

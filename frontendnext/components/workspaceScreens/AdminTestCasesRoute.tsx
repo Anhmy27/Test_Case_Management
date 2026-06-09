@@ -22,7 +22,7 @@ function generateStepId() {
 export default function AdminTestCasesRoute() {
   const searchParams = useSearchParams();
   const caseIdFromUrl = String(searchParams.get("caseId") || "").trim();
-  const { token, currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
+  const { currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [groups, setGroups] = useState<RecordAny[]>([]);
   const [testCases, setTestCases] = useState<RecordAny[]>([]);
@@ -43,7 +43,7 @@ export default function AdminTestCasesRoute() {
   }, [setSelectedProjectId, setTestCaseForm]);
 
   useEffect(() => {
-    if (!token || !currentUser) {
+    if (!currentUser) {
       return;
     }
 
@@ -53,9 +53,9 @@ export default function AdminTestCasesRoute() {
       setMessage("");
       try {
         const [projectsResponse, groupsResponse, casesResponse] = await Promise.all([
-          apiRequest<{ projects: RecordAny[] }>("/api/projects", token),
-          apiRequest<{ groups: RecordAny[] }>(selectedProjectId ? `/api/test-case-groups?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-case-groups", token),
-          apiRequest<{ testCases: RecordAny[] }>(selectedProjectId ? `/api/test-cases?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-cases", token),
+          apiRequest<{ projects: RecordAny[] }>("/api/projects"),
+          apiRequest<{ groups: RecordAny[] }>(selectedProjectId ? `/api/test-case-groups?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-case-groups"),
+          apiRequest<{ testCases: RecordAny[] }>(selectedProjectId ? `/api/test-cases?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-cases"),
         ]);
         if (cancelled) return;
         setProjects(Array.isArray(projectsResponse.projects) ? projectsResponse.projects : []);
@@ -71,13 +71,13 @@ export default function AdminTestCasesRoute() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, selectedProjectId, token]);
+  }, [currentUser, selectedProjectId]);
 
   const refreshAll = async () => {
     const [projectsResponse, groupsResponse, casesResponse] = await Promise.all([
-      apiRequest<{ projects: RecordAny[] }>("/api/projects", token),
-      apiRequest<{ groups: RecordAny[] }>(selectedProjectId ? `/api/test-case-groups?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-case-groups", token),
-      apiRequest<{ testCases: RecordAny[] }>(selectedProjectId ? `/api/test-cases?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-cases", token),
+      apiRequest<{ projects: RecordAny[] }>("/api/projects"),
+      apiRequest<{ groups: RecordAny[] }>(selectedProjectId ? `/api/test-case-groups?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-case-groups"),
+      apiRequest<{ testCases: RecordAny[] }>(selectedProjectId ? `/api/test-cases?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-cases"),
     ]);
     setProjects(Array.isArray(projectsResponse.projects) ? projectsResponse.projects : []);
     setGroups(Array.isArray(groupsResponse.groups) ? groupsResponse.groups : []);
@@ -126,10 +126,10 @@ export default function AdminTestCasesRoute() {
         : { enabled: false, timeoutMs: 30000, steps: [] },
       };
       if (editingTestCaseId) {
-        await apiRequest(`/api/test-cases/${editingTestCaseId}`, token, { method: "PUT", body: JSON.stringify(payload) });
+        await apiRequest(`/api/test-cases/${editingTestCaseId}`, undefined, { method: "PUT", body: JSON.stringify(payload) });
         setMessage("Test case updated");
       } else {
-        await apiRequest(`/api/test-cases`, token, { method: "POST", body: JSON.stringify(payload) });
+        await apiRequest(`/api/test-cases`, undefined, { method: "POST", body: JSON.stringify(payload) });
         setMessage("Test case created");
       }
       setEditingTestCaseId("");
@@ -207,7 +207,7 @@ export default function AdminTestCasesRoute() {
     return () => window.clearTimeout(timeoutId);
   }, [caseIdFromUrl, startTestCaseEdit, testCases]);
 
-  const deleteTestCase = async (testCaseId: string) => { await apiRequest(`/api/test-cases/${testCaseId}`, token, { method: "DELETE" }); await refreshAll(); };
+  const deleteTestCase = async (testCaseId: string) => { await apiRequest(`/api/test-cases/${testCaseId}`, undefined, { method: "DELETE" }); await refreshAll(); };
   const duplicateTestCase = async (testCase: RecordAny) => {
     const payload: RecordAny = {
       projectId: getId(testCase.project) || getId(testCase.projectId) || testCase.projectId || "",
@@ -222,7 +222,7 @@ export default function AdminTestCasesRoute() {
       steps: Array.isArray(testCase.steps) ? testCase.steps : [],
       automation: testCase.automation || { enabled: false, steps: [] },
     };
-    await apiRequest(`/api/test-cases`, token, { method: "POST", body: JSON.stringify(payload) });
+    await apiRequest(`/api/test-cases`, undefined, { method: "POST", body: JSON.stringify(payload) });
     await refreshAll();
   };
   const deleteTestCases = async (testCaseIds: string[]) => { for (const id of testCaseIds) await deleteTestCase(id); };
@@ -272,7 +272,7 @@ export default function AdminTestCasesRoute() {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("projectId", effectiveProjectId);
-    await apiRequest(`/api/test-cases/import`, token, { method: "POST", body: formData });
+    await apiRequest(`/api/test-cases/import`, undefined, { method: "POST", body: formData });
     setMessage("Excel import completed");
     await refreshAll();
   };
@@ -324,7 +324,7 @@ export default function AdminTestCasesRoute() {
         <WorkspaceContentSkeleton />
       ) : (
         <AdminTestCasesScreen
-          token={token}
+          token=""
           editingTestCaseId={editingTestCaseId}
           testCaseForm={testCaseForm as any}
           setTestCaseForm={setTestCaseForm as any}

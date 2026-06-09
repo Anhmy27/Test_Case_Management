@@ -11,7 +11,7 @@ import { apiRequest, createTextMatcher, getId } from "@/lib/api";
 type RecordAny = Record<string, any>;
 
 export default function AdminUsersRoute() {
-  const { token, currentUser, setTopbar } = useAdminWorkspace();
+  const { currentUser, setTopbar } = useAdminWorkspace();
   const [users, setUsers] = useState<RecordAny[]>([]);
   const [newUserForm, setNewUserForm] = useState({ name: "", email: "", password: "", role: "employee", isActive: true });
   const [editingUserId, setEditingUserId] = useState("");
@@ -21,7 +21,7 @@ export default function AdminUsersRoute() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    if (!token || !currentUser) {
+    if (!currentUser) {
       return;
     }
 
@@ -32,7 +32,7 @@ export default function AdminUsersRoute() {
       try {
         const response = await apiRequest<{ users: RecordAny[] }>(
           `/api/users?status=${encodeURIComponent(statusFilter)}`,
-          token,
+          undefined,
         );
         if (cancelled) return;
         setUsers(Array.isArray(response.users) ? response.users : []);
@@ -46,14 +46,14 @@ export default function AdminUsersRoute() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, statusFilter, token]);
+  }, [currentUser, statusFilter]);
 
   const matchesSearch = useMemo(() => createTextMatcher(searchTerm), [searchTerm]);
 
   const refreshUsers = async () => {
     const response = await apiRequest<{ users: RecordAny[] }>(
       `/api/users?status=${encodeURIComponent(statusFilter)}`,
-      token,
+      undefined,
     );
     setUsers(Array.isArray(response.users) ? response.users : []);
   };
@@ -66,10 +66,10 @@ export default function AdminUsersRoute() {
         delete payload.password;
       }
       if (editingUserId) {
-        await apiRequest(`/api/users/${editingUserId}`, token, { method: "PUT", body: JSON.stringify(payload) });
+        await apiRequest(`/api/users/${editingUserId}`, undefined, { method: "PUT", body: JSON.stringify(payload) });
         setMessage("User updated");
       } else {
-        await apiRequest(`/api/users`, token, { method: "POST", body: JSON.stringify(payload) });
+        await apiRequest(`/api/users`, undefined, { method: "POST", body: JSON.stringify(payload) });
         setMessage("User created");
       }
       setEditingUserId("");
@@ -97,7 +97,7 @@ export default function AdminUsersRoute() {
   };
 
   const deleteUser = async (userId: string) => {
-    await apiRequest(`/api/users/${userId}`, token, { method: "DELETE" });
+    await apiRequest(`/api/users/${userId}`, undefined, { method: "DELETE" });
     await refreshUsers();
   };
 

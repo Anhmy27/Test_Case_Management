@@ -63,10 +63,6 @@ export async function apiRequest<T>(
     headers['Content-Type'] = 'application/json';
   }
 
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-  }
-
   if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
     const csrfToken = readBrowserCookie(CSRF_COOKIE);
     if (csrfToken) {

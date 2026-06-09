@@ -20,7 +20,7 @@ function groupCasesByGroup(groups: RecordAny[], cases: RecordAny[]) {
 
 export default function AdminTestPlansRoute() {
   const router = useRouter();
-  const { token, currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
+  const { currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [versions, setVersions] = useState<RecordAny[]>([]);
   const [groups, setGroups] = useState<RecordAny[]>([]);
@@ -44,7 +44,7 @@ export default function AdminTestPlansRoute() {
   }, [setSelectedProjectId]);
 
   useEffect(() => {
-    if (!token || !currentUser) {
+    if (!currentUser) {
       return;
     }
 
@@ -53,13 +53,13 @@ export default function AdminTestPlansRoute() {
       setLoading(true); setMessage("");
       try {
         const [projectsResponse, versionsResponse, groupsResponse, casesResponse, plansResponse, runsResponse, usersResponse] = await Promise.all([
-          apiRequest<{ projects: RecordAny[] }>("/api/projects", token),
-          apiRequest<{ versions: RecordAny[] }>(selectedProjectId ? `/api/versions?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/versions", token),
-          apiRequest<{ groups: RecordAny[] }>(selectedProjectId ? `/api/test-case-groups?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-case-groups", token),
-          apiRequest<{ testCases: RecordAny[] }>(selectedProjectId ? `/api/test-cases?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-cases", token),
-          apiRequest<{ testPlans: RecordAny[] }>(selectedProjectId ? `/api/test-plans?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-plans", token),
-          apiRequest<{ testRuns: RecordAny[] }>(selectedProjectId ? `/api/test-runs?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-runs", token),
-          apiRequest<{ users: RecordAny[] }>("/api/users", token),
+          apiRequest<{ projects: RecordAny[] }>("/api/projects"),
+          apiRequest<{ versions: RecordAny[] }>(selectedProjectId ? `/api/versions?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/versions"),
+          apiRequest<{ groups: RecordAny[] }>(selectedProjectId ? `/api/test-case-groups?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-case-groups"),
+          apiRequest<{ testCases: RecordAny[] }>(selectedProjectId ? `/api/test-cases?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-cases"),
+          apiRequest<{ testPlans: RecordAny[] }>(selectedProjectId ? `/api/test-plans?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-plans"),
+          apiRequest<{ testRuns: RecordAny[] }>(selectedProjectId ? `/api/test-runs?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-runs"),
+          apiRequest<{ users: RecordAny[] }>("/api/users"),
         ]);
 
         if (cancelled) return;
@@ -76,17 +76,17 @@ export default function AdminTestPlansRoute() {
 
     void load();
     return () => { cancelled = true; };
-  }, [currentUser, selectedProjectId, token]);
+  }, [currentUser, selectedProjectId]);
 
   const refreshAll = async () => {
     const [projectsResponse, versionsResponse, groupsResponse, casesResponse, plansResponse, runsResponse, usersResponse] = await Promise.all([
-      apiRequest<{ projects: RecordAny[] }>("/api/projects", token),
-      apiRequest<{ versions: RecordAny[] }>(selectedProjectId ? `/api/versions?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/versions", token),
-      apiRequest<{ groups: RecordAny[] }>(selectedProjectId ? `/api/test-case-groups?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-case-groups", token),
-      apiRequest<{ testCases: RecordAny[] }>(selectedProjectId ? `/api/test-cases?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-cases", token),
-      apiRequest<{ testPlans: RecordAny[] }>(selectedProjectId ? `/api/test-plans?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-plans", token),
-      apiRequest<{ testRuns: RecordAny[] }>(selectedProjectId ? `/api/test-runs?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-runs", token),
-      apiRequest<{ users: RecordAny[] }>("/api/users", token),
+      apiRequest<{ projects: RecordAny[] }>("/api/projects"),
+      apiRequest<{ versions: RecordAny[] }>(selectedProjectId ? `/api/versions?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/versions"),
+      apiRequest<{ groups: RecordAny[] }>(selectedProjectId ? `/api/test-case-groups?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-case-groups"),
+      apiRequest<{ testCases: RecordAny[] }>(selectedProjectId ? `/api/test-cases?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-cases"),
+      apiRequest<{ testPlans: RecordAny[] }>(selectedProjectId ? `/api/test-plans?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-plans"),
+      apiRequest<{ testRuns: RecordAny[] }>(selectedProjectId ? `/api/test-runs?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-runs"),
+      apiRequest<{ users: RecordAny[] }>("/api/users"),
     ]);
 
     setProjects(Array.isArray(projectsResponse.projects) ? projectsResponse.projects : []);
@@ -150,10 +150,10 @@ export default function AdminTestPlansRoute() {
         return false;
       }
       if (editingPlanId) {
-        await apiRequest(`/api/test-plans/${editingPlanId}`, token, { method: "PUT", body: JSON.stringify(payload) });
+        await apiRequest(`/api/test-plans/${editingPlanId}`, undefined, { method: "PUT", body: JSON.stringify(payload) });
         setMessage("Test plan updated");
       } else {
-        await apiRequest(`/api/test-plans`, token, { method: "POST", body: JSON.stringify(payload) });
+        await apiRequest(`/api/test-plans`, undefined, { method: "POST", body: JSON.stringify(payload) });
         setMessage("Test plan created");
       }
       setEditingPlanId("");
@@ -181,19 +181,19 @@ export default function AdminTestPlansRoute() {
       setMessage("Please assign at least one assignee before saving.");
       return;
     }
-    await apiRequest(`/api/test-plans/${selectedPlanId}/assign`, token, { method: "PUT", body: JSON.stringify({ assigneeIds: assignDraft.assigneeIds, ownerId: assignDraft.ownerId || getId(currentUser) }) });
+    await apiRequest(`/api/test-plans/${selectedPlanId}/assign`, undefined, { method: "PUT", body: JSON.stringify({ assigneeIds: assignDraft.assigneeIds, ownerId: assignDraft.ownerId || getId(currentUser) }) });
     await refreshAll();
   };
 
-  const updatePlanExecutionMode = async (planId: string, mode: string) => { await apiRequest(`/api/test-plans/${planId}`, token, { method: "PUT", body: JSON.stringify({ executionMode: mode }) }); await refreshAll(); };
-  const deletePlan = async (planId: string) => { await apiRequest(`/api/test-plans/${planId}`, token, { method: "DELETE" }); await refreshAll(); };
+  const updatePlanExecutionMode = async (planId: string, mode: string) => { await apiRequest(`/api/test-plans/${planId}`, undefined, { method: "PUT", body: JSON.stringify({ executionMode: mode }) }); await refreshAll(); };
+  const deletePlan = async (planId: string) => { await apiRequest(`/api/test-plans/${planId}`, undefined, { method: "DELETE" }); await refreshAll(); };
   const duplicatePlan = async (plan: RecordAny) => {
     const caseIds = Array.isArray(plan.items)
       ? plan.items
           .map((item: RecordAny) => getId(item.testCase))
           .filter(Boolean)
       : [];
-    await apiRequest(`/api/test-plans`, token, {
+    await apiRequest(`/api/test-plans`, undefined, {
       method: "POST",
       body: JSON.stringify({
         name: `${plan.name || "Test plan"} copy`,
