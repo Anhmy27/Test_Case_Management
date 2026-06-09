@@ -298,12 +298,48 @@ export default function AdminDashboardScreen({
     });
   };
 
+  const scopeModeLabel = isGlobalScope ? "Global scope" : "Project scope";
+  const scopeModeDescription = isGlobalScope
+    ? "Cross-project comparison and portfolio-level risks"
+    : "Execution health and version insights for selected project";
+
   return (
     <div className="space-y-5">
+      <section className="rounded-xl border border-black/[0.06] bg-white/80 px-4 py-3 dark:border-white/[0.08] dark:bg-zinc-900/70">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+              {scopeModeLabel}
+            </div>
+            <div className="text-[13px] text-zinc-700 dark:text-zinc-300">{scopeModeDescription}</div>
+          </div>
+          {!isGlobalScope ? (
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => onNavigate?.("test-plans", { projectId: selectedProjectId })}
+                className="rounded-md border border-zinc-200 px-3 py-1.5 text-[12px] font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+              >
+                Open test plans
+              </button>
+              <button
+                type="button"
+                onClick={() => onNavigate?.("test-runs-execution", { projectId: selectedProjectId })}
+                className="rounded-md border border-zinc-200 px-3 py-1.5 text-[12px] font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+              >
+                Open execution
+              </button>
+            </div>
+          ) : null}
+        </div>
+      </section>
+
       <DashboardKpiRow items={dashboardKpis} />
 
       <section>
-        <div className={`${dashboardSectionLabelClassName()} ${DASHBOARD_GUTTER}`}>Overview</div>
+        <div className={`${dashboardSectionLabelClassName()} ${DASHBOARD_GUTTER}`}>
+          {isGlobalScope ? "Portfolio overview" : "Project execution overview"}
+        </div>
         <div className={dashboardPanelClassName()}>
           <ExecutionTrendLineChart
             embedded
@@ -318,7 +354,7 @@ export default function AdminDashboardScreen({
               embedded
               className="border-t border-black/[0.05] lg:border-t-0 lg:border-l lg:border-black/[0.05] dark:border-white/[0.06]"
               runs={actionCenterRuns}
-              delayedPlans={actionCenterDelayedPlans}
+              delayedPlans={isGlobalScope ? actionCenterDelayedPlans : []}
               showProject={isGlobalScope}
               onNavigate={onNavigate}
             />
@@ -327,18 +363,21 @@ export default function AdminDashboardScreen({
       </section>
 
       <section>
-        <div className={`${dashboardSectionLabelClassName()} ${DASHBOARD_GUTTER}`}>Insights</div>
+        <div className={`${dashboardSectionLabelClassName()} ${DASHBOARD_GUTTER}`}>
+          {isGlobalScope ? "Cross-project insights" : "Project deep dive"}
+        </div>
         <div className={dashboardPanelClassName()}>
           <div className="grid xl:grid-cols-2 xl:divide-x xl:divide-black/[0.05]">
             <TopFailingCasesChart
               embedded
+              title={isGlobalScope ? "Top failing cases across projects" : "Top failing cases in this project"}
               items={topFailingCaseItems}
               showProject={isGlobalScope}
               onItemClick={handleTopFailingCaseClick}
             />
             <ScopeCompareBarChart
               embedded
-              title={isGlobalScope ? "Project progress" : "Version progress"}
+              title={isGlobalScope ? "Project progress comparison" : "Version progress in this project"}
               subtitle="Click a bar to drill down"
               items={scopeCompareItems}
               emptyText={isGlobalScope ? "No projects found" : "No versions found"}
