@@ -19,6 +19,7 @@ const { findTestPlanByReference } = require('../../utils/entityResolvers');
 const { createAuthManager } = require('../auth/authManager');
 const { captureFailureScreenshot } = require('./failureScreenshotCapture');
 const { executeSingleCaseAutomation } = require('./singleCaseExecutor');
+const { assertAllowedBaseUrl } = require('../../utils/automationUrlPolicy');
 
 const authManager = createAuthManager();
 
@@ -31,7 +32,7 @@ const ensureProgress = (testRun) => {
 
 const updateAutomationProgress = async (testRun, partial) => {
   const progress = ensureProgress(testRun);
-  Object.assign(progress, partial);
+  Object.assign(progress, partial, { lastHeartbeatAt: new Date() });
   testRun.markModified('automationProgress');
   await testRun.save();
 };
@@ -116,6 +117,14 @@ const executeAutomationRun = async ({
   }
 
   const resolvedBaseUrl = baseUrl || testRun.automationBaseUrl || '';
+  if (resolvedBaseUrl) {
+    try {
+      assertAllowedBaseUrl(resolvedBaseUrl);
+    } catch (error) {
+      throw httpError(400, error.message || 'automation baseUrl is not allowed');
+    }
+  }
+
   if (resolvedBaseUrl && resolvedBaseUrl !== testRun.automationBaseUrl) {
     testRun.automationBaseUrl = resolvedBaseUrl;
   }
@@ -175,6 +184,13 @@ const executeAutomationRun = async ({
       const automation = testCase?.automation || {};
       const caseSteps = Array.isArray(automation.steps) ? automation.steps : [];
       const caseBaseUrl = resolvedBaseUrl || automation.baseUrl || '';
+      if (caseBaseUrl) {
+        try {
+          assertAllowedBaseUrl(caseBaseUrl);
+        } catch (error) {
+          throw httpError(400, error.message || 'test case automation baseUrl is not allowed');
+        }
+      }
       processedCaseIndex += 1;
 
       await updateAutomationProgress(testRun, {

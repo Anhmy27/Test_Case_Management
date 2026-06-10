@@ -24,16 +24,12 @@ const {
   attachRunProjectAndVersion,
 } = require('../utils/entityResolvers');
 const { scheduleAutomationRun, isAutomationRunActive } = require('./automation/automationJobRunner');
+const { assertAllowedBaseUrl } = require('../utils/automationUrlPolicy');
 
 const isValidHttpUrl = (value) => {
-  const trimmed = String(value || '').trim();
-  if (!trimmed) {
-    return false;
-  }
-
   try {
-    const parsed = new URL(trimmed);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    assertAllowedBaseUrl(value);
+    return true;
   } catch {
     return false;
   }

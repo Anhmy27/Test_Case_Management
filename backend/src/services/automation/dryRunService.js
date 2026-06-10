@@ -19,6 +19,7 @@ const { createAuthManager } = require('../auth/authManager');
 const { executeSingleCaseAutomation } = require('./singleCaseExecutor');
 const { captureFailureScreenshot } = require('./failureScreenshotCapture');
 const { createArtifactStore } = require('./artifactStore');
+const { assertAllowedBaseUrl } = require('../../utils/automationUrlPolicy');
 const {
   DRY_RUN_ARTIFACT_NAMESPACE,
   FAILURE_SCREENSHOT_CONTENT_TYPE,
@@ -87,6 +88,12 @@ const dryRunAutomationService = async ({
   const resolvedBaseUrl = String(baseUrl || normalizedAutomation.baseUrl || '').trim();
   if (!resolvedBaseUrl) {
     throw httpError(400, 'baseUrl is required for dry run');
+  }
+
+  try {
+    assertAllowedBaseUrl(resolvedBaseUrl);
+  } catch (error) {
+    throw httpError(400, error.message || 'baseUrl is not allowed');
   }
 
   let caseKey = '';

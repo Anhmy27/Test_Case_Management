@@ -150,6 +150,7 @@ const testRunSchema = new mongoose.Schema(
       currentStepTotal: { type: Number, default: 0 },
       currentCaseKey: { type: String, default: '', trim: true },
       cancelRequested: { type: Boolean, default: false },
+      lastHeartbeatAt: { type: Date },
     },
     results: {
       type: [runResultSchema],

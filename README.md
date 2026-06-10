@@ -14,7 +14,7 @@ Test Case Management System is a full-stack test management app with:
 - **Performance / safety**: regex-escaped search (ReDoS fix), prefix regex + indexes on searched fields, delayed-plan dashboard fix for versioned plans.
 - **Frontend UX**: full-app light/dark theme, clearer sidebar active state, dashboard differs by project scope (all projects vs selected project), various execution/planning bug fixes.
 - **Identity model**: `entityId` is the canonical business id across API/UI; `_id` retained for test-run runtime access and future extension.
-- **Tests**: 26 backend unit tests (`npm test` → Node built-in `node --test` runner).
+- **Tests**: 31 backend unit tests (`npm test` → Node built-in `node --test` runner).
 
 ## Repository Layout
 
@@ -133,6 +133,7 @@ Current test files:
 - `backend/test/auth-security.test.js` — auth cookies, CSRF, error sanitization
 - `backend/test/auth-controller.test.js` — register/login/logout/me flows
 - `backend/test/jwt-auth.test.js` — JWT config, tokenVersion, session revocation
+- `backend/test/automation-url-policy.test.js` — automation URL/upload sandbox policy
 
 ## Frontend Overview
 
@@ -207,6 +208,27 @@ The automation runner reuses Playwright storage state files stored under `backen
 - if no session exists, the run starts from a fresh context
 
 This lets automation runs access logged-in pages without typing username and password every time.
+
+### Automation security and recovery
+
+- **Orphaned run recovery**: on backend startup, automation runs stuck in `running` are resumed for pending cases.
+- **Artifact retention**: failure screenshots under `uploads/runs/` are cleaned up after `ARTIFACT_RETENTION_DAYS` (default 30); dry-run artifacts expire after `DRY_RUN_ARTIFACT_RETENTION_HOURS` (default 24).
+- **SSRF guardrails**:
+  - `goto` / navigation must stay on the run `baseUrl` origin unless the host is listed in `AUTOMATION_ALLOWED_HOSTS`.
+  - Metadata hosts (e.g. `169.254.169.254`) are always blocked.
+  - `upload` steps only accept files under `AUTOMATION_UPLOAD_DIR` (default `uploads/test-files/`).
+
+Optional backend env vars:
+
+```env
+# AUTOMATION_ALLOWED_HOSTS=localhost,127.0.0.1,rd.cytech.ai,*.cytech.ai
+# ARTIFACT_ROOT_DIR=uploads/runs
+# AUTOMATION_UPLOAD_DIR=uploads/test-files
+# ARTIFACT_RETENTION_DAYS=30
+# DRY_RUN_ARTIFACT_RETENTION_HOURS=24
+```
+
+Place files for automation `upload` steps inside `backend/uploads/test-files/`.
 
 ### Jira bug logging
 

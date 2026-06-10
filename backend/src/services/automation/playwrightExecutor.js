@@ -1,4 +1,4 @@
-const path = require('path');
+const { resolveNavigationUrl, resolveSandboxedUploadPaths } = require('../../utils/automationUrlPolicy');
 
 const ALLOWED_ACTIONS = new Set([
   'goto',
@@ -26,30 +26,9 @@ const toString = (value) => String(value || '').trim();
 
 const escapeAttributeValue = (value) => String(value || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 
-const parseFilePaths = (value) =>
-  String(value || '')
-    .split(/[\n,]+/)
-    .map((entry) => toString(entry))
-    .filter(Boolean)
-    .map((filePath) => (path.isAbsolute(filePath) ? filePath : path.resolve(filePath)));
+const parseFilePaths = (value) => resolveSandboxedUploadPaths(value);
 
-const joinUrl = (baseUrl, pathOrUrl) => {
-  const value = toString(pathOrUrl);
-  if (!value) {
-    return toString(baseUrl);
-  }
-
-  if (/^https?:\/\//i.test(value)) {
-    return value;
-  }
-
-  const normalizedBase = toString(baseUrl);
-  if (!normalizedBase) {
-    return value;
-  }
-
-  return new URL(value.startsWith('/') ? value : `/${value}`, normalizedBase).toString();
-};
+const joinUrl = (baseUrl, pathOrUrl) => resolveNavigationUrl(baseUrl, pathOrUrl);
 
 const resolveLocator = (page, step) => {
   const targetType = toString(step.targetType || 'css').toLowerCase();
