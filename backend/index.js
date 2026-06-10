@@ -1,10 +1,12 @@
 require('dotenv').config();
 const app = require('./src/app');
 const { connectDatabase } = require('./src/config/db');
+const { assertJwtConfig } = require('./src/config/jwtConfig');
 
 const port = Number(process.env.PORT || 5000);
 
 async function bootstrap() {
+	assertJwtConfig();
 	await connectDatabase();
 
 	app.listen(port, () => {

@@ -1,5 +1,6 @@
 const crypto = require('crypto');
-const { isProduction } = require('../utils/runtimeEnv');
+const { isProduction } = require('./runtimeEnv');
+const { getJwtExpiresIn } = require('../config/jwtConfig');
 
 const ACCESS_TOKEN_COOKIE = 'tcm_access_token';
 const CSRF_COOKIE = 'tcm_csrf';
@@ -34,7 +35,7 @@ const cookieBaseOptions = () => ({
   path: '/',
 });
 
-const getAuthCookieMaxAgeMs = () => parseDurationMs(process.env.JWT_EXPIRES_IN, 7 * 24 * 60 * 60 * 1000);
+const getAuthCookieMaxAgeMs = () => parseDurationMs(getJwtExpiresIn(), 8 * 60 * 60 * 1000);
 
 const setAuthCookies = (res, accessToken) => {
   const maxAge = getAuthCookieMaxAgeMs();

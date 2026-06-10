@@ -9,12 +9,12 @@ Test Case Management System is a full-stack test management app with:
 
 ## Recent improvements (2026-06-09)
 
-- **Security**: JWT moved from `localStorage` to httpOnly cookies; CSRF protection on mutating API calls; `helmet` security headers; production error sanitization (`NODE_ENV=production`).
+- **Security**: JWT moved from `localStorage` to httpOnly cookies; CSRF protection on mutating API calls; `helmet` security headers; production error sanitization (`NODE_ENV=production`); JWT fail-fast config, default **8h** TTL, session revocation via `tokenVersion`.
 - **Backend architecture**: monolithic `testManagementService.js` split into domain services; Zod validation at route boundary via `validateRequest` middleware.
 - **Performance / safety**: regex-escaped search (ReDoS fix), prefix regex + indexes on searched fields, delayed-plan dashboard fix for versioned plans.
 - **Frontend UX**: full-app light/dark theme, clearer sidebar active state, dashboard differs by project scope (all projects vs selected project), various execution/planning bug fixes.
 - **Identity model**: `entityId` is the canonical business id across API/UI; `_id` retained for test-run runtime access and future extension.
-- **Tests**: 21 backend unit tests (`npm test` → Node built-in `node --test` runner).
+- **Tests**: 26 backend unit tests (`npm test` → Node built-in `node --test` runner).
 
 ## Repository Layout
 
@@ -48,7 +48,8 @@ Create `backend/.env` with values similar to:
 PORT=5000
 MONGO_URI=mongodb://admin:admin123@localhost:27018/Test_Case_Management?authSource=admin
 JWT_SECRET=super-secret-change-me
-JWT_EXPIRES_IN=7d
+# Default access-token lifetime is 8h when unset. Use shorter values in production.
+JWT_EXPIRES_IN=8h
 CORS_ORIGIN=http://localhost:3000
 # Uncomment for production-style API errors (no stack / no raw Jira HTML in responses):
 # NODE_ENV=production
@@ -100,7 +101,7 @@ The execution screen keeps `Actual result` and `Notes` persisted on run items, a
 
 The backend exposes REST endpoints under `/api` and includes:
 
-- cookie-based JWT authentication (httpOnly session cookie + CSRF)
+- cookie-based JWT authentication (httpOnly session cookie + CSRF, default **8h** TTL, revocable via `tokenVersion`)
 - Zod request validation at the route boundary
 - project, version, group, test case, test plan, and test run management
 - admin user seeding on first startup
@@ -131,6 +132,7 @@ Current test files:
 - `backend/test/validators.test.js` — Zod schemas and validation middleware
 - `backend/test/auth-security.test.js` — auth cookies, CSRF, error sanitization
 - `backend/test/auth-controller.test.js` — register/login/logout/me flows
+- `backend/test/jwt-auth.test.js` — JWT config, tokenVersion, session revocation
 
 ## Frontend Overview
 

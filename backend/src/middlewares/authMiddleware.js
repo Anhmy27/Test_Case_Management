@@ -1,10 +1,11 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const { getJwtExpiresIn, getJwtSecret } = require('../config/jwtConfig');
 const { httpError } = require('../utils/httpError');
 const { asyncHandler } = require('../utils/asyncHandler');
 const { readAccessTokenFromRequest } = require('../utils/authCookies');
+const { readTokenVersion } = require('../utils/authTokens');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'replace-me-secret';
 const AUTOMATION_SECRET_HEADER = 'x-automation-secret';
 
 async function attachUserFromRequest(req) {
@@ -16,7 +17,7 @@ async function attachUserFromRequest(req) {
   let payload;
 
   try {
-    payload = jwt.verify(token, JWT_SECRET);
+    payload = jwt.verify(token, getJwtSecret());
   } catch (error) {
     throw httpError(401, 'Token is expired or invalid');
   }
@@ -24,6 +25,11 @@ async function attachUserFromRequest(req) {
   const user = await User.findById(payload.userId).lean();
   if (!user || !user.isActive) {
     throw httpError(401, 'User is not available');
+  }
+
+  const tokenVersion = Number(payload.tokenVersion || 0);
+  if (readTokenVersion(user) !== tokenVersion) {
+    throw httpError(401, 'Session has been revoked');
   }
 
   req.user = {
@@ -107,10 +113,11 @@ function signAccessToken(user) {
       role: user.role,
       name: user.name,
       email: user.email,
+      tokenVersion: readTokenVersion(user),
     },
-    JWT_SECRET,
+    getJwtSecret(),
     {
-      expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+      expiresIn: getJwtExpiresIn(),
     },
   );
 }
@@ -119,5 +126,6 @@ module.exports = {
   authenticate,
   authenticateAutomationIngest,
   authorize,
+  attachUserFromRequest,
   signAccessToken,
 };

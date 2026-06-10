@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const { httpError } = require('../utils/httpError');
+const { revokeUserSessions } = require('../utils/authTokens');
 
 const SALT_ROUNDS = 10;
 
@@ -82,6 +83,9 @@ const updateUserByAdminService = async (id, {
     throw httpError(404, 'User not found');
   }
 
+  const previousRole = user.role;
+  const previousIsActive = user.isActive !== false;
+
   if (typeof name === 'string' && name.trim()) {
     user.name = name.trim();
   }
@@ -97,8 +101,10 @@ const updateUserByAdminService = async (id, {
     }
   }
 
+  let nextRole = user.role;
   if (typeof role === 'string' && role.trim()) {
-    user.role = role === 'admin' ? 'admin' : 'employee';
+    nextRole = role === 'admin' ? 'admin' : 'employee';
+    user.role = nextRole;
   }
 
   const nextIsActive = normalizeOptionalBoolean(isActive, 'isActive');
@@ -106,11 +112,22 @@ const updateUserByAdminService = async (id, {
     user.isActive = nextIsActive;
   }
 
-  if (typeof password === 'string' && password.trim()) {
+  const passwordChanged = typeof password === 'string' && Boolean(password.trim());
+  if (passwordChanged) {
     user.passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
   }
 
+  const roleChanged = nextRole !== previousRole;
+  const deactivated = typeof nextIsActive === 'boolean'
+    && nextIsActive === false
+    && previousIsActive;
+
   await user.save();
+
+  if (passwordChanged || roleChanged || deactivated) {
+    await revokeUserSessions(user._id);
+  }
+
   return toPublicUser(user);
 };
 
@@ -126,6 +143,7 @@ const deleteUserByAdminService = async (id, actorId) => {
 
   user.isActive = false;
   await user.save();
+  await revokeUserSessions(user._id);
 };
 
 module.exports = {
