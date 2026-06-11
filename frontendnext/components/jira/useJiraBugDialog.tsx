@@ -62,11 +62,10 @@ function removeLabelToken(current: string, label: string) {
 }
 
 type Options = {
-  token: string;
   onNotice?: (message: string) => void;
 };
 
-export function useJiraBugDialog({ token, onNotice }: Options) {
+export function useJiraBugDialog({ onNotice }: Options) {
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [issueTypes, setIssueTypes] = useState<RecordAny[]>([]);
   const [referenceDataLoaded, setReferenceDataLoaded] = useState(false);
@@ -84,17 +83,13 @@ export function useJiraBugDialog({ token, onNotice }: Options) {
   const [versionLoading, setVersionLoading] = useState(false);
 
   const ensureReferenceData = useCallback(async () => {
-    if (!token) {
-      return { projects: [] as RecordAny[], issueTypes: [] as RecordAny[] };
-    }
-
     if (referenceDataLoaded) {
       return { projects, issueTypes };
     }
 
     const [projectsResponse, issueTypesResponse] = await Promise.all([
-      apiRequest<{ projects: RecordAny[] }>("/api/projects", token),
-      apiRequest<{ issueTypes: RecordAny[] }>("/api/issue-types", token),
+      apiRequest<{ projects: RecordAny[] }>("/api/projects"),
+      apiRequest<{ issueTypes: RecordAny[] }>("/api/issue-types"),
     ]);
 
     const nextProjects = Array.isArray(projectsResponse.projects) ? projectsResponse.projects : [];
@@ -108,7 +103,7 @@ export function useJiraBugDialog({ token, onNotice }: Options) {
       projects: nextProjects,
       issueTypes: nextIssueTypes,
     };
-  }, [issueTypes, projects, referenceDataLoaded, token]);
+  }, [issueTypes, projects, referenceDataLoaded]);
 
   const closeJiraBugDialog = useCallback(() => {
     setJiraBugDialog(null);
@@ -199,7 +194,7 @@ export function useJiraBugDialog({ token, onNotice }: Options) {
     updateJiraBugDialog({ submitting: true, error: "" });
 
     try {
-      const response = await apiRequest<{ issueKey?: string; message?: string }>("/api/jira/log-bug", token, {
+      const response = await apiRequest<{ issueKey?: string; message?: string }>("/api/jira/log-bug", undefined, {
         method: "POST",
         body: JSON.stringify({
           projectId: jiraBugDialog.projectId,
@@ -226,7 +221,7 @@ export function useJiraBugDialog({ token, onNotice }: Options) {
         error: error instanceof Error ? error.message : "Unable to log Jira bug",
       });
     }
-  }, [closeJiraBugDialog, jiraBugDialog, onNotice, token, updateJiraBugDialog]);
+  }, [closeJiraBugDialog, jiraBugDialog, onNotice, updateJiraBugDialog]);
 
   const selectedAssigneeDetail = jiraBugDialog?.assignee
     ? assigneeOptions.find((assignee) => getAssigneeValue(assignee) === jiraBugDialog.assignee) || null
@@ -255,7 +250,7 @@ export function useJiraBugDialog({ token, onNotice }: Options) {
   });
 
   useEffect(() => {
-    if (!jiraBugDialog || !token) {
+    if (!jiraBugDialog) {
       return;
     }
 
@@ -265,7 +260,6 @@ export function useJiraBugDialog({ token, onNotice }: Options) {
 
       void apiRequest<{ suggestions?: Array<{ label?: string }> }>(
         `/api/jira/label-suggestions?query=${encodeURIComponent(labelQuery)}`,
-        token,
       )
         .then((response) => {
           if (cancelled) {
@@ -294,10 +288,10 @@ export function useJiraBugDialog({ token, onNotice }: Options) {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [jiraBugDialog, labelQuery, token]);
+  }, [jiraBugDialog, labelQuery]);
 
   useEffect(() => {
-    if (!jiraBugDialog?.projectId || !token) {
+    if (!jiraBugDialog?.projectId) {
       return;
     }
 
@@ -309,7 +303,7 @@ export function useJiraBugDialog({ token, onNotice }: Options) {
         `/api/jira/version-suggestions?projectId=${encodeURIComponent(jiraBugDialog.projectId)}` +
         `&maxResults=100&startAt=0&query=${encodeURIComponent(versionQuery)}`;
 
-      void apiRequest<{ suggestions?: Array<{ id?: string; name?: string; description?: string }> }>(url, token)
+      void apiRequest<{ suggestions?: Array<{ id?: string; name?: string; description?: string }> }>(url)
         .then((response) => {
           if (cancelled) {
             return;
@@ -342,10 +336,10 @@ export function useJiraBugDialog({ token, onNotice }: Options) {
       cancelled = true;
       window.clearTimeout(timeoutId);
     };
-  }, [jiraBugDialog?.projectId, token, versionQuery]);
+  }, [jiraBugDialog?.projectId, versionQuery]);
 
   useEffect(() => {
-    if (!jiraBugDialog?.projectId || !assigneeDropdownOpen || !token) {
+    if (!jiraBugDialog?.projectId || !assigneeDropdownOpen) {
       return;
     }
 
@@ -360,7 +354,7 @@ export function useJiraBugDialog({ token, onNotice }: Options) {
 
     let cancelled = false;
 
-    void apiRequest<{ users: RecordAny[] }>(url, token)
+    void apiRequest<{ users: RecordAny[] }>(url)
       .then((response) => {
         if (!cancelled) {
           setAssigneeOptions(Array.isArray(response.users) ? response.users : []);
@@ -380,7 +374,7 @@ export function useJiraBugDialog({ token, onNotice }: Options) {
     return () => {
       cancelled = true;
     };
-  }, [assigneeDropdownOpen, assigneeQuery, jiraBugDialog?.projectId, projects, token]);
+  }, [assigneeDropdownOpen, assigneeQuery, jiraBugDialog?.projectId, projects]);
 
   const dialogNode = jiraBugDialog ? (
     <div className="tcm-confirm-overlay" role="presentation">

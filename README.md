@@ -235,9 +235,24 @@ Place files for automation `upload` steps inside `backend/uploads/test-files/`.
 Failed run items can be logged to Jira from the execution screen.
 
 - the project Jira `pid` comes from the backend `Project` record
-- Jira credentials are read from `backend/.env`
+- Jira credentials are resolved per authenticated user from the `JiraAccount` collection (`userId` reference) and fall back to the service account stored in `backend/.env`
 - the current flow uses Jira's create-issue page instead of a custom REST-only integration
-- some Jira fields are still entered manually in the modal while field lookup endpoints are not wired yet
+- Jira cookies/session state are cached in the database and refreshed when expired
+
+### Jira profiles
+
+Authenticated users can manage their Jira profile through the API:
+
+- `GET /api/jira/profile`
+- `PUT /api/jira/profile`
+
+The Jira profile stores the Jira username/password separately from the app `User` record, so different users can keep independent Jira credentials without uniqueness checks on Jira usernames/passwords.
+
+Optional environment secret:
+
+```env
+# JIRA_VAULT_SECRET=change-me
+```
 
 ## Local Storage Keys
 

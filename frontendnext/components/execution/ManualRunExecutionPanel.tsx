@@ -77,7 +77,9 @@ export default function ManualRunExecutionPanel({
     setEndRunPolicyState(getEndRunPolicy());
   }, [showEndRunDialog]);
 
-  const canLogBug = selectedRun?.status === "completed" && selectedItem?.status === "fail";
+  const canLogBug =
+    (selectedRun?.status === "running" || selectedRun?.status === "completed") &&
+    selectedItem?.status === "fail";
   const strictEndBlocked = endRunPolicy === "strict" && summary.untested > 0;
 
   const queueItems = useMemo(() => {

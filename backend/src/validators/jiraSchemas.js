@@ -41,9 +41,15 @@ const logBugBodySchema = z.object({
   versions: z.union([z.string(), z.array(z.string())]).optional(),
 }).passthrough();
 
+const jiraProfileBodySchema = z.object({
+  jiraUsername: optionalTrimmedString(),
+  jiraPassword: optionalTrimmedString(),
+}).passthrough();
+
 module.exports = {
   getAssignableUsersQuerySchema,
   getLabelSuggestionsQuerySchema,
   getVersionSuggestionsQuerySchema,
   logBugBodySchema,
+  jiraProfileBodySchema,
 };

@@ -8,6 +8,7 @@ import { getId, matchesSelectedEntity } from "@/lib/api";
 type RecordAny = Record<string, unknown>;
 
 export const EMPLOYEE_NAV_ITEMS: ReadonlyArray<AppShellNavItem> = [
+  { key: "jira-profile", label: "Jira Profile", group: "Workspace" },
   { key: "my-test-plans", label: "My Test Plans", group: "Workspace" },
   { key: "running-tests", label: "Running Tests", group: "Workspace" },
   { key: "history", label: "History", group: "Workspace" },

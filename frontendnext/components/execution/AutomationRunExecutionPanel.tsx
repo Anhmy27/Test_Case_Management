@@ -44,7 +44,9 @@ export default function AutomationRunExecutionPanel({
 }: AutomationRunExecutionPanelProps) {
   const [queueFilter, setQueueFilter] = useState<"all" | "pending" | "failed" | "passed" | "blocked">("all");
   const [queueSearch, setQueueSearch] = useState("");
-  const canLogBug = selectedRun?.status === "completed" && selectedItem?.status === "fail";
+  const canLogBug =
+    (selectedRun?.status === "running" || selectedRun?.status === "completed") &&
+    selectedItem?.status === "fail";
   const runIsCompleted = String(selectedRun?.status || "") === "completed";
   const runIsRunning = String(selectedRun?.status || "") === "running";
 

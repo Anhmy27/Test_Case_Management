@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs');
 const User = require('./models/User');
+const { upsertUserJiraAccount } = require('./services/jiraAccountService');
 
 async function seedAdminIfNeeded() {
   const adminEmail = process.env.ADMIN_EMAIL;
@@ -18,12 +19,23 @@ async function seedAdminIfNeeded() {
   }
 
   const passwordHash = await bcrypt.hash(adminPassword, 10);
-  await User.create({
+  const adminUser = await User.create({
     name: process.env.ADMIN_NAME || 'System Admin',
     email: adminEmail.toLowerCase(),
     passwordHash,
     role: 'admin',
   });
+
+  const jiraUsername = String(process.env.JIRA_USERNAME || '').trim();
+  const jiraPassword = String(process.env.JIRA_PASSWORD || '').trim();
+  if (jiraUsername || jiraPassword) {
+    await upsertUserJiraAccount({
+      userId: adminUser._id,
+      jiraUsername,
+      jiraPassword,
+    });
+    console.log(`Seeded Jira profile for admin user: ${adminEmail.toLowerCase()}`);
+  }
 
   console.log(`Seeded admin user: ${adminEmail}`);
 }

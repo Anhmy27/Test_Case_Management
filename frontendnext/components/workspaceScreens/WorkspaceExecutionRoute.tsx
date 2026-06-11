@@ -70,7 +70,6 @@ function AdminWorkspaceExecutionRoute() {
   const [startRunError, setStartRunError] = useState("");
   const [pollError, setPollError] = useState("");
   const { openJiraBugDialog, jiraBugDialogNode } = useJiraBugDialog({
-    token,
     onNotice: setMessage,
   });
   useEffect(() => {
@@ -517,7 +516,6 @@ function EmployeeWorkspaceExecutionRoute() {
   const [message, setMessage] = useState("");
   const [startRunError, setStartRunError] = useState("");
   const { openJiraBugDialog, jiraBugDialogNode } = useJiraBugDialog({
-    token,
     onNotice: setMessage,
   });
   const employeeProjectScope = useEmployeeProjectScope(projects);
