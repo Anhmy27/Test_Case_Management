@@ -277,48 +277,112 @@ const createLoggedInContext = async ({ userId } = {}) => {
   return context;
 };
 
-const loadCreateIssuePage = async (context, { pid, issueTypeId }) => {
-  const urls = [
-    `/secure/CreateIssue!default.jspa?decorator=none&pid=${encodeURIComponent(pid)}&issuetype=${encodeURIComponent(issueTypeId)}`,
-    `/secure/CreateIssue!default.jspa?pid=${encodeURIComponent(pid)}&issuetype=${encodeURIComponent(issueTypeId)}`,
-  ];
+const QUICK_CREATE_GET_PATH = '/secure/QuickCreateIssue!default.jspa?decorator=none';
+const QUICK_CREATE_POST_PATH = '/secure/QuickCreateIssue.jspa?decorator=none';
 
-  let lastError = null;
+const parseQuickCreateJson = (body) => {
+  try {
+    const parsed = JSON.parse(body);
+    if (!parsed || typeof parsed !== 'object') {
+      return null;
+    }
+    return parsed;
+  } catch {
+    return null;
+  }
+};
 
-  for (const url of urls) {
-    const createPage = await context.get(url);
-    const createHtml = await createPage.text();
+const extractQuickCreateFieldErrors = (quickCreateJson) => {
+  const fields = Array.isArray(quickCreateJson?.fields) ? quickCreateJson.fields : [];
+  return fields
+    .map((field) => {
+      const messages = [
+        field?.errorMessage,
+        ...(Array.isArray(field?.errorMessages) ? field.errorMessages : []),
+        ...(Array.isArray(field?.errors) ? field.errors : []),
+      ]
+        .map((message) => String(message || '').trim())
+        .filter(Boolean);
 
-    if (!createPage.ok()) {
-      lastError = { status: createPage.status(), body: createHtml };
-      continue;
+      if (messages.length === 0) {
+        return null;
+      }
+
+      return {
+        id: field?.id || '',
+        label: field?.label || '',
+        messages,
+      };
+    })
+    .filter(Boolean);
+};
+
+const parseQuickCreateIssueResult = (body, headers = {}) => {
+  const location = headers.location || headers.Location || '';
+  const locationIssueKey = location.match(/\/browse\/([A-Z][A-Z0-9_]+-\d+)/)?.[1] || '';
+
+  const quickCreateJson = parseQuickCreateJson(body);
+  if (quickCreateJson) {
+    const createdIssueKey = String(quickCreateJson?.createdIssueDetails?.key || '').trim();
+    if (createdIssueKey) {
+      return {
+        issueKey: createdIssueKey,
+        location,
+        fieldErrors: [],
+      };
     }
 
-    const atlToken = extractAtlToken(createHtml) || await getXsrfTokenFromContext(context);
-    const formToken = extractFormToken(createHtml) || atlToken;
-
-    console.log('[Jira] create issue page ok', {
-      status: createPage.status(),
-      url,
-      hasAtlToken: Boolean(atlToken),
-      hasFormToken: Boolean(formToken),
-    });
-
     return {
-      atlToken,
-      formToken,
-      createHtml,
+      issueKey: '',
+      location,
+      fieldErrors: extractQuickCreateFieldErrors(quickCreateJson),
     };
   }
 
-  if (lastError) {
-    console.log('[Jira] create issue page failed', {
-      status: lastError.status,
-    });
-    throwJiraError(502, 'Unable to open Jira create issue page', lastError.body);
+  return {
+    issueKey: locationIssueKey,
+    location,
+    fieldErrors: [],
+  };
+};
+
+const resolveQuickCreateTokens = async (context) => {
+  // Quick-create POST requires formToken from the QuickCreate JSON payload.
+  // Dashboard/meta atl_token alone is not enough and causes createdIssueDetails=null.
+  const quickCreatePage = await context.get(QUICK_CREATE_GET_PATH);
+  const quickCreateBody = await quickCreatePage.text();
+  const quickCreateJson = parseQuickCreateJson(quickCreateBody);
+
+  if (!quickCreatePage.ok() || !quickCreateJson) {
+    throwJiraError(502, 'Unable to open Jira quick-create form', quickCreateBody);
   }
 
-  throw httpError(502, 'Unable to open Jira create issue page');
+  let atlToken = String(quickCreateJson.atl_token || '').trim();
+  let formToken = String(quickCreateJson.formToken || '').trim();
+
+  if (!atlToken || !formToken) {
+    const dashboardPage = await context.get('/secure/Dashboard.jspa');
+    const dashboardHtml = await dashboardPage.text();
+
+    if (!dashboardPage.ok() || !isAuthenticatedHtml(dashboardHtml)) {
+      throwJiraError(502, 'Unable to open Jira dashboard for quick-create tokens', dashboardHtml);
+    }
+
+    atlToken = atlToken || extractAtlToken(dashboardHtml) || await getXsrfTokenFromContext(context);
+    formToken = formToken || extractFormToken(dashboardHtml);
+  }
+
+  console.log('[Jira] quick-create tokens resolved', {
+    source: 'QuickCreateIssue!default.jspa',
+    status: quickCreatePage.status(),
+    hasAtlToken: Boolean(atlToken),
+    hasFormToken: Boolean(formToken),
+  });
+
+  return {
+    atlToken,
+    formToken,
+  };
 };
 
 const createBugIssue = async ({
@@ -343,16 +407,16 @@ const createBugIssue = async ({
       labels: labels || '',
     });
 
-    const { atlToken, formToken } = await loadCreateIssuePage(context, { pid, issueTypeId });
+    const { atlToken, formToken } = await resolveQuickCreateTokens(context);
 
-    if (!atlToken) {
+    if (!atlToken || !formToken) {
       throw httpError(
         502,
-        'Unable to read Jira CSRF token for issue creation. Re-save your Jira profile and try again.',
+        'Unable to read Jira quick-create tokens. Re-save your Jira profile and try again.',
       );
     }
 
-    const response = await context.post('/secure/QuickCreateIssue.jspa?decorator=none', {
+    const response = await context.post(QUICK_CREATE_POST_PATH, {
       headers: {
         'X-Atlassian-Token': 'no-check',
       },
@@ -385,14 +449,14 @@ const createBugIssue = async ({
       body: await response.text(),
     };
 
+    const parsedResult = parseQuickCreateIssueResult(result.body, result.headers);
+
     console.log('[Jira] create issue response', {
       status: result.status,
-      location: result.headers.location || result.headers.Location || '',
-      hasIssueKey: Boolean(result.body.match(/([A-Z][A-Z0-9_]+-\d+)/)?.[1]),
+      location: parsedResult.location,
+      issueKey: parsedResult.issueKey || null,
+      fieldErrorCount: parsedResult.fieldErrors.length,
     });
-
-    const location = result.headers.location || result.headers.Location || '';
-    const issueKey = location.match(/\/browse\/([A-Z][A-Z0-9_]+-\d+)/)?.[1] || result.body.match(/([A-Z][A-Z0-9_]+-\d+)/)?.[1] || '';
 
     if (!(response.status() === 200 || response.status() === 302)) {
       if (response.status() === 403) {
@@ -404,9 +468,17 @@ const createBugIssue = async ({
       throwJiraError(502, 'Jira issue creation failed', result.body);
     }
 
+    if (!parsedResult.issueKey) {
+      const firstFieldError = parsedResult.fieldErrors[0];
+      const validationMessage = firstFieldError
+        ? `${firstFieldError.label || firstFieldError.id}: ${firstFieldError.messages.join(', ')}`
+        : 'Jira did not return created issue details. Check required fields for this project.';
+      throw httpError(502, validationMessage);
+    }
+
     return {
-      issueKey,
-      location,
+      issueKey: parsedResult.issueKey,
+      location: parsedResult.location,
       status: response.status(),
     };
   } finally {
@@ -554,4 +626,5 @@ module.exports = {
   extractAtlToken,
   extractFormToken,
   extractMetaContent,
+  parseQuickCreateIssueResult,
 };
