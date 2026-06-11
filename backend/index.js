@@ -2,6 +2,7 @@ require('dotenv').config();
 const app = require('./src/app');
 const { connectDatabase } = require('./src/config/db');
 const { assertJwtConfig } = require('./src/config/jwtConfig');
+const { assertAutomationConfig } = require('./src/utils/automationUrlPolicy');
 const { reconcileOrphanedAutomationRuns } = require('./src/services/automation/automationRunReconciler');
 const { runArtifactRetentionCleanup } = require('./src/services/automation/artifactRetentionService');
 
@@ -10,6 +11,7 @@ const ARTIFACT_RETENTION_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 async function bootstrap() {
 	assertJwtConfig();
+	assertAutomationConfig();
 	await connectDatabase();
 
 	const reconcileSummary = await reconcileOrphanedAutomationRuns();

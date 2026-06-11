@@ -1,6 +1,7 @@
 const { asyncHandler } = require('../utils/asyncHandler');
 const { signAccessToken } = require('../middlewares/authMiddleware');
 const { setAuthCookies, clearAuthCookies } = require('../utils/authCookies');
+const { revokeUserSessions } = require('../utils/authTokens');
 const {
   registerService,
   loginService,
@@ -22,6 +23,9 @@ const login = asyncHandler(async (req, res) => {
 });
 
 const logout = asyncHandler(async (req, res) => {
+  if (req.user?.id) {
+    await revokeUserSessions(req.user.id);
+  }
   clearAuthCookies(res);
   res.status(204).send();
 });

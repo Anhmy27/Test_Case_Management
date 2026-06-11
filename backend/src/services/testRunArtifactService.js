@@ -15,15 +15,33 @@ const toObjectId = (id, fieldName) => {
   return new mongoose.Types.ObjectId(id);
 };
 
-const getRunResultFailureScreenshotService = async (runId, resultId) => {
-  const testRun = await TestRun.findById(toObjectId(runId, 'runId')).lean();
+const resultHasUserAssignment = (result, userId) => {
+  const normalizedUserId = String(userId || '');
+  const ownerId = String(result?.owner || '');
+  const assigneeIds = Array.isArray(result?.assignees)
+    ? result.assignees.map((assignee) => String(assignee || ''))
+    : [];
+  return ownerId === normalizedUserId || assigneeIds.includes(normalizedUserId);
+};
+
+const getRunResultFailureScreenshotService = async (runId, resultId, user) => {
+  const testRun = await TestRun.findById(toObjectId(runId, 'runId'))
+    .populate('startedBy', '_id')
+    .lean();
   if (!testRun) {
     throw httpError(404, 'Test run not found');
   }
 
+  const isAdmin = user.role === 'admin';
+  const isStarter = String(testRun.startedBy?._id || testRun.startedBy) === user.id;
   const result = (testRun.results || []).find((entry) => String(entry._id) === String(resultId));
   if (!result) {
     throw httpError(404, 'Run result not found');
+  }
+
+  const hasAssignedItem = resultHasUserAssignment(result, user.id);
+  if (!isAdmin && !isStarter && !hasAssignedItem) {
+    throw httpError(403, 'You do not have permission to view this screenshot');
   }
 
   if (!result.failureScreenshot) {

@@ -115,6 +115,7 @@ const getRunResultFailureScreenshot = asyncHandler(async (req, res) => {
   const { absolutePath, contentType } = await getRunResultFailureScreenshotService(
     req.params.runId,
     req.params.resultId,
+    req.user,
   );
 
   res.setHeader('Content-Type', contentType);

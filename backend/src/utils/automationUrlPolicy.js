@@ -171,9 +171,28 @@ const resolveSandboxedUploadPaths = (rawValue) => {
   });
 };
 
+/**
+ * Call at startup in production to ensure automation host allowlist is configured.
+ * Prevents automation from navigating to arbitrary internal hosts.
+ */
+const assertAutomationConfig = () => {
+  if (process.env.NODE_ENV !== 'production') {
+    return;
+  }
+
+  const raw = String(process.env.AUTOMATION_ALLOWED_HOSTS || '').trim();
+  if (!raw) {
+    throw new Error(
+      'AUTOMATION_ALLOWED_HOSTS is required in production. '
+      + 'Set a comma-separated list of allowed hostnames (e.g. app.example.com) in backend/.env',
+    );
+  }
+};
+
 module.exports = {
   assertAllowedBaseUrl,
   assertAllowedNavigationUrl,
   resolveNavigationUrl,
   resolveSandboxedUploadPaths,
+  assertAutomationConfig,
 };

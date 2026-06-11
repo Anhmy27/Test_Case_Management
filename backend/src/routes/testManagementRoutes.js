@@ -214,7 +214,7 @@ router.patch('/test-runs/:runId/end', authorize('admin', 'employee'), validateRe
 
 router.get('/test-runs/:runId/export', authorize('admin', 'employee'), validateRequest({ paramsSchema: runIdParamsSchema, querySchema: exportTestRunQuerySchema }), exportTestRun);
 router.get('/test-runs/:runId/my-items', validateRequest({ paramsSchema: runIdParamsSchema }), getMyRunItems);
-router.get('/test-runs/:runId/results/:resultId/failure-screenshot', validateRequest({ paramsSchema: runResultParamsSchema }), getRunResultFailureScreenshot);
+router.get('/test-runs/:runId/results/:resultId/failure-screenshot', authorize('admin', 'employee'), validateRequest({ paramsSchema: runResultParamsSchema }), getRunResultFailureScreenshot);
 router.patch('/test-runs/:runId/results/:resultId', validateRequest({ paramsSchema: runResultParamsSchema, bodySchema: updateRunResultBodySchema }), updateRunResult);
 
 router.post('/automation/dry-run', authorize('admin'), validateRequest({ bodySchema: dryRunAutomationBodySchema }), dryRunAutomation);
