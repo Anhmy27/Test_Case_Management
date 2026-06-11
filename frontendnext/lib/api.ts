@@ -16,6 +16,12 @@ const _inflight = new Map<string, Promise<unknown>>();
 const _cache = new Map<string, { ts: number; data: unknown }>();
 const _CACHE_TTL_MS = 800;
 
+/** Clear GET cache — use before explicit reload actions. */
+export function clearApiRequestCache() {
+  _cache.clear();
+  _inflight.clear();
+}
+
 export async function apiRequest<T>(
   path: string,
   token?: string,
@@ -177,6 +183,59 @@ export function createTextMatcher(searchTerm = "") {
       String(value || "").toLowerCase().includes(normalizedSearch),
     );
   };
+}
+
+export function findEntityByReference<T extends Record<string, unknown>>(
+  items: T[],
+  reference: unknown,
+): T | undefined {
+  const refIds = collectEntityIds(reference);
+  if (!refIds.size) {
+    return undefined;
+  }
+
+  return items.find((item) => {
+    const itemIds = collectEntityIds(item);
+    for (const id of refIds) {
+      if (itemIds.has(id)) {
+        return true;
+      }
+    }
+    return false;
+  });
+}
+
+export function isEntityReferenceSelected(
+  reference: unknown,
+  selectedIds: Set<string> | string[],
+) {
+  const selected = selectedIds instanceof Set ? selectedIds : new Set(selectedIds);
+  for (const id of collectEntityIds(reference)) {
+    if (selected.has(id)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function normalizeEntityReferences(
+  references: string[],
+  items: Array<Record<string, unknown>>,
+) {
+  const normalized: string[] = [];
+  const seen = new Set<string>();
+
+  for (const reference of references) {
+    const match = findEntityByReference(items, reference);
+    const canonicalId = match ? getId(match) : String(reference || "").trim();
+    if (!canonicalId || seen.has(canonicalId)) {
+      continue;
+    }
+    seen.add(canonicalId);
+    normalized.push(canonicalId);
+  }
+
+  return normalized;
 }
 
 export function getId(value: unknown): string {

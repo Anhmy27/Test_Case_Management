@@ -8,14 +8,14 @@ import AdminTestPlansScreen from "@/components/workspaceScreens/AdminTestPlansSc
 import AdminTestPlanInsightsModal from "@/components/workspaceScreens/AdminTestPlanInsightsModal";
 import { useAdminWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
 import { TOPBAR_INPUT_CLS, WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
-import { apiRequest, buildDefaultRunName, createTextMatcher, getId, matchesSelectedEntity, userName } from "@/lib/api";
+import { apiRequest, buildDefaultRunName, clearApiRequestCache, createTextMatcher, getId, matchesSelectedEntity, userName } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
 
 function groupCasesByGroup(groups: RecordAny[], cases: RecordAny[]) {
   return groups.map((group) => ({
     group,
-    cases: cases.filter((testCase) => getId(testCase.group) === getId(group)),
+    cases: cases.filter((testCase) => matchesSelectedEntity(testCase.group, getId(group))),
   }));
 }
 
@@ -31,9 +31,9 @@ async function fetchWorkspaceData(projectId: string) {
     usersResponse,
   ] = await Promise.all([
     apiRequest<{ projects: RecordAny[] }>("/api/projects"),
-    apiRequest<{ versions: RecordAny[] }>(`/api/versions${projectQuery}`),
-    apiRequest<{ groups: RecordAny[] }>(`/api/test-case-groups${projectQuery}`),
-    apiRequest<{ testCases: RecordAny[] }>(`/api/test-cases${projectQuery}`),
+    apiRequest<{ versions: RecordAny[] }>("/api/versions"),
+    apiRequest<{ groups: RecordAny[] }>("/api/test-case-groups"),
+    apiRequest<{ testCases: RecordAny[] }>("/api/test-cases"),
     apiRequest<{ testPlans: RecordAny[] }>(`/api/test-plans${projectQuery}`),
     apiRequest<{ testRuns: RecordAny[] }>(`/api/test-runs${projectQuery}`),
     apiRequest<{ users: RecordAny[] }>("/api/users"),
@@ -91,6 +91,8 @@ export default function AdminTestPlansRoute() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [insightsPlan, setInsightsPlan] = useState<{ planId: string; planName: string; projectId: string } | null>(null);
+  const [reloading, setReloading] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
   const autoOpenInsightsTriggered = useRef(false);
 
   // Auto-open Insights when returning from Execution screen via "Back to Insights" button
@@ -155,6 +157,22 @@ export default function AdminTestPlansRoute() {
     });
   };
 
+  const handleReload = async () => {
+    setReloading(true);
+    setLoading(true);
+    setMessage("");
+    clearApiRequestCache();
+    try {
+      await refreshAll();
+      setReloadToken((prev) => prev + 1);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to reload test plans");
+    } finally {
+      setReloading(false);
+      setLoading(false);
+    }
+  };
+
   const scopedProjects = selectedProjectId
     ? projects.filter((project) => matchesSelectedEntity(project, selectedProjectId))
     : projects;
@@ -163,11 +181,12 @@ export default function AdminTestPlansRoute() {
   const scopedVersions = selectedProjectId
     ? versions.filter((version) => matchesSelectedEntity(version.project, selectedProjectId))
     : versions;
-  const planProjectGroups = selectedProjectId
-    ? groups.filter((group) => matchesSelectedEntity(group.project, selectedProjectId))
+  const modalProjectId = String(planForm.projectId || selectedProjectId || "");
+  const planProjectGroups = modalProjectId
+    ? groups.filter((group) => matchesSelectedEntity(group.project, modalProjectId))
     : groups;
-  const planProjectCases = selectedProjectId
-    ? testCases.filter((testCase) => matchesSelectedEntity(testCase.project, selectedProjectId))
+  const planProjectCases = modalProjectId
+    ? testCases.filter((testCase) => matchesSelectedEntity(testCase.project, modalProjectId))
     : testCases;
   const selectedPlanGroupIds = new Set<string>(Array.isArray(planForm.selectedGroupIds) ? planForm.selectedGroupIds : []);
   const selectedPlanCaseIds = new Set<string>(Array.isArray(planForm.caseIds) ? planForm.caseIds : []);
@@ -179,21 +198,47 @@ export default function AdminTestPlansRoute() {
   const togglePlanGroup = (groupId: string) => {
     setPlanForm((prev: any) => {
       const nextGroupIds = new Set<string>(prev.selectedGroupIds || []);
-      if (nextGroupIds.has(groupId)) nextGroupIds.delete(groupId); else nextGroupIds.add(groupId);
+      if (nextGroupIds.has(groupId)) {
+        nextGroupIds.delete(groupId);
+      } else {
+        nextGroupIds.add(groupId);
+      }
+
       const nextCaseIds = planProjectCases
-        .filter((testCase) => nextGroupIds.has(getId(testCase.group)))
+        .filter((testCase) => {
+          const testCaseGroupId = getId(testCase.group);
+          return Array.from(nextGroupIds).some((selectedGroupId) =>
+            matchesSelectedEntity(testCase.group, selectedGroupId)
+            || selectedGroupId === testCaseGroupId,
+          );
+        })
         .map((testCase) => getId(testCase));
-      return { ...prev, selectedGroupIds: Array.from(nextGroupIds), caseIds: Array.from(new Set(nextCaseIds)) };
+
+      return {
+        ...prev,
+        selectedGroupIds: Array.from(nextGroupIds),
+        caseIds: Array.from(new Set(nextCaseIds)),
+      };
     });
   };
 
   const togglePlanCase = (groupId: string, caseId: string) => {
     setPlanForm((prev: any) => {
       const caseIds = new Set<string>(prev.caseIds || []);
-      if (caseIds.has(caseId)) caseIds.delete(caseId); else caseIds.add(caseId);
+      if (caseIds.has(caseId)) {
+        caseIds.delete(caseId);
+      } else {
+        caseIds.add(caseId);
+      }
+
       const selectedGroupIds = new Set<string>(prev.selectedGroupIds || []);
       selectedGroupIds.add(groupId);
-      return { ...prev, selectedGroupIds: Array.from(selectedGroupIds), caseIds: Array.from(caseIds) };
+
+      return {
+        ...prev,
+        selectedGroupIds: Array.from(selectedGroupIds),
+        caseIds: Array.from(caseIds),
+      };
     });
   };
 
@@ -283,7 +328,18 @@ export default function AdminTestPlansRoute() {
     if (planName) params.set("fromInsightsPlanName", planName);
     router.push(`/workspace/admin/test-runs-execution?${params.toString()}`);
   };
-  const setActiveTab = (tab: string) => router.push(`/workspace/admin/${tab}`);
+  const openRunForPlan = (runId: string, plan: RecordAny) => {
+    const planId = getId(plan);
+    const planName = String(plan.name || "");
+    const params = new URLSearchParams({ runId });
+    if (planId) params.set("fromInsightsPlanId", planId);
+    if (planName) params.set("fromInsightsPlanName", planName);
+    router.push(`/workspace/admin/test-runs-execution?${params.toString()}`);
+  };
+  const openAllRunsForPlan = (plan: RecordAny) => {
+    const planId = getId(plan);
+    router.push(`/workspace/admin/test-runs-execution?testPlanId=${encodeURIComponent(planId)}`);
+  };
   const matchesSearch = useMemo(() => createTextMatcher(searchTerm), [searchTerm]);
 
   useLayoutEffect(() => {
@@ -330,6 +386,8 @@ export default function AdminTestPlansRoute() {
           scopedVersions={scopedVersions}
           planProjectGroups={planProjectGroups}
           planProjectCases={planProjectCases}
+          allGroups={groups}
+          allTestCases={testCases}
           selectedPlanGroupIds={selectedPlanGroupIds}
           selectedPlanCaseIds={selectedPlanCaseIds}
           selectedPlanGroups={selectedPlanGroups}
@@ -350,8 +408,12 @@ export default function AdminTestPlansRoute() {
           duplicatePlan={duplicatePlan}
           runs={runs}
           openExecutionForPlan={openExecutionForPlan}
+          openRunForPlan={openRunForPlan}
+          openAllRunsForPlan={openAllRunsForPlan}
           openPlanInsights={openPlanInsights}
-          setActiveTab={setActiveTab as any}
+          onReload={handleReload}
+          reloading={reloading}
+          reloadToken={reloadToken}
           userName={userName}
           getId={getId}
           matchesSearch={matchesSearch}

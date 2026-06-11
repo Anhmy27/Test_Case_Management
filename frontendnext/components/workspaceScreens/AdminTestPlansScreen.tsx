@@ -4,10 +4,68 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction, FormEvent } from "react";
-import { ActionButton, Button, Field, INPUT_CLS, ScopedProjectField } from "./shared";
-import { matchesSelectedEntity } from "@/lib/api";
+import { ActionButton, Button, Field, INPUT_CLS, ScopedProjectField, StatusBadge } from "./shared";
+import { apiRequest, getId, matchesSelectedEntity, summarizeRunResults } from "@/lib/api";
+import type { TestPlanDetail } from "@/lib/tcmTypes";
 
 type RecordAny = Record<string, any>;
+
+type PlanRunSnapshot = {
+  lastRunAt: string | null;
+  latestRun: RecordAny | null;
+};
+
+function formatPlanLastRun(dateValue: string | null | undefined) {
+  if (!dateValue) return "Never";
+  const date = new Date(dateValue);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function LatestRunResultBadge({ run }: { run: RecordAny | null | undefined }) {
+  if (!run) {
+    return <span className="text-xs text-slate-400">—</span>;
+  }
+
+  if (run.status === "running") {
+    return (
+      <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+        Running
+      </span>
+    );
+  }
+
+  const results = Array.isArray(run.results) ? run.results : [];
+  const summary = results.length > 0 ? summarizeRunResults(results) : null;
+  const passRate = summary?.passRate ?? Number(run.passRate ?? 0);
+  const failCount = summary?.fail ?? 0;
+
+  if (failCount > 0) {
+    return (
+      <span className="rounded-full bg-rose-50 px-2 py-0.5 text-[11px] font-semibold text-rose-700">
+        {failCount} fail
+      </span>
+    );
+  }
+
+  if (passRate > 0) {
+    return (
+      <span
+        className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+          passRate >= 80 ? "bg-emerald-50 text-emerald-700" : "bg-indigo-50 text-indigo-700"
+        }`}
+      >
+        {passRate}% pass
+      </span>
+    );
+  }
+
+  return (
+    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+      Pending
+    </span>
+  );
+}
 
 type Props = {
   planForm: any;
@@ -17,6 +75,8 @@ type Props = {
   scopedVersions: RecordAny[];
   planProjectGroups: RecordAny[];
   planProjectCases: RecordAny[];
+  allGroups: RecordAny[];
+  allTestCases: RecordAny[];
   selectedPlanGroupIds: Set<any>;
   selectedPlanCaseIds: Set<any>;
   selectedPlanGroups: Array<{ group: RecordAny; cases: RecordAny[] }>;
@@ -37,8 +97,12 @@ type Props = {
   duplicatePlan: (plan: RecordAny) => Promise<void>;
   runs: RecordAny[];
   openExecutionForPlan: (plan: RecordAny) => void;
+  openRunForPlan: (runId: string, plan: RecordAny) => void;
+  openAllRunsForPlan: (plan: RecordAny) => void;
   openPlanInsights: (plan: RecordAny) => void;
-  setActiveTab: Dispatch<SetStateAction<string>>;
+  onReload: () => Promise<void>;
+  reloading?: boolean;
+  reloadToken?: number;
   userName: (value: unknown) => string;
   getId: (value: unknown) => string;
   matchesSearch: (...values: Array<string | number | undefined | null>) => boolean;
@@ -55,6 +119,8 @@ export default function AdminTestPlansScreen(props: Props) {
     scopedVersions,
     planProjectGroups,
     planProjectCases,
+    allGroups,
+    allTestCases,
     selectedPlanGroupIds,
     selectedPlanCaseIds,
     selectedPlanGroups,
@@ -75,8 +141,12 @@ export default function AdminTestPlansScreen(props: Props) {
     duplicatePlan,
     runs,
     openExecutionForPlan,
+    openRunForPlan,
+    openAllRunsForPlan,
     openPlanInsights,
-    setActiveTab,
+    onReload,
+    reloading = false,
+    reloadToken = 0,
     userName,
     getId,
     matchesSearch,
@@ -118,11 +188,11 @@ export default function AdminTestPlansScreen(props: Props) {
     }
 
     return (
-      scopedProjects.find((project: RecordAny) => String(getId(project) || getId(project)) === effectivePlanProjectId) ||
+      scopedProjects.find((project: RecordAny) => matchesSelectedEntity(project, effectivePlanProjectId)) ||
       planProjectGroups[0]?.project ||
       null
     );
-  }, [effectivePlanProjectId, getId, planProjectGroups, scopedProjects]);
+  }, [effectivePlanProjectId, planProjectGroups, scopedProjects]);
 
   const versionOptions = useMemo(() => {
     if (!effectivePlanProjectId) {
@@ -161,6 +231,7 @@ export default function AdminTestPlansScreen(props: Props) {
   }
 
   const selectedGroupCount = selectedPlanGroups.length;
+
   const filteredUsers = useMemo(() => {
     const query = assigneeSearch.trim().toLowerCase();
 
@@ -188,32 +259,44 @@ export default function AdminTestPlansScreen(props: Props) {
   const [statusBulkMode, setStatusBulkMode] = useState<"manual" | "automation">("manual");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [focusedPlanInsights, setFocusedPlanInsights] = useState<TestPlanDetail | null>(null);
+  const [focusedInsightsLoading, setFocusedInsightsLoading] = useState(false);
+  const [casesPanelOpen, setCasesPanelOpen] = useState(true);
 
   useEffect(() => {
-    if (!showCreateModal || !editingPlanId || planProjectGroups.length === 0) {
+    if (!activePlanId) {
+      setFocusedPlanInsights(null);
+      setFocusedInsightsLoading(false);
       return;
     }
 
-    if ((planForm.selectedGroupIds || []).length > 0) {
-      return;
-    }
+    let cancelled = false;
 
-    const defaultGroupIds = planProjectGroups.map((group: RecordAny) => getId(group));
-    const timeoutId = window.setTimeout(() => {
-      setPlanForm((prev: RecordAny) => {
-        if ((prev.selectedGroupIds || []).length > 0) {
-          return prev;
+    const loadInsights = async () => {
+      setFocusedInsightsLoading(true);
+      try {
+        const detail = await apiRequest<TestPlanDetail>(
+          `/api/dashboard/test-plans/${encodeURIComponent(activePlanId)}`,
+        );
+        if (!cancelled) {
+          setFocusedPlanInsights(detail);
         }
+      } catch {
+        if (!cancelled) {
+          setFocusedPlanInsights(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setFocusedInsightsLoading(false);
+        }
+      }
+    };
 
-        return {
-          ...prev,
-          selectedGroupIds: defaultGroupIds,
-        };
-      });
-    }, 0);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [editingPlanId, getId, planForm.selectedGroupIds, planProjectGroups, setPlanForm, showCreateModal]);
+    void loadInsights();
+    return () => {
+      cancelled = true;
+    };
+  }, [activePlanId, reloadToken]);
 
   const filteredPlans = useMemo(
     () =>
@@ -227,21 +310,115 @@ export default function AdminTestPlansScreen(props: Props) {
   const allVisibleSelected =
     filteredPlans.length > 0 && filteredPlans.every((plan: RecordAny) => selectedSet.has(getId(plan)));
 
-  const activePlan =
-    scopedPlans.find((plan: RecordAny) => getId(plan) === String(activePlanId)) ||
-    filteredPlans[0] ||
-    null;
+  const activePlan = activePlanId
+    ? scopedPlans.find((plan: RecordAny) => getId(plan) === String(activePlanId)) || null
+    : null;
+
+  const runCountByPlanId = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const run of runs) {
+      const planId = String(getId(run.testPlan) || "");
+      if (!planId) continue;
+      counts.set(planId, (counts.get(planId) || 0) + 1);
+    }
+    return counts;
+  }, [getId, runs]);
+
+  const planRunSnapshots = useMemo(() => {
+    const snapshots = new Map<string, PlanRunSnapshot>();
+    for (const run of runs) {
+      const planId = String(getId(run.testPlan) || "");
+      if (!planId) continue;
+
+      const runTime = new Date(run.createdAt || 0).getTime();
+      const existing = snapshots.get(planId);
+      const existingTime = existing?.lastRunAt ? new Date(existing.lastRunAt).getTime() : 0;
+
+      if (!existing || runTime > existingTime) {
+        snapshots.set(planId, {
+          lastRunAt: run.createdAt ? String(run.createdAt) : null,
+          latestRun: run,
+        });
+      }
+    }
+    return snapshots;
+  }, [getId, runs]);
+
+  /** Toolbar actions target focused plan, or the only bulk-selected plan. */
+  const toolbarPlan =
+    activePlan ||
+    (selectedIds.length === 1
+      ? scopedPlans.find((plan: RecordAny) => getId(plan) === selectedIds[0]) || null
+      : null);
+
+  const runsScopePlanIds = useMemo(() => {
+    if (activePlanId) return [activePlanId];
+    if (selectedIds.length > 0) return selectedIds;
+    return [];
+  }, [activePlanId, selectedIds]);
+
+  const runsScopePlans = useMemo(
+    () =>
+      runsScopePlanIds
+        .map((planId) => scopedPlans.find((plan: RecordAny) => getId(plan) === planId))
+        .filter(Boolean) as RecordAny[],
+    [getId, runsScopePlanIds, scopedPlans],
+  );
+
+  const isMultiPlanRunsScope = !activePlanId && selectedIds.length > 1;
+
+  function selectActivePlan(planId: string) {
+    setActivePlanId((prev) => (prev === planId ? "" : planId));
+  }
+
+  function clearPlanSelection() {
+    setActivePlanId("");
+    setSelectedIds([]);
+  }
 
   const relatedRuns = useMemo(() => {
-    if (!activePlan) return [];
+    if (!runsScopePlanIds.length) return [];
+    const scopeSet = new Set(runsScopePlanIds);
     return runs
-      .filter((run: RecordAny) => getId(run.testPlan) === getId(activePlan))
+      .filter((run: RecordAny) => scopeSet.has(String(getId(run.testPlan) || "")))
       .sort(
         (a: RecordAny, b: RecordAny) =>
           new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime(),
       )
-      .slice(0, 6);
-  }, [activePlan, getId, runs]);
+      .slice(0, isMultiPlanRunsScope ? 8 : 6);
+  }, [getId, isMultiPlanRunsScope, runs, runsScopePlanIds]);
+
+  const focusedPlanCaseRows = useMemo(() => {
+    if (focusedPlanInsights?.testCases?.length) {
+      return focusedPlanInsights.testCases.map((item) => ({
+        id: item.testCaseId,
+        caseKey: item.caseKey,
+        title: item.title,
+        latestStatus: String(item.latestStatus || "untested"),
+      }));
+    }
+
+    if (!activePlan) return [];
+
+    return (Array.isArray(activePlan.items) ? activePlan.items : []).map((item: RecordAny) => {
+      const caseId = String(getId(item.testCase) || item.testCase || "");
+      const testCase = planProjectCases.find((entry) => getId(entry) === caseId);
+      return {
+        id: caseId,
+        caseKey: testCase?.caseKey || item.testCase?.caseKey || caseId,
+        title: testCase?.title || item.testCase?.title || "—",
+        latestStatus: "untested",
+      };
+    });
+  }, [activePlan, focusedPlanInsights, getId, planProjectCases]);
+
+  const focusedSummary = focusedPlanInsights?.summary;
+  const focusedRunSnapshot = activePlan ? planRunSnapshots.get(getId(activePlan)) : null;
+
+  function planForRun(run: RecordAny) {
+    const planId = String(getId(run.testPlan) || "");
+    return scopedPlans.find((plan: RecordAny) => getId(plan) === planId) || null;
+  }
 
   const progressStats = useMemo(() => {
     const totalPlans = scopedPlans.length;
@@ -264,9 +441,25 @@ export default function AdminTestPlansScreen(props: Props) {
   const selectedPlans = filteredPlans.filter((plan: RecordAny) => selectedSet.has(getId(plan)));
 
   function togglePlanSelection(planId: string) {
-    setSelectedIds((prev) =>
-      prev.includes(planId) ? prev.filter((id) => id !== planId) : [...prev, planId],
-    );
+    setSelectedIds((prev) => {
+      const isRemoving = prev.includes(planId);
+      const next = isRemoving ? prev.filter((id) => id !== planId) : [...prev, planId];
+
+      setActivePlanId((currentFocus) => {
+        if (!isRemoving) {
+          return planId;
+        }
+        if (currentFocus !== planId) {
+          return currentFocus;
+        }
+        if (next.length === 0) {
+          return "";
+        }
+        return next[next.length - 1];
+      });
+
+      return next;
+    });
   }
 
   async function bulkUpdateExecutionMode() {
@@ -283,18 +476,34 @@ export default function AdminTestPlansScreen(props: Props) {
   }
 
   function openEditPlanModal(plan: RecordAny) {
+    const planProjectId = String(getId(plan.project) || "");
+    const editGroups = planProjectId
+      ? allGroups.filter((group) => matchesSelectedEntity(group.project, planProjectId))
+      : allGroups;
+    const editCases = planProjectId
+      ? allTestCases.filter((testCase) => matchesSelectedEntity(testCase.project, planProjectId))
+      : allTestCases;
     const caseIds = Array.isArray(plan.items)
       ? plan.items.map((item: RecordAny) => String(getId(item.testCase) || item.testCase)).filter(Boolean)
       : [];
+    const selectedGroupIds = editGroups
+      .filter((group) =>
+        editCases.some(
+          (testCase) =>
+            matchesSelectedEntity(testCase.group, getId(group))
+            && caseIds.includes(getId(testCase)),
+        ),
+      )
+      .map((group) => getId(group));
 
     setEditingPlanId(getId(plan));
     setPlanForm({
       name: plan.name || "",
       description: plan.description || "",
-      projectId: String(getId(plan.project) || ""),
+      projectId: planProjectId,
       versionId: String(getId(plan.version) || ""),
       executionMode: String(plan.executionMode || "manual"),
-      selectedGroupIds: [],
+      selectedGroupIds,
       caseIds,
     });
     setShowCreateModal(true);
@@ -347,49 +556,52 @@ export default function AdminTestPlansScreen(props: Props) {
             tooltip="Open create test plan modal"
           />
           <ActionButton
-            label="Assign"
+            label="Assign members"
             icon="👥"
             onClick={() => {
-              if (getId(activePlan)) {
-                openAssignModal(getId(activePlan));
+              if (toolbarPlan) {
+                openAssignModal(getId(toolbarPlan));
               }
             }}
-            disabled={!activePlan}
-            tooltip={activePlan ? "Assign members to selected plan" : "Select a plan first"}
+            disabled={!toolbarPlan}
+            tooltip={toolbarPlan ? "Assign members to focused plan" : "Focus one plan (click row) first"}
           />
           <ActionButton
             label="Insights"
             icon="📊"
-            onClick={() => activePlan && openPlanInsights(activePlan)}
-            disabled={!activePlan}
-            tooltip={activePlan ? "View plan quality insights" : "Select a plan first"}
+            onClick={() => toolbarPlan && openPlanInsights(toolbarPlan)}
+            disabled={!toolbarPlan}
+            tooltip={toolbarPlan ? "View plan quality insights" : "Focus one plan (click row) first"}
           />
           <ActionButton
             label="Run"
             icon="▶"
-            onClick={() => activePlan && openExecutionForPlan(activePlan)}
-            disabled={!activePlan}
-            tooltip={activePlan ? "Start a run from selected plan" : "Select a plan first"}
+            onClick={() => toolbarPlan && openExecutionForPlan(toolbarPlan)}
+            disabled={!toolbarPlan}
+            tooltip={toolbarPlan ? "Start a run from focused plan" : "Focus one plan (click row) first"}
           />
           <ActionButton
             label="Duplicate"
             icon="⧉"
-            onClick={() => activePlan && void duplicatePlan(activePlan)}
-            disabled={!activePlan}
-            tooltip={activePlan ? "Duplicate selected plan" : "Select a plan first"}
+            onClick={() => toolbarPlan && void duplicatePlan(toolbarPlan)}
+            disabled={!toolbarPlan}
+            tooltip={toolbarPlan ? "Duplicate focused plan" : "Focus one plan (click row) first"}
           />
           <ActionButton
-            label="Refresh"
+            label={reloading ? "Reloading…" : "Reload"}
             icon="↻"
-            onClick={() => {
-              setSelectedIds([]);
-              setActivePlanId("");
-            }}
-            tooltip="Reset local view, filters, and selection"
+            onClick={() => void onReload()}
+            disabled={reloading}
+            tooltip="Reload plans and runs from server"
           />
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex flex-wrap items-center gap-2">
             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">{filteredPlans.length} visible</span>
-            <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-semibold text-indigo-700">{selectedIds.length} selected</span>
+            {activePlanId ? (
+              <span className="rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-semibold text-indigo-800">1 focused</span>
+            ) : null}
+            {selectedIds.length > 0 ? (
+              <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800">{selectedIds.length} bulk</span>
+            ) : null}
           </div>
         </div>
       </section>
@@ -397,7 +609,10 @@ export default function AdminTestPlansScreen(props: Props) {
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 px-4 py-3">
-            <div className="text-sm font-semibold text-slate-900">Plan grid</div>
+            <div>
+              <div className="text-sm font-semibold text-slate-900">Plan grid</div>
+              <div className="text-[11px] text-slate-500">Click row to focus · Checkbox for bulk mode</div>
+            </div>
             <div className="ml-auto flex flex-wrap items-center gap-2">
               <select value={statusBulkMode} onChange={(e) => setStatusBulkMode(e.target.value as "manual" | "automation")} className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs">
                 <option value="manual">manual</option><option value="automation">automation</option>
@@ -410,19 +625,24 @@ export default function AdminTestPlansScreen(props: Props) {
               <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-4 py-3"><input type="checkbox" checked={allVisibleSelected} onChange={() => setSelectedIds(allVisibleSelected ? [] : filteredPlans.map((item: RecordAny) => getId(item)))} /></th>
-                  <th className="px-4 py-3">Plan</th><th className="px-4 py-3">Scope</th><th className="px-4 py-3">Owner</th><th className="px-4 py-3">Mode</th><th className="px-4 py-3 text-right">Actions</th>
+                  <th className="px-4 py-3">Plan</th><th className="px-4 py-3">Scope</th><th className="px-4 py-3">Runs</th><th className="px-4 py-3">Last run</th><th className="px-4 py-3">Latest</th><th className="px-4 py-3">Owner</th><th className="px-4 py-3">Mode</th><th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {filteredPlans.length === 0 ? <tr><td colSpan={6} className="px-4 py-8 text-center text-slate-500">No plans</td></tr> : filteredPlans.map((plan: RecordAny) => {
+                {filteredPlans.length === 0 ? <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-500">No plans</td></tr> : filteredPlans.map((plan: RecordAny) => {
                   const planId = getId(plan);
-                  const selected = selectedSet.has(planId);
-                  const active = getId(activePlan) === planId;
-                  const hasRuns = runs.some((run: RecordAny) => getId(run.testPlan) === planId);
-                  return <tr key={planId} onClick={() => setActivePlanId(planId)} className={`cursor-pointer transition hover:bg-slate-50 ${active ? "bg-indigo-50/60" : ""}`}>
-                    <td className="px-4 py-3"><input type="checkbox" checked={selected} onChange={(e) => { e.stopPropagation(); togglePlanSelection(planId); }} /></td>
+                  const bulkSelected = selectedSet.has(planId);
+                  const focused = activePlanId === planId;
+                  const runCount = runCountByPlanId.get(planId) || 0;
+                  const runSnapshot = planRunSnapshots.get(planId);
+                  const hasRuns = runCount > 0;
+                  return <tr key={planId} onClick={() => selectActivePlan(planId)} className={`cursor-pointer transition hover:bg-slate-50 ${focused ? "bg-indigo-50/60 ring-1 ring-inset ring-indigo-200" : bulkSelected ? "bg-amber-50/40" : ""}`}>
+                    <td className="px-4 py-3"><input type="checkbox" checked={bulkSelected} onChange={(e) => { e.stopPropagation(); togglePlanSelection(planId); }} /></td>
                     <td className="px-4 py-3"><div className="font-semibold text-slate-900">{plan.name}</div><div className="text-xs text-slate-500">{(plan.items || []).length} case(s)</div></td>
                     <td className="px-4 py-3 text-xs text-slate-600"><div>{plan.project?.name || "-"}</div><div>{plan.version?.name || "-"}</div></td>
+                    <td className="px-4 py-3 text-xs font-semibold tabular-nums text-slate-700">{runCount > 0 ? `${runCount} run(s)` : <span className="font-normal text-slate-400">Never</span>}</td>
+                    <td className="px-4 py-3 text-xs text-slate-600">{formatPlanLastRun(runSnapshot?.lastRunAt)}</td>
+                    <td className="px-4 py-3"><LatestRunResultBadge run={runSnapshot?.latestRun} /></td>
                     <td className="px-4 py-3 text-xs font-semibold text-slate-700">{userName(plan.owner)}</td>
                     <td className="px-4 py-3"><span className={String(plan.executionMode || "manual") === "automation" ? "rounded-full bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700" : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600"}>{plan.executionMode || "manual"}</span></td>
                     <td className="px-4 py-3"><div className="flex justify-end gap-1.5">
@@ -441,36 +661,186 @@ export default function AdminTestPlansScreen(props: Props) {
 
         <aside className="space-y-4 xl:sticky xl:top-24">
           <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="text-sm font-semibold text-slate-900">Plan detail</div>
-              {!activePlan ? <div className="mt-3 text-sm text-slate-500">Select a plan to inspect details</div> : <div className="mt-3 space-y-3 text-sm">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-sm font-semibold text-slate-900">Plan detail</div>
+              {activePlanId || selectedIds.length > 0 ? (
+                <button
+                  type="button"
+                  className="text-xs font-semibold text-slate-500 hover:text-slate-700"
+                  onClick={clearPlanSelection}
+                >
+                  Clear all
+                </button>
+              ) : null}
+            </div>
+              {!activePlan && selectedIds.length === 0 ? (
+                <div className="mt-3 text-sm text-slate-500">Click a row to focus a plan and view its runs</div>
+              ) : !activePlan && selectedIds.length > 1 ? (
+                <div className="mt-3 space-y-3 text-sm">
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                    <strong>{selectedIds.length} plans</strong> selected for bulk actions. Click a row to focus one plan for details.
+                  </div>
+                  <ul className="space-y-1 text-xs text-slate-600">
+                    {runsScopePlans.map((plan) => (
+                      <li key={getId(plan)} className="flex items-center justify-between rounded-lg bg-slate-50 px-2 py-1.5">
+                        <span className="font-semibold text-slate-800">{plan.name}</span>
+                        <span className="tabular-nums text-slate-500">{runCountByPlanId.get(getId(plan)) || 0} run(s)</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : activePlan ? (
+                <div className="mt-3 space-y-3 text-sm">
                 <div><div className="text-xs uppercase tracking-wide text-slate-500">Name</div><div className="font-semibold text-slate-900">{activePlan.name}</div></div>
               <div className="grid grid-cols-2 gap-2 text-xs"><div className="rounded-lg bg-slate-50 p-2"><div className="text-slate-500">Project</div><div className="font-semibold text-slate-800">{activePlan.project?.name || "-"}</div></div><div className="rounded-lg bg-slate-50 p-2"><div className="text-slate-500">Version</div><div className="font-semibold text-slate-800">{activePlan.version?.name || "-"}</div></div></div>
+              {focusedInsightsLoading ? (
+                <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">Loading latest stats…</div>
+              ) : focusedSummary && focusedSummary.totalTests > 0 ? (
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-2">
+                    <div className="text-slate-500">Cases</div>
+                    <div className="font-semibold text-slate-900">{focusedSummary.totalTests}</div>
+                  </div>
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-2">
+                    <div className="text-emerald-700">Pass rate</div>
+                    <div className="font-semibold text-emerald-800">{focusedSummary.passRate}%</div>
+                  </div>
+                  <div className="rounded-lg border border-rose-200 bg-rose-50 p-2">
+                    <div className="text-rose-700">Failing</div>
+                    <div className="font-semibold text-rose-800">{focusedSummary.failCount}</div>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-lg bg-slate-50 p-2">
+                    <div className="text-slate-500">Runs</div>
+                    <div className="font-semibold text-slate-800">{runCountByPlanId.get(getId(activePlan)) || 0} total</div>
+                  </div>
+                  <div className="rounded-lg bg-slate-50 p-2">
+                    <div className="text-slate-500">Latest</div>
+                    <div className="mt-0.5"><LatestRunResultBadge run={focusedRunSnapshot?.latestRun} /></div>
+                  </div>
+                </div>
+              )}
+              {focusedRunSnapshot?.lastRunAt ? (
+                <div className="text-xs text-slate-500">
+                  Last run: {formatPlanLastRun(focusedRunSnapshot.lastRunAt)}
+                </div>
+              ) : null}
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">{activePlan.description || "No description"}</div>
+              <details
+                className="rounded-lg border border-slate-200 bg-white"
+                open={casesPanelOpen}
+                onToggle={(event) => setCasesPanelOpen((event.target as HTMLDetailsElement).open)}
+              >
+                <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-slate-700">
+                  Cases in plan ({focusedPlanCaseRows.length})
+                </summary>
+                <div className="max-h-48 space-y-1 overflow-y-auto border-t border-slate-100 px-3 py-2">
+                  {focusedPlanCaseRows.length === 0 ? (
+                    <div className="py-2 text-xs text-slate-400">No cases in this plan</div>
+                  ) : (
+                    focusedPlanCaseRows.map((item) => (
+                      <div key={item.id} className="flex items-center justify-between gap-2 rounded-md px-1 py-1.5 text-xs hover:bg-slate-50">
+                        <div className="min-w-0">
+                          <div className="truncate font-semibold text-slate-800">{item.caseKey}</div>
+                          <div className="truncate text-slate-500">{item.title}</div>
+                        </div>
+                        <StatusBadge status={item.latestStatus} />
+                      </div>
+                    ))
+                  )}
+                </div>
+              </details>
               <div className="flex flex-wrap gap-2">
                 <button type="button" className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700" onClick={() => openPlanInsights(activePlan)}>View insights</button>
                 <button type="button" className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white" onClick={() => openExecutionForPlan(activePlan)}>Run this plan</button>
-                <button type="button" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600" onClick={() => openAssignModal(getId(activePlan))}>Assign cases</button>
+                <button type="button" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600" onClick={() => openAssignModal(getId(activePlan))}>Assign members</button>
               </div>
-            </div>}
+            </div>
+              ) : null}
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold text-slate-900">Recent activity</div>
-              <button type="button" className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold" onClick={() => {}}>View all</button>
-            </div>
+            <div className="text-sm font-semibold text-slate-900">Recent activity</div>
             <div className="mt-3 space-y-2">
-              {recentActivity.map((item: RecordAny) => <button key={getId(item)} type="button" onClick={() => setActivePlanId(getId(item))} className="flex w-full items-center justify-between rounded-lg border border-slate-200 px-3 py-2 text-left hover:border-slate-300"><span><span className="block text-xs text-slate-500">{item.project?.name || "-"}</span><span className="block text-sm font-semibold text-slate-900">{item.name}</span></span><span className="text-xs text-slate-400">{new Date(item.updatedAt || item.createdAt || 0).toLocaleDateString()}</span></button>)}
+              {recentActivity.map((item: RecordAny) => <button key={getId(item)} type="button" onClick={() => selectActivePlan(getId(item))} className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left hover:border-slate-300 ${activePlanId === getId(item) ? "border-indigo-200 bg-indigo-50/60" : "border-slate-200"}`}><span><span className="block text-xs text-slate-500">{item.project?.name || "-"}</span><span className="block text-sm font-semibold text-slate-900">{item.name}</span></span><span className="text-xs text-slate-400">{new Date(item.updatedAt || item.createdAt || 0).toLocaleDateString()}</span></button>)}
             </div>
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold text-slate-900">Execution runs</div>
-              <button type="button" className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold" onClick={() => setActiveTab("test-runs-execution")}>View all</button>
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <div className="text-sm font-semibold text-slate-900">Execution runs</div>
+                {activePlan ? (
+                  <div className="text-[11px] text-slate-500">
+                    Focused: {activePlan.name} · {runCountByPlanId.get(getId(activePlan)) || 0} total
+                  </div>
+                ) : isMultiPlanRunsScope ? (
+                  <div className="text-[11px] text-slate-500">
+                    From {selectedIds.length} bulk-selected plans
+                  </div>
+                ) : runsScopePlans.length === 1 ? (
+                  <div className="text-[11px] text-slate-500">
+                    {runsScopePlans[0]?.name} · {runCountByPlanId.get(getId(runsScopePlans[0])) || 0} total
+                  </div>
+                ) : null}
+              </div>
+              {activePlan ? (
+                <button
+                  type="button"
+                  className="shrink-0 text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+                  onClick={() => openAllRunsForPlan(activePlan)}
+                >
+                  All runs
+                </button>
+              ) : null}
             </div>
             <div className="mt-3 space-y-2 text-sm">
-              {relatedRuns.length === 0 ? <div className="text-slate-500">No related runs</div> : relatedRuns.map((run: RecordAny) => <div key={String(getId(run))} className="rounded-lg border border-slate-200 p-3"><div className="flex items-center justify-between"><strong className="text-slate-900">{run.name || "Run"}</strong><span className={run.status === "completed" ? "text-emerald-700" : run.status === "running" ? "text-amber-700" : "text-slate-500"}>{run.status || "pending"}</span></div><div className="text-xs text-slate-500">{new Date(run.createdAt || 0).toLocaleString()}</div></div>)}
+              {runsScopePlanIds.length === 0 ? (
+                <div className="text-slate-500">Focus a plan (click row) or select plans (checkbox) to see runs</div>
+              ) : relatedRuns.length === 0 ? (
+                <div className="text-slate-500">No runs for selected scope</div>
+              ) : (
+                relatedRuns.map((run: RecordAny) => {
+                  const runPlan = planForRun(run);
+                  return (
+                  <div key={String(getId(run))} className="rounded-lg border border-slate-200 p-3">
+                    {isMultiPlanRunsScope && runPlan ? (
+                      <div className="mb-1 truncate text-[11px] font-semibold text-indigo-700">{runPlan.name}</div>
+                    ) : null}
+                    <div className="flex items-center justify-between gap-2">
+                      <strong className="min-w-0 truncate text-slate-900">{run.name || "Run"}</strong>
+                      <span
+                        className={
+                          run.status === "completed"
+                            ? "shrink-0 text-emerald-700"
+                            : run.status === "running"
+                              ? "shrink-0 text-amber-700"
+                              : "shrink-0 text-slate-500"
+                        }
+                      >
+                        {run.status || "pending"}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex items-center justify-between gap-2">
+                      <span className="text-xs text-slate-500">
+                        {new Date(run.createdAt || 0).toLocaleString()}
+                      </span>
+                      {runPlan ? (
+                        <button
+                          type="button"
+                          className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+                          onClick={() => openRunForPlan(String(getId(run)), runPlan)}
+                        >
+                          Open
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                  );
+                })
+              )}
             </div>
           </section>
         </aside>
@@ -572,7 +942,7 @@ export default function AdminTestPlansScreen(props: Props) {
                             <span className="block text-xs font-normal text-slate-500">{planProjectGroups.length} groups in scope</span>
                           </span>
                         </span>
-                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">{selectedPlanGroupIds.size} selected</span>
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">{selectedPlanGroupIds.size} groups · {selectedPlanCaseIds.size} cases</span>
                       </summary>
 
                       <div className="space-y-2 border-l border-slate-200 px-4 py-3">
@@ -582,19 +952,29 @@ export default function AdminTestPlansScreen(props: Props) {
                           planProjectGroups.map((group: RecordAny) => {
                             const groupId = getId(group);
                             const checked = selectedPlanGroupIds.has(groupId);
-                            const groupCases = planProjectCases.filter((testCase: RecordAny) => String(getId(testCase.group)) === groupId);
+                            const groupCases = planProjectCases.filter((testCase: RecordAny) =>
+                              matchesSelectedEntity(testCase.group, groupId),
+                            );
                             const shouldScrollCases = groupCases.length >= 4;
 
                             return (
                               <details key={groupId} className={`rounded-xl border px-3 py-2.5 ${checked ? "border-emerald-200 bg-emerald-50/60" : "border-slate-100 bg-slate-50"}`}>
-                                <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
-                                  <label className="flex flex-1 cursor-pointer items-center gap-3 border-0 bg-transparent p-0" onClick={(event) => event.stopPropagation()}>
-                                    <input type="checkbox" className="h-4 w-4 rounded accent-emerald-600" checked={checked} onChange={() => togglePlanGroup(groupId)} />
-                                    <span className="flex flex-col gap-0.5">
-                                      <strong className="text-sm font-semibold text-slate-900">{group.name}</strong>
-                                      <small className="text-xs text-slate-500">{groupCases.length} test cases</small>
-                                    </span>
+                                <summary className="flex cursor-pointer list-none items-center gap-3">
+                                  <label
+                                    className="inline-flex shrink-0 cursor-pointer items-center"
+                                    onClick={(event) => event.stopPropagation()}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      className="h-4 w-4 rounded accent-emerald-600"
+                                      checked={checked}
+                                      onChange={() => togglePlanGroup(groupId)}
+                                    />
                                   </label>
+                                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                                    <strong className="text-sm font-semibold text-slate-900">{group.name}</strong>
+                                    <small className="text-xs text-slate-500">{groupCases.length} test cases</small>
+                                  </span>
                                 </summary>
 
                                 <div className="mt-3 border-l border-slate-200 pl-3">
@@ -633,7 +1013,7 @@ export default function AdminTestPlansScreen(props: Props) {
                 <div className="flex items-center justify-between gap-3 border-b border-slate-200 pb-3">
                   <div>
                     <span className="text-xs font-semibold text-slate-700">Test cases</span>
-                    <p className="mt-0.5 text-xs text-slate-500">Chọn nhiều test case từ các group khác nhau.</p>
+                    <p className="mt-0.5 text-xs text-slate-500">Chọn group ở trên để hiện test case, hoặc expand từng group.</p>
                   </div>
                   <div className="flex items-center gap-3 text-xs">
                     <label className="flex cursor-pointer items-center gap-1.5 font-semibold text-slate-600">
@@ -667,7 +1047,7 @@ export default function AdminTestPlansScreen(props: Props) {
                             <input type="checkbox" className="h-4 w-4 rounded accent-blue-600" checked={checked} onChange={() => togglePlanCase(getId(group), caseId)} />
                             <span className="flex min-w-0 flex-col gap-0.5">
                               <strong className="block truncate text-xs font-semibold text-slate-900">{testCase.caseKey} - {testCase.title}</strong>
-                              <small className="block truncate text-[11px] text-slate-400">{testCase.description || "No description"}</small>
+                              <small className="block truncate text-[11px] text-slate-400">{group.name} · {testCase.description || "No description"}</small>
                             </span>
                           </label>
                         );
@@ -675,6 +1055,11 @@ export default function AdminTestPlansScreen(props: Props) {
                     )}
                   </div>
                 )}
+              </div>
+
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                <strong>{selectedPlanCaseIds.size}</strong> case(s) selected from{" "}
+                <strong>{selectedPlanGroupIds.size}</strong> group(s)
               </div>
 
               <Button type="submit" variant="primary">
@@ -695,7 +1080,7 @@ export default function AdminTestPlansScreen(props: Props) {
             >
               ✕
             </button>
-            <h3 className="mb-2 text-lg font-semibold text-slate-900">Assign Assignees</h3>
+            <h3 className="mb-2 text-lg font-semibold text-slate-900">Assign members</h3>
             <p className="mb-4 text-sm text-slate-600">Owner se tu dong la admin dang thao tac</p>
 
             <form className="space-y-4" onSubmit={async (event) => { await handleSaveAssignments(event); }}>
