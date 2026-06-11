@@ -12,6 +12,12 @@ import { apiRequest, buildDefaultRunName, clearApiRequestCache, createTextMatche
 
 type RecordAny = Record<string, any>;
 
+export type PlanListFilters = {
+  versionId: string;
+  mode: "all" | "manual" | "automation";
+  status: "all" | "has_runs" | "no_runs" | "has_failing";
+};
+
 function groupCasesByGroup(groups: RecordAny[], cases: RecordAny[]) {
   return groups.map((group) => ({
     group,
@@ -88,6 +94,9 @@ export default function AdminTestPlansRoute() {
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [editingPlanId, setEditingPlanId] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [filterVersionId, setFilterVersionId] = useState("");
+  const [filterMode, setFilterMode] = useState<PlanListFilters["mode"]>("all");
+  const [filterStatus, setFilterStatus] = useState<PlanListFilters["status"]>("all");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [insightsPlan, setInsightsPlan] = useState<{ planId: string; planName: string; projectId: string } | null>(null);
@@ -111,6 +120,7 @@ export default function AdminTestPlansRoute() {
 
   const handleProjectScopeChange = useCallback((projectId: string) => {
     setSelectedProjectId(projectId);
+    setFilterVersionId("");
     if (projectId) {
       setPlanForm((prev: RecordAny) => ({ ...prev, projectId }));
     }
@@ -244,26 +254,38 @@ export default function AdminTestPlansRoute() {
 
   const createPlan = async (event: React.FormEvent) => {
     event.preventDefault();
+    const wasCreate = !editingPlanId;
     try {
       const payload = { ...planForm, projectId: planForm.projectId || selectedProjectId };
       if (!Array.isArray(payload.caseIds) || payload.caseIds.length === 0) {
         setMessage("Please select at least one test case before saving the plan.");
-        return false;
+        return null;
       }
+      let savedPlan: RecordAny | null = null;
       if (editingPlanId) {
-        await apiRequest(`/api/test-plans/${editingPlanId}`, undefined, { method: "PUT", body: JSON.stringify(payload) });
+        const response = await apiRequest<{ testPlan: RecordAny }>(
+          `/api/test-plans/${editingPlanId}`,
+          undefined,
+          { method: "PUT", body: JSON.stringify(payload) },
+        );
+        savedPlan = response.testPlan || null;
         setMessage("Test plan updated");
       } else {
-        await apiRequest(`/api/test-plans`, undefined, { method: "POST", body: JSON.stringify(payload) });
+        const response = await apiRequest<{ testPlan: RecordAny }>(
+          `/api/test-plans`,
+          undefined,
+          { method: "POST", body: JSON.stringify(payload) },
+        );
+        savedPlan = response.testPlan || null;
         setMessage("Test plan created");
       }
       setEditingPlanId("");
       setPlanForm({ name: "", description: "", projectId: selectedProjectId || "", versionId: "", executionMode: "manual", selectedGroupIds: [], caseIds: [] });
       await refreshAll();
-      return true;
+      return savedPlan ? { plan: savedPlan, created: wasCreate } : null;
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to save test plan");
-      return false;
+      return null;
     }
   };
 
@@ -328,6 +350,19 @@ export default function AdminTestPlansRoute() {
     if (planName) params.set("fromInsightsPlanName", planName);
     router.push(`/workspace/admin/test-runs-execution?${params.toString()}`);
   };
+  const startNewRunFromInsights = () => {
+    if (!insightsPlan) return;
+    const plan = plans.find((item) => getId(item) === insightsPlan.planId);
+    setInsightsPlan(null);
+    if (plan) {
+      openExecutionForPlan(plan);
+      return;
+    }
+    const runName = buildDefaultRunName(insightsPlan.planName, "");
+    router.push(
+      `/workspace/admin/test-runs-execution?testPlanId=${encodeURIComponent(insightsPlan.planId)}&runName=${encodeURIComponent(runName)}`,
+    );
+  };
   const openRunForPlan = (runId: string, plan: RecordAny) => {
     const planId = getId(plan);
     const planName = String(plan.name || "");
@@ -342,15 +377,22 @@ export default function AdminTestPlansRoute() {
   };
   const matchesSearch = useMemo(() => createTextMatcher(searchTerm), [searchTerm]);
 
+  const topbarVersionOptions = useMemo(() => {
+    if (!selectedProjectId) {
+      return versions;
+    }
+    return versions.filter((version) => matchesSelectedEntity(version.project, selectedProjectId));
+  }, [selectedProjectId, versions]);
+
   useLayoutEffect(() => {
     setTopbar(
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-xl font-semibold text-slate-900 dark:text-zinc-50">Test Plans</h1>
-        <div className="ml-auto flex flex-wrap items-center gap-3">
+        <div className="ml-auto flex flex-wrap items-center gap-2">
           <input
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
-            className={`w-52 ${TOPBAR_INPUT_CLS}`}
+            className={`w-44 ${TOPBAR_INPUT_CLS}`}
             placeholder="Filter plans..."
           />
           <select
@@ -365,12 +407,56 @@ export default function AdminTestPlansRoute() {
               </option>
             ))}
           </select>
+          <select
+            value={filterVersionId}
+            onChange={(event) => setFilterVersionId(event.target.value)}
+            className={`max-w-[140px] ${TOPBAR_INPUT_CLS}`}
+            title="Filter by version"
+          >
+            <option value="">All versions</option>
+            {topbarVersionOptions.map((version) => (
+              <option key={getId(version)} value={getId(version)}>
+                {version.name}
+              </option>
+            ))}
+          </select>
+          <select
+            value={filterMode}
+            onChange={(event) => setFilterMode(event.target.value as PlanListFilters["mode"])}
+            className={TOPBAR_INPUT_CLS}
+            title="Filter by execution mode"
+          >
+            <option value="all">All modes</option>
+            <option value="manual">Manual</option>
+            <option value="automation">Automation</option>
+          </select>
+          <select
+            value={filterStatus}
+            onChange={(event) => setFilterStatus(event.target.value as PlanListFilters["status"])}
+            className={TOPBAR_INPUT_CLS}
+            title="Filter by run status"
+          >
+            <option value="all">All status</option>
+            <option value="has_runs">Has runs</option>
+            <option value="no_runs">No runs</option>
+            <option value="has_failing">Has failing</option>
+          </select>
         </div>
       </div>,
     );
 
     return () => setTopbar(null);
-  }, [handleProjectScopeChange, projects, searchTerm, selectedProjectId, setTopbar]);
+  }, [
+    filterMode,
+    filterStatus,
+    filterVersionId,
+    handleProjectScopeChange,
+    projects,
+    searchTerm,
+    selectedProjectId,
+    setTopbar,
+    topbarVersionOptions,
+  ]);
 
   return (
     <>
@@ -382,6 +468,7 @@ export default function AdminTestPlansRoute() {
           planForm={planForm}
           setPlanForm={setPlanForm}
           createPlan={createPlan}
+          listFilters={{ versionId: filterVersionId, mode: filterMode, status: filterStatus }}
           scopedProjects={scopedProjects}
           scopedVersions={scopedVersions}
           planProjectGroups={planProjectGroups}
@@ -428,6 +515,7 @@ export default function AdminTestPlansRoute() {
           projectId={insightsPlan.projectId}
           onClose={() => setInsightsPlan(null)}
           onOpenExecution={openRunFromInsights}
+          onStartNewRun={startNewRunFromInsights}
         />
       ) : null}
     </>

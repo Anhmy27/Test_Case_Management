@@ -67,10 +67,22 @@ function LatestRunResultBadge({ run }: { run: RecordAny | null | undefined }) {
   );
 }
 
+function planLatestHasFailing(run: RecordAny | null | undefined) {
+  if (!run) return false;
+  const results = Array.isArray(run.results) ? run.results : [];
+  if (results.length === 0) return false;
+  return summarizeRunResults(results).fail > 0;
+}
+
 type Props = {
   planForm: any;
   setPlanForm: Dispatch<SetStateAction<any>>;
-  createPlan: (event: FormEvent) => Promise<boolean>;
+  createPlan: (event: FormEvent) => Promise<{ plan: RecordAny; created: boolean } | null>;
+  listFilters: {
+    versionId: string;
+    mode: "all" | "manual" | "automation";
+    status: "all" | "has_runs" | "no_runs" | "has_failing";
+  };
   scopedProjects: RecordAny[];
   scopedVersions: RecordAny[];
   planProjectGroups: RecordAny[];
@@ -115,6 +127,7 @@ export default function AdminTestPlansScreen(props: Props) {
     planForm,
     setPlanForm,
     createPlan,
+    listFilters,
     scopedProjects,
     scopedVersions,
     planProjectGroups,
@@ -259,6 +272,7 @@ export default function AdminTestPlansScreen(props: Props) {
   const [statusBulkMode, setStatusBulkMode] = useState<"manual" | "automation">("manual");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [startRunPromptPlan, setStartRunPromptPlan] = useState<RecordAny | null>(null);
   const [focusedPlanInsights, setFocusedPlanInsights] = useState<TestPlanDetail | null>(null);
   const [focusedInsightsLoading, setFocusedInsightsLoading] = useState(false);
   const [casesPanelOpen, setCasesPanelOpen] = useState(true);
@@ -298,32 +312,6 @@ export default function AdminTestPlansScreen(props: Props) {
     };
   }, [activePlanId, reloadToken]);
 
-  const filteredPlans = useMemo(
-    () =>
-      scopedPlans.filter((plan: RecordAny) =>
-        matchesSearch(plan.name, plan.project?.name, plan.version?.name, userName(plan.owner)),
-      ),
-    [matchesSearch, scopedPlans, userName],
-  );
-
-  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
-  const allVisibleSelected =
-    filteredPlans.length > 0 && filteredPlans.every((plan: RecordAny) => selectedSet.has(getId(plan)));
-
-  const activePlan = activePlanId
-    ? scopedPlans.find((plan: RecordAny) => getId(plan) === String(activePlanId)) || null
-    : null;
-
-  const runCountByPlanId = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const run of runs) {
-      const planId = String(getId(run.testPlan) || "");
-      if (!planId) continue;
-      counts.set(planId, (counts.get(planId) || 0) + 1);
-    }
-    return counts;
-  }, [getId, runs]);
-
   const planRunSnapshots = useMemo(() => {
     const snapshots = new Map<string, PlanRunSnapshot>();
     for (const run of runs) {
@@ -342,6 +330,56 @@ export default function AdminTestPlansScreen(props: Props) {
       }
     }
     return snapshots;
+  }, [getId, runs]);
+
+  const filteredPlans = useMemo(() => {
+    return scopedPlans.filter((plan: RecordAny) => {
+      if (!matchesSearch(plan.name, plan.project?.name, plan.version?.name, userName(plan.owner))) {
+        return false;
+      }
+
+      if (listFilters.versionId && !matchesSelectedEntity(plan.version, listFilters.versionId)) {
+        return false;
+      }
+
+      if (listFilters.mode !== "all" && String(plan.executionMode || "manual") !== listFilters.mode) {
+        return false;
+      }
+
+      const planId = getId(plan);
+      const runCount = runs.filter((run) => String(getId(run.testPlan) || "") === planId).length;
+      const latestRun = planRunSnapshots.get(planId)?.latestRun;
+
+      if (listFilters.status === "has_runs" && runCount === 0) {
+        return false;
+      }
+      if (listFilters.status === "no_runs" && runCount > 0) {
+        return false;
+      }
+      if (listFilters.status === "has_failing" && !planLatestHasFailing(latestRun)) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [getId, listFilters, matchesSearch, planRunSnapshots, runs, scopedPlans, userName]);
+
+  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const allVisibleSelected =
+    filteredPlans.length > 0 && filteredPlans.every((plan: RecordAny) => selectedSet.has(getId(plan)));
+
+  const activePlan = activePlanId
+    ? scopedPlans.find((plan: RecordAny) => getId(plan) === String(activePlanId)) || null
+    : null;
+
+  const runCountByPlanId = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const run of runs) {
+      const planId = String(getId(run.testPlan) || "");
+      if (!planId) continue;
+      counts.set(planId, (counts.get(planId) || 0) + 1);
+    }
+    return counts;
   }, [getId, runs]);
 
   /** Toolbar actions target focused plan, or the only bulk-selected plan. */
@@ -554,17 +592,6 @@ export default function AdminTestPlansScreen(props: Props) {
             variant="primary"
             onClick={openCreatePlanModal}
             tooltip="Open create test plan modal"
-          />
-          <ActionButton
-            label="Assign members"
-            icon="👥"
-            onClick={() => {
-              if (toolbarPlan) {
-                openAssignModal(getId(toolbarPlan));
-              }
-            }}
-            disabled={!toolbarPlan}
-            tooltip={toolbarPlan ? "Assign members to focused plan" : "Focus one plan (click row) first"}
           />
           <ActionButton
             label="Insights"
@@ -859,8 +886,13 @@ export default function AdminTestPlansScreen(props: Props) {
             <h3 className="mb-2 text-lg font-semibold text-slate-900">{editingPlanId ? "Edit Test Plan" : "Create Test Plan"}</h3>
             <p className="mb-4 text-sm text-slate-600">{editingPlanId ? "Sua thong tin plan, gom ca danh sach test case." : "Assign user va tao plan rieng biet"}</p>
             <form className="space-y-4" onSubmit={async (e) => {
-              const saved = await createPlan(e);
-              if (saved) setShowCreateModal(false);
+              const result = await createPlan(e);
+              if (result) {
+                setShowCreateModal(false);
+                if (result.created) {
+                  setStartRunPromptPlan(result.plan);
+                }
+              }
             }}>
               <div className="grid gap-4 sm:grid-cols-2">
                 <ScopedProjectField
@@ -1152,6 +1184,32 @@ export default function AdminTestPlansScreen(props: Props) {
           </div>
         </div>
       )}
+
+      {startRunPromptPlan ? (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="text-lg font-semibold text-slate-900">Test plan created</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              <strong>{startRunPromptPlan.name || "New plan"}</strong> đã được lưu. Bạn có muốn chạy ngay không?
+            </p>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() => {
+                  openExecutionForPlan(startRunPromptPlan);
+                  setStartRunPromptPlan(null);
+                }}
+              >
+                ▶ Start run now
+              </Button>
+              <Button type="button" onClick={() => setStartRunPromptPlan(null)}>
+                Later
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
