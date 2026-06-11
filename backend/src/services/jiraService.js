@@ -1,6 +1,12 @@
 const { request } = require('playwright');
 const { httpError } = require('../utils/httpError');
 const { isProduction, stripHtml } = require('../utils/runtimeEnv');
+const {
+  clearJiraSession,
+  decryptJiraAccountSecrets,
+  getEffectiveJiraAccount,
+  storeJiraSession,
+} = require('./jiraAccountService');
 
 const throwJiraError = (statusCode, fallbackMessage, rawBody) => {
   if (!isProduction() && rawBody) {
@@ -27,21 +33,8 @@ const getJiraConfig = () => {
   const password = String(process.env.JIRA_PASSWORD || '').trim();
   const cookie = String(process.env.JIRA_COOKIE || '').trim();
 
-  const missingFields = [];
   if (!baseURL) {
-    missingFields.push('JIRA_BASE_URL');
-  }
-  if (!cookie) {
-    if (!username) {
-      missingFields.push('JIRA_USERNAME');
-    }
-    if (!password) {
-      missingFields.push('JIRA_PASSWORD');
-    }
-  }
-
-  if (missingFields.length > 0) {
-    throw httpError(500, `Jira integration is not configured: missing ${missingFields.join(', ')}`);
+    throw httpError(500, 'Jira integration is not configured: missing JIRA_BASE_URL');
   }
 
   return { baseURL, username, password, cookie };
@@ -51,6 +44,7 @@ const extractToken = (html, tokenName) => {
   const escapedTokenName = String(tokenName || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const patterns = [
     new RegExp(`name=["']${escapedTokenName}["'][^>]*value=["']([^"']+)["']`, 'i'),
+    new RegExp(`value=["']([^"']+)["'][^>]*name=["']${escapedTokenName}["']`, 'i'),
     new RegExp(`${escapedTokenName}=([A-Za-z0-9_:.\-]+)`, 'i'),
   ];
 
@@ -64,12 +58,69 @@ const extractToken = (html, tokenName) => {
   return '';
 };
 
-const verifyJiraSession = async (context) => {
-  const dashboardResponse = await context.get('/secure/Dashboard.jspa');
+const extractMetaContent = (html, metaName) => {
+  const escapedMetaName = String(metaName || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const patterns = [
+    new RegExp(`<meta[^>]+name=["']${escapedMetaName}["'][^>]+content=["']([^"']+)["']`, 'i'),
+    new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]+name=["']${escapedMetaName}["']`, 'i'),
+    new RegExp(`<meta[^>]+id=["']${escapedMetaName}["'][^>]+content=["']([^"']+)["']`, 'i'),
+  ];
 
-  if (!dashboardResponse.ok()) {
-    const body = await dashboardResponse.text();
-    throwJiraError(502, 'Jira session verification failed', body);
+  for (const pattern of patterns) {
+    const match = html.match(pattern);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+
+  return '';
+};
+
+const extractAtlToken = (html) =>
+  extractToken(html, 'atl_token')
+  || extractMetaContent(html, 'atlassian-token')
+  || extractMetaContent(html, 'ajs-atl-token')
+  || extractMetaContent(html, 'atl-token')
+  || extractToken(html, 'atlassian.xsrf.token');
+
+const extractFormToken = (html) =>
+  extractToken(html, 'formToken')
+  || extractToken(html, 'form_token')
+  || extractMetaContent(html, 'atlassian-token')
+  || extractMetaContent(html, 'ajs-atl-token');
+
+const getXsrfTokenFromContext = async (context) => {
+  const state = await context.storageState();
+  const cookies = Array.isArray(state?.cookies) ? state.cookies : [];
+  const xsrfCookie = cookies.find((cookie) => cookie?.name === 'atlassian.xsrf.token');
+  return xsrfCookie?.value ? String(xsrfCookie.value) : '';
+};
+
+const isAuthenticatedHtml = (html) => {
+  const remoteUser = extractMetaContent(html, 'ajs-remote-user');
+  return Boolean(remoteUser);
+};
+
+const verifyJiraSession = async (context) => {
+  const myselfResponse = await context.get('/rest/api/2/myself', {
+    headers: {
+      Accept: 'application/json',
+      'X-Atlassian-Token': 'no-check',
+    },
+  });
+
+  if (myselfResponse.ok()) {
+    const user = await myselfResponse.json();
+    if (user?.name || user?.key) {
+      return user;
+    }
+  }
+
+  const dashboardResponse = await context.get('/secure/Dashboard.jspa');
+  const dashboardHtml = await dashboardResponse.text();
+
+  if (!dashboardResponse.ok() || !isAuthenticatedHtml(dashboardHtml)) {
+    throwJiraError(502, 'Jira session verification failed', dashboardHtml);
   }
 
   return dashboardResponse;
@@ -109,33 +160,70 @@ const getContextCookieHeader = async (context, baseURL) => {
   return scoped.map((cookie) => `${cookie.name}=${cookie.value || ''}`).join('; ');
 };
 
-const createLoggedInContext = async () => {
-  const { baseURL, username, password, cookie } = getJiraConfig();
+const getContextCookieSnapshot = async (context, baseURL) => {
+  const state = await context.storageState();
+  const cookies = Array.isArray(state?.cookies) ? state.cookies : [];
+  const cookieHeader = await getContextCookieHeader(context, baseURL);
+  const expiresAtCandidates = cookies
+    .map((cookie) => (typeof cookie.expires === 'number' && cookie.expires > 0 ? new Date(cookie.expires * 1000) : null))
+    .filter(Boolean)
+    .sort((left, right) => right.getTime() - left.getTime());
+
+  return {
+    cookieHeader,
+    expiresAt: expiresAtCandidates[0] || null,
+  };
+};
+
+const createLoggedInContext = async ({ userId } = {}) => {
+  const { baseURL } = getJiraConfig();
+  const resolvedAccount = decryptJiraAccountSecrets(await getEffectiveJiraAccount(userId));
+  if (!resolvedAccount) {
+    throw httpError(400, 'Jira profile is not configured. Open Jira Profile tab and set your Jira account.');
+  }
+  const account = resolvedAccount;
+
+  if (!account.jiraUsername && !account.jiraPassword && !account.jiraCookieHeader) {
+    throw httpError(400, 'Jira profile is missing credentials. Open Jira Profile tab and update it.');
+  }
+
   const context = await request.newContext({
     baseURL,
-    extraHTTPHeaders: cookie
+    extraHTTPHeaders: account.jiraCookieHeader
       ? {
-          Cookie: cookie,
+          Cookie: account.jiraCookieHeader,
         }
       : undefined,
   });
 
-  if (cookie) {
+  const persistSession = async (cookieHeader = account.jiraCookieHeader) => {
+    const snapshot = await getContextCookieSnapshot(context, baseURL);
+    await storeJiraSession({
+      profileKey: account.profileKey,
+      userId: account.userId,
+      profileType: account.profileType,
+      jiraCookieHeader: snapshot.cookieHeader || cookieHeader,
+      sessionExpiresAt: snapshot.expiresAt,
+    });
+  };
+
+  if (account.jiraCookieHeader) {
     try {
       await verifyJiraSession(context);
-      console.log('[Jira] session verified via JIRA_COOKIE');
+      await persistSession(account.jiraCookieHeader);
+      console.log('[Jira] session verified via stored cookie');
       return context;
     } catch (cookieErr) {
-      if (!username || !password) {
+      if (!account.jiraUsername || !account.jiraPassword) {
         throw cookieErr;
       }
-      console.log('[Jira] JIRA_COOKIE invalid, fallback to username/password login');
+      console.log('[Jira] stored Jira cookie invalid, fallback to username/password login');
     }
   }
 
   console.log('[Jira] login start', {
     baseURL,
-    username: username ? `${username.slice(0, 2)}***` : '',
+    username: account.jiraUsername ? `${account.jiraUsername.slice(0, 2)}***` : '',
   });
 
   const loginPage = await context.get('/login.jsp');
@@ -144,7 +232,7 @@ const createLoggedInContext = async () => {
   }
 
   const loginHtml = await loginPage.text();
-  const atlToken = extractToken(loginHtml, 'atl_token') || extractToken(loginHtml, 'atlassian.xsrf.token');
+  const atlToken = extractAtlToken(loginHtml);
 
   console.log('[Jira] login page loaded', {
     hasAtlToken: Boolean(atlToken),
@@ -153,8 +241,8 @@ const createLoggedInContext = async () => {
 
   const loginResponse = await context.post('/login.jsp', {
     form: {
-      os_username: username,
-      os_password: password,
+      os_username: account.jiraUsername,
+      os_password: account.jiraPassword,
       os_destination: '/',
       atl_token: atlToken,
       login: 'Log In',
@@ -168,6 +256,11 @@ const createLoggedInContext = async () => {
       status: loginResponse.status(),
       loginReason: loginReason || '',
     });
+    await clearJiraSession({
+      profileKey: account.profileKey,
+      userId: account.userId,
+      profileType: account.profileType,
+    }).catch(() => {});
     throwJiraError(502, 'Jira login failed', body);
   }
 
@@ -177,10 +270,55 @@ const createLoggedInContext = async () => {
   });
 
   await verifyJiraSession(context);
+  await persistSession();
 
-  console.log('[Jira] session verified');
+  console.log('[Jira] session verified and cached');
 
   return context;
+};
+
+const loadCreateIssuePage = async (context, { pid, issueTypeId }) => {
+  const urls = [
+    `/secure/CreateIssue!default.jspa?decorator=none&pid=${encodeURIComponent(pid)}&issuetype=${encodeURIComponent(issueTypeId)}`,
+    `/secure/CreateIssue!default.jspa?pid=${encodeURIComponent(pid)}&issuetype=${encodeURIComponent(issueTypeId)}`,
+  ];
+
+  let lastError = null;
+
+  for (const url of urls) {
+    const createPage = await context.get(url);
+    const createHtml = await createPage.text();
+
+    if (!createPage.ok()) {
+      lastError = { status: createPage.status(), body: createHtml };
+      continue;
+    }
+
+    const atlToken = extractAtlToken(createHtml) || await getXsrfTokenFromContext(context);
+    const formToken = extractFormToken(createHtml) || atlToken;
+
+    console.log('[Jira] create issue page ok', {
+      status: createPage.status(),
+      url,
+      hasAtlToken: Boolean(atlToken),
+      hasFormToken: Boolean(formToken),
+    });
+
+    return {
+      atlToken,
+      formToken,
+      createHtml,
+    };
+  }
+
+  if (lastError) {
+    console.log('[Jira] create issue page failed', {
+      status: lastError.status,
+    });
+    throwJiraError(502, 'Unable to open Jira create issue page', lastError.body);
+  }
+
+  throw httpError(502, 'Unable to open Jira create issue page');
 };
 
 const createBugIssue = async ({
@@ -193,8 +331,9 @@ const createBugIssue = async ({
   originalEstimate,
   labels,
   versions,
+  userId,
 }) => {
-  const context = await createLoggedInContext();
+  const context = await createLoggedInContext({ userId });
 
   try {
     console.log('[Jira] create issue start', {
@@ -204,29 +343,19 @@ const createBugIssue = async ({
       labels: labels || '',
     });
 
-    const createPage = await context.get(
-      `/secure/CreateIssue!default.jspa?decorator=none&pid=${encodeURIComponent(pid)}&issuetype=${encodeURIComponent(issueTypeId)}`,
-    );
+    const { atlToken, formToken } = await loadCreateIssuePage(context, { pid, issueTypeId });
 
-    if (!createPage.ok()) {
-      const body = await createPage.text();
-      console.log('[Jira] create issue page failed', {
-        status: createPage.status(),
-      });
-      throwJiraError(502, 'Unable to open Jira create issue page', body);
+    if (!atlToken) {
+      throw httpError(
+        502,
+        'Unable to read Jira CSRF token for issue creation. Re-save your Jira profile and try again.',
+      );
     }
 
-    const createHtml = await createPage.text();
-    const atlToken = extractToken(createHtml, 'atl_token');
-    const formToken = extractToken(createHtml, 'formToken') || extractToken(createHtml, 'form_token');
-
-    console.log('[Jira] create issue page ok', {
-      status: createPage.status(),
-      hasAtlToken: Boolean(atlToken),
-      hasFormToken: Boolean(formToken),
-    });
-
     const response = await context.post('/secure/QuickCreateIssue.jspa?decorator=none', {
+      headers: {
+        'X-Atlassian-Token': 'no-check',
+      },
       form: {
         pid,
         issuetype: issueTypeId,
@@ -266,6 +395,12 @@ const createBugIssue = async ({
     const issueKey = location.match(/\/browse\/([A-Z][A-Z0-9_]+-\d+)/)?.[1] || result.body.match(/([A-Z][A-Z0-9_]+-\d+)/)?.[1] || '';
 
     if (!(response.status() === 200 || response.status() === 302)) {
+      if (response.status() === 403) {
+        throw httpError(
+          403,
+          'Jira rejected issue creation (403). Check your Jira account permission for this project or re-save your Jira profile.',
+        );
+      }
       throwJiraError(502, 'Jira issue creation failed', result.body);
     }
 
@@ -279,8 +414,8 @@ const createBugIssue = async ({
   }
 };
 
-const suggestLabels = async ({ query = '' } = {}) => {
-  const context = await createLoggedInContext();
+const suggestLabels = async ({ query = '', userId } = {}) => {
+  const context = await createLoggedInContext({ userId });
   const { baseURL } = getJiraConfig();
 
   try {
@@ -336,8 +471,9 @@ const suggestVersions = async ({
   query = '',
   maxResults = 100,
   startAt = 0,
+  userId,
 } = {}) => {
-  const context = await createLoggedInContext();
+  const context = await createLoggedInContext({ userId });
   const { baseURL } = getJiraConfig();
 
   try {
@@ -386,8 +522,9 @@ const searchAssignableUsers = async ({
   projectKeys,
   username = '',
   maxResults = 100,
+  userId,
 }) => {
-  const context = await createLoggedInContext();
+  const context = await createLoggedInContext({ userId });
 
   try {
     const query = new URLSearchParams();
@@ -414,4 +551,7 @@ module.exports = {
   suggestLabels,
   suggestVersions,
   searchAssignableUsers,
+  extractAtlToken,
+  extractFormToken,
+  extractMetaContent,
 };

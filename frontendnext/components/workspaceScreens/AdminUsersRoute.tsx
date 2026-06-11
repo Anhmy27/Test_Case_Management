@@ -13,7 +13,15 @@ type RecordAny = Record<string, any>;
 export default function AdminUsersRoute() {
   const { currentUser, setTopbar } = useAdminWorkspace();
   const [users, setUsers] = useState<RecordAny[]>([]);
-  const [newUserForm, setNewUserForm] = useState({ name: "", email: "", password: "", role: "employee", isActive: true });
+  const [newUserForm, setNewUserForm] = useState({
+    name: "",
+    email: "",
+    password: "",
+    role: "employee",
+    isActive: true,
+    jiraUsername: "",
+    jiraPassword: "",
+  });
   const [editingUserId, setEditingUserId] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"active" | "inactive" | "all">("active");
@@ -65,6 +73,12 @@ export default function AdminUsersRoute() {
       if (editingUserId && !String(payload.password || "").trim()) {
         delete payload.password;
       }
+      if (!String(payload.jiraUsername || "").trim()) {
+        delete payload.jiraUsername;
+      }
+      if (!String(payload.jiraPassword || "").trim()) {
+        delete payload.jiraPassword;
+      }
       if (editingUserId) {
         await apiRequest(`/api/users/${editingUserId}`, undefined, { method: "PUT", body: JSON.stringify(payload) });
         setMessage("User updated");
@@ -73,7 +87,15 @@ export default function AdminUsersRoute() {
         setMessage("User created");
       }
       setEditingUserId("");
-      setNewUserForm({ name: "", email: "", password: "", role: "employee", isActive: true });
+      setNewUserForm({
+        name: "",
+        email: "",
+        password: "",
+        role: "employee",
+        isActive: true,
+        jiraUsername: "",
+        jiraPassword: "",
+      });
       await refreshUsers();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to save user");
@@ -88,12 +110,22 @@ export default function AdminUsersRoute() {
       password: "",
       role: user.role === "admin" ? "admin" : "employee",
       isActive: user.isActive !== false,
+      jiraUsername: "",
+      jiraPassword: "",
     });
   };
 
   const cancelUserEdit = () => {
     setEditingUserId("");
-    setNewUserForm({ name: "", email: "", password: "", role: "employee", isActive: true });
+    setNewUserForm({
+      name: "",
+      email: "",
+      password: "",
+      role: "employee",
+      isActive: true,
+      jiraUsername: "",
+      jiraPassword: "",
+    });
   };
 
   const deleteUser = async (userId: string) => {

@@ -20,6 +20,8 @@ const createUserBodySchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters'),
   role: z.enum(['admin', 'employee']).optional(),
   isActive: z.union([z.boolean(), z.string()]).optional(),
+  jiraUsername: optionalTrimmedString(),
+  jiraPassword: optionalTrimmedString(),
 }).passthrough();
 
 const updateUserBodySchema = z.object({
@@ -35,6 +37,8 @@ const updateUserBodySchema = z.object({
   ),
   role: z.enum(['admin', 'employee']).optional(),
   isActive: z.union([z.boolean(), z.string()]).optional(),
+  jiraUsername: optionalTrimmedString(),
+  jiraPassword: optionalTrimmedString(),
 }).passthrough();
 
 module.exports = {

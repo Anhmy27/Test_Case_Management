@@ -7,6 +7,11 @@ const {
   suggestVersions,
   searchAssignableUsers,
 } = require('./jiraService');
+const {
+  getJiraProfileView,
+  getUserJiraAccount,
+  upsertUserJiraAccount,
+} = require('./jiraAccountService');
 
 const getProjectById = async (projectId) => {
   if (!mongoose.Types.ObjectId.isValid(projectId)) {
@@ -33,6 +38,7 @@ const getProjectById = async (projectId) => {
 };
 
 const logBugService = async ({
+  user,
   projectId,
   summary,
   description,
@@ -73,6 +79,7 @@ const logBugService = async ({
     originalEstimate: resolvedOriginalEstimate,
     labels,
     versions,
+    userId: user?.id || user?._id || null,
   });
 
   console.log('[Jira] logBug created', {
@@ -89,6 +96,7 @@ const logBugService = async ({
 };
 
 const getAssignableUsersService = async ({
+  user,
   projectKeys, projectKey, username = '', maxResults = '100',
 }) => {
   const resolvedProjectKeys = String(projectKeys || projectKey || '').trim();
@@ -97,19 +105,24 @@ const getAssignableUsersService = async ({
     projectKeys: resolvedProjectKeys,
     username: String(username || ''),
     maxResults: Number(maxResults) || 100,
+    userId: user?.id || user?._id || null,
   });
 
   return { users };
 };
 
-const getLabelSuggestionsService = async ({ query = '' } = {}) => {
-  const labels = await suggestLabels({ query: String(query || '') });
+const getLabelSuggestionsService = async ({ query = '', user } = {}) => {
+  const labels = await suggestLabels({
+    query: String(query || ''),
+    userId: user?.id || user?._id || null,
+  });
   return {
     suggestions: labels.map((label) => ({ label })),
   };
 };
 
 const getVersionSuggestionsService = async ({
+  user,
   projectId,
   query = '',
   maxResults = '100',
@@ -121,6 +134,7 @@ const getVersionSuggestionsService = async ({
     query: String(query || ''),
     maxResults: Number(maxResults) || 100,
     startAt: Number(startAt) || 0,
+    userId: user?.id || user?._id || null,
   });
 
   return {
@@ -132,9 +146,26 @@ const getVersionSuggestionsService = async ({
   };
 };
 
+const getJiraProfileService = async (user) => {
+  const account = await getUserJiraAccount(user?.id || user?._id || null);
+  return { profile: getJiraProfileView(account) };
+};
+
+const upsertJiraProfileService = async (user, payload = {}) => {
+  const account = await upsertUserJiraAccount({
+    userId: user?.id || user?._id || null,
+    jiraUsername: payload.jiraUsername,
+    jiraPassword: payload.jiraPassword,
+  });
+
+  return { profile: getJiraProfileView(account) };
+};
+
 module.exports = {
   logBugService,
   getAssignableUsersService,
   getLabelSuggestionsService,
   getVersionSuggestionsService,
+  getJiraProfileService,
+  upsertJiraProfileService,
 };

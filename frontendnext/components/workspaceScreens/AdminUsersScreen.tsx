@@ -7,10 +7,19 @@ import { Button, DataTable, Field, INPUT_CLS, SectionCard } from "./shared";
 import { getId } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
+type AdminUserFormState = {
+  name: string;
+  email: string;
+  password: string;
+  role: string;
+  isActive: boolean;
+  jiraUsername: string;
+  jiraPassword: string;
+};
 
 type Props = {
-  newUserForm: { name: string; email: string; password: string; role: string; isActive: boolean };
-  setNewUserForm: Dispatch<SetStateAction<{ name: string; email: string; password: string; role: string; isActive: boolean }>>;
+  newUserForm: AdminUserFormState;
+  setNewUserForm: Dispatch<SetStateAction<AdminUserFormState>>;
   createUser: (event: React.FormEvent) => Promise<void>;
   editingUserId: string;
   startUserEdit: (user: RecordAny) => void;
@@ -89,6 +98,23 @@ export default function AdminUsersScreen({
                 <option value="active">Active</option>
                 <option value="inactive">Inactive</option>
               </select>
+            </Field>
+            <Field label="Jira Username">
+              <input
+                className={INPUT_CLS}
+                value={newUserForm.jiraUsername}
+                onChange={(e) => setNewUserForm((prev) => ({ ...prev, jiraUsername: e.target.value }))}
+                placeholder="Optional: Jira account username"
+              />
+            </Field>
+            <Field label="Jira Password">
+              <input
+                type="password"
+                className={INPUT_CLS}
+                value={newUserForm.jiraPassword}
+                onChange={(e) => setNewUserForm((prev) => ({ ...prev, jiraPassword: e.target.value }))}
+                placeholder={isEditing ? "Leave blank to keep current Jira password" : "Optional Jira password"}
+              />
             </Field>
           </div>
           <div className="flex flex-wrap items-center gap-2">

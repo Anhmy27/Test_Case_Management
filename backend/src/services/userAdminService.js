@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const { httpError } = require('../utils/httpError');
 const { revokeUserSessions } = require('../utils/authTokens');
+const { upsertUserJiraAccount, clearJiraSession } = require('./jiraAccountService');
 
 const SALT_ROUNDS = 10;
 
@@ -50,7 +51,7 @@ const listUsersService = async ({ status, includeInactive } = {}) => {
 };
 
 const createUserByAdminService = async ({
-  name, email, password, role, isActive,
+  name, email, password, role, isActive, jiraUsername, jiraPassword,
 }) => {
   if (!name || !email || !password) {
     throw httpError(400, 'name, email and password are required');
@@ -72,11 +73,17 @@ const createUserByAdminService = async ({
     isActive: normalizeOptionalBoolean(isActive, 'isActive') ?? true,
   });
 
+  await upsertUserJiraAccount({
+    userId: user._id,
+    jiraUsername,
+    jiraPassword,
+  }).catch(() => {});
+
   return toPublicUser(user);
 };
 
 const updateUserByAdminService = async (id, {
-  name, email, password, role, isActive,
+  name, email, password, role, isActive, jiraUsername, jiraPassword,
 }) => {
   const user = await User.findById(id);
   if (!user) {
@@ -128,6 +135,14 @@ const updateUserByAdminService = async (id, {
     await revokeUserSessions(user._id);
   }
 
+  if (typeof jiraUsername === 'string' || typeof jiraPassword === 'string') {
+    await upsertUserJiraAccount({
+      userId: user._id,
+      jiraUsername,
+      jiraPassword,
+    }).catch(() => {});
+  }
+
   return toPublicUser(user);
 };
 
@@ -144,6 +159,7 @@ const deleteUserByAdminService = async (id, actorId) => {
   user.isActive = false;
   await user.save();
   await revokeUserSessions(user._id);
+  await clearJiraSession({ userId: user._id }).catch(() => {});
 };
 
 module.exports = {
