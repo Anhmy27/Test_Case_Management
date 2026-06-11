@@ -20,7 +20,6 @@ type Props = {
   selectedPlanGroupIds: Set<any>;
   selectedPlanCaseIds: Set<any>;
   selectedPlanGroups: Array<{ group: RecordAny; cases: RecordAny[] }>;
-  selectedPlanCasesByGroup: Array<{ group: RecordAny; cases: RecordAny[] }>;
   togglePlanGroup: (groupId: string) => void;
   togglePlanCase: (groupId: string, caseId: string) => void;
   users: RecordAny[];
@@ -38,6 +37,7 @@ type Props = {
   duplicatePlan: (plan: RecordAny) => Promise<void>;
   runs: RecordAny[];
   openExecutionForPlan: (plan: RecordAny) => void;
+  openPlanInsights: (plan: RecordAny) => void;
   setActiveTab: Dispatch<SetStateAction<string>>;
   userName: (value: unknown) => string;
   getId: (value: unknown) => string;
@@ -58,7 +58,6 @@ export default function AdminTestPlansScreen(props: Props) {
     selectedPlanGroupIds,
     selectedPlanCaseIds,
     selectedPlanGroups,
-    selectedPlanCasesByGroup,
     togglePlanGroup,
     togglePlanCase,
     users,
@@ -76,6 +75,7 @@ export default function AdminTestPlansScreen(props: Props) {
     duplicatePlan,
     runs,
     openExecutionForPlan,
+    openPlanInsights,
     setActiveTab,
     userName,
     getId,
@@ -106,10 +106,10 @@ export default function AdminTestPlansScreen(props: Props) {
   );
   const visibleCases = useMemo(
     () =>
-      selectedPlanCasesByGroup.flatMap(({ group, cases }) =>
+      selectedPlanGroups.flatMap(({ group, cases }) =>
         cases.map((testCase) => ({ testCase, group })),
       ),
-    [selectedPlanCasesByGroup],
+    [selectedPlanGroups],
   );
 
   const selectedPlanProject = useMemo(() => {
@@ -358,6 +358,13 @@ export default function AdminTestPlansScreen(props: Props) {
             tooltip={activePlan ? "Assign members to selected plan" : "Select a plan first"}
           />
           <ActionButton
+            label="Insights"
+            icon="📊"
+            onClick={() => activePlan && openPlanInsights(activePlan)}
+            disabled={!activePlan}
+            tooltip={activePlan ? "View plan quality insights" : "Select a plan first"}
+          />
+          <ActionButton
             label="Run"
             icon="▶"
             onClick={() => activePlan && openExecutionForPlan(activePlan)}
@@ -419,6 +426,7 @@ export default function AdminTestPlansScreen(props: Props) {
                     <td className="px-4 py-3 text-xs font-semibold text-slate-700">{userName(plan.owner)}</td>
                     <td className="px-4 py-3"><span className={String(plan.executionMode || "manual") === "automation" ? "rounded-full bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700" : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600"}>{plan.executionMode || "manual"}</span></td>
                     <td className="px-4 py-3"><div className="flex justify-end gap-1.5">
+                      <button title="Insights" type="button" className="rounded-lg border border-indigo-200 px-2 py-1 text-xs text-indigo-700" onClick={(e) => { e.stopPropagation(); openPlanInsights(plan); }}>📊</button>
                       <button title="Edit" type="button" className="rounded-lg border border-slate-200 px-2 py-1 text-xs" onClick={(e) => { e.stopPropagation(); openEditPlanModal(plan); }}>✎</button>
                       <button title="Duplicate" type="button" className="rounded-lg border border-slate-200 px-2 py-1 text-xs" onClick={(e) => { e.stopPropagation(); void duplicatePlan(plan); }}>⧉</button>
                       <button title={hasRuns ? "Plan da co run, khong the xoa" : "Delete"} type="button" disabled={hasRuns} className="rounded-lg border border-rose-200 px-2 py-1 text-xs text-rose-700 disabled:cursor-not-allowed disabled:opacity-50" onClick={(e) => { e.stopPropagation(); void deletePlan(planId); }}>🗑</button>
@@ -438,7 +446,11 @@ export default function AdminTestPlansScreen(props: Props) {
                 <div><div className="text-xs uppercase tracking-wide text-slate-500">Name</div><div className="font-semibold text-slate-900">{activePlan.name}</div></div>
               <div className="grid grid-cols-2 gap-2 text-xs"><div className="rounded-lg bg-slate-50 p-2"><div className="text-slate-500">Project</div><div className="font-semibold text-slate-800">{activePlan.project?.name || "-"}</div></div><div className="rounded-lg bg-slate-50 p-2"><div className="text-slate-500">Version</div><div className="font-semibold text-slate-800">{activePlan.version?.name || "-"}</div></div></div>
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">{activePlan.description || "No description"}</div>
-              <div className="flex gap-2"><button type="button" className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white" onClick={() => openExecutionForPlan(activePlan)}>Run this plan</button><button type="button" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600" onClick={() => openAssignModal(getId(activePlan))}>Assign cases</button></div>
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700" onClick={() => openPlanInsights(activePlan)}>View insights</button>
+                <button type="button" className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white" onClick={() => openExecutionForPlan(activePlan)}>Run this plan</button>
+                <button type="button" className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600" onClick={() => openAssignModal(getId(activePlan))}>Assign cases</button>
+              </div>
             </div>}
           </section>
 

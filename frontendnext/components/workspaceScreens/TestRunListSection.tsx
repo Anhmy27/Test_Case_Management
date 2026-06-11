@@ -4,25 +4,25 @@
 
 import { useMemo, useState } from "react";
 import { Button, DataTable, FilterBar, INPUT_CLS, SectionCard, StatusBadge } from "./shared";
-import { formatRunProgressPercent, getRunListActionLabel, getId } from "@/lib/api";
+import { createTextMatcher, formatRunProgressPercent, getRunListActionLabel, getId } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
 
 type Props = {
   runs: RecordAny[];
   scopedPlans: RecordAny[];
-  matchesSearch: (...values: Array<string | number | undefined | null>) => boolean;
   userName: (value: unknown) => string;
   onOpenRun: (runId: string) => void;
+  onExportRun?: (runId: string, format?: "xlsx" | "csv") => Promise<void>;
   activeRunId?: string;
 };
 
 export default function TestRunListSection({
   runs,
   scopedPlans,
-  matchesSearch,
   userName,
   onOpenRun,
+  onExportRun,
   activeRunId = "",
 }: Props) {
   const [searchTerm, setSearchTerm] = useState("");
@@ -50,26 +50,23 @@ export default function TestRunListSection({
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [runs, userName]);
 
-  const filteredRuns = useMemo(() => {
-    const query = searchTerm.trim();
-    return runs.filter((run: RecordAny) => {
-      const runPlanId = getId(run.testPlan) || "";
-      const startedById = getId(run.startedBy) || "";
-      if (planFilter && runPlanId !== planFilter) return false;
-      if (startedByFilter && startedById !== startedByFilter) return false;
-      if (statusFilter && String(run.status || "") !== statusFilter) return false;
-      return matchesSearch(
-        query,
-        run.name,
-        run.project?.name,
-        run.version?.name,
-        run.testPlan?.name,
-        userName(run.startedBy),
-        run.status,
-        run.progress,
-      );
-    });
-  }, [matchesSearch, planFilter, runs, searchTerm, startedByFilter, statusFilter, userName]);
+  const matchText = useMemo(() => createTextMatcher(searchTerm), [searchTerm]);
+
+  const filteredRuns = useMemo(() => runs.filter((run: RecordAny) => {
+    const runPlanId = getId(run.testPlan) || "";
+    const startedById = getId(run.startedBy) || "";
+    if (planFilter && runPlanId !== planFilter) return false;
+    if (startedByFilter && startedById !== startedByFilter) return false;
+    if (statusFilter && String(run.status || "") !== statusFilter) return false;
+    return matchText(
+      run.name,
+      run.project?.name,
+      run.version?.name,
+      run.testPlan?.name,
+      userName(run.startedBy),
+      run.status,
+    );
+  }), [matchText, planFilter, runs, startedByFilter, statusFilter, userName]);
 
   return (
     <SectionCard title="Test Run List" subtitle="Running and completed runs — select a run to open the execution workbench">
@@ -122,7 +119,7 @@ export default function TestRunListSection({
                 <div>
                   <StatusBadge status={run.status || "untested"} />
                 </div>
-                <div>
+                <div className="flex flex-wrap gap-1.5">
                   <Button
                     size="sm"
                     variant={isActive ? "primary" : "secondary"}
@@ -133,6 +130,15 @@ export default function TestRunListSection({
                   >
                     {actionLabel}
                   </Button>
+                  {onExportRun && runId ? (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => void onExportRun(runId, "xlsx")}
+                    >
+                      Export
+                    </Button>
+                  ) : null}
                 </div>
               </>
             );

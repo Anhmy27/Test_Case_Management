@@ -62,6 +62,7 @@ const {
   getVersionDashboard,
   getTestPlanStats,
   getTestPlanDetail,
+  exportTestRun,
   applyAutomationResults,
   getRunResultFailureScreenshot,
   cancelAutomationRun,
@@ -116,6 +117,7 @@ const {
   updateRunResultBodySchema,
   applyAutomationResultsBodySchema,
   listTestRunsQuerySchema,
+  exportTestRunQuerySchema,
   dashboardQuerySchema,
   versionDashboardQuerySchema,
   testPlanStatsQuerySchema,
@@ -210,6 +212,7 @@ router.post('/test-runs/:runId/cancel', authorize('admin', 'employee'), validate
 router.post('/test-runs/:runId/retry-failed', authorize('admin', 'employee'), validateRequest({ paramsSchema: runIdParamsSchema, bodySchema: retryFailedRunBodySchema }), retryFailedAutomationRun);
 router.patch('/test-runs/:runId/end', authorize('admin', 'employee'), validateRequest({ paramsSchema: runIdParamsSchema }), endTestRun);
 
+router.get('/test-runs/:runId/export', authorize('admin', 'employee'), validateRequest({ paramsSchema: runIdParamsSchema, querySchema: exportTestRunQuerySchema }), exportTestRun);
 router.get('/test-runs/:runId/my-items', validateRequest({ paramsSchema: runIdParamsSchema }), getMyRunItems);
 router.get('/test-runs/:runId/results/:resultId/failure-screenshot', validateRequest({ paramsSchema: runResultParamsSchema }), getRunResultFailureScreenshot);
 router.patch('/test-runs/:runId/results/:resultId', validateRequest({ paramsSchema: runResultParamsSchema, bodySchema: updateRunResultBodySchema }), updateRunResult);

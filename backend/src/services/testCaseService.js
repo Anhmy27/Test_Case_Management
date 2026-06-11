@@ -28,6 +28,31 @@ const buildTestCaseServices = ({
   softDeleteVersionSeries,
   restoreVersionSeries,
 }) => {
+  const defaultAutomation = () => ({
+    enabled: false,
+    runner: 'playwright',
+    webId: '',
+    baseUrl: '',
+    userKey: '',
+    timeoutMs: 30000,
+    steps: [],
+  });
+
+  const normalizeAutomationConfig = (automation, fallback = null) => {
+    if (automation) {
+      return {
+        enabled: Boolean(automation.enabled),
+        runner: 'playwright',
+        webId: String(automation.webId || '').trim(),
+        baseUrl: String(automation.baseUrl || '').trim(),
+        userKey: String(automation.userKey || '').trim(),
+        timeoutMs: Number(automation.timeoutMs || 30000),
+        steps: normalizeAutomationSteps(automation.steps),
+      };
+    }
+    return fallback || defaultAutomation();
+  };
+
   const createTestCaseService = async ({
     projectId,
     groupId,
@@ -48,25 +73,7 @@ const buildTestCaseServices = ({
     const group = await ensureGroupExists(groupId, project._id);
     const normalizedKey = normalizeKey(key || caseKey);
     const normalizedName = normalizeName(name || title);
-    const normalizedAutomation = automation
-      ? {
-        enabled: Boolean(automation.enabled),
-        runner: 'playwright',
-        webId: String(automation.webId || '').trim(),
-        baseUrl: String(automation.baseUrl || '').trim(),
-        userKey: String(automation.userKey || '').trim(),
-        timeoutMs: Number(automation.timeoutMs || 30000),
-        steps: normalizeAutomationSteps(automation.steps),
-      }
-      : {
-        enabled: false,
-        runner: 'playwright',
-        webId: '',
-        baseUrl: '',
-        userKey: '',
-        timeoutMs: 30000,
-        steps: [],
-      };
+    const normalizedAutomation = normalizeAutomationConfig(automation);
 
     if (normalizedAutomation.enabled && normalizedAutomation.steps.length === 0) {
       throw httpError(400, 'automation.steps[] are required when automation is enabled');
@@ -499,12 +506,7 @@ const buildTestCaseServices = ({
   };
 
   const getTestCaseVersionsService = async (testCaseId) => {
-    try {
-      const versions = await getVersionHistory(TestCase, testCaseId);
-      return versions;
-    } catch (err) {
-      return [];
-    }
+    return getVersionHistory(TestCase, testCaseId);
   };
 
   const updateTestCaseService = async (testCaseId, payload = {}) => {
@@ -573,25 +575,7 @@ const buildTestCaseServices = ({
         ? normalizeManualSteps(steps)
         : current.steps;
 
-      const nextAutomation = automation
-        ? {
-          enabled: Boolean(automation.enabled),
-          runner: 'playwright',
-          webId: String(automation.webId || '').trim(),
-          baseUrl: String(automation.baseUrl || '').trim(),
-          userKey: String(automation.userKey || '').trim(),
-          timeoutMs: Number(automation.timeoutMs || 30000),
-          steps: normalizeAutomationSteps(automation.steps),
-        }
-        : current.automation || {
-          enabled: false,
-          runner: 'playwright',
-          webId: '',
-          baseUrl: '',
-          userKey: '',
-          timeoutMs: 30000,
-          steps: [],
-        };
+      const nextAutomation = normalizeAutomationConfig(automation, current.automation);
 
       if (nextAutomation.enabled && nextAutomation.steps.length === 0) {
         throw httpError(400, 'automation.steps[] are required when automation is enabled');

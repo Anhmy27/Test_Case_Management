@@ -159,16 +159,23 @@ export interface RunHistory {
   executedAt: string;
 }
 
+export interface RunExecutionEntry {
+  runId: string;
+  runName: string;
+  status: TestStatus;
+  tester?: UserRecord;
+  executedAt?: string;
+}
+
 export interface TestCaseInsight {
   testCaseId: string;
   caseKey: string;
   title: string;
   priority: string;
-  currentStatus: TestStatus;
-  failCount: number;
-  executionHistory: TestStatus[];
-  lastTester?: UserRecord;
-  lastRunTime?: string;
+  latestStatus: TestStatus;
+  latestRunId?: string;
+  latestRunName?: string;
+  runExecutionHistory: RunExecutionEntry[];
 }
 
 export interface TestPlanDetail {
@@ -176,6 +183,7 @@ export interface TestPlanDetail {
   testPlanName: string;
   version: string;
   project: string;
+  projectId?: string | null;
   summary: {
     totalTests: number;
     passCount: number;
@@ -185,12 +193,6 @@ export interface TestPlanDetail {
     progress: number;
   };
   runHistory: RunHistory[];
-  insights: {
-    stillFailing: TestCaseInsight[];
-    failedThenPassed: TestCaseInsight[];
-    flakyTests: TestCaseInsight[];
-    notRun: TestCaseInsight[];
-  };
   testCases: TestCaseInsight[];
 }
 

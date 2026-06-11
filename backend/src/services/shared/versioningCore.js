@@ -5,6 +5,7 @@ const {
   createEntityId,
   pickPagination,
 } = require('../../utils/versioning');
+const { isPlanAssignedToUser } = require('../../utils/entityResolvers');
 
 const activeLatestFilter = () => ({
   deletedAt: null,
@@ -250,7 +251,7 @@ const restoreVersionSeries = async (Model, id) => {
 };
 
 const getVersionHistory = async (Model, id) => {
-  const current = await findVersionedCurrentDocument(Model, id, { includeDeleted: true }).lean();
+  const current = await findVersionedCurrentDocument(Model, id, { includeDeleted: true });
   if (!current) {
     throw httpError(404, 'Entity not found');
   }
@@ -259,28 +260,6 @@ const getVersionHistory = async (Model, id) => {
   return Model.find({ entityId }).sort({ versionNumber: 1 }).lean();
 };
 
-const isPlanAssignedToUser = (testPlan, userId) => {
-  const getUserId = (value) => {
-    if (!value) {
-      return '';
-    }
-
-    if (typeof value === 'string') {
-      return value;
-    }
-
-    if (typeof value === 'object' && value !== null) {
-      return String(value._id || value.id || '');
-    }
-
-    return String(value);
-  };
-
-  const ownerMatch = getUserId(testPlan.owner) === userId;
-  const assigneeMatch = Array.isArray(testPlan.assignees)
-    && testPlan.assignees.some((assignee) => getUserId(assignee) === userId);
-  return ownerMatch || assigneeMatch;
-};
 
 module.exports = {
   activeLatestFilter,

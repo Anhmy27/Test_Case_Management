@@ -237,7 +237,8 @@ export type RunResultsSummary = {
   skip: number;
   untested: number;
   done: number;
-  progressPercent: number;
+  /** Matches the `progress` field returned by the backend API (computeRunProgress in testRunLifecycleService.js). Keep formulas in sync. */
+  progress: number;
   passRate: number;
 };
 
@@ -263,7 +264,7 @@ export function summarizeRunResults(items: Array<{ status?: string }>): RunResul
     skip: 0,
     untested: 0,
     done: 0,
-    progressPercent: 0,
+    progress: 0,
     passRate: 0,
   };
 
@@ -277,7 +278,7 @@ export function summarizeRunResults(items: Array<{ status?: string }>): RunResul
   }
 
   summary.done = summary.pass + summary.fail + summary.blocked + summary.skip;
-  summary.progressPercent = summary.total > 0
+  summary.progress = summary.total > 0
     ? Number(((summary.done / summary.total) * 100).toFixed(2))
     : 0;
 
@@ -546,7 +547,7 @@ export function getAutomationRunProgress(items: Array<{ status?: string }>) {
   return {
     total: summary.total,
     finished: summary.done,
-    percent: Math.round(summary.progressPercent),
+    percent: Math.round(summary.progress),
   };
 }
 
@@ -583,4 +584,75 @@ export function formatAutomationLiveProgress(
   return parts.join(' · ') || 'Đang khởi động...';
 }
 
+function parseContentDispositionFilename(headerValue: string | null, fallback: string) {
+  if (!headerValue) {
+    return fallback;
+  }
+
+  const utfMatch = headerValue.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utfMatch?.[1]) {
+    return decodeURIComponent(utfMatch[1]);
+  }
+
+  const plainMatch = headerValue.match(/filename="?([^";]+)"?/i);
+  if (plainMatch?.[1]) {
+    return plainMatch[1];
+  }
+
+  return fallback;
+}
+
+export async function downloadTestRunExport(
+  runId: string,
+  format: 'xlsx' | 'csv' = 'xlsx',
+) {
+  const normalizedRunId = String(runId || '').trim();
+  if (!normalizedRunId) {
+    throw new Error('Run id is required');
+  }
+
+  const headers: Record<string, string> = {};
+  const csrfToken = readBrowserCookie(CSRF_COOKIE);
+  if (csrfToken) {
+    headers[CSRF_HEADER] = csrfToken;
+  }
+
+  const response = await fetch(
+    `${API_BASE}/api/test-runs/${encodeURIComponent(normalizedRunId)}/export?format=${encodeURIComponent(format)}`,
+    {
+      method: 'GET',
+      credentials: 'include',
+      headers,
+      cache: 'no-store',
+    },
+  );
+
+  if (!response.ok) {
+    const text = await response.text();
+    let message = text || `Export failed (${response.status})`;
+    try {
+      const parsed = JSON.parse(text) as { message?: string };
+      if (parsed.message) {
+        message = parsed.message;
+      }
+    } catch {
+      // keep raw text
+    }
+    throw new Error(message);
+  }
+
+  const blob = await response.blob();
+  const filename = parseContentDispositionFilename(
+    response.headers.get('Content-Disposition'),
+    `test-run-results.${format}`,
+  );
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(objectUrl);
+}
 

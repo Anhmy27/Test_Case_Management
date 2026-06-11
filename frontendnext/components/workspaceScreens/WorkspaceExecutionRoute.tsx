@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import ExecutionScreen from "@/components/workspaceScreens/ExecutionScreen";
 import { useAdminWorkspace, useEmployeeWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
 import { WorkspaceContentSkeleton, TOPBAR_INPUT_CLS } from "@/components/workspaceScreens/shared";
-import { apiRequest, createTextMatcher, formatAutomationRunMessage, getId, resolveStartRunPayload, summarizeAutomationResults, userName } from "@/lib/api";
+import { apiRequest, downloadTestRunExport, formatAutomationRunMessage, getId, resolveStartRunPayload, summarizeAutomationResults, userName } from "@/lib/api";
 import {
   buildEmployeeTopbar,
   useEmployeeProjectScope,
@@ -15,6 +15,24 @@ import {
 import { useJiraBugDialog } from "@/components/jira/useJiraBugDialog";
 
 type RecordAny = Record<string, any>;
+
+function createExportRunHandler(
+  setExportingRun: (value: boolean) => void,
+  setMessage: (value: string) => void,
+) {
+  return async (runId: string, format: "xlsx" | "csv" = "xlsx") => {
+    setExportingRun(true);
+    setMessage("");
+    try {
+      await downloadTestRunExport(runId, format);
+      setMessage(`Exported run as ${format.toUpperCase()}`);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to export run");
+    } finally {
+      setExportingRun(false);
+    }
+  };
+}
 
 export default function WorkspaceExecutionRoute({ role }: { role: "admin" | "employee" }) {
   if (role === "admin") {
@@ -30,6 +48,8 @@ function AdminWorkspaceExecutionRoute() {
   const runIdFromUrl = String(searchParams.get("runId") || "").trim();
   const testPlanIdFromUrl = String(searchParams.get("testPlanId") || "").trim();
   const runNameFromUrl = String(searchParams.get("runName") || "").trim();
+  const fromInsightsPlanId = String(searchParams.get("fromInsightsPlanId") || "").trim();
+  const fromInsightsPlanName = String(searchParams.get("fromInsightsPlanName") || "").trim();
   const adminExecutionPath = "/workspace/admin/test-runs-execution";
   const { currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
   const token = "";
@@ -45,6 +65,7 @@ function AdminWorkspaceExecutionRoute() {
   const [startingRun, setStartingRun] = useState(false);
   const [cancellingRun, setCancellingRun] = useState(false);
   const [retryingRun, setRetryingRun] = useState(false);
+  const [exportingRun, setExportingRun] = useState(false);
   const [message, setMessage] = useState("");
   const [startRunError, setStartRunError] = useState("");
   const [pollError, setPollError] = useState("");
@@ -156,7 +177,6 @@ function AdminWorkspaceExecutionRoute() {
   const activeRun = runIdFromUrl ? selectedRun : null;
   const activeMyItems = runIdFromUrl ? myItems : [];
   const currentUserId = getId(currentUser);
-  const matchesSearch = useMemo(() => createTextMatcher(), []);
   const selectedStartPlan = scopedPlans.find((plan) => getId(plan) === runForm.testPlanId) || null;
   const selectedRunPlan = activeRun?.testPlan || null;
   const selectedRunPlanIsAutomation = String(selectedStartPlan?.executionMode || "manual") === "automation";
@@ -394,9 +414,20 @@ function AdminWorkspaceExecutionRoute() {
     }
   };
 
+  const handleExportRun = createExportRunHandler(setExportingRun, setMessage);
+
   useLayoutEffect(() => {
     setTopbar(
       <div className="flex flex-wrap items-center gap-3">
+        {fromInsightsPlanId ? (
+          <button
+            type="button"
+            className="flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+            onClick={() => router.push(`/workspace/admin/test-plans?openInsightsPlanId=${encodeURIComponent(fromInsightsPlanId)}`)}
+          >
+            ← {fromInsightsPlanName ? `${fromInsightsPlanName} Insights` : "Back to Insights"}
+          </button>
+        ) : null}
         <h1 className="text-xl font-semibold text-slate-900">Test Runs + Execution</h1>
         <div className="ml-auto flex flex-wrap items-center gap-3">
           <select
@@ -415,7 +446,7 @@ function AdminWorkspaceExecutionRoute() {
       </div>,
     );
     return () => setTopbar(null);
-  }, [projects, selectedProjectId, setSelectedProjectId, setTopbar]);
+  }, [fromInsightsPlanId, fromInsightsPlanName, projects, router, selectedProjectId, setSelectedProjectId, setTopbar]);
 
   return (
     <>
@@ -452,8 +483,9 @@ function AdminWorkspaceExecutionRoute() {
           onOpenRun={openRun}
           currentUserId={currentUserId}
           userName={userName}
-          matchesSearch={matchesSearch}
           startRunError={startRunError}
+          onExportRun={handleExportRun}
+          exportingRun={exportingRun}
         />
       )}
       {jiraBugDialogNode}
@@ -481,6 +513,7 @@ function EmployeeWorkspaceExecutionRoute() {
   const [startingRun, setStartingRun] = useState(false);
   const [cancellingRun, setCancellingRun] = useState(false);
   const [retryingRun, setRetryingRun] = useState(false);
+  const [exportingRun, setExportingRun] = useState(false);
   const [message, setMessage] = useState("");
   const [startRunError, setStartRunError] = useState("");
   const { openJiraBugDialog, jiraBugDialogNode } = useJiraBugDialog({
@@ -798,6 +831,8 @@ function EmployeeWorkspaceExecutionRoute() {
     }
   };
 
+  const handleExportRun = createExportRunHandler(setExportingRun, setMessage);
+
   useLayoutEffect(() => {
     setTopbar(
       buildEmployeeTopbar({
@@ -856,6 +891,8 @@ function EmployeeWorkspaceExecutionRoute() {
           token={token}
           onLogBug={openJiraBugDialog}
           startRunError={startRunError}
+          onExportRun={handleExportRun}
+          exportingRun={exportingRun}
         />
       )}
       {jiraBugDialogNode}

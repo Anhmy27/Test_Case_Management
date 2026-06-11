@@ -14,6 +14,7 @@ const {
   getTestPlanDetailService,
   cancelAutomationRunService,
   retryFailedAutomationRunService,
+  exportTestRunService,
 } = require('../services/testRunDashboardService');
 const { getRunResultFailureScreenshotService } = require('../services/testRunArtifactService');
 const {
@@ -103,6 +104,13 @@ const getTestPlanDetail = asyncHandler(async (req, res) => {
   res.json(result);
 });
 
+const exportTestRun = asyncHandler(async (req, res) => {
+  const payload = await exportTestRunService(req.params.runId, req.query || {}, req.user);
+  res.setHeader('Content-Type', payload.contentType);
+  res.setHeader('Content-Disposition', `attachment; filename="${payload.filename}"`);
+  res.send(payload.body);
+});
+
 const getRunResultFailureScreenshot = asyncHandler(async (req, res) => {
   const { absolutePath, contentType } = await getRunResultFailureScreenshotService(
     req.params.runId,
@@ -146,6 +154,7 @@ module.exports = {
   getVersionDashboard,
   getTestPlanStats,
   getTestPlanDetail,
+  exportTestRun,
   getRunResultFailureScreenshot,
   dryRunAutomation,
   getDryRunFailureScreenshot,

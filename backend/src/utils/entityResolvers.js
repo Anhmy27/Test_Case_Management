@@ -22,6 +22,26 @@ const toObjectId = (id, fieldName) => {
   return new mongoose.Types.ObjectId(id);
 };
 
+const normalizeReferenceId = (ref) => {
+  if (ref === undefined || ref === null || ref === '') {
+    return null;
+  }
+
+  // Raw BSON ObjectId instance (e.g. from .lean() without .populate()) — pass through directly
+  if (ref instanceof mongoose.Types.ObjectId) {
+    return ref;
+  }
+
+  if (typeof ref === 'object') {
+    // Populated Mongoose document: prefer entityId, then _id
+    if (ref.entityId) return ref.entityId;
+    if (ref._id) return ref._id;
+    // Note: do NOT use ref.id here — on BSON ObjectIds it is a raw Buffer, not a hex string
+  }
+
+  return ref;
+};
+
 const isPlanAssignedToUser = (testPlan, userId) => {
   const extractId = (value) => {
     if (!value) return '';
@@ -97,8 +117,9 @@ const getTestPlanVersionIds = async (testPlan) => {
 };
 
 const findLatestTestCaseByReference = async (testCaseRef) => {
-  if (!testCaseRef) return null;
-  const objectId = toObjectId(testCaseRef, 'testCaseId');
+  const normalizedRef = normalizeReferenceId(testCaseRef);
+  if (!normalizedRef) return null;
+  const objectId = toObjectId(normalizedRef, 'testCaseId');
   const referencedCase = await TestCase.findOne({
     $or: [{ _id: objectId }, { entityId: objectId }],
   }).lean();
@@ -113,8 +134,9 @@ const findLatestTestCaseByReference = async (testCaseRef) => {
 };
 
 const findProjectByReference = async (projectRef) => {
-  if (!projectRef) return null;
-  const objectId = toObjectId(projectRef, 'projectId');
+  const normalizedRef = normalizeReferenceId(projectRef);
+  if (!normalizedRef) return null;
+  const objectId = toObjectId(normalizedRef, 'projectId');
   const referencedProject = await Project.findOne({
     $or: [{ entityId: objectId }, { _id: objectId }],
   }).lean();
@@ -129,8 +151,9 @@ const findProjectByReference = async (projectRef) => {
 };
 
 const findVersionByReference = async (versionRef) => {
-  if (!versionRef) return null;
-  const objectId = toObjectId(versionRef, 'versionId');
+  const normalizedRef = normalizeReferenceId(versionRef);
+  if (!normalizedRef) return null;
+  const objectId = toObjectId(normalizedRef, 'versionId');
   const referencedVersion = await Version.findOne({
     $or: [{ entityId: objectId }, { _id: objectId }],
   }).lean();
@@ -176,9 +199,10 @@ const repointVersionReferences = async (versionEntityId, latestVersionDoc) => {
 // ---------------------------------------------------------------------------
 
 const findTestPlanSnapshotForRun = async (testPlanRef) => {
-  if (!testPlanRef) return null;
+  const normalizedRef = normalizeReferenceId(testPlanRef);
+  if (!normalizedRef) return null;
 
-  const objectId = toObjectId(testPlanRef, 'testPlanId');
+  const objectId = toObjectId(normalizedRef, 'testPlanId');
   const referencedPlan = await TestPlan.findOne({
     $or: [{ _id: objectId }, { entityId: objectId }],
   }).lean();

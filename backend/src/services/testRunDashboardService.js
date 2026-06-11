@@ -10,11 +10,11 @@ const TestCase = require('../models/TestCase');
 const TestPlan = require('../models/TestPlan');
 const TestRun = require('../models/TestRun');
 const User = require('../models/User');
-const { httpError } = require('../utils/httpError');
 const {
   toObjectId,
-  findTestPlanByReference,
   findProjectByReference,
+  findVersionByReference,
+  getTestPlanVersionIds,
   repointVersionReferences,
 } = require('../utils/entityResolvers');
 
@@ -576,14 +576,43 @@ const getTestPlanStatsService = async ({ versionId }) => {
 };
 
 // ---------------------------------------------------------------------------
-// Test plan detail (history + insights)
+// Test plan detail (history + per-case run timeline)
 // ---------------------------------------------------------------------------
 
+const countResultStatuses = (results) => {
+  const counts = { pass: 0, fail: 0, blocked: 0, notRun: 0 };
+  for (const result of (Array.isArray(results) ? results : [])) {
+    const status = result?.status;
+    if (status === 'pass') counts.pass += 1;
+    else if (status === 'fail') counts.fail += 1;
+    else if (status === 'blocked') counts.blocked += 1;
+    else if (['untested', 'skip'].includes(status)) counts.notRun += 1;
+  }
+  return counts;
+};
+
+const buildCaseRunTimeline = (runs, caseEntityId, refToEntityId) => runs.map((run) => {
+  const match = (run.results || []).find((result) => {
+    const refStr = String(result.testCase || '');
+    return (refToEntityId.get(refStr) || refStr) === caseEntityId;
+  });
+  return {
+    runId: String(run._id),
+    runName: run.name,
+    status: match?.status || 'untested',
+    tester: match?.tester || null,
+    executedAt: run.startedAt,
+  };
+});
+
 const getTestPlanDetailService = async (testPlanId) => {
-  const testPlan = await TestPlan.findOne({ entityId: toObjectId(testPlanId, 'testPlanId') })
-    .populate('project', 'name code')
-    .populate('version', 'name')
-    .lean();
+  const planRef = toObjectId(testPlanId, 'testPlanId');
+  const testPlan = await TestPlan.findOne({
+    $and: [
+      { $or: [{ entityId: planRef }, { _id: planRef }] },
+      activeLatestFilter(),
+    ],
+  }).lean();
 
   if (!testPlan) {
     return {
@@ -593,105 +622,163 @@ const getTestPlanDetailService = async (testPlanId) => {
       project: null,
       summary: { totalTests: 0, passCount: 0, failCount: 0, notRunCount: 0, passRate: 0, progress: 0 },
       runHistory: [],
-      insights: { stillFailing: [], failedThenPassed: [], flakyTests: [], notRun: [] },
       testCases: [],
     };
   }
 
-  const runs = await TestRun.find({ testPlan: testPlan._id })
+  // --- 1. Resolve project / version names safely ---
+  const [resolvedProject, resolvedVersion] = await Promise.all([
+    findProjectByReference(testPlan.project),
+    findVersionByReference(testPlan.version),
+  ]);
+
+  // --- 2. Fetch all runs across every version of this plan ---
+  const planEntityId = testPlan.entityId || testPlan._id;
+  const relatedPlanIds = await getTestPlanVersionIds(testPlan);
+
+  const runs = await TestRun.find({
+    $or: [
+      { testPlan: { $in: relatedPlanIds } },
+      { testPlanEntityId: planEntityId },
+    ],
+  })
     .sort({ createdAt: 1 })
-    .populate('startedBy', 'name email')
-    .populate('endedBy', 'name email')
     .populate('results.tester', 'name email')
     .lean();
 
-  const runHistory = runs.map((run) => ({
-    runId: String(run._id),
-    runName: run.name,
-    passCount: run.results.filter((r) => r.status === 'pass').length,
-    failCount: run.results.filter((r) => r.status === 'fail').length,
-    blockedCount: run.results.filter((r) => r.status === 'blocked').length,
-    notRunCount: run.results.filter((r) => ['untested', 'skip'].includes(r.status)).length,
-    executedAt: run.startedAt,
-  }));
+  const runHistory = runs.map((run) => {
+    const counts = countResultStatuses(run.results);
+    return {
+      runId: String(run._id),
+      runName: run.name,
+      passCount: counts.pass,
+      failCount: counts.fail,
+      blockedCount: counts.blocked,
+      notRunCount: counts.notRun,
+      executedAt: run.startedAt,
+    };
+  });
 
+  // Summary uses the last run's current state
   const latestRun = runs[runs.length - 1];
   const summary = { totalTests: 0, passCount: 0, failCount: 0, notRunCount: 0, passRate: 0, progress: 0 };
-
   if (latestRun) {
-    summary.totalTests = latestRun.results.length;
-    summary.passCount = latestRun.results.filter((r) => r.status === 'pass').length;
-    summary.failCount = latestRun.results.filter((r) => r.status === 'fail').length;
-    summary.notRunCount = latestRun.results.filter((r) => ['untested', 'skip'].includes(r.status)).length;
-    const executed = summary.passCount + summary.failCount
-      + latestRun.results.filter((r) => r.status === 'blocked').length;
+    const results = latestRun.results || [];
+    const counts = countResultStatuses(results);
+    summary.totalTests = results.length;
+    summary.passCount = counts.pass;
+    summary.failCount = counts.fail;
+    summary.notRunCount = counts.notRun;
+    const executed = counts.pass + counts.fail + counts.blocked;
     summary.passRate = executed > 0 ? Number(((summary.passCount / executed) * 100).toFixed(2)) : 0;
     summary.progress = summary.totalTests > 0 ? Number(((executed / summary.totalTests) * 100).toFixed(2)) : 0;
   }
 
-  const testCaseExecutions = {};
-  runs.forEach((run) => {
-    run.results.forEach((result) => {
-      const id = String(result.testCase);
-      if (!testCaseExecutions[id]) testCaseExecutions[id] = [];
-      testCaseExecutions[id].push(result.status);
-    });
+  // --- 3. Build execution history keyed by canonical entityId ---
+  // run results store testCase._id at run-start time; map those back to entityId
+  const allRunResultRefs = Array.from(new Set(
+    runs.flatMap((run) => (run.results || []).map((r) => String(r.testCase || '')).filter(Boolean)),
+  ));
+
+  const resultRefObjectIds = allRunResultRefs.map((ref) => toObjectId(ref, 'testCaseId'));
+  const resultRefDocs = resultRefObjectIds.length
+    ? await TestCase.find({
+        $or: [
+          { _id: { $in: resultRefObjectIds } },
+          { entityId: { $in: resultRefObjectIds } },
+        ],
+      }).select('_id entityId').lean()
+    : [];
+
+  // Map any ref string → canonical entityId string
+  const refToEntityId = new Map();
+  resultRefDocs.forEach((doc) => {
+    const eid = String(doc.entityId || doc._id);
+    refToEntityId.set(String(doc._id), eid);
+    if (doc.entityId) refToEntityId.set(String(doc.entityId), eid);
   });
 
-  const testCasesWithItems = await TestPlan.findOne({ _id: testPlan._id })
-    .populate('items.testCase', 'caseKey title priority')
-    .populate('items.owner', 'name email')
-    .populate('items.assignees', 'name email')
-    .lean();
+  // --- 4. Resolve plan items WITHOUT Mongoose populate ---
+  const rawItems = testPlan.items || [];
 
-  const insights = { stillFailing: [], failedThenPassed: [], flakyTests: [], notRun: [] };
-  const testCaseDetails = [];
+  const itemCaseRefs = rawItems
+    .map((item) => String(item.testCase || ''))
+    .filter((ref) => ref && ref.length === 24);
 
-  for (const item of testCasesWithItems.items || []) {
-    const testCase = item.testCase;
+  let caseRefDocs = [];
+  if (itemCaseRefs.length) {
+    const caseRefObjectIds = itemCaseRefs.map((ref) => toObjectId(ref, 'testCaseId'));
+    caseRefDocs = await TestCase.find({
+      $or: [
+        { _id: { $in: caseRefObjectIds } },
+        { entityId: { $in: caseRefObjectIds } },
+      ],
+    }).select('_id entityId').lean();
+  }
+
+  // Find latest version for each referenced entityId
+  const refEntityIds = Array.from(new Set(
+    caseRefDocs.map((doc) => String(doc.entityId || doc._id)),
+  ));
+  const latestCaseDocs = refEntityIds.length
+    ? await TestCase.find({
+        entityId: { $in: refEntityIds.map((id) => toObjectId(id, 'testCaseId')) },
+        deletedAt: null,
+        $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
+      }).select('_id entityId caseKey title priority').lean()
+    : [];
+
+  // Build maps: any ref string → latest TestCase doc
+  const latestByEntityId = new Map(latestCaseDocs.map((doc) => [String(doc.entityId || doc._id), doc]));
+  const refToLatestCase = new Map();
+  caseRefDocs.forEach((doc) => {
+    const eid = String(doc.entityId || doc._id);
+    const latest = latestByEntityId.get(eid) || doc;
+    refToLatestCase.set(String(doc._id), latest);
+    if (doc.entityId) refToLatestCase.set(String(doc.entityId), latest);
+  });
+
+  // --- 5. Build per-case run timeline ---
+  const testCases = [];
+  const seenEids = new Set();
+
+  for (const item of rawItems) {
+    const ref = String(item.testCase || '');
+    if (!ref) continue;
+
+    const testCase = refToLatestCase.get(ref);
     if (!testCase) continue;
 
-    const testCaseId = String(testCase._id);
-    const history = testCaseExecutions[testCaseId] || [];
-    const currentStatus = history.length > 0 ? history[history.length - 1] : 'untested';
-    const failCount = history.filter((s) => s === 'fail').length;
+    const caseEntityId = String(testCase.entityId || testCase._id);
+    if (seenEids.has(caseEntityId)) continue;
+    seenEids.add(caseEntityId);
 
-    const detail = {
-      testCaseId,
+    const runTimeline = buildCaseRunTimeline(runs, caseEntityId, refToEntityId);
+    const latestEntry = runTimeline[runTimeline.length - 1];
+
+    testCases.push({
+      testCaseId: caseEntityId,
       caseKey: testCase.caseKey,
       title: testCase.title,
       priority: testCase.priority || 'medium',
-      currentStatus,
-      failCount,
-      executionHistory: history,
-      lastTester: latestRun?.results.find((r) => String(r.testCase) === testCaseId)?.tester,
-      lastRunTime: latestRun?.startedAt,
-    };
-    testCaseDetails.push(detail);
-
-    if (currentStatus === 'fail') {
-      insights.stillFailing.push(detail);
-    } else if (currentStatus === 'pass' && failCount > 0) {
-      const hasFailThenPass = history.some(
-        (s, i) => s === 'fail' && i < history.length - 1 && history.slice(i + 1).includes('pass'),
-      );
-      if (hasFailThenPass) insights.failedThenPassed.push(detail);
-    } else if (failCount >= 2 && currentStatus !== 'fail') {
-      insights.flakyTests.push(detail);
-    } else if (['untested', 'skip'].includes(currentStatus)) {
-      insights.notRun.push(detail);
-    }
+      latestStatus: latestEntry?.status || 'untested',
+      latestRunId: latestEntry?.runId,
+      latestRunName: latestEntry?.runName,
+      runExecutionHistory: runTimeline,
+    });
   }
 
   return {
     testPlanId: String(testPlan._id),
     testPlanName: testPlan.name,
-    version: testPlan.version.name,
-    project: testPlan.project.name,
+    version: resolvedVersion?.name || 'Unknown version',
+    project: resolvedProject?.name || 'Unknown project',
+    projectId: resolvedProject?._id
+      ? String(resolvedProject._id)
+      : (testPlan.project ? String(testPlan.project) : null),
     summary,
-    runHistory,
-    insights,
-    testCases: testCaseDetails,
+    runHistory: runHistory.slice().reverse(),
+    testCases,
   };
 };
 
@@ -709,6 +796,7 @@ const {
   endTestRunService,
   cancelAutomationRunService,
   retryFailedAutomationRunService,
+  exportTestRunService,
 } = require('./testRunLifecycleService');
 
 module.exports = {
@@ -721,6 +809,7 @@ module.exports = {
   endTestRunService,
   cancelAutomationRunService,
   retryFailedAutomationRunService,
+  exportTestRunService,
   // dashboard
   getDashboardService,
   getProjectDashboardService,

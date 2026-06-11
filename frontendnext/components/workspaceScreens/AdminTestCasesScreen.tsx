@@ -12,6 +12,7 @@ import { collectEntityIds, getId } from "@/lib/api";
 import AutomationConfigPanel from "@/components/automation/AutomationConfigPanel";
 import AutomationDryRunPanel from "@/components/automation/AutomationDryRunPanel";
 import TestCaseWorkbenchModal from "@/components/testCases/TestCaseWorkbenchModal";
+import TestCaseVersionsPanel from "@/components/testCases/TestCaseVersionsPanel";
 import type { AutomationForm } from "@/lib/automationStepMeta";
 import { Button, Field, INPUT_CLS, ScopedProjectField } from "./shared";
 
@@ -114,6 +115,7 @@ export default function AdminTestCasesScreen(props: Props) {
   const [groupFilter, setGroupFilter] = useState<string>("");
   const [draggingStep, setDraggingStep] = useState<ManualDragPayload | null>(null);
   const [showRecentModal, setShowRecentModal] = useState(false);
+  const [workbenchTab, setWorkbenchTab] = useState<"details" | "versions">("details");
   const resolveScopedValue = (value: RecordAny, items: RecordAny[]) => {
     const candidateIds = collectEntityIds(value);
     if (typeof value === "string") {
@@ -245,11 +247,13 @@ export default function AdminTestCasesScreen(props: Props) {
   const closeWorkbench = () => {
     cancelTestCaseEdit();
     setWorkbenchModal(null);
+    setWorkbenchTab("details");
   };
 
   const openEdit = (testCase: RecordAny) => {
     startTestCaseEdit(testCase);
     setActiveId(getId(testCase));
+    setWorkbenchTab("details");
     setWorkbenchModal("edit");
   };
 
@@ -261,6 +265,7 @@ export default function AdminTestCasesScreen(props: Props) {
   const switchWorkbenchCase = (testCase: RecordAny) => {
     setActiveId(getId(testCase));
     startTestCaseEdit(testCase);
+    setWorkbenchTab("details");
   };
 
   const handleSaveTestCase = async (event: React.FormEvent) => {
@@ -607,6 +612,36 @@ export default function AdminTestCasesScreen(props: Props) {
           activeCaseId={String(effectiveActiveId)}
           onSelectCase={switchWorkbenchCase}
         >
+          {workbenchModal === "edit" ? (
+            <div className="mb-4 flex flex-wrap gap-2 border-b border-slate-200 pb-3">
+              <button
+                type="button"
+                onClick={() => setWorkbenchTab("details")}
+                className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                  workbenchTab === "details"
+                    ? "bg-indigo-600 text-white"
+                    : "bg-slate-100 text-slate-600"
+                }`}
+              >
+                Details
+              </button>
+              <button
+                type="button"
+                onClick={() => setWorkbenchTab("versions")}
+                className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                  workbenchTab === "versions"
+                    ? "bg-indigo-600 text-white"
+                    : "bg-slate-100 text-slate-600"
+                }`}
+              >
+                Versions
+              </button>
+            </div>
+          ) : null}
+
+          {workbenchModal === "edit" && workbenchTab === "versions" ? (
+            <TestCaseVersionsPanel testCaseId={String(effectiveActiveId)} />
+          ) : (
           <form className="space-y-4" onSubmit={handleSaveTestCase}>
                 <div className="grid grid-cols-2 gap-3">
                   <ScopedProjectField
@@ -895,6 +930,7 @@ export default function AdminTestCasesScreen(props: Props) {
                   )}
                 </div>
           </form>
+          )}
         </TestCaseWorkbenchModal>
       )}
 

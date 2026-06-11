@@ -98,6 +98,7 @@ export function AdminWorkspaceShell({ children }: { children: ReactNode }) {
   const mainRef = useRef<HTMLElement | null>(null);
   const isClient = useIsClient();
   const didHydrateScopeRef = useRef(false);
+  const [scopeReady, setScopeReady] = useState(false);
   const [selectedProjectId, setSelectedProjectIdState] = useState("");
   const [currentUser, setCurrentUser] = useState<RecordAny | null>(null);
   const [authReady, setAuthReady] = useState(false);
@@ -108,7 +109,7 @@ export function AdminWorkspaceShell({ children }: { children: ReactNode }) {
   }, []);
 
   const navItems = useAdminSidebarNav(selectedProjectId, activeKey, router, {
-    enabled: isClient,
+    enabled: isClient && scopeReady,
   });
 
   useEffect(() => {
@@ -117,6 +118,7 @@ export function AdminWorkspaceShell({ children }: { children: ReactNode }) {
     }
     didHydrateScopeRef.current = true;
     setSelectedProjectId(window.localStorage.getItem(PROJECT_STORAGE_KEY) || "");
+    setScopeReady(true);
   }, [isClient, setSelectedProjectId]);
 
   useEffect(() => {

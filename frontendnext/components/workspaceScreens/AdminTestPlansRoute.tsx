@@ -2,9 +2,10 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import AdminTestPlansScreen from "@/components/workspaceScreens/AdminTestPlansScreen";
+import AdminTestPlanInsightsModal from "@/components/workspaceScreens/AdminTestPlanInsightsModal";
 import { useAdminWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
 import { TOPBAR_INPUT_CLS, WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
 import { apiRequest, buildDefaultRunName, createTextMatcher, getId, matchesSelectedEntity, userName } from "@/lib/api";
@@ -18,8 +19,62 @@ function groupCasesByGroup(groups: RecordAny[], cases: RecordAny[]) {
   }));
 }
 
+async function fetchWorkspaceData(projectId: string) {
+  const projectQuery = projectId ? `?projectId=${encodeURIComponent(projectId)}` : "";
+  const [
+    projectsResponse,
+    versionsResponse,
+    groupsResponse,
+    casesResponse,
+    plansResponse,
+    runsResponse,
+    usersResponse,
+  ] = await Promise.all([
+    apiRequest<{ projects: RecordAny[] }>("/api/projects"),
+    apiRequest<{ versions: RecordAny[] }>(`/api/versions${projectQuery}`),
+    apiRequest<{ groups: RecordAny[] }>(`/api/test-case-groups${projectQuery}`),
+    apiRequest<{ testCases: RecordAny[] }>(`/api/test-cases${projectQuery}`),
+    apiRequest<{ testPlans: RecordAny[] }>(`/api/test-plans${projectQuery}`),
+    apiRequest<{ testRuns: RecordAny[] }>(`/api/test-runs${projectQuery}`),
+    apiRequest<{ users: RecordAny[] }>("/api/users"),
+  ]);
+
+  return {
+    projects: Array.isArray(projectsResponse.projects) ? projectsResponse.projects : [],
+    versions: Array.isArray(versionsResponse.versions) ? versionsResponse.versions : [],
+    groups: Array.isArray(groupsResponse.groups) ? groupsResponse.groups : [],
+    testCases: Array.isArray(casesResponse.testCases) ? casesResponse.testCases : [],
+    plans: Array.isArray(plansResponse.testPlans) ? plansResponse.testPlans : [],
+    runs: Array.isArray(runsResponse.testRuns) ? runsResponse.testRuns : [],
+    users: Array.isArray(usersResponse.users) ? usersResponse.users : [],
+  };
+}
+
+function applyWorkspaceData(
+  data: Awaited<ReturnType<typeof fetchWorkspaceData>>,
+  setters: {
+    setProjects: (value: RecordAny[]) => void;
+    setVersions: (value: RecordAny[]) => void;
+    setGroups: (value: RecordAny[]) => void;
+    setTestCases: (value: RecordAny[]) => void;
+    setPlans: (value: RecordAny[]) => void;
+    setRuns: (value: RecordAny[]) => void;
+    setUsers: (value: RecordAny[]) => void;
+  },
+) {
+  setters.setProjects(data.projects);
+  setters.setVersions(data.versions);
+  setters.setGroups(data.groups);
+  setters.setTestCases(data.testCases);
+  setters.setPlans(data.plans);
+  setters.setRuns(data.runs);
+  setters.setUsers(data.users);
+}
+
 export default function AdminTestPlansRoute() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const openInsightsPlanIdFromUrl = searchParams.get("openInsightsPlanId") || "";
   const { currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [versions, setVersions] = useState<RecordAny[]>([]);
@@ -35,6 +90,22 @@ export default function AdminTestPlansRoute() {
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [insightsPlan, setInsightsPlan] = useState<{ planId: string; planName: string; projectId: string } | null>(null);
+  const autoOpenInsightsTriggered = useRef(false);
+
+  // Auto-open Insights when returning from Execution screen via "Back to Insights" button
+  useEffect(() => {
+    if (autoOpenInsightsTriggered.current || !openInsightsPlanIdFromUrl || loading || plans.length === 0) return;
+    const plan = plans.find((p) => getId(p) === openInsightsPlanIdFromUrl);
+    if (plan) {
+      autoOpenInsightsTriggered.current = true;
+      setInsightsPlan({
+        planId: getId(plan),
+        planName: String(plan.name || ""),
+        projectId: getId(plan.project) || selectedProjectId || "",
+      });
+    }
+  }, [openInsightsPlanIdFromUrl, loading, plans, selectedProjectId]);
 
   const handleProjectScopeChange = useCallback((projectId: string) => {
     setSelectedProjectId(projectId);
@@ -52,24 +123,17 @@ export default function AdminTestPlansRoute() {
     const load = async () => {
       setLoading(true); setMessage("");
       try {
-        const [projectsResponse, versionsResponse, groupsResponse, casesResponse, plansResponse, runsResponse, usersResponse] = await Promise.all([
-          apiRequest<{ projects: RecordAny[] }>("/api/projects"),
-          apiRequest<{ versions: RecordAny[] }>(selectedProjectId ? `/api/versions?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/versions"),
-          apiRequest<{ groups: RecordAny[] }>(selectedProjectId ? `/api/test-case-groups?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-case-groups"),
-          apiRequest<{ testCases: RecordAny[] }>(selectedProjectId ? `/api/test-cases?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-cases"),
-          apiRequest<{ testPlans: RecordAny[] }>(selectedProjectId ? `/api/test-plans?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-plans"),
-          apiRequest<{ testRuns: RecordAny[] }>(selectedProjectId ? `/api/test-runs?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-runs"),
-          apiRequest<{ users: RecordAny[] }>("/api/users"),
-        ]);
-
+        const data = await fetchWorkspaceData(selectedProjectId);
         if (cancelled) return;
-        setProjects(Array.isArray(projectsResponse.projects) ? projectsResponse.projects : []);
-        setVersions(Array.isArray(versionsResponse.versions) ? versionsResponse.versions : []);
-        setGroups(Array.isArray(groupsResponse.groups) ? groupsResponse.groups : []);
-        setTestCases(Array.isArray(casesResponse.testCases) ? casesResponse.testCases : []);
-        setPlans(Array.isArray(plansResponse.testPlans) ? plansResponse.testPlans : []);
-        setRuns(Array.isArray(runsResponse.testRuns) ? runsResponse.testRuns : []);
-        setUsers(Array.isArray(usersResponse.users) ? usersResponse.users : []);
+        applyWorkspaceData(data, {
+          setProjects,
+          setVersions,
+          setGroups,
+          setTestCases,
+          setPlans,
+          setRuns,
+          setUsers,
+        });
       } catch (error) { if (!cancelled) setMessage(error instanceof Error ? error.message : "Unable to load test plans"); }
       finally { if (!cancelled) setLoading(false); }
     };
@@ -79,23 +143,16 @@ export default function AdminTestPlansRoute() {
   }, [currentUser, selectedProjectId]);
 
   const refreshAll = async () => {
-    const [projectsResponse, versionsResponse, groupsResponse, casesResponse, plansResponse, runsResponse, usersResponse] = await Promise.all([
-      apiRequest<{ projects: RecordAny[] }>("/api/projects"),
-      apiRequest<{ versions: RecordAny[] }>(selectedProjectId ? `/api/versions?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/versions"),
-      apiRequest<{ groups: RecordAny[] }>(selectedProjectId ? `/api/test-case-groups?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-case-groups"),
-      apiRequest<{ testCases: RecordAny[] }>(selectedProjectId ? `/api/test-cases?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-cases"),
-      apiRequest<{ testPlans: RecordAny[] }>(selectedProjectId ? `/api/test-plans?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-plans"),
-      apiRequest<{ testRuns: RecordAny[] }>(selectedProjectId ? `/api/test-runs?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-runs"),
-      apiRequest<{ users: RecordAny[] }>("/api/users"),
-    ]);
-
-    setProjects(Array.isArray(projectsResponse.projects) ? projectsResponse.projects : []);
-    setVersions(Array.isArray(versionsResponse.versions) ? versionsResponse.versions : []);
-    setGroups(Array.isArray(groupsResponse.groups) ? groupsResponse.groups : []);
-    setTestCases(Array.isArray(casesResponse.testCases) ? casesResponse.testCases : []);
-    setPlans(Array.isArray(plansResponse.testPlans) ? plansResponse.testPlans : []);
-    setRuns(Array.isArray(runsResponse.testRuns) ? runsResponse.testRuns : []);
-    setUsers(Array.isArray(usersResponse.users) ? usersResponse.users : []);
+    const data = await fetchWorkspaceData(selectedProjectId);
+    applyWorkspaceData(data, {
+      setProjects,
+      setVersions,
+      setGroups,
+      setTestCases,
+      setPlans,
+      setRuns,
+      setUsers,
+    });
   };
 
   const scopedProjects = selectedProjectId
@@ -114,8 +171,7 @@ export default function AdminTestPlansRoute() {
     : testCases;
   const selectedPlanGroupIds = new Set<string>(Array.isArray(planForm.selectedGroupIds) ? planForm.selectedGroupIds : []);
   const selectedPlanCaseIds = new Set<string>(Array.isArray(planForm.caseIds) ? planForm.caseIds : []);
-  const selectedPlanGroups = groupCasesByGroup(planProjectGroups.filter((group) => selectedPlanGroupIds.has(getId(group))), planProjectCases);
-  const selectedPlanCasesByGroup = groupCasesByGroup(
+  const selectedPlanGroups = groupCasesByGroup(
     planProjectGroups.filter((group) => selectedPlanGroupIds.has(getId(group))),
     planProjectCases,
   );
@@ -211,6 +267,22 @@ export default function AdminTestPlansRoute() {
     const runName = buildDefaultRunName(plan.name || "Test plan", plan.version?.name);
     router.push(`/workspace/admin/test-runs-execution?testPlanId=${encodeURIComponent(planId)}&runName=${encodeURIComponent(runName)}`);
   };
+  const openPlanInsights = (plan: RecordAny) => {
+    setInsightsPlan({
+      planId: getId(plan),
+      planName: String(plan.name || ""),
+      projectId: getId(plan.project) || selectedProjectId || "",
+    });
+  };
+  const openRunFromInsights = (runId: string) => {
+    const planId = insightsPlan?.planId || "";
+    const planName = insightsPlan?.planName || "";
+    setInsightsPlan(null);
+    const params = new URLSearchParams({ runId });
+    if (planId) params.set("fromInsightsPlanId", planId);
+    if (planName) params.set("fromInsightsPlanName", planName);
+    router.push(`/workspace/admin/test-runs-execution?${params.toString()}`);
+  };
   const setActiveTab = (tab: string) => router.push(`/workspace/admin/${tab}`);
   const matchesSearch = useMemo(() => createTextMatcher(searchTerm), [searchTerm]);
 
@@ -261,7 +333,6 @@ export default function AdminTestPlansRoute() {
           selectedPlanGroupIds={selectedPlanGroupIds}
           selectedPlanCaseIds={selectedPlanCaseIds}
           selectedPlanGroups={selectedPlanGroups}
-          selectedPlanCasesByGroup={selectedPlanCasesByGroup}
           togglePlanGroup={togglePlanGroup}
           togglePlanCase={togglePlanCase}
           users={users}
@@ -279,6 +350,7 @@ export default function AdminTestPlansRoute() {
           duplicatePlan={duplicatePlan}
           runs={runs}
           openExecutionForPlan={openExecutionForPlan}
+          openPlanInsights={openPlanInsights}
           setActiveTab={setActiveTab as any}
           userName={userName}
           getId={getId}
@@ -287,6 +359,15 @@ export default function AdminTestPlansRoute() {
           scopedProjectName={scopedProjectName}
         />
       )}
+      {insightsPlan ? (
+        <AdminTestPlanInsightsModal
+          planId={insightsPlan.planId}
+          planName={insightsPlan.planName}
+          projectId={insightsPlan.projectId}
+          onClose={() => setInsightsPlan(null)}
+          onOpenExecution={openRunFromInsights}
+        />
+      ) : null}
     </>
   );
 }

@@ -5,6 +5,7 @@
  * Dashboard/analytics queries live in testRunDashboardService.
  */
 
+const XLSX = require('xlsx');
 const Project = require('../models/Project');
 const Version = require('../models/Version');
 const TestPlan = require('../models/TestPlan');
@@ -35,6 +36,8 @@ const isValidHttpUrl = (value) => {
   }
 };
 
+// NOTE: Formula must stay in sync with summarizeRunResults() in frontendnext/lib/api.ts.
+// Both compute { pass, fail, blocked, skip, untested, done, progress, passRate } from the same algorithm.
 const computeRunProgress = (results) => {
   const items = Array.isArray(results) ? results : [];
   const summary = {
@@ -592,6 +595,95 @@ const retryFailedAutomationRunService = async (runId, user, baseUrl = '') => {
   };
 };
 
+const formatUserLabel = (userRef) => {
+  if (!userRef) {
+    return '';
+  }
+
+  if (typeof userRef === 'object') {
+    return String(userRef.name || userRef.email || '');
+  }
+
+  return String(userRef);
+};
+
+const exportTestRunService = async (runId, { format = 'xlsx' } = {}, user) => {
+  const testRun = await TestRun.findById(toObjectId(runId, 'runId'))
+    .populate('startedBy', 'name email')
+    .populate('endedBy', 'name email')
+    .populate('results.testCase', 'caseKey title key name')
+    .populate('results.tester', 'name email')
+    .lean();
+
+  if (!testRun) {
+    throw httpError(404, 'Test run not found');
+  }
+
+  const isAdmin = user.role === 'admin';
+  const isStarter = String(testRun.startedBy?._id || testRun.startedBy) === user.id;
+  const hasAssignedItems = Array.isArray(testRun.results)
+    && testRun.results.some((result) => resultHasUserAssignment(result, user.id));
+  if (!isAdmin && !isStarter && !hasAssignedItems) {
+    throw httpError(403, 'You do not have permission to export this test run');
+  }
+
+  const [project, version, plan] = await Promise.all([
+    findProjectByReference(testRun.project),
+    findVersionByReference(testRun.version),
+    findTestPlanByReference(testRun.testPlan),
+  ]);
+
+  const normalizedFormat = String(format || 'xlsx').toLowerCase() === 'csv' ? 'csv' : 'xlsx';
+  const runLabel = String(testRun.name || 'test-run').replace(/[^\w.-]+/g, '_').slice(0, 80);
+  const filename = `${runLabel}-results.${normalizedFormat}`;
+
+  const rows = (testRun.results || []).map((result, index) => {
+    const testCase = result.testCase || {};
+    return {
+      '#': index + 1,
+      'Case Key': testCase.caseKey || testCase.key || '',
+      Title: testCase.title || testCase.name || '',
+      Status: result.status || 'untested',
+      'Actual Result': result.note || '',
+      Notes: result.notes || '',
+      Tester: formatUserLabel(result.tester),
+      'Executed At': result.executedAt ? new Date(result.executedAt).toISOString() : '',
+    };
+  });
+
+  const metaRows = [
+    { Field: 'Run Name', Value: testRun.name || '' },
+    { Field: 'Project', Value: project?.name || '' },
+    { Field: 'Version', Value: version?.name || '' },
+    { Field: 'Test Plan', Value: plan?.name || '' },
+    { Field: 'Status', Value: testRun.status || '' },
+    { Field: 'Started By', Value: formatUserLabel(testRun.startedBy) },
+    { Field: 'Started At', Value: testRun.startedAt ? new Date(testRun.startedAt).toISOString() : '' },
+    { Field: 'Ended At', Value: testRun.endedAt ? new Date(testRun.endedAt).toISOString() : '' },
+  ];
+
+  const resultsSheet = XLSX.utils.json_to_sheet(rows.length ? rows : [{ Message: 'No results' }]);
+
+  if (normalizedFormat === 'csv') {
+    const csv = XLSX.utils.sheet_to_csv(resultsSheet);
+    return {
+      filename,
+      contentType: 'text/csv; charset=utf-8',
+      body: Buffer.from(`\uFEFF${csv}`, 'utf8'),
+    };
+  }
+
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(metaRows), 'Run Info');
+  XLSX.utils.book_append_sheet(workbook, resultsSheet, 'Results');
+
+  return {
+    filename,
+    contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    body: XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' }),
+  };
+};
+
 module.exports = {
   startTestRunService,
   applyAutomationResultsService,
@@ -601,5 +693,5 @@ module.exports = {
   endTestRunService,
   cancelAutomationRunService,
   retryFailedAutomationRunService,
-  computeRunProgress,
+  exportTestRunService,
 };

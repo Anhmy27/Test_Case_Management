@@ -76,9 +76,12 @@ type Props = {
 
   userName?: (value: unknown) => string;
 
-  matchesSearch?: (...values: Array<string | number | undefined | null>) => boolean;
 
   startRunError?: string;
+
+  onExportRun?: (runId: string, format?: "xlsx" | "csv") => Promise<void>;
+
+  exportingRun?: boolean;
 
 };
 
@@ -140,9 +143,11 @@ export default function ExecutionScreen(props: Props) {
 
     userName = () => "Unassigned",
 
-    matchesSearch = () => true,
-
     startRunError = "",
+
+    onExportRun,
+
+    exportingRun = false,
 
   } = props;
 
@@ -400,7 +405,7 @@ export default function ExecutionScreen(props: Props) {
 
                   <div><span className="font-medium text-slate-500">Started at:</span> {startedAtLabel}</div>
 
-                  <div><span className="font-medium text-slate-500">Progress:</span> {runSummary.done}/{runSummary.total} done ({runSummary.progressPercent.toFixed(1)}%)</div>
+                  <div><span className="font-medium text-slate-500">Progress:</span> {runSummary.done}/{runSummary.total} done ({runSummary.progress.toFixed(1)}%)</div>
 
                 </div>
 
@@ -417,6 +422,27 @@ export default function ExecutionScreen(props: Props) {
                   {runSummary.done}/{runSummary.total} done
 
                 </span>
+
+                {onExportRun && getId(selectedRun) ? (
+                  <>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      loading={exportingRun}
+                      onClick={() => void onExportRun(getId(selectedRun), "xlsx")}
+                    >
+                      Export XLSX
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      loading={exportingRun}
+                      onClick={() => void onExportRun(getId(selectedRun), "csv")}
+                    >
+                      Export CSV
+                    </Button>
+                  </>
+                ) : null}
 
               </div>
 
@@ -522,11 +548,11 @@ export default function ExecutionScreen(props: Props) {
 
           scopedPlans={scopedPlans}
 
-          matchesSearch={matchesSearch}
-
           userName={userName}
 
           onOpenRun={onOpenRun}
+
+          onExportRun={onExportRun}
 
           activeRunId={selectedRun ? getId(selectedRun) : ""}
 

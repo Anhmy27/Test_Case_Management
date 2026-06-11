@@ -3,7 +3,6 @@ const {
   objectIdString,
   nonEmptyString,
   optionalTrimmedString,
-  searchQuerySchema,
 } = require('./commonSchemas');
 
 const runIdParamsSchema = z.object({
@@ -17,10 +16,6 @@ const runResultParamsSchema = z.object({
 
 const dryRunIdParamsSchema = z.object({
   dryRunId: nonEmptyString(),
-});
-
-const testPlanIdParamsSchema = z.object({
-  testPlanId: objectIdString,
 });
 
 const startTestRunBodySchema = z.object({
@@ -56,6 +51,10 @@ const listTestRunsQuerySchema = z.object({
   status: z.enum(['running', 'completed']).optional(),
 }).passthrough();
 
+const exportTestRunQuerySchema = z.object({
+  format: z.enum(['xlsx', 'csv']).optional(),
+}).passthrough();
+
 const dashboardQuerySchema = z.object({
   projectId: objectIdString.optional(),
   versionId: objectIdString.optional(),
@@ -89,21 +88,18 @@ const dryRunAutomationBodySchema = z.object({
   }).passthrough(),
 }).passthrough();
 
-const commonSearchQuerySchema = searchQuerySchema;
-
 module.exports = {
   runIdParamsSchema,
   runResultParamsSchema,
   dryRunIdParamsSchema,
-  testPlanIdParamsSchema,
   startTestRunBodySchema,
   retryFailedRunBodySchema,
   updateRunResultBodySchema,
   applyAutomationResultsBodySchema,
   listTestRunsQuerySchema,
+  exportTestRunQuerySchema,
   dashboardQuerySchema,
   versionDashboardQuerySchema,
   testPlanStatsQuerySchema,
   dryRunAutomationBodySchema,
-  commonSearchQuerySchema,
 };
