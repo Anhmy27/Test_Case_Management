@@ -234,7 +234,7 @@ export default function TestCaseExecutionHistoryPopup({
                   <div className="divide-y divide-slate-100 dark:divide-zinc-800">
                     {history.map((entry: RecordAny, index: number) => (
                       <div
-                        key={`${String(entry.runId || "run")}-${index}`}
+                        key={`${String(entry.runId || "run")}-${String(entry.resultId || index)}`}
                         className="grid grid-cols-[minmax(0,1.3fr)_100px_140px_140px_minmax(0,1fr)] gap-3 px-4 py-2.5 text-sm"
                       >
                         <div className="min-w-0">

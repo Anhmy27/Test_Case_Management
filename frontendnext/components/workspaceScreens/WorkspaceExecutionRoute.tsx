@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -46,6 +46,7 @@ function AdminWorkspaceExecutionRoute() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const runIdFromUrl = String(searchParams.get("runId") || "").trim();
+  const resultIdFromUrl = String(searchParams.get("resultId") || "").trim();
   const testPlanIdFromUrl = String(searchParams.get("testPlanId") || "").trim();
   const runNameFromUrl = String(searchParams.get("runName") || "").trim();
   const fromInsightsPlanId = String(searchParams.get("fromInsightsPlanId") || "").trim();
@@ -199,6 +200,13 @@ function AdminWorkspaceExecutionRoute() {
       return;
     }
 
+    if (resultIdFromUrl && activeMyItems.some((item) => getId(item) === resultIdFromUrl)) {
+      if (selectedItemId !== resultIdFromUrl) {
+        setSelectedItemId(resultIdFromUrl);
+      }
+      return;
+    }
+
     if (!selectedItemId || !activeMyItems.some((item) => getId(item) === selectedItemId)) {
       const { manualItems, automationItems } = partitionRunItemsByAutomation(activeMyItems);
       const selectionPool = manualItems.length > 0 ? manualItems : automationItems;
@@ -209,7 +217,7 @@ function AdminWorkspaceExecutionRoute() {
         activeMyItems[0];
       setSelectedItemId(getId(preferred));
     }
-  }, [activeMyItems, selectedItemId]);
+  }, [activeMyItems, resultIdFromUrl, selectedItemId]);
 
   const canEditSelectedRun = Boolean(
     activeRun &&
@@ -512,6 +520,7 @@ function EmployeeWorkspaceExecutionRoute() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const runIdFromUrl = String(searchParams.get("runId") || "").trim();
+  const resultIdFromUrl = String(searchParams.get("resultId") || "").trim();
   const testPlanIdFromUrl = String(searchParams.get("testPlanId") || "").trim();
   const runNameFromUrl = String(searchParams.get("runName") || "").trim();
   const { currentUser, setTopbar } = useEmployeeWorkspace();
@@ -659,6 +668,13 @@ function EmployeeWorkspaceExecutionRoute() {
       return;
     }
 
+    if (resultIdFromUrl && activeMyItems.some((item) => getId(item) === resultIdFromUrl)) {
+      if (selectedItemId !== resultIdFromUrl) {
+        setSelectedItemId(resultIdFromUrl);
+      }
+      return;
+    }
+
     if (!selectedItemId || !activeMyItems.some((item) => getId(item) === selectedItemId)) {
       const { manualItems, automationItems } = partitionRunItemsByAutomation(activeMyItems);
       const selectionPool = manualItems.length > 0 ? manualItems : automationItems;
@@ -669,7 +685,7 @@ function EmployeeWorkspaceExecutionRoute() {
         activeMyItems[0];
       setSelectedItemId(getId(preferred));
     }
-  }, [activeMyItems, selectedItemId]);
+  }, [activeMyItems, resultIdFromUrl, selectedItemId]);
 
   const canEditSelectedRun = Boolean(
     activeRun &&

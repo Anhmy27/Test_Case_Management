@@ -375,8 +375,14 @@ const buildTestCaseServices = ({
             return;
           }
 
+          const resultId = objectIdString(result._id);
+          if (!resultId) {
+            return;
+          }
+
           const existing = historyByCaseId.get(caseVersionId) || [];
           existing.push({
+            resultId,
             runId: String(run._id),
             runName: run.name,
             runStatus: run.status,
@@ -387,6 +393,7 @@ const buildTestCaseServices = ({
             startedBy: run.startedBy || null,
             endedBy: run.endedBy || null,
             note: result.note || result.notes || '',
+            hasFailureScreenshot: Boolean(String(result.failureScreenshot || '').trim()),
           });
           historyByCaseId.set(caseVersionId, existing);
         });
