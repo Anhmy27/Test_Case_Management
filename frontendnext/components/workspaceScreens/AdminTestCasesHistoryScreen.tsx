@@ -113,7 +113,7 @@ export default function AdminTestCasesHistoryScreen({
               <div className="py-8 text-center text-sm text-slate-400">Loading...</div>
             ) : (
               <DataTable
-                columns={["Case", "Group", "Priority", "Recent 1", "Recent 2", "Recent 3", "Action"]}
+                columns={["Key", "Title", "Group", "Priority", "Recent 1", "Recent 2", "Recent 3", "Action"]}
                 rows={safeDetailRows
                   .filter((testCase: RecordAny) =>
                     matchesSearch(testCase.caseKey, testCase.title, testCase.group?.name, testCase.priority, ...(testCase.recentStatuses || [])),
@@ -122,7 +122,8 @@ export default function AdminTestCasesHistoryScreen({
                     const statuses = Array.isArray(testCase.recentStatuses) ? testCase.recentStatuses : [];
                     return (
                       <>
-                        <div>{testCase.caseKey || testCase.key} - {testCase.title || testCase.name}</div>
+                        <div className="font-semibold text-slate-900">{testCase.caseKey || testCase.key || "-"}</div>
+                        <div>{testCase.title || testCase.name || "-"}</div>
                         <div>{testCase.group?.name || "-"}</div>
                         <div>{testCase.priority || "-"}</div>
                         <div>{statusCell(statuses[0])}</div>
@@ -161,7 +162,9 @@ export default function AdminTestCasesHistoryScreen({
             <div className="mb-4">
               <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Execution history</div>
               <h3 className="text-xl font-semibold text-slate-900">
-                {focusedCase.caseKey || focusedCase.key} - {focusedCase.title || focusedCase.name}
+                <span className="font-semibold">{focusedCase.caseKey || focusedCase.key || "-"}</span>
+                <span className="mx-2 font-normal text-slate-400">·</span>
+                <span>{focusedCase.title || focusedCase.name || "-"}</span>
               </h3>
               <div className="text-sm text-slate-600">
                 {focusedCase.group?.name || "-"} · {focusedCase.priority || "-"}
