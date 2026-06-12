@@ -3,9 +3,14 @@
 
 import { useMemo, useState } from "react";
 import FailureScreenshot from "./FailureScreenshot";
-import { formatAutomationLiveProgress, getAutomationRunProgress, getId, summarizeRunResults } from "@/lib/api";
+import {
+  formatAutomationLiveProgress,
+  getAutomationRunProgress,
+  getId,
+  isAutomationWorkerActive,
+  summarizeRunResults,
+} from "@/lib/api";
 import type { Dispatch, SetStateAction } from "react";
-import { StatusBadge } from "../workspaceScreens/shared";
 
 type RecordAny = Record<string, any>;
 
@@ -33,7 +38,6 @@ export default function AutomationRunExecutionPanel({
   setSelectedItemId,
   selectedItem,
   notes,
-  setNotes,
   token,
   canControlRun = false,
   cancellingRun = false,
@@ -49,6 +53,14 @@ export default function AutomationRunExecutionPanel({
     selectedItem?.status === "fail";
   const runIsCompleted = String(selectedRun?.status || "") === "completed";
   const runIsRunning = String(selectedRun?.status || "") === "running";
+
+  const formatActivityTime = (item: RecordAny) => {
+    const raw = item.executedAt || item.updatedAt;
+    if (!raw) {
+      return "-";
+    }
+    return new Date(raw).toLocaleString();
+  };
 
   const statusBadgeClass = (status: string) => {
     if (status === "pass") return "bg-emerald-50 text-emerald-700";
@@ -91,6 +103,12 @@ export default function AutomationRunExecutionPanel({
     [selectedRun?.automationProgress, runProgress],
   );
   const canRetryFailed = runIsCompleted && summary.fail > 0 && canControlRun;
+  const automationWorkerActive = useMemo(
+    () => isAutomationWorkerActive(selectedRun, myItems),
+    [myItems, selectedRun],
+  );
+  const cancelInProgress = cancellingRun || Boolean(selectedRun?.automationProgress?.cancelRequested);
+  const canStopAutomation = automationWorkerActive && !cancelInProgress;
 
   return (
     <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)_320px]">
@@ -295,11 +313,23 @@ export default function AutomationRunExecutionPanel({
             {runIsRunning && canControlRun && onCancelRun ? (
               <button
                 type="button"
-                disabled={cancellingRun || Boolean(selectedRun?.automationProgress?.cancelRequested)}
-                onClick={() => void onCancelRun()}
-                className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={!canStopAutomation}
+                title={
+                  canStopAutomation
+                    ? "Dừng automation đang chạy"
+                    : cancelInProgress
+                      ? "Đang dừng automation..."
+                      : "Automation đã chạy xong hoặc chưa bắt đầu"
+                }
+                onClick={() => {
+                  if (!canStopAutomation) {
+                    return;
+                  }
+                  void onCancelRun();
+                }}
+                className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400 disabled:hover:bg-slate-100"
               >
-                {cancellingRun || selectedRun?.automationProgress?.cancelRequested ? "Đang dừng..." : "Stop run"}
+                {cancelInProgress ? "Đang dừng..." : "Stop run"}
               </button>
             ) : null}
             {canRetryFailed && onRetryFailed ? (
@@ -375,7 +405,7 @@ export default function AutomationRunExecutionPanel({
                       {item.testCase?.caseKey || "TC"}
                     </div>
                     <div className="text-xs text-slate-500">
-                      {item.status} · {new Date(item.executedAt || item.updatedAt || Date.now()).toLocaleString()}
+                      {item.status} · {formatActivityTime(item)}
                     </div>
                   </div>
                 ))

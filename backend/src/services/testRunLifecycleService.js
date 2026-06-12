@@ -26,6 +26,18 @@ const {
 } = require('../utils/entityResolvers');
 const { scheduleAutomationRun, isAutomationRunActive } = require('./automation/automationJobRunner');
 const { assertAllowedBaseUrl } = require('../utils/automationUrlPolicy');
+
+const withAutomationActive = (testRun) => {
+  if (!testRun) {
+    return testRun;
+  }
+
+  const runId = String(testRun._id || testRun.id || '');
+  return {
+    ...testRun,
+    automationActive: runId ? isAutomationRunActive(runId) : false,
+  };
+};
 const {
   isAutomationEnabledCase,
   loadTestCaseMapForResults,
@@ -126,10 +138,6 @@ const startTestRunService = async ({ testPlanId, name, baseUrl, user }) => {
     throw httpError(400, 'Plan has no test cases');
   }
 
-  if (latestTestCases.some((testCase) => isAutomationEnabledCase(testCase)) && !isValidHttpUrl(baseUrl)) {
-    throw httpError(400, 'Base URL is invalid');
-  }
-
   const testPlanEntityId = resolvedTestPlan.entityId || resolvedTestPlan._id;
   const relatedPlanIds = await getTestPlanVersionIds(resolvedTestPlan);
   const existingRun = await TestRun.findOne({
@@ -151,6 +159,10 @@ const startTestRunService = async ({ testPlanId, name, baseUrl, user }) => {
   const missingIndex = latestTestCases.findIndex((tc) => !tc);
   if (missingIndex !== -1) {
     throw httpError(404, 'A test case in this test plan could not be resolved to the latest version');
+  }
+
+  if (latestTestCases.some((testCase) => isAutomationEnabledCase(testCase)) && !isValidHttpUrl(baseUrl)) {
+    throw httpError(400, 'Base URL is invalid');
   }
 
   const latestGroups = await Promise.all(latestTestCases.map(async (tc) => {
@@ -233,14 +245,14 @@ const startTestRunService = async ({ testPlanId, name, baseUrl, user }) => {
     });
 
     return {
-      testRun: runPayload,
+      testRun: withAutomationActive(runPayload),
       automationQueued: true,
       automationCaseCount: automationResultIds.length,
       manualCaseCount: testRun.results.length - automationResultIds.length,
     };
   }
 
-  return { testRun: runPayload };
+  return { testRun: withAutomationActive(runPayload) };
 };
 
 // ---------------------------------------------------------------------------
@@ -348,7 +360,7 @@ const listTestRunsService = async ({ projectId, versionId, status }, user) => {
     const withAll = await attachRunProjectAndVersion(withPlan);
     const progressSummary = computeRunProgress(testRun.results);
 
-    testRunsWithProgress.push({
+    testRunsWithProgress.push(withAutomationActive({
       ...withAll,
       progress: progressSummary.progress,
       passRate: progressSummary.passRate,
@@ -356,7 +368,7 @@ const listTestRunsService = async ({ projectId, versionId, status }, user) => {
       executedResults: progressSummary.done,
       doneResults: progressSummary.done,
       untestedResults: progressSummary.untested,
-    });
+    }));
   }
 
   return { testRuns: testRunsWithProgress };
@@ -394,7 +406,7 @@ const getMyRunItemsService = async (runId, user) => {
   ]);
 
   return {
-    testRun: {
+    testRun: withAutomationActive({
       ...testRun,
       project: project
         ? {
@@ -421,7 +433,7 @@ const getMyRunItemsService = async (runId, user) => {
             name: plan.name,
           }
         : testRun.testPlan || null,
-    },
+    }),
     results,
   };
 };
@@ -604,7 +616,9 @@ const retryFailedAutomationRunService = async (runId, user, baseUrl = '') => {
   }
 
   const populatedRun = await TestRun.findById(testRun._id).lean();
-  const runPayload = await attachRunProjectAndVersion(await attachRunTestPlan(populatedRun));
+  const runPayload = withAutomationActive(
+    await attachRunProjectAndVersion(await attachRunTestPlan(populatedRun)),
+  );
 
   return {
     testRun: runPayload,

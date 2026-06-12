@@ -54,15 +54,15 @@ export default function ZoomableScreenshot({
     setScale((current) => clampScale(Number((current - SCALE_STEP).toFixed(2))));
   }, [clampScale]);
 
-  const openViewer = () => {
+  const openViewer = useCallback(() => {
     resetView();
     setOpen(true);
-  };
+  }, [resetView]);
 
-  const closeViewer = () => {
+  const closeViewer = useCallback(() => {
     setOpen(false);
     resetView();
-  };
+  }, [resetView]);
 
   useEffect(() => {
     if (!open) {
@@ -93,7 +93,7 @@ export default function ZoomableScreenshot({
       document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, [open, resetView, zoomIn, zoomOut]);
+  }, [closeViewer, open, resetView, zoomIn, zoomOut]);
 
   const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
     event.preventDefault();

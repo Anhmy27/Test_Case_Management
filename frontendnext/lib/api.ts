@@ -663,7 +663,41 @@ export type AutomationProgress = {
   currentStepTotal?: number;
   currentCaseKey?: string;
   cancelRequested?: boolean;
+  lastHeartbeatAt?: string;
 };
+
+type AutomationRunLike = {
+  automationActive?: boolean;
+  status?: string;
+  automationProgress?: AutomationProgress | null;
+} | null | undefined;
+
+export function isAutomationWorkerActive(
+  run: AutomationRunLike,
+  automationItems: Array<{ status?: string; executedAt?: string | Date | null }> = [],
+): boolean {
+  if (!run || String(run.status || "") !== "running") {
+    return false;
+  }
+
+  if (typeof run.automationActive === "boolean") {
+    return run.automationActive;
+  }
+
+  if (run.automationProgress?.cancelRequested) {
+    return true;
+  }
+
+  const heartbeatMs = run.automationProgress?.lastHeartbeatAt
+    ? new Date(run.automationProgress.lastHeartbeatAt).getTime()
+    : 0;
+  const heartbeatFresh = heartbeatMs > 0 && Date.now() - heartbeatMs < 20000;
+  const hasPendingCases = automationItems.some(
+    (item) => String(item.status || "untested") === "untested" && !item.executedAt,
+  );
+
+  return hasPendingCases && heartbeatFresh;
+}
 
 export function formatAutomationLiveProgress(
   progress?: AutomationProgress | null,

@@ -12,26 +12,18 @@ type FailureScreenshotProps = {
   status?: string;
 };
 
-export default function FailureScreenshot({
-  runId,
-  resultId,
-  failureScreenshot,
-  token,
-  status,
-}: FailureScreenshotProps) {
+type FailureScreenshotImageProps = {
+  runId: string;
+  resultId: string;
+  token: string;
+};
+
+function FailureScreenshotImage({ runId, resultId, token }: FailureScreenshotImageProps) {
   const [imageSrc, setImageSrc] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  const canShowScreenshot = status === "fail" && hasFailureScreenshot(failureScreenshot);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!canShowScreenshot || !token) {
-      setImageSrc(null);
-      setErrorMessage("");
-      return;
-    }
-
     let objectUrl: string | null = null;
     let cancelled = false;
 
@@ -67,8 +59,30 @@ export default function FailureScreenshot({
         URL.revokeObjectURL(objectUrl);
       }
     };
-  }, [canShowScreenshot, resultId, runId, token]);
+  }, [resultId, runId, token]);
 
+  if (loading) {
+    return <div className="mt-2 text-xs text-rose-800">Đang tải screenshot...</div>;
+  }
+
+  if (errorMessage) {
+    return <div className="mt-2 text-xs text-rose-800">{errorMessage}</div>;
+  }
+
+  if (!imageSrc) {
+    return null;
+  }
+
+  return <ZoomableScreenshot src={imageSrc} alt="Failure screenshot" />;
+}
+
+export default function FailureScreenshot({
+  runId,
+  resultId,
+  failureScreenshot,
+  token,
+  status,
+}: FailureScreenshotProps) {
   if (status !== "fail") {
     return null;
   }
@@ -81,18 +95,20 @@ export default function FailureScreenshot({
     );
   }
 
+  if (!token) {
+    return (
+      <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">
+        Không thể tải screenshot vì thiếu phiên đăng nhập.
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-xl border border-rose-200 bg-rose-50 p-3">
       <div className="text-xs font-semibold uppercase tracking-wide text-rose-700">
         Screenshot khi fail
       </div>
-      {loading ? (
-        <div className="mt-2 text-xs text-rose-800">Đang tải screenshot...</div>
-      ) : errorMessage ? (
-        <div className="mt-2 text-xs text-rose-800">{errorMessage}</div>
-      ) : imageSrc ? (
-        <ZoomableScreenshot src={imageSrc} alt="Failure screenshot" />
-      ) : null}
+      <FailureScreenshotImage runId={runId} resultId={resultId} token={token} />
     </div>
   );
 }

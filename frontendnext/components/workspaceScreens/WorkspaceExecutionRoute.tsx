@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import ExecutionScreen from "@/components/workspaceScreens/ExecutionScreen";
 import { useAdminWorkspace, useEmployeeWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
 import { WorkspaceContentSkeleton, TOPBAR_INPUT_CLS } from "@/components/workspaceScreens/shared";
-import { apiRequest, downloadTestRunExport, formatAutomationRunMessage, getId, planRequiresAutomationBaseUrl, resolveStartRunPayload, runHasAutomationItems, runHasManualItems, summarizeAutomationResults, userName } from "@/lib/api";
+import { apiRequest, downloadTestRunExport, formatAutomationRunMessage, getId, partitionRunItemsByAutomation, planRequiresAutomationBaseUrl, resolveStartRunPayload, runHasAutomationItems, runHasManualItems, summarizeAutomationResults, userName } from "@/lib/api";
 import {
   buildEmployeeTopbar,
   useEmployeeProjectScope,
@@ -200,9 +200,12 @@ function AdminWorkspaceExecutionRoute() {
     }
 
     if (!selectedItemId || !activeMyItems.some((item) => getId(item) === selectedItemId)) {
+      const { manualItems, automationItems } = partitionRunItemsByAutomation(activeMyItems);
+      const selectionPool = manualItems.length > 0 ? manualItems : automationItems;
       const preferred =
-        activeMyItems.find((item) => item.status === "fail") ||
-        activeMyItems.find((item) => item.status === "blocked") ||
+        selectionPool.find((item) => item.status === "fail") ||
+        selectionPool.find((item) => item.status === "blocked") ||
+        selectionPool[0] ||
         activeMyItems[0];
       setSelectedItemId(getId(preferred));
     }
@@ -360,9 +363,15 @@ function AdminWorkspaceExecutionRoute() {
 
   const updateResult = async (resultId: string, status: "pass" | "fail" | "blocked" | "skip", note: string, resultNotes: string) => {
     if (!selectedRun) return;
-    await apiRequest(`/api/test-runs/${getId(selectedRun)}/results/${resultId}`, undefined, { method: "PATCH", body: JSON.stringify({ status, note, notes: resultNotes }) });
-    await loadMyItems(getId(selectedRun));
-    await refreshRuns();
+    try {
+      await apiRequest(`/api/test-runs/${getId(selectedRun)}/results/${resultId}`, undefined, { method: "PATCH", body: JSON.stringify({ status, note, notes: resultNotes }) });
+      await loadMyItems(getId(selectedRun));
+      await refreshRuns();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to update result";
+      setMessage(message);
+      throw error;
+    }
   };
 
   const endRun = async (runId: string) => {
@@ -651,9 +660,12 @@ function EmployeeWorkspaceExecutionRoute() {
     }
 
     if (!selectedItemId || !activeMyItems.some((item) => getId(item) === selectedItemId)) {
+      const { manualItems, automationItems } = partitionRunItemsByAutomation(activeMyItems);
+      const selectionPool = manualItems.length > 0 ? manualItems : automationItems;
       const preferred =
-        activeMyItems.find((item) => item.status === "fail") ||
-        activeMyItems.find((item) => item.status === "blocked") ||
+        selectionPool.find((item) => item.status === "fail") ||
+        selectionPool.find((item) => item.status === "blocked") ||
+        selectionPool[0] ||
         activeMyItems[0];
       setSelectedItemId(getId(preferred));
     }
@@ -787,8 +799,14 @@ function EmployeeWorkspaceExecutionRoute() {
 
   const updateResult = async (resultId: string, status: "pass" | "fail" | "blocked" | "skip", note: string, resultNotes: string) => {
     if (!selectedRun) return;
-    await apiRequest(`/api/test-runs/${getId(selectedRun)}/results/${resultId}`, undefined, { method: "PATCH", body: JSON.stringify({ status, note, notes: resultNotes }) });
-    await loadMyItems(getId(selectedRun));
+    try {
+      await apiRequest(`/api/test-runs/${getId(selectedRun)}/results/${resultId}`, undefined, { method: "PATCH", body: JSON.stringify({ status, note, notes: resultNotes }) });
+      await loadMyItems(getId(selectedRun));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to update result";
+      setMessage(message);
+      throw error;
+    }
   };
 
   const endRun = async (runId: string) => {

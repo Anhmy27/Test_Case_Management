@@ -12,7 +12,7 @@ import ManualRunExecutionPanel from "../execution/ManualRunExecutionPanel";
 import AutomationRunExecutionPanel from "../execution/AutomationRunExecutionPanel";
 import TestRunListSection from "./TestRunListSection";
 import { Button, Field, INPUT_CLS, SectionCard, StatusBadge } from "./shared";
-import { buildDefaultRunName, countPlanAutomationCases, getPlanCaseCount, partitionRunItemsByAutomation, planRequiresAutomationBaseUrl, summarizeRunResults, getId, validateStartRunForm } from "@/lib/api";
+import { buildDefaultRunName, countPlanAutomationCases, getPlanCaseCount, isAutomationEnabledTestCase, partitionRunItemsByAutomation, planRequiresAutomationBaseUrl, summarizeRunResults, getId, validateStartRunForm } from "@/lib/api";
 
 
 
@@ -207,19 +207,21 @@ export default function ExecutionScreen(props: Props) {
 
       const status = String(selectedItem.status || "");
 
-      if (["pass", "fail", "blocked", "skip"].includes(status)) {
+      if (
+        ["pass", "fail", "blocked", "skip"].includes(status) &&
+        !isAutomationEnabledTestCase(selectedItem.testCase)
+      ) {
 
-        await updateResult(
-
-          selectedItemId,
-
-          status as "pass" | "fail" | "blocked" | "skip",
-
-          notes[selectedItemId] || selectedItem.note || "",
-
-          notes[`${selectedItemId}:notes`] || selectedItem.notes || "",
-
-        );
+        try {
+          await updateResult(
+            selectedItemId,
+            status as "pass" | "fail" | "blocked" | "skip",
+            notes[selectedItemId] || selectedItem.note || "",
+            notes[`${selectedItemId}:notes`] || selectedItem.notes || "",
+          );
+        } catch {
+          return;
+        }
 
       }
 

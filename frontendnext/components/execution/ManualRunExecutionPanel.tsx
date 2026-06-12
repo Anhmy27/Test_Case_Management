@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { getEndRunPolicy, setEndRunPolicy, summarizeRunResults, getId, type EndRunPolicy } from "@/lib/api";
+import { getEndRunPolicy, isAutomationEnabledTestCase, setEndRunPolicy, summarizeRunResults, getId, type EndRunPolicy } from "@/lib/api";
 import type { Dispatch, SetStateAction } from "react";
 import { ConfirmDialog, StatusBadge } from "../workspaceScreens/shared";
 
@@ -21,7 +21,7 @@ interface ManualRunExecutionPanelProps {
     status: "pass" | "fail" | "blocked" | "skip",
     note: string,
     notes: string,
-  ) => void;
+  ) => Promise<void>;
   onEndRun: () => void | Promise<void>;
   canEditRun: boolean;
   canEndRun?: boolean;
@@ -33,7 +33,6 @@ export default function ManualRunExecutionPanel({
   myItems,
   selectedItemId,
   setSelectedItemId,
-  selectedItem,
   notes,
   setNotes,
   onUpdateResult,
@@ -46,6 +45,42 @@ export default function ManualRunExecutionPanel({
   const [queueSearch, setQueueSearch] = useState("");
   const [showEndRunDialog, setShowEndRunDialog] = useState(false);
   const [endRunPolicy, setEndRunPolicyState] = useState<EndRunPolicy>("flexible");
+  const [updateError, setUpdateError] = useState("");
+
+  const panelSelectedItem = useMemo(() => {
+    if (!myItems.length) {
+      return null;
+    }
+    return myItems.find((item: RecordAny) => getId(item) === selectedItemId) || myItems[0] || null;
+  }, [myItems, selectedItemId]);
+
+  const panelSelectedId = panelSelectedItem ? getId(panelSelectedItem) : "";
+
+  const submitResult = useCallback(
+    async (status: "pass" | "fail" | "blocked" | "skip") => {
+      if (!panelSelectedItem || !canEditRun) {
+        return;
+      }
+      if (isAutomationEnabledTestCase(panelSelectedItem.testCase)) {
+        setUpdateError("Case auto không thể cập nhật thủ công. Dùng panel Automation.");
+        return;
+      }
+
+      const resultId = getId(panelSelectedItem);
+      setUpdateError("");
+      try {
+        await onUpdateResult(
+          resultId,
+          status,
+          notes[resultId] || "",
+          notes[`${resultId}:notes`] || "",
+        );
+      } catch (error) {
+        setUpdateError(error instanceof Error ? error.message : "Unable to update result");
+      }
+    },
+    [canEditRun, notes, onUpdateResult, panelSelectedItem],
+  );
 
   const getExpectedResultText = (testCase: RecordAny) => {
     const overall = String(testCase?.expected || "").trim();
@@ -65,7 +100,7 @@ export default function ManualRunExecutionPanel({
     return uniqueExpected.length > 0 ? uniqueExpected.join("\n") : "N/A";
   };
 
-  const currentIndex = myItems.findIndex((item: RecordAny) => getId(item) === selectedItemId);
+  const currentIndex = myItems.findIndex((item: RecordAny) => getId(item) === panelSelectedId);
   const nextItem = currentIndex >= 0
     ? myItems.slice(currentIndex + 1).find((item: RecordAny) => item.status !== "pass") || myItems[currentIndex + 1]
     : undefined;
@@ -73,13 +108,9 @@ export default function ManualRunExecutionPanel({
 
   const summary = useMemo(() => summarizeRunResults(myItems), [myItems]);
 
-  useEffect(() => {
-    setEndRunPolicyState(getEndRunPolicy());
-  }, [showEndRunDialog]);
-
   const canLogBug =
     (selectedRun?.status === "running" || selectedRun?.status === "completed") &&
-    selectedItem?.status === "fail";
+    panelSelectedItem?.status === "fail";
   const strictEndBlocked = endRunPolicy === "strict" && summary.untested > 0;
 
   const queueItems = useMemo(() => {
@@ -124,38 +155,43 @@ export default function ManualRunExecutionPanel({
       if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) {
         return;
       }
-      if (!selectedItemId) return;
+      if (!panelSelectedId) return;
 
       if (event.key === "j" || event.key === "ArrowDown") {
-          if (nextItem) setSelectedItemId(getId(nextItem));
+        if (nextItem) setSelectedItemId(getId(nextItem));
         return;
       }
       if (event.key === "k" || event.key === "ArrowUp") {
-          if (previousItem) setSelectedItemId(getId(previousItem));
+        if (previousItem) setSelectedItemId(getId(previousItem));
         return;
       }
 
-      const noteValue = notes[selectedItemId] || "";
-      const extraNotes = notes[`${selectedItemId}:notes`] || "";
-
       if (event.key === "1") {
-        await onUpdateResult(selectedItemId, "pass", noteValue, extraNotes);
+        await submitResult("pass");
         void goToNextItem();
       } else if (event.key === "2") {
-        await onUpdateResult(selectedItemId, "fail", noteValue, extraNotes);
+        await submitResult("fail");
         void goToNextItem();
       } else if (event.key === "3") {
-        await onUpdateResult(selectedItemId, "blocked", noteValue, extraNotes);
+        await submitResult("blocked");
         void goToNextItem();
       } else if (event.key === "4") {
-        await onUpdateResult(selectedItemId, "skip", noteValue, extraNotes);
+        await submitResult("skip");
         void goToNextItem();
       }
     };
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [canEditRun, goToNextItem, nextItem, notes, onUpdateResult, previousItem, selectedItemId, setSelectedItemId]);
+  }, [
+    canEditRun,
+    goToNextItem,
+    nextItem,
+    panelSelectedId,
+    previousItem,
+    setSelectedItemId,
+    submitResult,
+  ]);
 
   return (
     <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)_320px]">
@@ -198,7 +234,7 @@ export default function ManualRunExecutionPanel({
             <div className="p-4 text-sm text-slate-500">No cases found</div>
           ) : (
             queueItems.map((item: RecordAny) => {
-              const active = getId(item) === selectedItemId;
+              const active = getId(item) === panelSelectedId;
               return (
                 <button
                   key={getId(item)}
@@ -230,39 +266,39 @@ export default function ManualRunExecutionPanel({
           <div className="text-xs text-slate-500">Steps, expected, actual</div>
         </div>
 
-        {!selectedItem ? (
+        {!panelSelectedItem ? (
           <div className="p-6 text-sm text-slate-500">Select a test case from the queue.</div>
         ) : (
           <div className="space-y-6 p-6">
             <div>
               <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Case</div>
               <div className="text-lg font-semibold text-slate-900">
-                {selectedItem.testCase?.caseKey || "TC"} - {selectedItem.testCase?.title}
+                {panelSelectedItem.testCase?.caseKey || "TC"} - {panelSelectedItem.testCase?.title}
               </div>
               <div className="text-sm text-slate-600">
-                {selectedItem.testCase?.description || "No description"}
+                {panelSelectedItem.testCase?.description || "No description"}
               </div>
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">
-                {selectedItem.testCase?.priority || "n/a"}
+                {panelSelectedItem.testCase?.priority || "n/a"}
               </span>
               <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
-                {selectedItem.testCase?.severity || "n/a"}
+                {panelSelectedItem.testCase?.severity || "n/a"}
               </span>
               <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-                {selectedItem.testCase?.type || "functional"}
+                {panelSelectedItem.testCase?.type || "functional"}
               </span>
               <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-                Owner: {selectedItem.tester?.name || selectedItem.owner?.name || "-"}
+                Owner: {panelSelectedItem.tester?.name || panelSelectedItem.owner?.name || "-"}
               </span>
             </div>
 
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
               <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Steps</div>
               <ol className="mt-3 space-y-2 text-sm text-slate-700">
-                {(selectedItem.testCase?.steps || []).map((step: RecordAny, index: number) => (
+                {(panelSelectedItem.testCase?.steps || []).map((step: RecordAny, index: number) => (
                   <li key={index} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
                     <span className="mr-2 text-xs text-slate-400">#{index + 1}</span>
                     {step.action || step}
@@ -277,7 +313,7 @@ export default function ManualRunExecutionPanel({
             <div>
               <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Expected</div>
               <div className="mt-2 whitespace-pre-line text-sm text-slate-700">
-                {getExpectedResultText(selectedItem.testCase)}
+                {getExpectedResultText(panelSelectedItem.testCase)}
               </div>
             </div>
 
@@ -285,13 +321,13 @@ export default function ManualRunExecutionPanel({
               <label className="text-xs font-semibold text-slate-500">Actual result
                 <textarea
                   rows={4}
-                  value={notes[getId(selectedItem)] ?? selectedItem.note ?? ""}
+                  value={notes[getId(panelSelectedItem)] ?? panelSelectedItem.note ?? ""}
                   readOnly={!canEditRun}
                   onChange={(e) =>
                     canEditRun &&
                     setNotes((prev) => ({
                       ...prev,
-                      [getId(selectedItem)]: e.target.value,
+                      [getId(panelSelectedItem)]: e.target.value,
                     }))
                   }
                   className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
@@ -300,13 +336,13 @@ export default function ManualRunExecutionPanel({
               <label className="text-xs font-semibold text-slate-500">Notes
                 <textarea
                   rows={3}
-                  value={notes[`${getId(selectedItem)}:notes`] ?? selectedItem.notes ?? ""}
+                  value={notes[`${getId(panelSelectedItem)}:notes`] ?? panelSelectedItem.notes ?? ""}
                   readOnly={!canEditRun}
                   onChange={(e) =>
                     canEditRun &&
                     setNotes((prev) => ({
                       ...prev,
-                      [`${getId(selectedItem)}:notes`]: e.target.value,
+                      [`${getId(panelSelectedItem)}:notes`]: e.target.value,
                     }))
                   }
                   className="mt-2 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
@@ -396,11 +432,10 @@ export default function ManualRunExecutionPanel({
                 type="button"
                 className="rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-500"
                 onClick={async () => {
-                  if (!selectedItemId) return;
-                  await onUpdateResult(selectedItemId, "pass", notes[selectedItemId] || "", notes[`${selectedItemId}:notes`] || "");
+                  await submitResult("pass");
                   void goToNextItem();
                 }}
-                disabled={!canEditRun}
+                disabled={!canEditRun || !panelSelectedItem}
               >
                 Pass
               </button>
@@ -408,11 +443,10 @@ export default function ManualRunExecutionPanel({
                 type="button"
                 className="rounded-lg bg-rose-600 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-500"
                 onClick={async () => {
-                  if (!selectedItemId) return;
-                  await onUpdateResult(selectedItemId, "fail", notes[selectedItemId] || "", notes[`${selectedItemId}:notes`] || "");
+                  await submitResult("fail");
                   void goToNextItem();
                 }}
-                disabled={!canEditRun}
+                disabled={!canEditRun || !panelSelectedItem}
               >
                 Fail
               </button>
@@ -420,11 +454,10 @@ export default function ManualRunExecutionPanel({
                 type="button"
                 className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700"
                 onClick={async () => {
-                  if (!selectedItemId) return;
-                  await onUpdateResult(selectedItemId, "blocked", notes[selectedItemId] || "", notes[`${selectedItemId}:notes`] || "");
+                  await submitResult("blocked");
                   void goToNextItem();
                 }}
-                disabled={!canEditRun}
+                disabled={!canEditRun || !panelSelectedItem}
               >
                 Blocked
               </button>
@@ -432,21 +465,25 @@ export default function ManualRunExecutionPanel({
                 type="button"
                 className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600"
                 onClick={async () => {
-                  if (!selectedItemId) return;
-                  await onUpdateResult(selectedItemId, "skip", notes[selectedItemId] || "", notes[`${selectedItemId}:notes`] || "");
+                  await submitResult("skip");
                   void goToNextItem();
                 }}
-                disabled={!canEditRun}
+                disabled={!canEditRun || !panelSelectedItem}
               >
                 Skip
               </button>
             </div>
+            {updateError ? (
+              <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                {updateError}
+              </div>
+            ) : null}
             <div className="flex items-center gap-2">
-              {canLogBug && onLogBug && selectedItem ? (
+              {canLogBug && onLogBug && panelSelectedItem ? (
                 <button
                   type="button"
                   className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600"
-                  onClick={() => onLogBug(selectedRun, selectedItem)}
+                  onClick={() => onLogBug(selectedRun, panelSelectedItem)}
                 >
                   Log bug
                 </button>
@@ -454,7 +491,10 @@ export default function ManualRunExecutionPanel({
               <button
                 type="button"
                 className="flex-1 rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
-                onClick={() => setShowEndRunDialog(true)}
+                onClick={() => {
+                  setEndRunPolicyState(getEndRunPolicy());
+                  setShowEndRunDialog(true);
+                }}
                 disabled={!canEndRun}
                 title={canEndRun ? "End this test run" : "Only an active manual run you can edit can be ended"}
               >
