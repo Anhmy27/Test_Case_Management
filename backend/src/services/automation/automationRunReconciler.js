@@ -9,11 +9,10 @@ const {
 const reconcileOrphanedAutomationRuns = async () => {
   const runningRuns = await TestRun.find({ status: 'running' }).lean();
   if (!runningRuns.length) {
-    return { resumed: 0, finalized: 0, skipped: 0 };
+    return { resumed: 0, skipped: 0 };
   }
 
   let resumed = 0;
-  const finalized = 0;
   let skipped = 0;
 
   for (const run of runningRuns) {
@@ -51,7 +50,7 @@ const reconcileOrphanedAutomationRuns = async () => {
     }
   }
 
-  return { resumed, finalized, skipped };
+  return { resumed, skipped };
 };
 
 module.exports = {

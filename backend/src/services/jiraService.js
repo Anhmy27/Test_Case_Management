@@ -211,20 +211,13 @@ const createLoggedInContext = async ({ userId } = {}) => {
     try {
       await verifyJiraSession(context);
       await persistSession(account.jiraCookieHeader);
-      console.log('[Jira] session verified via stored cookie');
       return context;
     } catch (cookieErr) {
       if (!account.jiraUsername || !account.jiraPassword) {
         throw cookieErr;
       }
-      console.log('[Jira] stored Jira cookie invalid, fallback to username/password login');
     }
   }
-
-  console.log('[Jira] login start', {
-    baseURL,
-    username: account.jiraUsername ? `${account.jiraUsername.slice(0, 2)}***` : '',
-  });
 
   const loginPage = await context.get('/login.jsp');
   if (!loginPage.ok()) {
@@ -233,11 +226,6 @@ const createLoggedInContext = async ({ userId } = {}) => {
 
   const loginHtml = await loginPage.text();
   const atlToken = extractAtlToken(loginHtml);
-
-  console.log('[Jira] login page loaded', {
-    hasAtlToken: Boolean(atlToken),
-    loginPageStatus: loginPage.status(),
-  });
 
   const loginResponse = await context.post('/login.jsp', {
     form: {
@@ -252,10 +240,6 @@ const createLoggedInContext = async ({ userId } = {}) => {
   const loginReason = loginResponse.headers()['x-seraph-loginreason'];
   if (!(loginResponse.status() === 200 || loginResponse.status() === 302) || (loginReason && loginReason !== 'OK')) {
     const body = await loginResponse.text();
-    console.log('[Jira] login failed', {
-      status: loginResponse.status(),
-      loginReason: loginReason || '',
-    });
     await clearJiraSession({
       profileKey: account.profileKey,
       userId: account.userId,
@@ -264,15 +248,8 @@ const createLoggedInContext = async ({ userId } = {}) => {
     throwJiraError(502, 'Jira login failed', body);
   }
 
-  console.log('[Jira] login response ok', {
-    status: loginResponse.status(),
-    loginReason: loginReason || 'OK',
-  });
-
   await verifyJiraSession(context);
   await persistSession();
-
-  console.log('[Jira] session verified and cached');
 
   return context;
 };
@@ -372,13 +349,6 @@ const resolveQuickCreateTokens = async (context) => {
     formToken = formToken || extractFormToken(dashboardHtml);
   }
 
-  console.log('[Jira] quick-create tokens resolved', {
-    source: 'QuickCreateIssue!default.jspa',
-    status: quickCreatePage.status(),
-    hasAtlToken: Boolean(atlToken),
-    hasFormToken: Boolean(formToken),
-  });
-
   return {
     atlToken,
     formToken,
@@ -400,13 +370,6 @@ const createBugIssue = async ({
   const context = await createLoggedInContext({ userId });
 
   try {
-    console.log('[Jira] create issue start', {
-      pid,
-      issueTypeId,
-      hasAssignee: Boolean(assignee),
-      labels: labels || '',
-    });
-
     const { atlToken, formToken } = await resolveQuickCreateTokens(context);
 
     if (!atlToken || !formToken) {
@@ -450,13 +413,6 @@ const createBugIssue = async ({
     };
 
     const parsedResult = parseQuickCreateIssueResult(result.body, result.headers);
-
-    console.log('[Jira] create issue response', {
-      status: result.status,
-      location: parsedResult.location,
-      issueKey: parsedResult.issueKey || null,
-      fieldErrorCount: parsedResult.fieldErrors.length,
-    });
 
     if (!(response.status() === 200 || response.status() === 302)) {
       if (response.status() === 403) {

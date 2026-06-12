@@ -54,20 +54,7 @@ const logBugService = async ({
     timetracking_originalestimate ?? originalEstimate ?? '',
   ).trim();
 
-  console.log('[Jira] logBug request received', {
-    projectId,
-    issueType,
-    priority: priority || '3',
-    hasAssignee: Boolean(assignee),
-    hasOriginalEstimate: Boolean(resolvedOriginalEstimate),
-    labels: labels || '',
-  });
-
   const project = await getProjectById(projectId);
-  console.log('[Jira] project resolved', {
-    projectId: project._id,
-    pid: project.pid,
-  });
 
   const created = await createBugIssue({
     pid: project.pid,
@@ -80,12 +67,6 @@ const logBugService = async ({
     labels,
     versions,
     userId: user?.id || user?._id || null,
-  });
-
-  console.log('[Jira] logBug created', {
-    issueKey: created.issueKey,
-    location: created.location,
-    status: created.status,
   });
 
   return {
