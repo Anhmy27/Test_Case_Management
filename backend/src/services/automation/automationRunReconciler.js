@@ -13,7 +13,7 @@ const reconcileOrphanedAutomationRuns = async () => {
   }
 
   let resumed = 0;
-  let finalized = 0;
+  const finalized = 0;
   let skipped = 0;
 
   for (const run of runningRuns) {
@@ -29,22 +29,8 @@ const reconcileOrphanedAutomationRuns = async () => {
     }
 
     const pendingAutomationResultIds = getPendingAutomationResultIds(run.results || [], testCaseMap);
-
     if (!pendingAutomationResultIds.length) {
-      const allDone = (run.results || []).every((result) => result.status !== 'untested');
-      if (allDone) {
-        await TestRun.findByIdAndUpdate(run._id, {
-          $set: {
-            status: 'completed',
-            endedAt: run.endedAt || new Date(),
-            endedBy: run.endedBy || run.startedBy,
-          },
-        });
-        finalized += 1;
-        console.log(`[automationReconciler] Finalized orphaned run ${run._id} with no pending cases`);
-      } else {
-        skipped += 1;
-      }
+      skipped += 1;
       continue;
     }
 

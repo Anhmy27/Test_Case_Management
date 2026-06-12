@@ -54,6 +54,8 @@ type Props = {
 
   canEditSelectedRun: boolean;
 
+  canEndSelectedRun?: boolean;
+
   canControlAutomationRun?: boolean;
 
   cancellingRun?: boolean;
@@ -122,6 +124,8 @@ export default function ExecutionScreen(props: Props) {
     endRun,
 
     canEditSelectedRun,
+
+    canEndSelectedRun = false,
 
     canControlAutomationRun = false,
 
@@ -232,8 +236,7 @@ export default function ExecutionScreen(props: Props) {
   const canEndRun =
     Boolean(selectedRun) &&
     String(selectedRun?.status || "") === "running" &&
-    runHasManual &&
-    canEditSelectedRun;
+    canEndSelectedRun;
 
   const showRunList = Array.isArray(adminRuns) && typeof onOpenRun === "function";
   const startedAtLabel = selectedRun?.startedAt
@@ -455,6 +458,16 @@ export default function ExecutionScreen(props: Props) {
                       Export CSV
                     </Button>
                   </>
+                ) : null}
+
+                {canEndRun ? (
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onClick={() => void handleEndRun()}
+                  >
+                    End run
+                  </Button>
                 ) : null}
 
               </div>

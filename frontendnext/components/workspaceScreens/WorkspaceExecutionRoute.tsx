@@ -216,6 +216,13 @@ function AdminWorkspaceExecutionRoute() {
         currentUser?.role === "admin" ||
         hasRunAssignments),
   );
+  const canEndSelectedRun = Boolean(
+    activeRun &&
+      activeRun.status === "running" &&
+      (String(getId(activeRun.startedBy) || "") === String(getId(currentUser) || "") ||
+        currentUser?.role === "admin" ||
+        hasRunAssignments),
+  );
   const canControlAutomationRun = Boolean(
     activeRun &&
       runHasAutomation &&
@@ -470,6 +477,7 @@ function AdminWorkspaceExecutionRoute() {
           updateResult={updateResult}
           endRun={endRun}
           canEditSelectedRun={canEditSelectedRun}
+          canEndSelectedRun={canEndSelectedRun}
           canControlAutomationRun={canControlAutomationRun}
           cancellingRun={cancellingRun}
           retryingRun={retryingRun}
@@ -655,6 +663,13 @@ function EmployeeWorkspaceExecutionRoute() {
     activeRun &&
       activeRun.status === "running" &&
       runHasManual &&
+      (String(getId(activeRun.startedBy) || "") === String(getId(currentUser) || "") ||
+        currentUser?.role === "admin" ||
+        hasRunAssignments),
+  );
+  const canEndSelectedRun = Boolean(
+    activeRun &&
+      activeRun.status === "running" &&
       (String(getId(activeRun.startedBy) || "") === String(getId(currentUser) || "") ||
         currentUser?.role === "admin" ||
         hasRunAssignments),
@@ -879,6 +894,7 @@ function EmployeeWorkspaceExecutionRoute() {
           updateResult={updateResult}
           endRun={endRun}
           canEditSelectedRun={canEditSelectedRun}
+          canEndSelectedRun={canEndSelectedRun}
           canControlAutomationRun={canControlAutomationRun}
           cancellingRun={cancellingRun}
           retryingRun={retryingRun}

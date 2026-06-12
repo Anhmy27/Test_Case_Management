@@ -52,16 +52,6 @@ const runHasAutomationCases = (results, testCaseMap) =>
 const isAutomationRunResult = (result, testCaseMap) =>
   isAutomationEnabledCase(testCaseMap.get(String(result?.testCase)));
 
-const maybeCompleteTestRun = async (testRun, executedBy) => {
-  const allDone = (testRun.results || []).every((result) => result.status !== 'untested');
-  if (allDone && testRun.status === 'running') {
-    testRun.status = 'completed';
-    testRun.endedAt = new Date();
-    testRun.endedBy = executedBy;
-  }
-  await testRun.save();
-};
-
 module.exports = {
   isAutomationEnabledCase,
   loadTestCaseMapForResults,
@@ -70,5 +60,4 @@ module.exports = {
   getPendingAutomationResultIds,
   runHasAutomationCases,
   isAutomationRunResult,
-  maybeCompleteTestRun,
 };

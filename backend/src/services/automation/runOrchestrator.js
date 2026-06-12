@@ -19,9 +19,6 @@ const { createAuthManager } = require('../auth/authManager');
 const { captureFailureScreenshot } = require('./failureScreenshotCapture');
 const { executeSingleCaseAutomation } = require('./singleCaseExecutor');
 const { assertAllowedBaseUrl } = require('../../utils/automationUrlPolicy');
-const {
-  maybeCompleteTestRun,
-} = require('../../utils/runAutomationPartition');
 
 const authManager = createAuthManager();
 
@@ -109,7 +106,7 @@ const finalizeCancelledRun = async (testRun, executedBy, allowedResultIds = null
   progress.currentCaseKey = '';
 
   testRun.markModified('automationProgress');
-  await maybeCompleteTestRun(testRun, executedBy);
+  await testRun.save();
 };
 
 const executeAutomationRun = async ({
@@ -171,7 +168,7 @@ const executeAutomationRun = async ({
       const message = 'Playwright is not installed. Run npm install in backend before executing automation.';
       const blocked = buildBlockedResults(testRun, message, executedBy, allowedResultIds);
       report.push(...blocked.report);
-      await maybeCompleteTestRun(testRun, executedBy);
+      await testRun.save();
       return { testRun, summary: buildSummaryFromResults(testRun.results), report };
     }
 
@@ -293,7 +290,7 @@ const executeAutomationRun = async ({
       currentCaseKey: '',
     });
 
-    await maybeCompleteTestRun(testRun, executedBy);
+    await testRun.save();
   } catch (error) {
     const fatalNote = error?.message || 'Automation runner failed to start';
 
@@ -320,7 +317,7 @@ const executeAutomationRun = async ({
       }
     }
 
-    await maybeCompleteTestRun(testRun, executedBy);
+    await testRun.save();
   } finally {
     if (browser) await browser.close().catch(() => {});
   }

@@ -32,7 +32,6 @@ const {
   getAutomationResultIds,
   runHasAutomationCases,
   isAutomationRunResult,
-  maybeCompleteTestRun,
 } = require('../utils/runAutomationPartition');
 
 const isValidHttpUrl = (value) => {
@@ -462,7 +461,6 @@ const updateRunResultService = async (runId, resultId, payload, user) => {
   result.executedAt = new Date();
   result.tester = user.id;
   await testRun.save();
-  await maybeCompleteTestRun(testRun, user.id);
   return { testRun };
 };
 
