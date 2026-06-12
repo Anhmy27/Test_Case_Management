@@ -1,30 +1,38 @@
-const { createArtifactStore } = require('./artifactStore');
+const { getArtifactStorage } = require('./artifactStorage');
+const { DRY_RUN_ARTIFACT_NAMESPACE } = require('../../config/automationArtifacts');
 
-const defaultArtifactStore = createArtifactStore();
+const defaultArtifactStorage = getArtifactStorage();
 
 const captureFailureScreenshot = async ({
   page,
   runId,
   resultId,
-  artifactStore = defaultArtifactStore,
+  artifactStorage = defaultArtifactStorage,
   fullPage = true,
 }) => {
   if (!page) {
-    return { relativePath: '', error: 'Browser page is not available' };
+    return { storageKey: '', error: 'Browser page is not available' };
   }
 
   try {
-    artifactStore.ensureResultDirectory({ runId, resultId });
-    const absolutePath = artifactStore.getFailureScreenshotAbsolutePath({ runId, resultId });
+    const storageKey = String(runId) === DRY_RUN_ARTIFACT_NAMESPACE
+      ? artifactStorage.buildDryRunFailureScreenshotKey(resultId)
+      : artifactStorage.buildRunFailureScreenshotKey(runId, resultId);
+
+    if (artifactStorage.driver !== 'local') {
+      throw new Error('Playwright screenshot capture requires local artifact storage');
+    }
+
+    const absolutePath = artifactStorage.ensureKeyDirectory(storageKey);
     await page.screenshot({ path: absolutePath, fullPage });
 
     return {
-      relativePath: artifactStore.toRelativePath(absolutePath),
+      storageKey,
       error: '',
     };
   } catch (error) {
     return {
-      relativePath: '',
+      storageKey: '',
       error: error?.message || 'Unable to capture failure screenshot',
     };
   }

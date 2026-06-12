@@ -13,10 +13,13 @@ const {
   getTestPlanStatsService,
   getTestPlanDetailService,
   cancelAutomationRunService,
-  retryFailedAutomationRunService,
+  retryFailedRunService,
   exportTestRunService,
 } = require('../services/testRunDashboardService');
-const { getRunResultFailureScreenshotService } = require('../services/testRunArtifactService');
+const {
+  getRunResultFailureScreenshotService,
+  uploadRunResultFailureScreenshotService,
+} = require('../services/testRunArtifactService');
 const {
   dryRunAutomationService,
   getDryRunFailureScreenshotService,
@@ -71,7 +74,7 @@ const cancelAutomationRun = asyncHandler(async (req, res) => {
 });
 
 const retryFailedAutomationRun = asyncHandler(async (req, res) => {
-  const result = await retryFailedAutomationRunService(
+  const result = await retryFailedRunService(
     req.params.runId,
     req.user,
     req.body?.baseUrl || '',
@@ -112,15 +115,31 @@ const exportTestRun = asyncHandler(async (req, res) => {
 });
 
 const getRunResultFailureScreenshot = asyncHandler(async (req, res) => {
-  const { absolutePath, contentType } = await getRunResultFailureScreenshotService(
+  const payload = await getRunResultFailureScreenshotService(
     req.params.runId,
     req.params.resultId,
     req.user,
   );
 
-  res.setHeader('Content-Type', contentType);
+  res.setHeader('Content-Type', payload.contentType);
   res.setHeader('Cache-Control', 'private, max-age=3600');
-  fs.createReadStream(absolutePath).pipe(res);
+
+  if (payload.stream) {
+    payload.stream.pipe(res);
+    return;
+  }
+
+  fs.createReadStream(payload.absolutePath).pipe(res);
+});
+
+const uploadRunResultFailureScreenshot = asyncHandler(async (req, res) => {
+  const result = await uploadRunResultFailureScreenshotService(
+    req.params.runId,
+    req.params.resultId,
+    req.user,
+    req.file,
+  );
+  res.json(result);
 });
 
 const dryRunAutomation = asyncHandler(async (req, res) => {
@@ -134,11 +153,17 @@ const dryRunAutomation = asyncHandler(async (req, res) => {
 });
 
 const getDryRunFailureScreenshot = asyncHandler(async (req, res) => {
-  const { absolutePath, contentType } = await getDryRunFailureScreenshotService(req.params.dryRunId);
+  const payload = await getDryRunFailureScreenshotService(req.params.dryRunId);
 
-  res.setHeader('Content-Type', contentType);
+  res.setHeader('Content-Type', payload.contentType);
   res.setHeader('Cache-Control', 'private, max-age=3600');
-  fs.createReadStream(absolutePath).pipe(res);
+
+  if (payload.stream) {
+    payload.stream.pipe(res);
+    return;
+  }
+
+  fs.createReadStream(payload.absolutePath).pipe(res);
 });
 
 module.exports = {
@@ -157,6 +182,7 @@ module.exports = {
   getTestPlanDetail,
   exportTestRun,
   getRunResultFailureScreenshot,
+  uploadRunResultFailureScreenshot,
   dryRunAutomation,
   getDryRunFailureScreenshot,
 };

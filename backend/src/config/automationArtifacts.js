@@ -2,8 +2,15 @@ const path = require('path');
 
 const ARTIFACT_ROOT_DIR = path.resolve(
   process.cwd(),
-  String(process.env.ARTIFACT_ROOT_DIR || 'uploads/runs').trim() || 'uploads/runs',
+  String(process.env.ARTIFACT_ROOT_DIR || 'uploads/artifacts').trim() || 'uploads/artifacts',
 );
+
+const LEGACY_ARTIFACT_RUN_ROOT = path.resolve(
+  process.cwd(),
+  String(process.env.LEGACY_ARTIFACT_RUN_ROOT || 'uploads/runs').trim() || 'uploads/runs',
+);
+
+const ARTIFACT_STORAGE_DRIVER = String(process.env.ARTIFACT_STORAGE || 'local').trim().toLowerCase();
 
 const AUTOMATION_UPLOAD_DIR = path.resolve(
   process.cwd(),
@@ -21,6 +28,8 @@ const getArtifactRetentionConfig = () => ({
 
 module.exports = {
   ARTIFACT_ROOT_DIR,
+  LEGACY_ARTIFACT_RUN_ROOT,
+  ARTIFACT_STORAGE_DRIVER,
   AUTOMATION_UPLOAD_DIR,
   DRY_RUN_ARTIFACT_NAMESPACE,
   FAILURE_SCREENSHOT_FILENAME,

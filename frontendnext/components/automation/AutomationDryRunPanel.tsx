@@ -36,7 +36,7 @@ export default function AutomationDryRunPanel({
   }, [testCaseId, automationForm.baseUrl]);
 
   useEffect(() => {
-    if (!result || result.status !== "fail" || !hasFailureScreenshot(result.failureScreenshot) || !token) {
+    if (!result || result.status !== "fail" || !hasFailureScreenshot(result.failureScreenshot)) {
       setScreenshotSrc(null);
       setScreenshotError("");
       return;
@@ -52,7 +52,6 @@ export default function AutomationDryRunPanel({
       try {
         const nextObjectUrl = await fetchDryRunFailureScreenshot({
           dryRunId: result.dryRunId,
-          token,
         });
         if (cancelled) {
           URL.revokeObjectURL(nextObjectUrl);
@@ -80,7 +79,7 @@ export default function AutomationDryRunPanel({
         URL.revokeObjectURL(objectUrl);
       }
     };
-  }, [result, token]);
+  }, [result]);
 
   const handleDryRun = async () => {
     setRunning(true);

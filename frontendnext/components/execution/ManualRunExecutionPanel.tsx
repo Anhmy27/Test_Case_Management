@@ -5,8 +5,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { getEndRunPolicy, setEndRunPolicy, summarizeRunResults, getId, type EndRunPolicy } from "@/lib/api";
 import type { Dispatch, SetStateAction } from "react";
 import { ConfirmDialog, StatusBadge } from "../workspaceScreens/shared";
+import CaseHistoryButton from "./CaseHistoryButton";
+import FailureScreenshot from "./FailureScreenshot";
 
 type RecordAny = Record<string, any>;
+
+export type ExecutionQueueFilter = "all" | "pending" | "failed" | "passed" | "blocked" | "skip";
 
 interface ManualRunExecutionPanelProps {
   selectedRun: RecordAny | null;
@@ -24,8 +28,14 @@ interface ManualRunExecutionPanelProps {
   ) => void;
   onEndRun: () => void | Promise<void>;
   canEditRun: boolean;
+  canUploadFailureScreenshot?: boolean;
   canEndRun?: boolean;
   onLogBug?: (run: RecordAny, result: RecordAny) => void;
+  queueFilter: ExecutionQueueFilter;
+  onQueueFilterChange: (filter: ExecutionQueueFilter) => void;
+  onExportRun?: (runId: string, format?: "xlsx" | "csv") => Promise<void>;
+  onOpenPlanInsights?: () => void;
+  onScreenshotUploaded?: () => void | Promise<void>;
 }
 
 export default function ManualRunExecutionPanel({
@@ -39,13 +49,20 @@ export default function ManualRunExecutionPanel({
   onUpdateResult,
   onEndRun,
   canEditRun,
+  canUploadFailureScreenshot = false,
   canEndRun = false,
   onLogBug,
+  queueFilter,
+  onQueueFilterChange,
+  onExportRun,
+  onOpenPlanInsights,
+  onScreenshotUploaded,
 }: ManualRunExecutionPanelProps) {
-  const [queueFilter, setQueueFilter] = useState<"all" | "pending" | "failed" | "passed" | "blocked" | "skip">("all");
   const [queueSearch, setQueueSearch] = useState("");
   const [showEndRunDialog, setShowEndRunDialog] = useState(false);
   const [endRunPolicy, setEndRunPolicyState] = useState<EndRunPolicy>("flexible");
+  const [exportAfterEnd, setExportAfterEnd] = useState(false);
+  const [insightsAfterEnd, setInsightsAfterEnd] = useState(false);
 
   const getExpectedResultText = (testCase: RecordAny) => {
     const overall = String(testCase?.expected || "").trim();
@@ -66,6 +83,16 @@ export default function ManualRunExecutionPanel({
   };
 
   const currentIndex = myItems.findIndex((item: RecordAny) => getId(item) === selectedItemId);
+  const hasFailedCase = myItems.some((item: RecordAny) => String(item.status || "") === "fail");
+  const nextFailedItem = useMemo(() => {
+    if (!hasFailedCase) return undefined;
+    if (currentIndex >= 0) {
+      const after = myItems.slice(currentIndex + 1).find((item: RecordAny) => String(item.status || "") === "fail");
+      if (after) return after;
+      return myItems.slice(0, currentIndex).find((item: RecordAny) => String(item.status || "") === "fail");
+    }
+    return myItems.find((item: RecordAny) => String(item.status || "") === "fail");
+  }, [currentIndex, hasFailedCase, myItems]);
   const nextItem = currentIndex >= 0
     ? myItems.slice(currentIndex + 1).find((item: RecordAny) => item.status !== "pass") || myItems[currentIndex + 1]
     : undefined;
@@ -81,6 +108,26 @@ export default function ManualRunExecutionPanel({
     (selectedRun?.status === "running" || selectedRun?.status === "completed") &&
     selectedItem?.status === "fail";
   const strictEndBlocked = endRunPolicy === "strict" && summary.untested > 0;
+
+  const queueCounts = useMemo(() => {
+    const counts = {
+      all: myItems.length,
+      pending: 0,
+      failed: 0,
+      passed: 0,
+      blocked: 0,
+      skip: 0,
+    };
+    myItems.forEach((item: RecordAny) => {
+      const status = String(item.status || "untested");
+      if (status === "untested") counts.pending += 1;
+      else if (status === "fail") counts.failed += 1;
+      else if (status === "pass") counts.passed += 1;
+      else if (status === "blocked") counts.blocked += 1;
+      else if (status === "skip") counts.skip += 1;
+    });
+    return counts;
+  }, [myItems]);
 
   const queueItems = useMemo(() => {
     const normalized = queueSearch.trim().toLowerCase();
@@ -159,7 +206,7 @@ export default function ManualRunExecutionPanel({
 
   return (
     <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)_320px]">
-      <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <section id="execution-queue-panel" className="rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-4 py-4">
           <div className="text-sm font-semibold text-slate-900">Execution queue</div>
           <div className="text-xs text-slate-500">Navigate by status and search</div>
@@ -180,9 +227,9 @@ export default function ManualRunExecutionPanel({
                     ? "rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white"
                     : "rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600"
                 }
-                onClick={() => setQueueFilter(tab.key as typeof queueFilter)}
+                onClick={() => onQueueFilterChange(tab.key as ExecutionQueueFilter)}
               >
-                {tab.label}
+                {tab.label} ({queueCounts[tab.key as keyof typeof queueCounts]})
               </button>
             ))}
           </div>
@@ -192,6 +239,14 @@ export default function ManualRunExecutionPanel({
             placeholder="Search case"
             className="mt-3 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
           />
+          <button
+            type="button"
+            disabled={!nextFailedItem}
+            onClick={() => nextFailedItem && setSelectedItemId(getId(nextFailedItem))}
+            className="mt-2 w-full rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Next failed
+          </button>
         </div>
         <div className="max-h-[520px] overflow-auto">
           {queueItems.length === 0 ? (
@@ -242,6 +297,10 @@ export default function ManualRunExecutionPanel({
               <div className="text-sm text-slate-600">
                 {selectedItem.testCase?.description || "No description"}
               </div>
+              <CaseHistoryButton
+                testCase={selectedItem.testCase}
+                projectId={getId(selectedRun?.project) || undefined}
+              />
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -313,6 +372,17 @@ export default function ManualRunExecutionPanel({
                 />
               </label>
             </div>
+
+            {selectedRun && getId(selectedRun) && getId(selectedItem) ? (
+              <FailureScreenshot
+                runId={getId(selectedRun)}
+                resultId={getId(selectedItem)}
+                failureScreenshot={selectedItem.failureScreenshot}
+                status={String(selectedItem.status || "")}
+                canUpload={canUploadFailureScreenshot}
+                onUploaded={() => void onScreenshotUploaded?.()}
+              />
+            ) : null}
           </div>
         )}
       </section>
@@ -357,14 +427,19 @@ export default function ManualRunExecutionPanel({
                 <div className="text-xs text-slate-500">No recent updates.</div>
               ) : (
                 recentActivity.map((item: RecordAny) => (
-                  <div key={String(getId(item))} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                  <button
+                    key={String(getId(item))}
+                    type="button"
+                    className="flex w-full flex-col rounded-lg border border-slate-200 bg-white px-3 py-2 text-left transition hover:border-slate-300 hover:bg-slate-50"
+                    onClick={() => setSelectedItemId(getId(item))}
+                  >
                     <div className="text-xs font-semibold text-slate-700">
                       {item.testCase?.caseKey || "TC"}
                     </div>
                     <div className="text-xs text-slate-500">
                       <StatusBadge status={String(item.status || "untested")} /> · {new Date(item.executedAt || item.updatedAt || 0).toLocaleString()}
                     </div>
-                  </div>
+                  </button>
                 ))
               )}
             </div>
@@ -402,7 +477,7 @@ export default function ManualRunExecutionPanel({
                 }}
                 disabled={!canEditRun}
               >
-                Pass
+                Pass (1)
               </button>
               <button
                 type="button"
@@ -414,7 +489,7 @@ export default function ManualRunExecutionPanel({
                 }}
                 disabled={!canEditRun}
               >
-                Fail
+                Fail (2)
               </button>
               <button
                 type="button"
@@ -426,7 +501,7 @@ export default function ManualRunExecutionPanel({
                 }}
                 disabled={!canEditRun}
               >
-                Blocked
+                Blocked (3)
               </button>
               <button
                 type="button"
@@ -438,7 +513,7 @@ export default function ManualRunExecutionPanel({
                 }}
                 disabled={!canEditRun}
               >
-                Skip
+                Skip (4)
               </button>
             </div>
             <div className="flex items-center gap-2">
@@ -474,9 +549,18 @@ export default function ManualRunExecutionPanel({
         confirmVariant="danger"
         confirmDisabled={strictEndBlocked}
         onCancel={() => setShowEndRunDialog(false)}
-        onConfirm={() => {
+        onConfirm={async () => {
+          const shouldExport = exportAfterEnd;
+          const shouldInsights = insightsAfterEnd;
           setShowEndRunDialog(false);
-          void onEndRun();
+          await onEndRun();
+          const runId = selectedRun ? getId(selectedRun) : "";
+          if (shouldExport && onExportRun && runId) {
+            await onExportRun(runId, "xlsx");
+          }
+          if (shouldInsights && onOpenPlanInsights) {
+            onOpenPlanInsights();
+          }
         }}
       >
         <div className="space-y-3 text-sm text-slate-700">
@@ -487,6 +571,31 @@ export default function ManualRunExecutionPanel({
             <div>Skip: <strong>{summary.skip}</strong></div>
             <div className="col-span-2">Untested: <strong>{summary.untested}</strong></div>
           </div>
+          {onExportRun || onOpenPlanInsights ? (
+            <div className="space-y-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+              <div className="font-semibold text-slate-700">Sau khi kết thúc</div>
+              {onExportRun ? (
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={exportAfterEnd}
+                    onChange={(event) => setExportAfterEnd(event.target.checked)}
+                  />
+                  Export XLSX
+                </label>
+              ) : null}
+              {onOpenPlanInsights ? (
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={insightsAfterEnd}
+                    onChange={(event) => setInsightsAfterEnd(event.target.checked)}
+                  />
+                  Open plan insights
+                </label>
+              ) : null}
+            </div>
+          ) : null}
           {summary.untested > 0 ? (
             <div className={`rounded-lg border px-3 py-2 text-xs ${strictEndBlocked ? "border-rose-200 bg-rose-50 text-rose-800" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
               {strictEndBlocked

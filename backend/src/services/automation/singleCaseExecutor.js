@@ -61,8 +61,8 @@ const executeSingleCaseAutomation = async ({
 
       if (typeof captureFailureScreenshot === 'function') {
         const screenshotCapture = await captureFailureScreenshot(page);
-        if (screenshotCapture.relativePath) {
-          failureScreenshot = screenshotCapture.relativePath;
+        if (screenshotCapture.storageKey) {
+          failureScreenshot = screenshotCapture.storageKey;
           logLines.push(`Failure screenshot saved: ${failureScreenshot}`);
         } else if (screenshotCapture.error) {
           logLines.push(`Failure screenshot capture failed: ${screenshotCapture.error}`);

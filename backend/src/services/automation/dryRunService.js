@@ -11,22 +11,20 @@ try {
 }
 
 const crypto = require('crypto');
-const fs = require('fs');
 const TestCase = require('../../models/TestCase');
 const { httpError } = require('../../utils/httpError');
 const { toObjectId } = require('../../utils/entityResolvers');
 const { createAuthManager } = require('../auth/authManager');
 const { executeSingleCaseAutomation } = require('./singleCaseExecutor');
 const { captureFailureScreenshot } = require('./failureScreenshotCapture');
-const { createArtifactStore } = require('./artifactStore');
+const { getArtifactStorage } = require('./artifactStorage');
 const { assertAllowedBaseUrl } = require('../../utils/automationUrlPolicy');
 const {
   DRY_RUN_ARTIFACT_NAMESPACE,
-  FAILURE_SCREENSHOT_CONTENT_TYPE,
 } = require('../../config/automationArtifacts');
 
 const authManager = createAuthManager();
-const artifactStore = createArtifactStore();
+const artifactStorage = getArtifactStorage();
 
 const normalizeAutomationSteps = (steps) => {
   if (!Array.isArray(steps)) {
@@ -192,18 +190,25 @@ const getDryRunFailureScreenshotService = async (dryRunId) => {
     throw httpError(400, 'dryRunId is required');
   }
 
-  const absolutePath = artifactStore.getFailureScreenshotAbsolutePath({
-    runId: DRY_RUN_ARTIFACT_NAMESPACE,
-    resultId: normalizedId,
-  });
+  const storageKey = artifactStorage.buildDryRunFailureScreenshotKey(normalizedId);
+  const contentType = artifactStorage.getContentType(storageKey);
 
-  if (!fs.existsSync(absolutePath)) {
+  if (artifactStorage.driver === 's3') {
+    const payload = await artifactStorage.getReadablePayload(storageKey);
+    return {
+      stream: payload.stream,
+      contentType: payload.contentType || contentType,
+    };
+  }
+
+  const absolutePath = artifactStorage.resolveReadablePath(storageKey);
+  if (!absolutePath) {
     throw httpError(404, 'Dry run screenshot not found');
   }
 
   return {
     absolutePath,
-    contentType: FAILURE_SCREENSHOT_CONTENT_TYPE,
+    contentType,
   };
 };
 

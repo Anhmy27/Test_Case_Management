@@ -2,9 +2,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useMemo, useState } from "react";
-import FailureScreenshot from "./FailureScreenshot";
-import { formatAutomationLiveProgress, getAutomationRunProgress, getId, summarizeRunResults } from "@/lib/api";
 import type { Dispatch, SetStateAction } from "react";
+import FailureScreenshot from "./FailureScreenshot";
+import CaseHistoryButton from "./CaseHistoryButton";
+import { formatAutomationLiveProgress, getAutomationRunProgress, getId, summarizeRunResults } from "@/lib/api";
+import type { ExecutionQueueFilter } from "./ManualRunExecutionPanel";
 import { StatusBadge } from "../workspaceScreens/shared";
 
 type RecordAny = Record<string, any>;
@@ -17,13 +19,14 @@ interface AutomationRunExecutionPanelProps {
   selectedItem?: RecordAny;
   notes: Record<string, string>;
   setNotes: Dispatch<SetStateAction<Record<string, string>>>;
-  token: string;
   canControlRun?: boolean;
   cancellingRun?: boolean;
   retryingRun?: boolean;
   onCancelRun?: () => Promise<void>;
   onRetryFailed?: () => Promise<void>;
   onLogBug?: (run: RecordAny, result: RecordAny) => void;
+  queueFilter: ExecutionQueueFilter;
+  onQueueFilterChange: (filter: ExecutionQueueFilter) => void;
 }
 
 export default function AutomationRunExecutionPanel({
@@ -34,15 +37,15 @@ export default function AutomationRunExecutionPanel({
   selectedItem,
   notes,
   setNotes,
-  token,
   canControlRun = false,
   cancellingRun = false,
   retryingRun = false,
   onCancelRun,
   onRetryFailed,
   onLogBug,
+  queueFilter,
+  onQueueFilterChange,
 }: AutomationRunExecutionPanelProps) {
-  const [queueFilter, setQueueFilter] = useState<"all" | "pending" | "failed" | "passed" | "blocked">("all");
   const [queueSearch, setQueueSearch] = useState("");
   const canLogBug =
     (selectedRun?.status === "running" || selectedRun?.status === "completed") &&
@@ -60,6 +63,24 @@ export default function AutomationRunExecutionPanel({
 
   const summary = useMemo(() => summarizeRunResults(myItems), [myItems]);
 
+  const queueCounts = useMemo(() => {
+    const counts = {
+      all: myItems.length,
+      pending: 0,
+      failed: 0,
+      passed: 0,
+      blocked: 0,
+    };
+    myItems.forEach((item: RecordAny) => {
+      const status = String(item.status || "untested");
+      if (["untested", "skip"].includes(status)) counts.pending += 1;
+      else if (status === "fail") counts.failed += 1;
+      else if (status === "pass") counts.passed += 1;
+      else if (status === "blocked") counts.blocked += 1;
+    });
+    return counts;
+  }, [myItems]);
+
   const queueItems = useMemo(() => {
     const normalized = queueSearch.trim().toLowerCase();
     return myItems.filter((item: RecordAny) => {
@@ -68,6 +89,7 @@ export default function AutomationRunExecutionPanel({
       if (queueFilter === "failed" && status !== "fail") return false;
       if (queueFilter === "passed" && status !== "pass") return false;
       if (queueFilter === "blocked" && status !== "blocked") return false;
+      if (queueFilter === "skip" && status !== "skip") return false;
       if (!normalized) return true;
       const key = String(item.testCase?.caseKey || "").toLowerCase();
       const title = String(item.testCase?.title || "").toLowerCase();
@@ -92,9 +114,21 @@ export default function AutomationRunExecutionPanel({
   );
   const canRetryFailed = runIsCompleted && summary.fail > 0 && canControlRun;
 
+  const currentIndex = myItems.findIndex((item: RecordAny) => getId(item) === selectedItemId);
+  const hasFailedCase = myItems.some((item: RecordAny) => String(item.status || "") === "fail");
+  const nextFailedItem = useMemo(() => {
+    if (!hasFailedCase) return undefined;
+    if (currentIndex >= 0) {
+      const after = myItems.slice(currentIndex + 1).find((item: RecordAny) => String(item.status || "") === "fail");
+      if (after) return after;
+      return myItems.slice(0, currentIndex).find((item: RecordAny) => String(item.status || "") === "fail");
+    }
+    return myItems.find((item: RecordAny) => String(item.status || "") === "fail");
+  }, [currentIndex, hasFailedCase, myItems]);
+
   return (
     <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)_320px]">
-      <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <section id="execution-queue-panel" className="rounded-2xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-4 py-4">
           <div className="text-sm font-semibold text-slate-900">Hàng đợi chạy</div>
           <div className="text-xs text-slate-500">Xem kết quả automation (chỉ đọc)</div>
@@ -114,9 +148,9 @@ export default function AutomationRunExecutionPanel({
                     ? "rounded-full bg-slate-900 px-3 py-1 text-xs font-semibold text-white"
                     : "rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600"
                 }
-                onClick={() => setQueueFilter(tab.key as typeof queueFilter)}
+                onClick={() => onQueueFilterChange(tab.key as ExecutionQueueFilter)}
               >
-                {tab.label}
+                {tab.label} ({queueCounts[tab.key as keyof typeof queueCounts]})
               </button>
             ))}
           </div>
@@ -126,6 +160,14 @@ export default function AutomationRunExecutionPanel({
             placeholder="Tìm case key hoặc title"
             className="mt-3 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
           />
+          <button
+            type="button"
+            disabled={!nextFailedItem}
+            onClick={() => nextFailedItem && setSelectedItemId(getId(nextFailedItem))}
+            className="mt-2 w-full rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Next failed
+          </button>
         </div>
         <div className="max-h-[520px] overflow-auto">
           {queueItems.length === 0 ? (
@@ -178,6 +220,10 @@ export default function AutomationRunExecutionPanel({
               <div className="text-sm text-slate-600">
                 {selectedItem.testCase?.description || "No description"}
               </div>
+              <CaseHistoryButton
+                testCase={selectedItem.testCase}
+                projectId={getId(selectedRun?.project) || undefined}
+              />
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
@@ -252,7 +298,6 @@ export default function AutomationRunExecutionPanel({
                 resultId={getId(selectedItem)}
                 failureScreenshot={selectedItem.failureScreenshot}
                 status={String(selectedItem.status || "")}
-                token={token}
               />
             ) : null}
 
@@ -370,14 +415,19 @@ export default function AutomationRunExecutionPanel({
                 <div className="text-xs text-slate-500">Chưa có cập nhật nào.</div>
               ) : (
                 recentActivity.map((item: RecordAny) => (
-                  <div key={String(getId(item))} className="rounded-lg border border-slate-200 bg-white px-3 py-2">
+                  <button
+                    key={String(getId(item))}
+                    type="button"
+                    className="flex w-full flex-col rounded-lg border border-slate-200 bg-white px-3 py-2 text-left transition hover:border-slate-300 hover:bg-slate-50"
+                    onClick={() => setSelectedItemId(getId(item))}
+                  >
                     <div className="text-xs font-semibold text-slate-700">
                       {item.testCase?.caseKey || "TC"}
                     </div>
                     <div className="text-xs text-slate-500">
                       {item.status} · {new Date(item.executedAt || item.updatedAt || Date.now()).toLocaleString()}
                     </div>
-                  </div>
+                  </button>
                 ))
               )}
             </div>

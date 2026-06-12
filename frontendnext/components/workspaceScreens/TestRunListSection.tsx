@@ -2,7 +2,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button, DataTable, FilterBar, INPUT_CLS, SectionCard, StatusBadge } from "./shared";
 import { createTextMatcher, formatRunProgressPercent, getRunListActionLabel, getId } from "@/lib/api";
 
@@ -15,6 +15,7 @@ type Props = {
   onOpenRun: (runId: string) => void;
   onExportRun?: (runId: string, format?: "xlsx" | "csv") => Promise<void>;
   activeRunId?: string;
+  initialPlanFilter?: string;
 };
 
 export default function TestRunListSection({
@@ -24,11 +25,16 @@ export default function TestRunListSection({
   onOpenRun,
   onExportRun,
   activeRunId = "",
+  initialPlanFilter = "",
 }: Props) {
   const [searchTerm, setSearchTerm] = useState("");
-  const [planFilter, setPlanFilter] = useState("");
+  const [planFilter, setPlanFilter] = useState(initialPlanFilter);
   const [startedByFilter, setStartedByFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+
+  useEffect(() => {
+    setPlanFilter(initialPlanFilter);
+  }, [initialPlanFilter]);
 
   const planOptions = useMemo(
     () =>
@@ -57,7 +63,11 @@ export default function TestRunListSection({
     const startedById = getId(run.startedBy) || "";
     if (planFilter && runPlanId !== planFilter) return false;
     if (startedByFilter && startedById !== startedByFilter) return false;
-    if (statusFilter && String(run.status || "") !== statusFilter) return false;
+    if (statusFilter && statusFilter !== "has_failures" && String(run.status || "") !== statusFilter) return false;
+    if (statusFilter === "has_failures") {
+      const failCount = Number(run.failCount ?? 0);
+      if (failCount <= 0) return false;
+    }
     return matchText(
       run.name,
       run.project?.name,
@@ -98,12 +108,23 @@ export default function TestRunListSection({
           <option value="">All statuses</option>
           <option value="running">Running</option>
           <option value="completed">Completed</option>
+          <option value="has_failures">Has failures</option>
         </select>
       </FilterBar>
 
       <div className="mt-4">
         <DataTable
           columns={["Run", "Project", "Version", "Plan", "Progress", "Started by", "Status", "Action"]}
+          getRowProps={(index) => {
+            const run = filteredRuns[index];
+            const runId = run ? getId(run) : "";
+            if (!runId) return {};
+            return {
+              onDoubleClick: () => onOpenRun(runId),
+              title: "Double-click to open run",
+              className: "cursor-default",
+            };
+          }}
           rows={filteredRuns.map((run: RecordAny) => {
             const runId = getId(run);
             const isActive = Boolean(activeRunId && runId === activeRunId);

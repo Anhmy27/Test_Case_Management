@@ -17,6 +17,7 @@ const {
   isPlanAssignedToUser,
   resolvePlanItemAssignment,
   findTestPlanByReference,
+  findTestPlanSnapshotForRun,
   getTestPlanVersionIds,
   findLatestTestCaseByReference,
   findProjectByReference,
@@ -342,6 +343,8 @@ const listTestRunsService = async ({ projectId, versionId, status }, user) => {
       executedResults: progressSummary.done,
       doneResults: progressSummary.done,
       untestedResults: progressSummary.untested,
+      failCount: progressSummary.fail,
+      passCount: progressSummary.pass,
     });
   }
 
@@ -376,7 +379,7 @@ const getMyRunItemsService = async (runId, user) => {
   const [project, version, plan] = await Promise.all([
     findProjectByReference(testRun.project),
     findVersionByReference(testRun.version),
-    findTestPlanByReference(testRun.testPlan),
+    findTestPlanSnapshotForRun(testRun.testPlanEntityId || testRun.testPlan),
   ]);
 
   return {
@@ -595,6 +598,105 @@ const retryFailedAutomationRunService = async (runId, user, baseUrl = '') => {
   };
 };
 
+const retryFailedManualRunService = async (runId, user) => {
+  const sourceRun = await TestRun.findById(toObjectId(runId, 'runId'));
+  if (!sourceRun) throw httpError(404, 'Test run not found');
+  if (sourceRun.status !== 'completed') {
+    throw httpError(400, 'Only completed runs can retry failed cases');
+  }
+
+  const planSnapshot = await findTestPlanSnapshotForRun(
+    sourceRun.testPlanEntityId || sourceRun.testPlan,
+  );
+  if (!planSnapshot) throw httpError(404, 'Test plan not found');
+  if (planSnapshot.executionMode === 'automation') {
+    throw httpError(400, 'Use automation retry for automation runs');
+  }
+
+  assertAutomationRunPermission(sourceRun, user);
+
+  const failedResults = sourceRun.results.filter((result) => result.status === 'fail');
+  if (failedResults.length === 0) {
+    throw httpError(400, 'No failed cases to retry');
+  }
+
+  const [resolvedProject, resolvedVersion] = await Promise.all([
+    findProjectByReference(sourceRun.project),
+    findVersionByReference(sourceRun.version),
+  ]);
+  if (!resolvedProject) throw httpError(404, 'Project not found');
+  if (!resolvedVersion) throw httpError(404, 'Version not found');
+
+  const testPlanEntityId = planSnapshot.entityId || planSnapshot._id;
+  const timestamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+  let retryName = `${sourceRun.name} retry ${timestamp}`.trim();
+  const relatedPlanIds = await getTestPlanVersionIds(planSnapshot);
+  let suffix = 1;
+  while (await TestRun.findOne({
+    name: retryName,
+    $or: [{ testPlanEntityId }, { testPlan: { $in: relatedPlanIds } }],
+  }).collation({ locale: 'en', strength: 2 }).lean()) {
+    suffix += 1;
+    retryName = `${sourceRun.name} retry ${timestamp} (${suffix})`;
+  }
+
+  const results = failedResults.map((item) => ({
+    planItemId: item.planItemId,
+    testCase: item.testCase,
+    group: item.group,
+    owner: item.owner,
+    assignees: item.assignees,
+    tester: item.tester,
+    status: 'untested',
+    note: '',
+  }));
+
+  const testRun = await TestRun.create({
+    name: retryName,
+    project: resolvedProject._id,
+    version: resolvedVersion._id,
+    testPlan: planSnapshot._id,
+    testPlanEntityId,
+    status: 'running',
+    startedAt: new Date(),
+    startedBy: user.id,
+    ownerSnapshot: sourceRun.ownerSnapshot || null,
+    assigneeSnapshot: sourceRun.assigneeSnapshot || [],
+    automationBaseUrl: '',
+    automationProgress: {
+      totalCases: results.length,
+      currentCaseIndex: 0,
+      currentStepIndex: 0,
+      currentStepTotal: 0,
+      currentCaseKey: '',
+      cancelRequested: false,
+    },
+    results,
+  });
+
+  const populatedRun = await TestRun.findById(testRun._id).lean();
+  const runPayload = await attachRunProjectAndVersion(await attachRunTestPlan(populatedRun));
+
+  return {
+    testRun: runPayload,
+    automationQueued: false,
+    retryCount: results.length,
+  };
+};
+
+const retryFailedRunService = async (runId, user, baseUrl = '') => {
+  const sourceRun = await TestRun.findById(toObjectId(runId, 'runId'));
+  if (!sourceRun) throw httpError(404, 'Test run not found');
+
+  const planSnapshot = await findTestPlanSnapshotForRun(
+    sourceRun.testPlanEntityId || sourceRun.testPlan,
+  );
+  if (planSnapshot?.executionMode === 'automation') {
+    return retryFailedAutomationRunService(runId, user, baseUrl);
+  }
+  return retryFailedManualRunService(runId, user);
+};
+
 const formatUserLabel = (userRef) => {
   if (!userRef) {
     return '';
@@ -693,5 +795,7 @@ module.exports = {
   endTestRunService,
   cancelAutomationRunService,
   retryFailedAutomationRunService,
+  retryFailedManualRunService,
+  retryFailedRunService,
   exportTestRunService,
 };

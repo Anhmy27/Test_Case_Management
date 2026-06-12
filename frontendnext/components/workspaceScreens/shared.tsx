@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { ReactNode } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 
 // ─── Form primitives ──────────────────────────────────────────────────────
 
@@ -387,12 +387,14 @@ export function DataTable({
   emptyText,
   pageSize = 15,
   enablePagination = true,
+  getRowProps,
 }: {
   columns: string[];
   rows: ReactNode[];
   emptyText: string;
   pageSize?: number;
   enablePagination?: boolean;
+  getRowProps?: (index: number) => HTMLAttributes<HTMLDivElement>;
 }) {
   const [currentPage, setCurrentPage] = useState(1);
   const colStyle = {
@@ -424,15 +426,20 @@ export function DataTable({
         <div className="px-4 py-12 text-center text-sm text-slate-400">{emptyText}</div>
       ) : (
         <div>
-          {visibleRows.map((row, i) => (
-            <div
-              key={i}
-              className="grid items-center gap-3 border-b border-slate-100 px-4 py-3 last:border-0 hover:bg-slate-50/70"
-              style={colStyle}
-            >
-              {row}
-            </div>
-          ))}
+          {visibleRows.map((row, i) => {
+            const rowIndex = enablePagination ? (safePage - 1) * pageSize + i : i;
+            const rowProps = getRowProps?.(rowIndex) || {};
+            return (
+              <div
+                key={i}
+                {...rowProps}
+                className={`grid items-center gap-3 border-b border-slate-100 px-4 py-3 last:border-0 hover:bg-slate-50/70 ${rowProps.className || ""}`}
+                style={colStyle}
+              >
+                {row}
+              </div>
+            );
+          })}
         </div>
       )}
 

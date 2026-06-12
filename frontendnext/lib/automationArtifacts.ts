@@ -56,13 +56,10 @@ async function fetchAuthenticatedScreenshot(path: string) {
 export async function fetchRunResultFailureScreenshot({
   runId,
   resultId,
-  token: _token,
 }: {
   runId: string;
   resultId: string;
-  token?: string;
 }) {
-  void _token;
   return fetchAuthenticatedScreenshot(runResultFailureScreenshotPath(runId, resultId));
 }
 
@@ -70,7 +67,47 @@ export async function fetchDryRunFailureScreenshot({
   dryRunId,
 }: {
   dryRunId: string;
-  token?: string;
 }) {
   return fetchAuthenticatedScreenshot(dryRunFailureScreenshotPath(dryRunId));
+}
+
+export async function uploadRunResultFailureScreenshot({
+  runId,
+  resultId,
+  file,
+}: {
+  runId: string;
+  resultId: string;
+  file: File;
+}) {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const headers: Record<string, string> = {};
+  const csrfToken = readBrowserCookie(CSRF_COOKIE);
+  if (csrfToken) {
+    headers[CSRF_HEADER] = csrfToken;
+  }
+
+  const response = await fetch(`${API_BASE}${runResultFailureScreenshotPath(runId, resultId)}`, {
+    method: "POST",
+    headers,
+    body: formData,
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    let message = "Không upload được screenshot";
+    try {
+      const payload = await response.json();
+      if (payload && typeof payload.message === "string" && payload.message.trim()) {
+        message = payload.message;
+      }
+    } catch {
+      // Ignore non-JSON error bodies.
+    }
+    throw new Error(message);
+  }
+
+  return response.json() as Promise<{ failureScreenshot?: string }>;
 }

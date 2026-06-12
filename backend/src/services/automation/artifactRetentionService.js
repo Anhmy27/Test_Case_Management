@@ -3,9 +3,11 @@ const path = require('path');
 const TestRun = require('../../models/TestRun');
 const {
   ARTIFACT_ROOT_DIR,
+  LEGACY_ARTIFACT_RUN_ROOT,
   DRY_RUN_ARTIFACT_NAMESPACE,
   getArtifactRetentionConfig,
 } = require('../../config/automationArtifacts');
+const { RUNS_PREFIX } = require('./artifactKeys');
 
 const ensureDirectory = (dirPath) => {
   if (!fs.existsSync(dirPath)) {
@@ -64,12 +66,18 @@ const cleanupCompletedRunArtifacts = async (retentionDays) => {
   let removed = 0;
 
   for (const run of completedRuns) {
-    const runDir = path.join(ARTIFACT_ROOT_DIR, String(run._id));
+    const runDir = path.join(ARTIFACT_ROOT_DIR, RUNS_PREFIX, String(run._id));
     if (!isPathInsideRoot(runDir, ARTIFACT_ROOT_DIR)) {
       continue;
     }
 
     if (removeDirectoryIfExists(runDir)) {
+      removed += 1;
+      continue;
+    }
+
+    const legacyRunDir = path.join(LEGACY_ARTIFACT_RUN_ROOT, String(run._id));
+    if (isPathInsideRoot(legacyRunDir, LEGACY_ARTIFACT_RUN_ROOT) && removeDirectoryIfExists(legacyRunDir)) {
       removed += 1;
     }
   }

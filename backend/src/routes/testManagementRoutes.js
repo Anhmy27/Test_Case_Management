@@ -65,6 +65,7 @@ const {
   exportTestRun,
   applyAutomationResults,
   getRunResultFailureScreenshot,
+  uploadRunResultFailureScreenshot,
   cancelAutomationRun,
   retryFailedAutomationRun,
   dryRunAutomation,
@@ -131,6 +132,8 @@ const ALLOWED_IMPORT_MIME_TYPES = new Set([
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 ]);
 const ALLOWED_IMPORT_EXTENSIONS = new Set(['.xls', '.xlsx']);
+const MAX_SCREENSHOT_FILE_SIZE = 5 * 1024 * 1024;
+const ALLOWED_SCREENSHOT_MIME_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp']);
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -147,6 +150,19 @@ const upload = multer({
     }
 
     cb(httpError(400, 'Only Excel files (.xls, .xlsx) are allowed'));
+  },
+});
+
+const screenshotUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_SCREENSHOT_FILE_SIZE },
+  fileFilter: (req, file, cb) => {
+    const mime = String(file?.mimetype || '').toLowerCase();
+    if (ALLOWED_SCREENSHOT_MIME_TYPES.has(mime)) {
+      cb(null, true);
+      return;
+    }
+    cb(httpError(400, 'Screenshot must be PNG, JPEG, or WebP'));
   },
 });
 
@@ -215,6 +231,7 @@ router.patch('/test-runs/:runId/end', authorize('admin', 'employee'), validateRe
 router.get('/test-runs/:runId/export', authorize('admin', 'employee'), validateRequest({ paramsSchema: runIdParamsSchema, querySchema: exportTestRunQuerySchema }), exportTestRun);
 router.get('/test-runs/:runId/my-items', validateRequest({ paramsSchema: runIdParamsSchema }), getMyRunItems);
 router.get('/test-runs/:runId/results/:resultId/failure-screenshot', authorize('admin', 'employee'), validateRequest({ paramsSchema: runResultParamsSchema }), getRunResultFailureScreenshot);
+router.post('/test-runs/:runId/results/:resultId/failure-screenshot', authorize('admin', 'employee'), screenshotUpload.single('file'), validateRequest({ paramsSchema: runResultParamsSchema }), uploadRunResultFailureScreenshot);
 router.patch('/test-runs/:runId/results/:resultId', validateRequest({ paramsSchema: runResultParamsSchema, bodySchema: updateRunResultBodySchema }), updateRunResult);
 
 router.post('/automation/dry-run', authorize('admin'), validateRequest({ bodySchema: dryRunAutomationBodySchema }), dryRunAutomation);

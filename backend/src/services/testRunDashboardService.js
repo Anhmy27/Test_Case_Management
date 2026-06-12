@@ -607,12 +607,28 @@ const buildCaseRunTimeline = (runs, caseEntityId, refToEntityId) => runs.map((ru
 
 const getTestPlanDetailService = async (testPlanId) => {
   const planRef = toObjectId(testPlanId, 'testPlanId');
-  const testPlan = await TestPlan.findOne({
+  let testPlan = await TestPlan.findOne({
     $and: [
       { $or: [{ entityId: planRef }, { _id: planRef }] },
       activeLatestFilter(),
     ],
   }).lean();
+
+  if (!testPlan) {
+    const snapshot = await TestPlan.findOne({
+      deletedAt: null,
+      $or: [{ entityId: planRef }, { _id: planRef }],
+    }).lean();
+    if (snapshot) {
+      const entityId = snapshot.entityId || snapshot._id;
+      testPlan = await TestPlan.findOne({
+        $and: [
+          { entityId },
+          activeLatestFilter(),
+        ],
+      }).lean();
+    }
+  }
 
   if (!testPlan) {
     return {
@@ -795,7 +811,7 @@ const {
   updateRunResultService,
   endTestRunService,
   cancelAutomationRunService,
-  retryFailedAutomationRunService,
+  retryFailedRunService,
   exportTestRunService,
 } = require('./testRunLifecycleService');
 
@@ -808,7 +824,7 @@ module.exports = {
   updateRunResultService,
   endTestRunService,
   cancelAutomationRunService,
-  retryFailedAutomationRunService,
+  retryFailedRunService,
   exportTestRunService,
   // dashboard
   getDashboardService,

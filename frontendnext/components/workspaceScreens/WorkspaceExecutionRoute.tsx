@@ -7,7 +7,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import ExecutionScreen from "@/components/workspaceScreens/ExecutionScreen";
 import { useAdminWorkspace, useEmployeeWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
 import { WorkspaceContentSkeleton, TOPBAR_INPUT_CLS } from "@/components/workspaceScreens/shared";
-import { apiRequest, downloadTestRunExport, formatAutomationRunMessage, getId, resolveStartRunPayload, summarizeAutomationResults, userName } from "@/lib/api";
+import { apiRequest, buildDefaultRunName, downloadTestRunExport, formatAutomationRunMessage, getId, resolveStartRunPayload, summarizeAutomationResults, userName } from "@/lib/api";
+import AdminTestPlanInsightsModal from "@/components/workspaceScreens/AdminTestPlanInsightsModal";
 import {
   buildEmployeeTopbar,
   useEmployeeProjectScope,
@@ -52,7 +53,6 @@ function AdminWorkspaceExecutionRoute() {
   const fromInsightsPlanName = String(searchParams.get("fromInsightsPlanName") || "").trim();
   const adminExecutionPath = "/workspace/admin/test-runs-execution";
   const { currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
-  const token = "";
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [plans, setPlans] = useState<RecordAny[]>([]);
   const [runs, setRuns] = useState<RecordAny[]>([]);
@@ -69,6 +69,11 @@ function AdminWorkspaceExecutionRoute() {
   const [message, setMessage] = useState("");
   const [startRunError, setStartRunError] = useState("");
   const [pollError, setPollError] = useState("");
+  const [insightsPlan, setInsightsPlan] = useState<{
+    planId: string;
+    planName?: string;
+    projectId?: string;
+  } | null>(null);
   const { openJiraBugDialog, jiraBugDialogNode } = useJiraBugDialog({
     onNotice: setMessage,
   });
@@ -175,7 +180,6 @@ function AdminWorkspaceExecutionRoute() {
   const scopedPlans = useMemo(() => (Array.isArray(plans) ? plans : []), [plans]);
   const activeRun = runIdFromUrl ? selectedRun : null;
   const activeMyItems = runIdFromUrl ? myItems : [];
-  const currentUserId = getId(currentUser);
   const selectedStartPlan = scopedPlans.find((plan) => getId(plan) === runForm.testPlanId) || null;
   const selectedRunPlan = activeRun?.testPlan || null;
   const selectedRunPlanIsAutomation = String(selectedStartPlan?.executionMode || "manual") === "automation";
@@ -215,6 +219,14 @@ function AdminWorkspaceExecutionRoute() {
       !isActiveRunAutomation &&
       (String(getId(activeRun.startedBy) || "") === String(getId(currentUser) || "") ||
         currentUser?.role === "admin" ||
+        hasRunAssignments),
+  );
+  const canUploadFailureScreenshot = Boolean(
+    activeRun &&
+      !isActiveRunAutomation &&
+      ["running", "completed"].includes(String(activeRun.status || "")) &&
+      (currentUser?.role === "admin" ||
+        String(getId(activeRun.startedBy) || "") === String(getId(currentUser) || "") ||
         hasRunAssignments),
   );
   const canControlAutomationRun = Boolean(
@@ -389,23 +401,33 @@ function AdminWorkspaceExecutionRoute() {
     if (!activeRun) return;
     setRetryingRun(true);
     setMessage("");
+    const sourceRunId = getId(activeRun);
     try {
       const response = await apiRequest<{
         testRun?: RecordAny | null;
         automationQueued?: boolean;
         retryCount?: number;
-      }>(`/api/test-runs/${encodeURIComponent(getId(activeRun))}/retry-failed`, undefined, {
+      }>(`/api/test-runs/${encodeURIComponent(sourceRunId)}/retry-failed`, undefined, {
         method: "POST",
         body: JSON.stringify({
           baseUrl: runForm.baseUrl || activeRun.automationBaseUrl || "",
         }),
       });
-      if (response.testRun) {
-        setSelectedRun(response.testRun);
+      const newRunId = response.testRun ? getId(response.testRun) : sourceRunId;
+      if (response.automationQueued) {
+        if (response.testRun) {
+          setSelectedRun(response.testRun);
+        }
+        setMessage(`Đang retry ${response.retryCount ?? 0} case fail...`);
+        await loadMyItems(sourceRunId);
+        await refreshRuns();
+      } else {
+        setMessage(`Đã tạo run retry với ${response.retryCount ?? 0} case fail`);
+        await refreshRuns();
+        if (newRunId && newRunId !== sourceRunId) {
+          openRun(newRunId);
+        }
       }
-      setMessage(`Đang retry ${response.retryCount ?? 0} case fail...`);
-      await loadMyItems(getId(activeRun));
-      await refreshRuns();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to retry failed cases");
     } finally {
@@ -414,6 +436,22 @@ function AdminWorkspaceExecutionRoute() {
   };
 
   const handleExportRun = createExportRunHandler(setExportingRun, setMessage);
+
+  const openPlanInsights = (planId: string) => {
+    const runEntityId = getId(activeRun?.testPlanEntityId);
+    const resolvedPlanId = runEntityId || planId;
+    const fromList = scopedPlans.find(
+      (plan) => getId(plan) === resolvedPlanId || String(plan._id || "") === resolvedPlanId,
+    );
+    const fromRun =
+      activeRun?.testPlan && getId(activeRun.testPlan) === resolvedPlanId ? activeRun.testPlan : null;
+    const plan = fromList || fromRun;
+    setInsightsPlan({
+      planId: fromList ? getId(fromList) : resolvedPlanId,
+      planName: String(plan?.name || activeRun?.testPlan?.name || ""),
+      projectId: getId(plan?.project || activeRun?.project || selectedProjectId) || selectedProjectId || undefined,
+    });
+  };
 
   useLayoutEffect(() => {
     setTopbar(
@@ -471,23 +509,50 @@ function AdminWorkspaceExecutionRoute() {
           updateResult={updateResult}
           endRun={endRun}
           canEditSelectedRun={canEditSelectedRun}
+          canUploadFailureScreenshot={canUploadFailureScreenshot}
           canControlAutomationRun={canControlAutomationRun}
           cancellingRun={cancellingRun}
           retryingRun={retryingRun}
           onCancelAutomationRun={cancelAutomationRun}
           onRetryFailedAutomation={retryFailedAutomation}
-          token={token}
           onLogBug={openJiraBugDialog}
           adminRuns={runs}
           onOpenRun={openRun}
-          currentUserId={currentUserId}
           userName={userName}
           startRunError={startRunError}
           onExportRun={handleExportRun}
           exportingRun={exportingRun}
+          initialPlanFilter={testPlanIdFromUrl}
+          onOpenPlanInsights={openPlanInsights}
+          onRefreshRunItems={activeRun ? () => loadMyItems(getId(activeRun)) : undefined}
         />
       )}
       {jiraBugDialogNode}
+      {insightsPlan ? (
+        <AdminTestPlanInsightsModal
+          planId={insightsPlan.planId}
+          planName={insightsPlan.planName}
+          projectId={insightsPlan.projectId}
+          onClose={() => setInsightsPlan(null)}
+          onOpenExecution={(runId) => {
+            setInsightsPlan(null);
+            openRun(runId);
+          }}
+          onStartNewRun={() => {
+            const plan = scopedPlans.find((item) => getId(item) === insightsPlan.planId);
+            setInsightsPlan(null);
+            setRunForm({
+              testPlanId: insightsPlan.planId,
+              name: buildDefaultRunName(
+                String(plan?.name || insightsPlan.planName || ""),
+                String(plan?.version?.name || ""),
+              ),
+              baseUrl: runForm.baseUrl || "",
+            });
+            window.scrollTo({ top: 0, behavior: "smooth" });
+          }}
+        />
+      ) : null}
     </>
   );
 }
@@ -499,7 +564,6 @@ function EmployeeWorkspaceExecutionRoute() {
   const testPlanIdFromUrl = String(searchParams.get("testPlanId") || "").trim();
   const runNameFromUrl = String(searchParams.get("runName") || "").trim();
   const { currentUser, setTopbar } = useEmployeeWorkspace();
-  const token = "";
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [plans, setPlans] = useState<RecordAny[]>([]);
   const [runs, setRuns] = useState<RecordAny[]>([]);
@@ -659,6 +723,14 @@ function EmployeeWorkspaceExecutionRoute() {
       !isActiveRunAutomation &&
       (String(getId(activeRun.startedBy) || "") === String(getId(currentUser) || "") ||
         currentUser?.role === "admin" ||
+        hasRunAssignments),
+  );
+  const canUploadFailureScreenshot = Boolean(
+    activeRun &&
+      !isActiveRunAutomation &&
+      ["running", "completed"].includes(String(activeRun.status || "")) &&
+      (currentUser?.role === "admin" ||
+        String(getId(activeRun.startedBy) || "") === String(getId(currentUser) || "") ||
         hasRunAssignments),
   );
   const canControlAutomationRun = Boolean(
@@ -881,12 +953,12 @@ function EmployeeWorkspaceExecutionRoute() {
           updateResult={updateResult}
           endRun={endRun}
           canEditSelectedRun={canEditSelectedRun}
+          canUploadFailureScreenshot={canUploadFailureScreenshot}
           canControlAutomationRun={canControlAutomationRun}
           cancellingRun={cancellingRun}
           retryingRun={retryingRun}
           onCancelAutomationRun={cancelAutomationRun}
           onRetryFailedAutomation={retryFailedAutomation}
-          token={token}
           onLogBug={openJiraBugDialog}
           startRunError={startRunError}
           onExportRun={handleExportRun}
