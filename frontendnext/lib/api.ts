@@ -259,6 +259,13 @@ export function getId(value: unknown): string {
   return '';
 }
 
+/** Match business entities by canonical entityId (groups, test cases in plans, etc.). */
+export function matchesEntityId(left: unknown, right: unknown): boolean {
+  const leftId = getId(left);
+  const rightId = getId(right);
+  return Boolean(leftId && rightId && leftId === rightId);
+}
+
 export function userName(value: unknown): string {
   if (!value) {
     return 'Unassigned';

@@ -161,8 +161,11 @@ const buildTestCaseServices = ({
         baseFilters.project = project._id;
       }
     } else {
-      const activeProjectIds = await Project.find({ deletedAt: null }).distinct('_id');
-      baseFilters.project = { $in: activeProjectIds };
+      const activeProjects = await Project.find({ deletedAt: null }).select('_id entityId').lean();
+      const activeProjectIds = Array.from(
+        new Set(activeProjects.flatMap((item) => [String(item._id), String(item.entityId || '')]).filter(Boolean)),
+      );
+      baseFilters.project = { $in: activeProjectIds.map((value) => toObjectId(value, 'projectId')) };
     }
 
     if (groupId) {

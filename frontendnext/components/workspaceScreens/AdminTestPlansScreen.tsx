@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction, FormEvent } from "react";
 import { ActionButton, Button, Field, INPUT_CLS, ScopedProjectField, StatusBadge } from "./shared";
-import { apiRequest, countPlanAutomationCases, getId, matchesSelectedEntity, summarizeRunResults } from "@/lib/api";
+import { apiRequest, countPlanAutomationCases, findEntityByReference, getId, isEntityReferenceSelected, matchesEntityId, matchesSelectedEntity, normalizeEntityReferences, summarizeRunResults } from "@/lib/api";
 import type { TestPlanDetail } from "@/lib/tcmTypes";
 
 type RecordAny = Record<string, any>;
@@ -176,19 +176,45 @@ export default function AdminTestPlansScreen(props: Props) {
   };
   const effectivePlanProjectId = String(planForm.projectId || "");
 
+  const visibleCases = useMemo(() => {
+    const seen = new Set<string>();
+    const items: Array<{ testCase: RecordAny; group: RecordAny }> = [];
+
+    const pushCase = (testCase: RecordAny, group: RecordAny) => {
+      const caseId = getId(testCase);
+      if (!caseId || seen.has(caseId)) {
+        return;
+      }
+      seen.add(caseId);
+      items.push({ testCase, group });
+    };
+
+    for (const { group, cases } of selectedPlanGroups) {
+      for (const testCase of cases) {
+        pushCase(testCase, group);
+      }
+    }
+
+    for (const caseId of Array.isArray(planForm.caseIds) ? planForm.caseIds : []) {
+      const testCase = findEntityByReference(allTestCases, caseId);
+      if (!testCase) {
+        continue;
+      }
+
+      const group =
+        findEntityByReference(allGroups, testCase.group) ||
+        (typeof testCase.group === "object" && testCase.group
+          ? testCase.group
+          : { name: "Unknown group", _id: getId(testCase.group) });
+
+      pushCase(testCase, group as RecordAny);
+    }
+
+    return items;
+  }, [allGroups, allTestCases, getId, planForm.caseIds, selectedPlanGroups]);
   const visibleCaseIds = useMemo(
-    () =>
-      selectedPlanGroups.flatMap(({ cases }) =>
-        cases.map((testCase) => getId(testCase)),
-      ),
-    [getId, selectedPlanGroups],
-  );
-  const visibleCases = useMemo(
-    () =>
-      selectedPlanGroups.flatMap(({ group, cases }) =>
-        cases.map((testCase) => ({ testCase, group })),
-      ),
-    [selectedPlanGroups],
+    () => visibleCases.map(({ testCase }) => getId(testCase)).filter(Boolean),
+    [getId, visibleCases],
   );
 
   const selectedPlanProject = useMemo(() => {
@@ -505,18 +531,28 @@ export default function AdminTestPlansScreen(props: Props) {
     const editCases = planProjectId
       ? allTestCases.filter((testCase) => matchesSelectedEntity(testCase.project, planProjectId))
       : allTestCases;
-    const caseIds = Array.isArray(plan.items)
-      ? plan.items.map((item: RecordAny) => String(getId(item.testCase) || item.testCase)).filter(Boolean)
+
+    const rawCaseRefs = Array.isArray(plan.items)
+      ? plan.items.map((item: RecordAny) => item.testCase).filter(Boolean)
       : [];
-    const selectedGroupIds = editGroups
-      .filter((group) =>
-        editCases.some(
-          (testCase) =>
-            matchesSelectedEntity(testCase.group, getId(group))
-            && caseIds.includes(getId(testCase)),
-        ),
-      )
-      .map((group) => getId(group));
+    const caseIds = normalizeEntityReferences(
+      rawCaseRefs.map((ref) => String(getId(ref) || ref || "").trim()).filter(Boolean),
+      editCases,
+    );
+
+    const selectedGroupIdSet = new Set<string>();
+    for (const caseId of caseIds) {
+      const testCase = findEntityByReference(editCases, caseId);
+      if (!testCase?.group) {
+        continue;
+      }
+
+      for (const group of editGroups) {
+        if (matchesEntityId(testCase.group, group)) {
+          selectedGroupIdSet.add(getId(group));
+        }
+      }
+    }
 
     setEditingPlanId(getId(plan));
     setPlanForm({
@@ -524,7 +560,7 @@ export default function AdminTestPlansScreen(props: Props) {
       description: plan.description || "",
       projectId: planProjectId,
       versionId: String(getId(plan.version) || ""),
-      selectedGroupIds,
+      selectedGroupIds: Array.from(selectedGroupIdSet),
       caseIds,
     });
     setShowCreateModal(true);
@@ -952,52 +988,25 @@ export default function AdminTestPlansScreen(props: Props) {
                             const groupId = getId(group);
                             const checked = selectedPlanGroupIds.has(groupId);
                             const groupCases = planProjectCases.filter((testCase: RecordAny) =>
-                              matchesSelectedEntity(testCase.group, groupId),
+                              matchesEntityId(testCase.group, group),
                             );
-                            const shouldScrollCases = groupCases.length >= 4;
 
                             return (
-                              <details key={groupId} className={`rounded-xl border px-3 py-2.5 ${checked ? "border-emerald-200 bg-emerald-50/60" : "border-slate-100 bg-slate-50"}`}>
-                                <summary className="flex cursor-pointer list-none items-center gap-3">
-                                  <label
-                                    className="inline-flex shrink-0 cursor-pointer items-center"
-                                    onClick={(event) => event.stopPropagation()}
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      className="h-4 w-4 rounded accent-emerald-600"
-                                      checked={checked}
-                                      onChange={() => togglePlanGroup(groupId)}
-                                    />
-                                  </label>
-                                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                                    <strong className="text-sm font-semibold text-slate-900">{group.name}</strong>
-                                    <small className="text-xs text-slate-500">{groupCases.length} test cases</small>
-                                  </span>
-                                </summary>
-
-                                <div className="mt-3 border-l border-slate-200 pl-3">
-                                  {groupCases.length === 0 ? (
-                                    <div className="py-3 text-center text-xs text-slate-400">Không có test case trong group này.</div>
-                                  ) : (
-                                    <div className={`space-y-1 ${shouldScrollCases ? "max-h-[240px] overflow-y-auto pr-1" : ""}`}>
-                                      {groupCases.map((testCase: RecordAny) => {
-                                        const caseId = getId(testCase);
-                                        const checkedCase = selectedPlanCaseIds.has(caseId);
-                                        return (
-                                          <label key={caseId} className={`flex cursor-pointer items-center gap-2.5 rounded-lg border px-2.5 py-2 transition ${checkedCase ? "border-blue-200 bg-blue-50" : "border-transparent hover:bg-slate-50"}`}>
-                                            <input type="checkbox" className="h-4 w-4 rounded accent-blue-600" checked={checkedCase} onChange={() => togglePlanCase(groupId, caseId)} />
-                                            <span className="flex min-w-0 flex-col gap-0.5">
-                                              <strong className="block truncate text-xs font-semibold text-slate-900">{testCase.caseKey} - {testCase.title}</strong>
-                                              <small className="block truncate text-[11px] text-slate-400">{testCase.description || "No description"}</small>
-                                            </span>
-                                          </label>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
-                                </div>
-                              </details>
+                              <label
+                                key={groupId}
+                                className={`flex cursor-pointer items-center gap-3 rounded-xl border px-3 py-2.5 transition ${checked ? "border-emerald-200 bg-emerald-50/60" : "border-slate-100 bg-slate-50 hover:border-slate-200"}`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="h-4 w-4 shrink-0 rounded accent-emerald-600"
+                                  checked={checked}
+                                  onChange={() => togglePlanGroup(groupId)}
+                                />
+                                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                                  <strong className="text-sm font-semibold text-slate-900">{group.name}</strong>
+                                  <small className="text-xs text-slate-500">{groupCases.length} test cases</small>
+                                </span>
+                              </label>
                             );
                           })
                         )}
@@ -1012,7 +1021,7 @@ export default function AdminTestPlansScreen(props: Props) {
                 <div className="flex items-center justify-between gap-3 border-b border-slate-200 pb-3">
                   <div>
                     <span className="text-xs font-semibold text-slate-700">Test cases</span>
-                    <p className="mt-0.5 text-xs text-slate-500">Chọn group ở trên để hiện test case, hoặc expand từng group.</p>
+                    <p className="mt-0.5 text-xs text-slate-500">Chọn group ở trên, rồi tick test case cần đưa vào plan.</p>
                   </div>
                   <div className="flex items-center gap-3 text-xs">
                     <label className="flex cursor-pointer items-center gap-1.5 font-semibold text-slate-600">
@@ -1031,27 +1040,27 @@ export default function AdminTestPlansScreen(props: Props) {
                   </div>
                 </div>
 
-                {selectedPlanGroups.length === 0 ? (
-                  <div className="py-4 text-center text-xs text-slate-400">Chọn ít nhất 1 group để hiện test case.</div>
+                {visibleCases.length === 0 ? (
+                  <div className="py-4 text-center text-xs text-slate-400">
+                    {selectedPlanGroups.length === 0
+                      ? "Chọn ít nhất 1 group để hiện test case."
+                      : "Các group đã chọn chưa có test case."}
+                  </div>
                 ) : (
                   <div className="mt-3 max-h-[300px] space-y-1 overflow-y-auto">
-                    {visibleCases.length === 0 ? (
-                      <div className="py-3 text-center text-xs text-slate-400">Các group đã chọn chưa có test case.</div>
-                    ) : (
-                      visibleCases.map(({ testCase, group }) => {
-                        const caseId = getId(testCase);
-                        const checked = selectedPlanCaseIds.has(caseId);
-                        return (
-                          <label key={caseId} className={`flex cursor-pointer items-center gap-2.5 rounded-lg border px-2.5 py-2 transition ${checked ? "border-blue-200 bg-blue-50" : "border-transparent hover:bg-slate-50"}`}>
-                            <input type="checkbox" className="h-4 w-4 rounded accent-blue-600" checked={checked} onChange={() => togglePlanCase(getId(group), caseId)} />
-                            <span className="flex min-w-0 flex-col gap-0.5">
-                              <strong className="block truncate text-xs font-semibold text-slate-900">{testCase.caseKey} - {testCase.title}</strong>
-                              <small className="block truncate text-[11px] text-slate-400">{group.name} · {testCase.description || "No description"}</small>
-                            </span>
-                          </label>
-                        );
-                      })
-                    )}
+                    {visibleCases.map(({ testCase, group }) => {
+                      const caseId = getId(testCase);
+                      const checked = isEntityReferenceSelected(testCase, selectedPlanCaseIds);
+                      return (
+                        <label key={caseId} className={`flex cursor-pointer items-center gap-2.5 rounded-lg border px-2.5 py-2 transition ${checked ? "border-blue-200 bg-blue-50" : "border-transparent hover:bg-slate-50"}`}>
+                          <input type="checkbox" className="h-4 w-4 rounded accent-blue-600" checked={checked} onChange={() => togglePlanCase(getId(group), caseId)} />
+                          <span className="flex min-w-0 flex-col gap-0.5">
+                            <strong className="block truncate text-xs font-semibold text-slate-900">{testCase.caseKey} - {testCase.title}</strong>
+                            <small className="block truncate text-[11px] text-slate-400">{group.name} · {testCase.description || "No description"}</small>
+                          </span>
+                        </label>
+                      );
+                    })}
                   </div>
                 )}
               </div>

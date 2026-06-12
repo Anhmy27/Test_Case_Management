@@ -8,7 +8,7 @@ import AdminTestPlansScreen from "@/components/workspaceScreens/AdminTestPlansSc
 import AdminTestPlanInsightsModal from "@/components/workspaceScreens/AdminTestPlanInsightsModal";
 import { useAdminWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
 import { TOPBAR_INPUT_CLS, WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
-import { apiRequest, buildDefaultRunName, clearApiRequestCache, createTextMatcher, getId, matchesSelectedEntity, userName } from "@/lib/api";
+import { apiRequest, buildDefaultRunName, clearApiRequestCache, createTextMatcher, getId, matchesEntityId, matchesSelectedEntity, userName } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
 
@@ -20,7 +20,7 @@ export type PlanListFilters = {
 function groupCasesByGroup(groups: RecordAny[], cases: RecordAny[]) {
   return groups.map((group) => ({
     group,
-    cases: cases.filter((testCase) => matchesSelectedEntity(testCase.group, getId(group))),
+    cases: cases.filter((testCase) => matchesEntityId(testCase.group, group)),
   }));
 }
 
@@ -37,8 +37,8 @@ async function fetchWorkspaceData(projectId: string) {
   ] = await Promise.all([
     apiRequest<{ projects: RecordAny[] }>("/api/projects"),
     apiRequest<{ versions: RecordAny[] }>("/api/versions"),
-    apiRequest<{ groups: RecordAny[] }>("/api/test-case-groups"),
-    apiRequest<{ testCases: RecordAny[] }>("/api/test-cases"),
+    apiRequest<{ groups: RecordAny[] }>(`/api/test-case-groups${projectQuery}`),
+    apiRequest<{ testCases: RecordAny[] }>(`/api/test-cases${projectQuery}`),
     apiRequest<{ testPlans: RecordAny[] }>(`/api/test-plans${projectQuery}`),
     apiRequest<{ testRuns: RecordAny[] }>(`/api/test-runs${projectQuery}`),
     apiRequest<{ users: RecordAny[] }>("/api/users"),
@@ -206,26 +206,31 @@ export default function AdminTestPlansRoute() {
   const togglePlanGroup = (groupId: string) => {
     setPlanForm((prev: any) => {
       const nextGroupIds = new Set<string>(prev.selectedGroupIds || []);
+      const group = planProjectGroups.find((entry) => getId(entry) === groupId);
+
       if (nextGroupIds.has(groupId)) {
         nextGroupIds.delete(groupId);
-      } else {
-        nextGroupIds.add(groupId);
+        const nextCaseIds = (Array.isArray(prev.caseIds) ? prev.caseIds : []).filter((caseId: string) => {
+          const testCase = planProjectCases.find(
+            (entry) => getId(entry) === caseId || String(entry._id || "") === caseId,
+          );
+          if (!testCase || !group) {
+            return true;
+          }
+          return !matchesEntityId(testCase.group, group);
+        });
+
+        return {
+          ...prev,
+          selectedGroupIds: Array.from(nextGroupIds),
+          caseIds: nextCaseIds,
+        };
       }
 
-      const nextCaseIds = planProjectCases
-        .filter((testCase) => {
-          const testCaseGroupId = getId(testCase.group);
-          return Array.from(nextGroupIds).some((selectedGroupId) =>
-            matchesSelectedEntity(testCase.group, selectedGroupId)
-            || selectedGroupId === testCaseGroupId,
-          );
-        })
-        .map((testCase) => getId(testCase));
-
+      nextGroupIds.add(groupId);
       return {
         ...prev,
         selectedGroupIds: Array.from(nextGroupIds),
-        caseIds: Array.from(new Set(nextCaseIds)),
       };
     });
   };
