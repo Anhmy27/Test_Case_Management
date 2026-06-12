@@ -12,7 +12,7 @@ import ManualRunExecutionPanel from "../execution/ManualRunExecutionPanel";
 import AutomationRunExecutionPanel from "../execution/AutomationRunExecutionPanel";
 import TestRunListSection from "./TestRunListSection";
 import { Button, Field, INPUT_CLS, SectionCard, StatusBadge } from "./shared";
-import { buildDefaultRunName, getPlanCaseCount, summarizeRunResults, getId, validateStartRunForm } from "@/lib/api";
+import { buildDefaultRunName, countPlanAutomationCases, getPlanCaseCount, partitionRunItemsByAutomation, planRequiresAutomationBaseUrl, summarizeRunResults, getId, validateStartRunForm } from "@/lib/api";
 
 
 
@@ -32,7 +32,7 @@ type Props = {
 
   scopedPlans: RecordAny[];
 
-  selectedRunPlanIsAutomation: boolean;
+  selectedPlanRequiresAutomationBaseUrl: boolean;
 
   selectedRun: RecordAny | null;
 
@@ -101,7 +101,7 @@ export default function ExecutionScreen(props: Props) {
 
     scopedPlans,
 
-    selectedRunPlanIsAutomation,
+    selectedPlanRequiresAutomationBaseUrl,
 
     selectedRun,
 
@@ -157,6 +157,16 @@ export default function ExecutionScreen(props: Props) {
   );
 
   const runSummary = useMemo(() => summarizeRunResults(myItems), [myItems]);
+  const { automationItems, manualItems } = useMemo(
+    () => partitionRunItemsByAutomation(myItems),
+    [myItems],
+  );
+  const runHasAutomation = automationItems.length > 0;
+  const runHasManual = manualItems.length > 0;
+  const selectedPlanAutomationCaseCount = useMemo(
+    () => countPlanAutomationCases(selectedStartPlan),
+    [selectedStartPlan],
+  );
   const defaultRunNamePreview = useMemo(
     () => buildDefaultRunName(selectedStartPlan?.name || "", selectedStartPlan?.version?.name),
     [selectedStartPlan],
@@ -219,16 +229,10 @@ export default function ExecutionScreen(props: Props) {
 
 
 
-  const isAutomationRun =
-
-    selectedRunPlanIsAutomation ||
-
-    String(selectedRun?.testPlan?.executionMode || "") === "automation";
-
   const canEndRun =
     Boolean(selectedRun) &&
     String(selectedRun?.status || "") === "running" &&
-    !isAutomationRun &&
+    runHasManual &&
     canEditSelectedRun;
 
   const showRunList = Array.isArray(adminRuns) && typeof onOpenRun === "function";
@@ -270,7 +274,7 @@ export default function ExecutionScreen(props: Props) {
 
                   <option key={getId(plan)} value={getId(plan)}>
 
-                    {plan.name} ({plan.executionMode || "manual"})
+                    {plan.name} ({getPlanCaseCount(plan)} cases{countPlanAutomationCases(plan) > 0 ? `, ${countPlanAutomationCases(plan)} auto` : ""})
 
                   </option>
 
@@ -312,7 +316,7 @@ export default function ExecutionScreen(props: Props) {
             </div>
           ) : null}
 
-          {selectedRunPlanIsAutomation && (
+          {selectedPlanRequiresAutomationBaseUrl && (
 
             <Field label="Automation base URL">
 
@@ -336,11 +340,11 @@ export default function ExecutionScreen(props: Props) {
 
           )}
 
-          {selectedRunPlanIsAutomation && (
+          {selectedPlanRequiresAutomationBaseUrl && (
 
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
 
-              Plan automation: Playwright chạy ngay khi Start run. Theo dõi tiến độ ở execution workbench bên dưới.
+              Plan has {selectedPlanAutomationCaseCount} automation case(s): Playwright runs for enabled cases, manual workbench for the rest.
 
             </div>
 
@@ -359,7 +363,7 @@ export default function ExecutionScreen(props: Props) {
 
             {startingRun
 
-              ? selectedRunPlanIsAutomation
+              ? selectedPlanRequiresAutomationBaseUrl
 
                 ? "Đang chạy Playwright..."
 
@@ -415,7 +419,16 @@ export default function ExecutionScreen(props: Props) {
 
                 <StatusBadge status={String(selectedRun.status || "running")} />
 
-                <StatusBadge status={String(selectedRun.testPlan?.executionMode || "manual")} />
+                {runHasAutomation ? (
+                  <span className="rounded-full bg-violet-50 px-3 py-1 text-xs font-semibold text-violet-700">
+                    Auto {automationItems.length}
+                  </span>
+                ) : null}
+                {runHasManual ? (
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                    Manual {manualItems.length}
+                  </span>
+                ) : null}
 
                 <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
 
@@ -452,13 +465,13 @@ export default function ExecutionScreen(props: Props) {
 
 
 
-          {isAutomationRun ? (
+          {runHasAutomation ? (
 
             <AutomationRunExecutionPanel
 
               selectedRun={selectedRun}
 
-              myItems={myItems}
+              myItems={automationItems}
 
               selectedItemId={selectedItemId}
 
@@ -486,13 +499,15 @@ export default function ExecutionScreen(props: Props) {
 
             />
 
-          ) : (
+          ) : null}
+
+          {runHasManual ? (
 
             <ManualRunExecutionPanel
 
               selectedRun={selectedRun}
 
-              myItems={myItems}
+              myItems={manualItems}
 
               selectedItemId={selectedItemId}
 
@@ -516,7 +531,7 @@ export default function ExecutionScreen(props: Props) {
 
             />
 
-          )}
+          ) : null}
 
         </>
 

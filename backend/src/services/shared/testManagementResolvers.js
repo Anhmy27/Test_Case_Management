@@ -178,7 +178,7 @@ const attachTestPlanCases = async (testPlan) => {
           { _id: { $in: referencedCaseIds.filter((value) => mongoose.Types.ObjectId.isValid(value)).map((value) => toObjectId(value, 'testCaseId')) } },
           { entityId: { $in: referencedCaseIds.filter((value) => mongoose.Types.ObjectId.isValid(value)).map((value) => toObjectId(value, 'testCaseId')) } },
         ],
-      }).select('entityId key name caseKey title deletedAt').lean()
+      }).select('entityId key name caseKey title deletedAt automation.enabled').lean()
     : [];
 
   const caseMap = new Map();

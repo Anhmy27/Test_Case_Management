@@ -374,13 +374,52 @@ export function getPlanCaseCount(plan: { items?: unknown[] } | null | undefined)
   return Array.isArray(plan?.items) ? plan.items.length : 0;
 }
 
+export function isAutomationEnabledTestCase(testCase: unknown): boolean {
+  if (!testCase || typeof testCase !== 'object') {
+    return false;
+  }
+
+  return Boolean((testCase as { automation?: { enabled?: boolean } }).automation?.enabled);
+}
+
+export function countPlanAutomationCases(plan: { items?: Array<{ testCase?: unknown }> } | null | undefined): number {
+  const items = Array.isArray(plan?.items) ? plan.items : [];
+  return items.filter((item) => isAutomationEnabledTestCase(item?.testCase)).length;
+}
+
+export function planRequiresAutomationBaseUrl(plan: { items?: Array<{ testCase?: unknown }> } | null | undefined): boolean {
+  return countPlanAutomationCases(plan) > 0;
+}
+
+export function partitionRunItemsByAutomation<T extends { testCase?: unknown }>(items: T[] = []) {
+  const automationItems: T[] = [];
+  const manualItems: T[] = [];
+
+  for (const item of items) {
+    if (isAutomationEnabledTestCase(item?.testCase)) {
+      automationItems.push(item);
+    } else {
+      manualItems.push(item);
+    }
+  }
+
+  return { automationItems, manualItems };
+}
+
+export function runHasAutomationItems(items: Array<{ testCase?: unknown }> = []): boolean {
+  return partitionRunItemsByAutomation(items).automationItems.length > 0;
+}
+
+export function runHasManualItems(items: Array<{ testCase?: unknown }> = []): boolean {
+  return partitionRunItemsByAutomation(items).manualItems.length > 0;
+}
+
 export type StartRunValidationInput = {
   testPlanId: string;
   name: string;
   baseUrl: string;
   plan: {
-    executionMode?: string;
-    items?: unknown[];
+    items?: Array<{ testCase?: unknown }>;
     name?: string;
     version?: { name?: string };
     entityId?: string;
@@ -521,7 +560,7 @@ export function validateStartRunForm(input: StartRunValidationInput): string | n
     return 'Run name already exists in this plan';
   }
 
-  if (String(input.plan.executionMode || 'manual') === 'automation') {
+  if (planRequiresAutomationBaseUrl(input.plan)) {
     if (!isValidHttpUrl(input.baseUrl)) {
       return 'Base URL is invalid';
     }

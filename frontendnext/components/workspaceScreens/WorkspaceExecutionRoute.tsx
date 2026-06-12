@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import ExecutionScreen from "@/components/workspaceScreens/ExecutionScreen";
 import { useAdminWorkspace, useEmployeeWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
 import { WorkspaceContentSkeleton, TOPBAR_INPUT_CLS } from "@/components/workspaceScreens/shared";
-import { apiRequest, downloadTestRunExport, formatAutomationRunMessage, getId, resolveStartRunPayload, summarizeAutomationResults, userName } from "@/lib/api";
+import { apiRequest, downloadTestRunExport, formatAutomationRunMessage, getId, planRequiresAutomationBaseUrl, resolveStartRunPayload, runHasAutomationItems, runHasManualItems, summarizeAutomationResults, userName } from "@/lib/api";
 import {
   buildEmployeeTopbar,
   useEmployeeProjectScope,
@@ -177,15 +177,14 @@ function AdminWorkspaceExecutionRoute() {
   const activeMyItems = runIdFromUrl ? myItems : [];
   const currentUserId = getId(currentUser);
   const selectedStartPlan = scopedPlans.find((plan) => getId(plan) === runForm.testPlanId) || null;
-  const selectedRunPlan = activeRun?.testPlan || null;
-  const selectedRunPlanIsAutomation = String(selectedStartPlan?.executionMode || "manual") === "automation";
-  const isActiveRunAutomation =
-    String(activeRun?.testPlan?.executionMode || selectedRunPlan?.executionMode || "manual") === "automation";
+  const selectedPlanRequiresAutomationBaseUrl = planRequiresAutomationBaseUrl(selectedStartPlan);
+  const runHasAutomation = runHasAutomationItems(activeMyItems);
+  const runHasManual = runHasManualItems(activeMyItems);
   const shouldPollAutomationRun = Boolean(
     runIdFromUrl &&
       activeRun &&
       activeRun.status === "running" &&
-      selectedRunPlanIsAutomation,
+      runHasAutomation,
   );
   const selectedItem = activeMyItems.find((item) => getId(item) === selectedItemId);
   const hasRunAssignments = activeMyItems.length > 0;
@@ -212,14 +211,14 @@ function AdminWorkspaceExecutionRoute() {
   const canEditSelectedRun = Boolean(
     activeRun &&
       activeRun.status === "running" &&
-      !isActiveRunAutomation &&
+      runHasManual &&
       (String(getId(activeRun.startedBy) || "") === String(getId(currentUser) || "") ||
         currentUser?.role === "admin" ||
         hasRunAssignments),
   );
   const canControlAutomationRun = Boolean(
     activeRun &&
-      isActiveRunAutomation &&
+      runHasAutomation &&
       currentUser &&
       (String(getId(activeRun.startedBy) || "") === String(getId(currentUser) || "") ||
         currentUser.role === "admin"),
@@ -460,7 +459,7 @@ function AdminWorkspaceExecutionRoute() {
           startRun={startRun}
           startingRun={startingRun}
           scopedPlans={scopedPlans}
-          selectedRunPlanIsAutomation={selectedRunPlanIsAutomation}
+          selectedPlanRequiresAutomationBaseUrl={selectedPlanRequiresAutomationBaseUrl}
           selectedRun={activeRun}
           myItems={activeMyItems}
           selectedItemId={selectedItemId}
@@ -621,15 +620,14 @@ function EmployeeWorkspaceExecutionRoute() {
   const activeRun = runIdFromUrl ? selectedRun : null;
   const activeMyItems = runIdFromUrl ? myItems : [];
   const selectedStartPlan = scopedPlans.find((plan) => getId(plan) === runForm.testPlanId) || null;
-  const selectedRunPlan = activeRun?.testPlan || null;
-  const selectedRunPlanIsAutomation = String(selectedStartPlan?.executionMode || "manual") === "automation";
-  const isActiveRunAutomation =
-    String(activeRun?.testPlan?.executionMode || selectedRunPlan?.executionMode || "manual") === "automation";
+  const selectedPlanRequiresAutomationBaseUrl = planRequiresAutomationBaseUrl(selectedStartPlan);
+  const runHasAutomation = runHasAutomationItems(activeMyItems);
+  const runHasManual = runHasManualItems(activeMyItems);
   const shouldPollAutomationRun = Boolean(
     runIdFromUrl &&
       activeRun &&
       activeRun.status === "running" &&
-      selectedRunPlanIsAutomation,
+      runHasAutomation,
   );
   const selectedItem = activeMyItems.find((item) => getId(item) === selectedItemId);
   const hasRunAssignments = activeMyItems.length > 0;
@@ -656,14 +654,14 @@ function EmployeeWorkspaceExecutionRoute() {
   const canEditSelectedRun = Boolean(
     activeRun &&
       activeRun.status === "running" &&
-      !isActiveRunAutomation &&
+      runHasManual &&
       (String(getId(activeRun.startedBy) || "") === String(getId(currentUser) || "") ||
         currentUser?.role === "admin" ||
         hasRunAssignments),
   );
   const canControlAutomationRun = Boolean(
     activeRun &&
-      isActiveRunAutomation &&
+      runHasAutomation &&
       currentUser &&
       (String(getId(activeRun.startedBy) || "") === String(getId(currentUser) || "") ||
         currentUser.role === "admin"),
@@ -870,7 +868,7 @@ function EmployeeWorkspaceExecutionRoute() {
           startRun={startRun}
           startingRun={startingRun}
           scopedPlans={scopedPlans}
-          selectedRunPlanIsAutomation={selectedRunPlanIsAutomation}
+          selectedPlanRequiresAutomationBaseUrl={selectedPlanRequiresAutomationBaseUrl}
           selectedRun={activeRun}
           myItems={activeMyItems}
           selectedItemId={selectedItemId}

@@ -28,7 +28,6 @@ const buildTestPlanServices = ({
     projectId,
     versionId,
     caseIds,
-    executionMode,
     ownerId,
     assigneeIds,
     createdBy,
@@ -92,7 +91,6 @@ const buildTestPlanServices = ({
       assignees: Array.isArray(assigneeIds)
         ? assigneeIds.map((id, index) => toObjectId(id, `assigneeIds[${index}]`))
         : [],
-      executionMode: executionMode === 'automation' ? 'automation' : 'manual',
       items: validCaseIds,
     });
 
@@ -288,7 +286,6 @@ const buildTestPlanServices = ({
       description: current.description,
       project: current.project,
       version: current.version,
-      executionMode: current.executionMode,
       owner: ownerId ? toObjectId(ownerId, 'ownerId') : toObjectId(userId, 'ownerId'),
       assignees: assigneeIds.map((id, index) => toObjectId(id, `assigneeIds[${index}]`)),
       items: current.items,
@@ -314,7 +311,6 @@ const buildTestPlanServices = ({
       projectId,
       versionId,
       caseIds,
-      executionMode,
       ownerId,
       assigneeIds,
     },
@@ -384,7 +380,6 @@ const buildTestPlanServices = ({
         projectVersionId: project._id,
         version: nextVersionId,
         versionVersionId: version._id,
-        executionMode: executionMode && ['manual', 'automation'].includes(executionMode) ? executionMode : current.executionMode,
         owner: ownerId ? toObjectId(ownerId, 'ownerId') : current.owner,
         assignees: Array.isArray(assigneeIds)
           ? assigneeIds.map((id, index) => toObjectId(id, `assigneeIds[${index}]`))
