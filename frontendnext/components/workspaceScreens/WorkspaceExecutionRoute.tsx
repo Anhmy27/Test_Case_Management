@@ -175,7 +175,10 @@ function AdminWorkspaceExecutionRoute() {
 
   const scopedPlans = useMemo(() => (Array.isArray(plans) ? plans : []), [plans]);
   const activeRun = runIdFromUrl ? selectedRun : null;
-  const activeMyItems = runIdFromUrl ? myItems : [];
+  const activeMyItems = useMemo(
+    () => (runIdFromUrl ? myItems : []),
+    [runIdFromUrl, myItems],
+  );
   const currentUserId = getId(currentUser);
   const selectedStartPlan = scopedPlans.find((plan) => getId(plan) === runForm.testPlanId) || null;
   const selectedPlanRequiresAutomationBaseUrl = planRequiresAutomationBaseUrl(selectedStartPlan);
@@ -644,7 +647,10 @@ function EmployeeWorkspaceExecutionRoute() {
     return employeeProjectScope.filterPlans(safePlans);
   }, [employeeProjectScope, plans]);
   const activeRun = runIdFromUrl ? selectedRun : null;
-  const activeMyItems = runIdFromUrl ? myItems : [];
+  const activeMyItems = useMemo(
+    () => (runIdFromUrl ? myItems : []),
+    [runIdFromUrl, myItems],
+  );
   const selectedStartPlan = scopedPlans.find((plan) => getId(plan) === runForm.testPlanId) || null;
   const selectedPlanRequiresAutomationBaseUrl = planRequiresAutomationBaseUrl(selectedStartPlan);
   const runHasAutomation = runHasAutomationItems(activeMyItems);

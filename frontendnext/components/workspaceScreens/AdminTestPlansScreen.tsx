@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction, FormEvent } from "react";
 import { ActionButton, Button, Field, INPUT_CLS, ScopedProjectField, StatusBadge } from "./shared";
-import { apiRequest, countPlanAutomationCases, findEntityByReference, getId, isEntityReferenceSelected, matchesEntityId, matchesSelectedEntity, normalizeEntityReferences, summarizeRunResults } from "@/lib/api";
+import { apiRequest, countPlanAutomationCases, findEntityByReference, isEntityReferenceSelected, matchesEntityId, matchesSelectedEntity, normalizeEntityReferences, summarizeRunResults } from "@/lib/api";
 import type { TestPlanDetail } from "@/lib/tcmTypes";
 
 type RecordAny = Record<string, any>;
@@ -492,8 +492,6 @@ export default function AdminTestPlansScreen(props: Props) {
       )
       .slice(0, 5);
   }, [scopedPlans]);
-
-  const selectedPlans = filteredPlans.filter((plan: RecordAny) => selectedSet.has(getId(plan)));
 
   function togglePlanSelection(planId: string) {
     setSelectedIds((prev) => {

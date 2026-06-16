@@ -81,7 +81,9 @@ async function findProjectForProbe() {
   }).lean();
 }
 
-test('live logBugService returns Jira issueKey via QuickCreate flow', { skip: !hasJiraEnv }, async () => {
+test('live logBugService returns Jira issueKey via QuickCreate flow', {
+  skip: !hasJiraEnv || process.env.CI === 'true',
+}, async () => {
   await connectMongo();
 
   const user = await findUserWithJiraProfile();

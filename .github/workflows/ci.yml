@@ -1,0 +1,72 @@
+# CI — chạy tự động mỗi khi push/PR vào main (hoặc master).
+# Xem hướng dẫn đọc file này trong README hoặc hỏi team lead.
+
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+# Huỷ run cũ nếu cùng branch có commit mới (tiết kiệm phút CI).
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Job 1: test backend (không cần Mongo/Jira — unit tests + bỏ qua live probe).
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run CI test suite
+        run: npm run test:ci
+        env:
+          CI: "true"
+          NODE_ENV: test
+          JWT_SECRET: ci-test-secret-minimum-32-characters-long!!
+          JIRA_VAULT_SECRET: ci-jira-vault-secret-long-enough-for-tests-123
+
+  # Job 2: build frontend (TypeScript + Next.js production build).
+  frontend:
+    name: Frontend build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontendnext
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontendnext/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Production build
+        run: npm run build
+
+      - name: Lint
+        run: npm run lint:ci

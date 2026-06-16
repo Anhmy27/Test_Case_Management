@@ -12,7 +12,7 @@ import ManualRunExecutionPanel from "../execution/ManualRunExecutionPanel";
 import AutomationRunExecutionPanel from "../execution/AutomationRunExecutionPanel";
 import TestRunListSection from "./TestRunListSection";
 import { Button, Field, INPUT_CLS, SectionCard, StatusBadge } from "./shared";
-import { buildDefaultRunName, countPlanAutomationCases, getPlanCaseCount, isAutomationEnabledTestCase, partitionRunItemsByAutomation, planRequiresAutomationBaseUrl, summarizeRunResults, getId, validateStartRunForm } from "@/lib/api";
+import { buildDefaultRunName, countPlanAutomationCases, getPlanCaseCount, isAutomationEnabledTestCase, partitionRunItemsByAutomation, summarizeRunResults, getId, validateStartRunForm } from "@/lib/api";
 
 
 

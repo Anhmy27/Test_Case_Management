@@ -35,7 +35,10 @@ export default function AdminTestCasesHistoryScreen({
   onOpenRunResult,
   onLogBugForResult,
 }: Props) {
-  const safeDetailRows = Array.isArray(detailRows) ? detailRows : [];
+  const safeDetailRows = useMemo(
+    () => (Array.isArray(detailRows) ? detailRows : []),
+    [detailRows],
+  );
   const [focusedCase, setFocusedCase] = useState<RecordAny | null>(null);
   const [screenshotTarget, setScreenshotTarget] = useState<{ runId: string; resultId: string } | null>(null);
   const consumedHighlightRef = useRef("");
