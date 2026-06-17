@@ -58,10 +58,6 @@ const createSessionStore = ({ sessionDir = DEFAULT_SESSION_DIR } = {}) => {
       writeStorageState(filePath, storageState);
       return filePath;
     },
-
-    getSessionPath({ webKey, userKey }) {
-      return buildSessionPath({ sessionDir, webKey, userKey });
-    },
   };
 };
 

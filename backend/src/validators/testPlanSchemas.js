@@ -19,7 +19,6 @@ const createTestPlanBodySchema = z.object({
   projectId: objectIdString,
   versionId: objectIdString,
   caseIds: z.array(objectIdString).min(1, 'caseIds must not be empty'),
-  executionMode: z.enum(['manual', 'automation']).optional(),
   ownerId: objectIdString.optional(),
   assigneeIds: z.array(objectIdString).optional(),
 }).passthrough();
@@ -31,7 +30,6 @@ const updateTestPlanBodySchema = z.object({
   projectId: objectIdString.optional(),
   versionId: objectIdString.optional(),
   caseIds: z.array(objectIdString).optional(),
-  executionMode: z.enum(['manual', 'automation']).optional(),
   ownerId: objectIdString.optional(),
   assigneeIds: z.array(objectIdString).optional(),
 }).passthrough();

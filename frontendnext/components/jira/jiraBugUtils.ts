@@ -1,5 +1,6 @@
 import { collectEntityIds, getId } from "@/lib/api";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type RecordAny = Record<string, any>;
 
 export function getProjectJiraProjectKey(project?: RecordAny | null) {

@@ -63,12 +63,10 @@ function buildDryRunPayload({
 }
 
 export async function runAutomationDryRun({
-  token,
   automationForm,
   testCaseId = "",
   baseUrlOverride = "",
 }: {
-  token: string;
   automationForm: AutomationForm;
   testCaseId?: string;
   baseUrlOverride?: string;
@@ -83,7 +81,7 @@ export async function runAutomationDryRun({
     throw new Error("Cần ít nhất một automation step");
   }
 
-  return apiRequest<DryRunResult>("/api/automation/dry-run", token, {
+  return apiRequest<DryRunResult>("/api/automation/dry-run", undefined, {
     method: "POST",
     body: JSON.stringify(payload),
   });

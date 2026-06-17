@@ -15,7 +15,7 @@ async function bootstrap() {
 	await connectDatabase();
 
 	const reconcileSummary = await reconcileOrphanedAutomationRuns();
-	if (reconcileSummary.resumed > 0 || reconcileSummary.finalized > 0) {
+	if (reconcileSummary.resumed > 0) {
 		console.log('[startup] Automation reconcile:', reconcileSummary);
 	}
 

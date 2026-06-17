@@ -64,7 +64,6 @@ export interface TestPlanItemRecord {
 export interface TestPlanRecord {
   _id: string;
   name: string;
-  executionMode?: "manual" | "automation";
   items?: TestPlanItemRecord[];
 }
 
@@ -79,7 +78,6 @@ export interface TestRunRecord {
     | {
         _id: string;
         name?: string;
-        executionMode?: "manual" | "automation";
       };
 }
 

@@ -28,6 +28,26 @@ const {
 const { scheduleAutomationRun, isAutomationRunActive } = require('./automation/automationJobRunner');
 const { assertAllowedBaseUrl } = require('../utils/automationUrlPolicy');
 
+const withAutomationActive = (testRun) => {
+  if (!testRun) {
+    return testRun;
+  }
+
+  const runId = String(testRun._id || testRun.id || '');
+  return {
+    ...testRun,
+    automationActive: runId ? isAutomationRunActive(runId) : false,
+  };
+};
+const {
+  isAutomationEnabledCase,
+  automationCaseNeedsRunBaseUrl,
+  loadTestCaseMapForResults,
+  getAutomationResultIds,
+  runHasAutomationCases,
+  isAutomationRunResult,
+} = require('../utils/runAutomationPartition');
+
 const isValidHttpUrl = (value) => {
   try {
     assertAllowedBaseUrl(value);
@@ -120,10 +140,6 @@ const startTestRunService = async ({ testPlanId, name, baseUrl, user }) => {
     throw httpError(400, 'Plan has no test cases');
   }
 
-  if (resolvedTestPlan.executionMode === 'automation' && !isValidHttpUrl(baseUrl)) {
-    throw httpError(400, 'Base URL is invalid');
-  }
-
   const testPlanEntityId = resolvedTestPlan.entityId || resolvedTestPlan._id;
   const relatedPlanIds = await getTestPlanVersionIds(resolvedTestPlan);
   const existingRun = await TestRun.findOne({
@@ -145,6 +161,18 @@ const startTestRunService = async ({ testPlanId, name, baseUrl, user }) => {
   const missingIndex = latestTestCases.findIndex((tc) => !tc);
   if (missingIndex !== -1) {
     throw httpError(404, 'A test case in this test plan could not be resolved to the latest version');
+  }
+
+  const trimmedBaseUrl = String(baseUrl || '').trim();
+  if (trimmedBaseUrl && !isValidHttpUrl(trimmedBaseUrl)) {
+    throw httpError(400, 'Base URL is invalid');
+  }
+
+  if (latestTestCases.some((testCase) => automationCaseNeedsRunBaseUrl(testCase, trimmedBaseUrl))) {
+    throw httpError(
+      400,
+      'Some automation cases are missing Base URL. Set Base URL on each test case or provide a default run Base URL.',
+    );
   }
 
   const latestGroups = await Promise.all(latestTestCases.map(async (tc) => {
@@ -215,21 +243,26 @@ const startTestRunService = async ({ testPlanId, name, baseUrl, user }) => {
 
   const populatedRun = await TestRun.findById(testRun._id).lean();
   const runPayload = await attachRunProjectAndVersion(await attachRunTestPlan(populatedRun));
+  const testCaseMap = new Map(latestTestCases.map((testCase) => [String(testCase._id), testCase]));
+  const automationResultIds = getAutomationResultIds(testRun.results, testCaseMap);
 
-  if (resolvedTestPlan.executionMode === 'automation') {
+  if (automationResultIds.length > 0) {
     scheduleAutomationRun({
       testRunId: testRun._id,
       baseUrl: baseUrl || '',
       executedBy: user.id,
+      resultIds: automationResultIds,
     });
 
     return {
-      testRun: runPayload,
+      testRun: withAutomationActive(runPayload),
       automationQueued: true,
+      automationCaseCount: automationResultIds.length,
+      manualCaseCount: testRun.results.length - automationResultIds.length,
     };
   }
 
-  return { testRun: runPayload };
+  return { testRun: withAutomationActive(runPayload) };
 };
 
 // ---------------------------------------------------------------------------
@@ -248,8 +281,10 @@ const applyAutomationResultsService = async ({
 
   const testPlan = await findTestPlanByReference(testRun.testPlan);
   if (!testPlan) throw httpError(404, 'Test plan not found');
-  if (testPlan.executionMode !== 'automation') {
-    throw httpError(400, 'Test plan is not automation execution mode');
+
+  const testCaseMap = await loadTestCaseMapForResults(testRun.results);
+  if (!runHasAutomationCases(testRun.results, testCaseMap)) {
+    throw httpError(400, 'Test run has no automation-enabled cases');
   }
 
   const isAdmin = ingestSource === 'admin' && user && user.role === 'admin';
@@ -335,7 +370,7 @@ const listTestRunsService = async ({ projectId, versionId, status }, user) => {
     const withAll = await attachRunProjectAndVersion(withPlan);
     const progressSummary = computeRunProgress(testRun.results);
 
-    testRunsWithProgress.push({
+    testRunsWithProgress.push(withAutomationActive({
       ...withAll,
       progress: progressSummary.progress,
       passRate: progressSummary.passRate,
@@ -345,7 +380,7 @@ const listTestRunsService = async ({ projectId, versionId, status }, user) => {
       untestedResults: progressSummary.untested,
       failCount: progressSummary.fail,
       passCount: progressSummary.pass,
-    });
+    }));
   }
 
   return { testRuns: testRunsWithProgress };
@@ -383,7 +418,7 @@ const getMyRunItemsService = async (runId, user) => {
   ]);
 
   return {
-    testRun: {
+    testRun: withAutomationActive({
       ...testRun,
       project: project
         ? {
@@ -408,10 +443,9 @@ const getMyRunItemsService = async (runId, user) => {
             _id: plan._id,
             entityId: plan.entityId,
             name: plan.name,
-            executionMode: plan.executionMode,
           }
         : testRun.testPlan || null,
-    },
+    }),
     results,
   };
 };
@@ -430,13 +464,13 @@ const updateRunResultService = async (runId, resultId, payload, user) => {
   if (!testRun) throw httpError(404, 'Test run not found');
   if (testRun.status !== 'running') throw httpError(400, 'Only running test run can be updated');
 
-  const parentPlan = await findTestPlanByReference(testRun.testPlan);
-  if (parentPlan && parentPlan.executionMode === 'automation') {
-    throw httpError(403, 'Automation run results cannot be updated manually');
-  }
-
   const result = testRun.results.id(resultId);
   if (!result) throw httpError(404, 'Run result not found');
+
+  const testCaseMap = await loadTestCaseMapForResults(testRun.results);
+  if (isAutomationRunResult(result, testCaseMap)) {
+    throw httpError(403, 'Automation-enabled cases cannot be updated manually');
+  }
 
   const isStarter = String(testRun.startedBy) === user.id;
   const isAdmin = user.role === 'admin';
@@ -473,9 +507,8 @@ const endTestRunService = async (runId, user) => {
     throw httpError(409, 'Test run already completed');
   }
 
-  const parentPlan = await findTestPlanByReference(testRun.testPlan);
-  if (parentPlan && parentPlan.executionMode === 'automation') {
-    throw httpError(403, 'Automation runs cannot be ended manually');
+  if (isAutomationRunActive(runId)) {
+    throw httpError(409, 'Automation is still running. Cancel automation before ending the run.');
   }
 
   testRun.status = 'completed';
@@ -504,9 +537,13 @@ const cancelAutomationRunService = async (runId, user) => {
     throw httpError(400, 'Only running automation can be cancelled');
   }
 
-  const parentPlan = await findTestPlanByReference(testRun.testPlan);
-  if (!parentPlan || parentPlan.executionMode !== 'automation') {
-    throw httpError(400, 'Test plan is not automation execution mode');
+  const testCaseMap = await loadTestCaseMapForResults(testRun.results);
+  if (!runHasAutomationCases(testRun.results, testCaseMap)) {
+    throw httpError(400, 'Test run has no automation-enabled cases');
+  }
+
+  if (!isAutomationRunActive(runId)) {
+    throw httpError(400, 'No automation job is currently running for this test run');
   }
 
   assertAutomationRunPermission(testRun, user);
@@ -532,9 +569,9 @@ const retryFailedAutomationRunService = async (runId, user, baseUrl = '') => {
     throw httpError(400, 'Only completed runs can retry failed cases');
   }
 
-  const parentPlan = await findTestPlanByReference(testRun.testPlan);
-  if (!parentPlan || parentPlan.executionMode !== 'automation') {
-    throw httpError(400, 'Test plan is not automation execution mode');
+  const testCaseMap = await loadTestCaseMapForResults(testRun.results);
+  if (!runHasAutomationCases(testRun.results, testCaseMap)) {
+    throw httpError(400, 'Test run has no automation-enabled cases');
   }
 
   assertAutomationRunPermission(testRun, user);
@@ -543,7 +580,9 @@ const retryFailedAutomationRunService = async (runId, user, baseUrl = '') => {
     throw httpError(409, 'Automation is already running for this test run');
   }
 
-  const failedResults = testRun.results.filter((result) => result.status === 'fail');
+  const failedResults = testRun.results.filter(
+    (result) => result.status === 'fail' && isAutomationRunResult(result, testCaseMap),
+  );
   if (failedResults.length === 0) {
     throw httpError(400, 'No failed cases to retry');
   }
@@ -589,7 +628,9 @@ const retryFailedAutomationRunService = async (runId, user, baseUrl = '') => {
   }
 
   const populatedRun = await TestRun.findById(testRun._id).lean();
-  const runPayload = await attachRunProjectAndVersion(await attachRunTestPlan(populatedRun));
+  const runPayload = withAutomationActive(
+    await attachRunProjectAndVersion(await attachRunTestPlan(populatedRun)),
+  );
 
   return {
     testRun: runPayload,

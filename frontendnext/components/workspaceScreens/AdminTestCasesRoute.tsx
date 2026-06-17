@@ -324,7 +324,6 @@ export default function AdminTestCasesRoute() {
         <WorkspaceContentSkeleton />
       ) : (
         <AdminTestCasesScreen
-          token=""
           editingTestCaseId={editingTestCaseId}
           testCaseForm={testCaseForm as any}
           setTestCaseForm={setTestCaseForm as any}

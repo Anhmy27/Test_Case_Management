@@ -1,7 +1,5 @@
 "use client";
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 import { Fragment, useEffect, useState } from "react";
 import { apiRequest } from "@/lib/api";
 import { DataTable, SectionCard, StatusBadge } from "./shared";

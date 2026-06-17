@@ -13,13 +13,11 @@ import { fetchDryRunFailureScreenshot, hasFailureScreenshot } from "@/lib/automa
 import ZoomableScreenshot from "../execution/ZoomableScreenshot";
 
 type Props = {
-  token: string;
   automationForm: AutomationForm;
   testCaseId?: string;
 };
 
 export default function AutomationDryRunPanel({
-  token,
   automationForm,
   testCaseId = "",
 }: Props) {
@@ -88,7 +86,6 @@ export default function AutomationDryRunPanel({
 
     try {
       const dryRunResult = await runAutomationDryRun({
-        token,
         automationForm,
         testCaseId,
         baseUrlOverride,
@@ -120,7 +117,7 @@ export default function AutomationDryRunPanel({
         </div>
         <button
           type="button"
-          disabled={!canRun || running || !token}
+          disabled={!canRun || running}
           onClick={() => void handleDryRun()}
           className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white hover:bg-indigo-500 disabled:cursor-not-allowed disabled:opacity-60"
         >

@@ -68,7 +68,9 @@ async function loginJiraContext() {
   return { context, baseURL };
 }
 
-test('live probe: quick-create uses Dashboard tokens and QuickCreateIssue JSON', { skip: !hasJiraEnv }, async () => {
+test('live probe: quick-create uses Dashboard tokens and QuickCreateIssue JSON', {
+  skip: !hasJiraEnv || process.env.CI === 'true',
+}, async () => {
   const { context, baseURL } = await loginJiraContext();
 
   try {

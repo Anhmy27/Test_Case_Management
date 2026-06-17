@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -7,7 +7,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import ExecutionScreen from "@/components/workspaceScreens/ExecutionScreen";
 import { useAdminWorkspace, useEmployeeWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
 import { WorkspaceContentSkeleton, TOPBAR_INPUT_CLS } from "@/components/workspaceScreens/shared";
-import { apiRequest, buildDefaultRunName, downloadTestRunExport, formatAutomationRunMessage, getId, resolveStartRunPayload, summarizeAutomationResults, userName } from "@/lib/api";
+import { apiRequest, buildDefaultRunName, downloadTestRunExport, formatAutomationRunMessage, getId, partitionRunItemsByAutomation, resolveStartRunPayload, runHasAutomationItems, runHasManualItems, summarizeAutomationResults, userName } from "@/lib/api";
 import AdminTestPlanInsightsModal from "@/components/workspaceScreens/AdminTestPlanInsightsModal";
 import {
   buildEmployeeTopbar,
@@ -47,6 +47,7 @@ function AdminWorkspaceExecutionRoute() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const runIdFromUrl = String(searchParams.get("runId") || "").trim();
+  const resultIdFromUrl = String(searchParams.get("resultId") || "").trim();
   const testPlanIdFromUrl = String(searchParams.get("testPlanId") || "").trim();
   const runNameFromUrl = String(searchParams.get("runName") || "").trim();
   const fromInsightsPlanId = String(searchParams.get("fromInsightsPlanId") || "").trim();
@@ -179,17 +180,17 @@ function AdminWorkspaceExecutionRoute() {
 
   const scopedPlans = useMemo(() => (Array.isArray(plans) ? plans : []), [plans]);
   const activeRun = runIdFromUrl ? selectedRun : null;
-  const activeMyItems = runIdFromUrl ? myItems : [];
-  const selectedStartPlan = scopedPlans.find((plan) => getId(plan) === runForm.testPlanId) || null;
-  const selectedRunPlan = activeRun?.testPlan || null;
-  const selectedRunPlanIsAutomation = String(selectedStartPlan?.executionMode || "manual") === "automation";
-  const isActiveRunAutomation =
-    String(activeRun?.testPlan?.executionMode || selectedRunPlan?.executionMode || "manual") === "automation";
+  const activeMyItems = useMemo(
+    () => (runIdFromUrl ? myItems : []),
+    [runIdFromUrl, myItems],
+  );
+  const runHasAutomation = runHasAutomationItems(activeMyItems);
+  const runHasManual = runHasManualItems(activeMyItems);
   const shouldPollAutomationRun = Boolean(
     runIdFromUrl &&
       activeRun &&
       activeRun.status === "running" &&
-      selectedRunPlanIsAutomation,
+      runHasAutomation,
   );
   const selectedItem = activeMyItems.find((item) => getId(item) === selectedItemId);
   const hasRunAssignments = activeMyItems.length > 0;
@@ -204,26 +205,43 @@ function AdminWorkspaceExecutionRoute() {
       return;
     }
 
+    if (resultIdFromUrl && activeMyItems.some((item) => getId(item) === resultIdFromUrl)) {
+      if (selectedItemId !== resultIdFromUrl) {
+        setSelectedItemId(resultIdFromUrl);
+      }
+      return;
+    }
+
     if (!selectedItemId || !activeMyItems.some((item) => getId(item) === selectedItemId)) {
+      const { manualItems, automationItems } = partitionRunItemsByAutomation(activeMyItems);
+      const selectionPool = manualItems.length > 0 ? manualItems : automationItems;
       const preferred =
-        activeMyItems.find((item) => item.status === "fail") ||
-        activeMyItems.find((item) => item.status === "blocked") ||
+        selectionPool.find((item) => item.status === "fail") ||
+        selectionPool.find((item) => item.status === "blocked") ||
+        selectionPool[0] ||
         activeMyItems[0];
       setSelectedItemId(getId(preferred));
     }
-  }, [activeMyItems, selectedItemId]);
+  }, [activeMyItems, resultIdFromUrl, selectedItemId]);
 
   const canEditSelectedRun = Boolean(
     activeRun &&
       activeRun.status === "running" &&
-      !isActiveRunAutomation &&
+      runHasManual &&
+      (String(getId(activeRun.startedBy) || "") === String(getId(currentUser) || "") ||
+        currentUser?.role === "admin" ||
+        hasRunAssignments),
+  );
+  const canEndSelectedRun = Boolean(
+    activeRun &&
+      activeRun.status === "running" &&
       (String(getId(activeRun.startedBy) || "") === String(getId(currentUser) || "") ||
         currentUser?.role === "admin" ||
         hasRunAssignments),
   );
   const canUploadFailureScreenshot = Boolean(
     activeRun &&
-      !isActiveRunAutomation &&
+      runHasManual &&
       ["running", "completed"].includes(String(activeRun.status || "")) &&
       (currentUser?.role === "admin" ||
         String(getId(activeRun.startedBy) || "") === String(getId(currentUser) || "") ||
@@ -231,7 +249,7 @@ function AdminWorkspaceExecutionRoute() {
   );
   const canControlAutomationRun = Boolean(
     activeRun &&
-      isActiveRunAutomation &&
+      runHasAutomation &&
       currentUser &&
       (String(getId(activeRun.startedBy) || "") === String(getId(currentUser) || "") ||
         currentUser.role === "admin"),
@@ -366,9 +384,15 @@ function AdminWorkspaceExecutionRoute() {
 
   const updateResult = async (resultId: string, status: "pass" | "fail" | "blocked" | "skip", note: string, resultNotes: string) => {
     if (!selectedRun) return;
-    await apiRequest(`/api/test-runs/${getId(selectedRun)}/results/${resultId}`, undefined, { method: "PATCH", body: JSON.stringify({ status, note, notes: resultNotes }) });
-    await loadMyItems(getId(selectedRun));
-    await refreshRuns();
+    try {
+      await apiRequest(`/api/test-runs/${getId(selectedRun)}/results/${resultId}`, undefined, { method: "PATCH", body: JSON.stringify({ status, note, notes: resultNotes }) });
+      await loadMyItems(getId(selectedRun));
+      await refreshRuns();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to update result";
+      setMessage(message);
+      throw error;
+    }
   };
 
   const endRun = async (runId: string) => {
@@ -401,33 +425,23 @@ function AdminWorkspaceExecutionRoute() {
     if (!activeRun) return;
     setRetryingRun(true);
     setMessage("");
-    const sourceRunId = getId(activeRun);
     try {
       const response = await apiRequest<{
         testRun?: RecordAny | null;
         automationQueued?: boolean;
         retryCount?: number;
-      }>(`/api/test-runs/${encodeURIComponent(sourceRunId)}/retry-failed`, undefined, {
+      }>(`/api/test-runs/${encodeURIComponent(getId(activeRun))}/retry-failed`, undefined, {
         method: "POST",
         body: JSON.stringify({
           baseUrl: runForm.baseUrl || activeRun.automationBaseUrl || "",
         }),
       });
-      const newRunId = response.testRun ? getId(response.testRun) : sourceRunId;
-      if (response.automationQueued) {
-        if (response.testRun) {
-          setSelectedRun(response.testRun);
-        }
-        setMessage(`Đang retry ${response.retryCount ?? 0} case fail...`);
-        await loadMyItems(sourceRunId);
-        await refreshRuns();
-      } else {
-        setMessage(`Đã tạo run retry với ${response.retryCount ?? 0} case fail`);
-        await refreshRuns();
-        if (newRunId && newRunId !== sourceRunId) {
-          openRun(newRunId);
-        }
+      if (response.testRun) {
+        setSelectedRun(response.testRun);
       }
+      setMessage(`Đang retry ${response.retryCount ?? 0} case fail...`);
+      await loadMyItems(getId(activeRun));
+      await refreshRuns();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Unable to retry failed cases");
     } finally {
@@ -498,7 +512,6 @@ function AdminWorkspaceExecutionRoute() {
           startRun={startRun}
           startingRun={startingRun}
           scopedPlans={scopedPlans}
-          selectedRunPlanIsAutomation={selectedRunPlanIsAutomation}
           selectedRun={activeRun}
           myItems={activeMyItems}
           selectedItemId={selectedItemId}
@@ -509,6 +522,7 @@ function AdminWorkspaceExecutionRoute() {
           updateResult={updateResult}
           endRun={endRun}
           canEditSelectedRun={canEditSelectedRun}
+          canEndSelectedRun={canEndSelectedRun}
           canUploadFailureScreenshot={canUploadFailureScreenshot}
           canControlAutomationRun={canControlAutomationRun}
           cancellingRun={cancellingRun}
@@ -561,6 +575,7 @@ function EmployeeWorkspaceExecutionRoute() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const runIdFromUrl = String(searchParams.get("runId") || "").trim();
+  const resultIdFromUrl = String(searchParams.get("resultId") || "").trim();
   const testPlanIdFromUrl = String(searchParams.get("testPlanId") || "").trim();
   const runNameFromUrl = String(searchParams.get("runName") || "").trim();
   const { currentUser, setTopbar } = useEmployeeWorkspace();
@@ -683,17 +698,17 @@ function EmployeeWorkspaceExecutionRoute() {
     return employeeProjectScope.filterPlans(safePlans);
   }, [employeeProjectScope, plans]);
   const activeRun = runIdFromUrl ? selectedRun : null;
-  const activeMyItems = runIdFromUrl ? myItems : [];
-  const selectedStartPlan = scopedPlans.find((plan) => getId(plan) === runForm.testPlanId) || null;
-  const selectedRunPlan = activeRun?.testPlan || null;
-  const selectedRunPlanIsAutomation = String(selectedStartPlan?.executionMode || "manual") === "automation";
-  const isActiveRunAutomation =
-    String(activeRun?.testPlan?.executionMode || selectedRunPlan?.executionMode || "manual") === "automation";
+  const activeMyItems = useMemo(
+    () => (runIdFromUrl ? myItems : []),
+    [runIdFromUrl, myItems],
+  );
+  const runHasAutomation = runHasAutomationItems(activeMyItems);
+  const runHasManual = runHasManualItems(activeMyItems);
   const shouldPollAutomationRun = Boolean(
     runIdFromUrl &&
       activeRun &&
       activeRun.status === "running" &&
-      selectedRunPlanIsAutomation,
+      runHasAutomation,
   );
   const selectedItem = activeMyItems.find((item) => getId(item) === selectedItemId);
   const hasRunAssignments = activeMyItems.length > 0;
@@ -708,26 +723,43 @@ function EmployeeWorkspaceExecutionRoute() {
       return;
     }
 
+    if (resultIdFromUrl && activeMyItems.some((item) => getId(item) === resultIdFromUrl)) {
+      if (selectedItemId !== resultIdFromUrl) {
+        setSelectedItemId(resultIdFromUrl);
+      }
+      return;
+    }
+
     if (!selectedItemId || !activeMyItems.some((item) => getId(item) === selectedItemId)) {
+      const { manualItems, automationItems } = partitionRunItemsByAutomation(activeMyItems);
+      const selectionPool = manualItems.length > 0 ? manualItems : automationItems;
       const preferred =
-        activeMyItems.find((item) => item.status === "fail") ||
-        activeMyItems.find((item) => item.status === "blocked") ||
+        selectionPool.find((item) => item.status === "fail") ||
+        selectionPool.find((item) => item.status === "blocked") ||
+        selectionPool[0] ||
         activeMyItems[0];
       setSelectedItemId(getId(preferred));
     }
-  }, [activeMyItems, selectedItemId]);
+  }, [activeMyItems, resultIdFromUrl, selectedItemId]);
 
   const canEditSelectedRun = Boolean(
     activeRun &&
       activeRun.status === "running" &&
-      !isActiveRunAutomation &&
+      runHasManual &&
+      (String(getId(activeRun.startedBy) || "") === String(getId(currentUser) || "") ||
+        currentUser?.role === "admin" ||
+        hasRunAssignments),
+  );
+  const canEndSelectedRun = Boolean(
+    activeRun &&
+      activeRun.status === "running" &&
       (String(getId(activeRun.startedBy) || "") === String(getId(currentUser) || "") ||
         currentUser?.role === "admin" ||
         hasRunAssignments),
   );
   const canUploadFailureScreenshot = Boolean(
     activeRun &&
-      !isActiveRunAutomation &&
+      runHasManual &&
       ["running", "completed"].includes(String(activeRun.status || "")) &&
       (currentUser?.role === "admin" ||
         String(getId(activeRun.startedBy) || "") === String(getId(currentUser) || "") ||
@@ -735,7 +767,7 @@ function EmployeeWorkspaceExecutionRoute() {
   );
   const canControlAutomationRun = Boolean(
     activeRun &&
-      isActiveRunAutomation &&
+      runHasAutomation &&
       currentUser &&
       (String(getId(activeRun.startedBy) || "") === String(getId(currentUser) || "") ||
         currentUser.role === "admin"),
@@ -846,8 +878,14 @@ function EmployeeWorkspaceExecutionRoute() {
 
   const updateResult = async (resultId: string, status: "pass" | "fail" | "blocked" | "skip", note: string, resultNotes: string) => {
     if (!selectedRun) return;
-    await apiRequest(`/api/test-runs/${getId(selectedRun)}/results/${resultId}`, undefined, { method: "PATCH", body: JSON.stringify({ status, note, notes: resultNotes }) });
-    await loadMyItems(getId(selectedRun));
+    try {
+      await apiRequest(`/api/test-runs/${getId(selectedRun)}/results/${resultId}`, undefined, { method: "PATCH", body: JSON.stringify({ status, note, notes: resultNotes }) });
+      await loadMyItems(getId(selectedRun));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to update result";
+      setMessage(message);
+      throw error;
+    }
   };
 
   const endRun = async (runId: string) => {
@@ -942,7 +980,6 @@ function EmployeeWorkspaceExecutionRoute() {
           startRun={startRun}
           startingRun={startingRun}
           scopedPlans={scopedPlans}
-          selectedRunPlanIsAutomation={selectedRunPlanIsAutomation}
           selectedRun={activeRun}
           myItems={activeMyItems}
           selectedItemId={selectedItemId}
@@ -953,6 +990,7 @@ function EmployeeWorkspaceExecutionRoute() {
           updateResult={updateResult}
           endRun={endRun}
           canEditSelectedRun={canEditSelectedRun}
+          canEndSelectedRun={canEndSelectedRun}
           canUploadFailureScreenshot={canUploadFailureScreenshot}
           canControlAutomationRun={canControlAutomationRun}
           cancellingRun={cancellingRun}
@@ -963,6 +1001,7 @@ function EmployeeWorkspaceExecutionRoute() {
           startRunError={startRunError}
           onExportRun={handleExportRun}
           exportingRun={exportingRun}
+          onRefreshRunItems={activeRun ? () => loadMyItems(getId(activeRun)) : undefined}
         />
       )}
       {jiraBugDialogNode}

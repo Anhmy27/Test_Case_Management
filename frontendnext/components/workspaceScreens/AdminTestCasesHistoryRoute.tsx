@@ -1,17 +1,19 @@
-﻿"use client";
+"use client";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import AdminTestCasesHistoryScreen from "@/components/workspaceScreens/AdminTestCasesHistoryScreen";
 import { useAdminWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
 import { TOPBAR_INPUT_CLS, WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
+import { useJiraBugDialog } from "@/components/jira/useJiraBugDialog";
 import { apiRequest, createTextMatcher, getId } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
 
 export default function AdminTestCasesHistoryRoute() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const caseKeyFromUrl = String(searchParams.get("caseKey") || "").trim();
   const { currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
@@ -21,6 +23,35 @@ export default function AdminTestCasesHistoryRoute() {
   const [detailRows, setDetailRows] = useState<RecordAny[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const { openJiraBugDialog, jiraBugDialogNode } = useJiraBugDialog({
+    onNotice: setMessage,
+  });
+
+  const openRunResult = (runId: string, resultId: string) => {
+    const params = new URLSearchParams({
+      runId,
+      resultId,
+    });
+    router.push(`/workspace/admin/test-runs-execution?${params.toString()}`);
+  };
+
+  const logBugForResult = async (runId: string, resultId: string) => {
+    setMessage("");
+    try {
+      const response = await apiRequest<{ testRun?: RecordAny | null; results: RecordAny[] }>(
+        `/api/test-runs/${encodeURIComponent(runId)}/my-items`,
+        undefined,
+      );
+      const result = (response.results || []).find((item) => getId(item) === resultId);
+      if (!response.testRun || !result) {
+        setMessage("Không tìm thấy kết quả run để log bug");
+        return;
+      }
+      await openJiraBugDialog(response.testRun, result);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Unable to load run result for Jira");
+    }
+  };
 
   useEffect(() => {
     if (!currentUser) {
@@ -119,8 +150,11 @@ export default function AdminTestCasesHistoryRoute() {
           detailRows={detailRows}
           highlightCaseKey={caseKeyFromUrl}
           matchesSearch={highlightMatcher}
+          onOpenRunResult={openRunResult}
+          onLogBugForResult={logBugForResult}
         />
       )}
+      {jiraBugDialogNode}
       {!selectedProjectId && !loading ? (
         <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
           Select a project to view execution history details.

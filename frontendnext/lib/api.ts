@@ -259,6 +259,13 @@ export function getId(value: unknown): string {
   return '';
 }
 
+/** Match business entities by canonical entityId (groups, test cases in plans, etc.). */
+export function matchesEntityId(left: unknown, right: unknown): boolean {
+  const leftId = getId(left);
+  const rightId = getId(right);
+  return Boolean(leftId && rightId && leftId === rightId);
+}
+
 export function userName(value: unknown): string {
   if (!value) {
     return 'Unassigned';
@@ -374,13 +381,75 @@ export function getPlanCaseCount(plan: { items?: unknown[] } | null | undefined)
   return Array.isArray(plan?.items) ? plan.items.length : 0;
 }
 
+export function isAutomationEnabledTestCase(testCase: unknown): boolean {
+  if (!testCase || typeof testCase !== 'object') {
+    return false;
+  }
+
+  return Boolean((testCase as { automation?: { enabled?: boolean } }).automation?.enabled);
+}
+
+export function countPlanAutomationCases(plan: { items?: Array<{ testCase?: unknown }> } | null | undefined): number {
+  const items = Array.isArray(plan?.items) ? plan.items : [];
+  return items.filter((item) => isAutomationEnabledTestCase(item?.testCase)).length;
+}
+
+export function getTestCaseAutomationBaseUrl(testCase: unknown): string {
+  if (!testCase || typeof testCase !== "object") {
+    return "";
+  }
+
+  return String(
+    (testCase as { automation?: { baseUrl?: string } }).automation?.baseUrl || "",
+  ).trim();
+}
+
+/** True when an automation case has no per-case baseUrl and the run provides no valid default. */
+export function planAutomationCasesNeedRunBaseUrl(
+  plan: { items?: Array<{ testCase?: unknown }> } | null | undefined,
+  runBaseUrl = "",
+): boolean {
+  if (isValidHttpUrl(runBaseUrl)) {
+    return false;
+  }
+
+  const items = Array.isArray(plan?.items) ? plan.items : [];
+  return items.some(
+    (item) =>
+      isAutomationEnabledTestCase(item?.testCase) &&
+      !isValidHttpUrl(getTestCaseAutomationBaseUrl(item.testCase)),
+  );
+}
+
+export function partitionRunItemsByAutomation<T extends { testCase?: unknown }>(items: T[] = []) {
+  const automationItems: T[] = [];
+  const manualItems: T[] = [];
+
+  for (const item of items) {
+    if (isAutomationEnabledTestCase(item?.testCase)) {
+      automationItems.push(item);
+    } else {
+      manualItems.push(item);
+    }
+  }
+
+  return { automationItems, manualItems };
+}
+
+export function runHasAutomationItems(items: Array<{ testCase?: unknown }> = []): boolean {
+  return partitionRunItemsByAutomation(items).automationItems.length > 0;
+}
+
+export function runHasManualItems(items: Array<{ testCase?: unknown }> = []): boolean {
+  return partitionRunItemsByAutomation(items).manualItems.length > 0;
+}
+
 export type StartRunValidationInput = {
   testPlanId: string;
   name: string;
   baseUrl: string;
   plan: {
-    executionMode?: string;
-    items?: unknown[];
+    items?: Array<{ testCase?: unknown }>;
     name?: string;
     version?: { name?: string };
     entityId?: string;
@@ -521,10 +590,12 @@ export function validateStartRunForm(input: StartRunValidationInput): string | n
     return 'Run name already exists in this plan';
   }
 
-  if (String(input.plan.executionMode || 'manual') === 'automation') {
-    if (!isValidHttpUrl(input.baseUrl)) {
-      return 'Base URL is invalid';
-    }
+  if (String(input.baseUrl || "").trim() && !isValidHttpUrl(input.baseUrl)) {
+    return "Base URL is invalid";
+  }
+
+  if (planAutomationCasesNeedRunBaseUrl(input.plan, input.baseUrl)) {
+    return "Một số case automation chưa có Base URL. Cấu hình URL trong từng test case hoặc nhập URL mặc định cho run.";
   }
 
   return null;
@@ -617,7 +688,41 @@ export type AutomationProgress = {
   currentStepTotal?: number;
   currentCaseKey?: string;
   cancelRequested?: boolean;
+  lastHeartbeatAt?: string;
 };
+
+type AutomationRunLike = {
+  automationActive?: boolean;
+  status?: string;
+  automationProgress?: AutomationProgress | null;
+} | null | undefined;
+
+export function isAutomationWorkerActive(
+  run: AutomationRunLike,
+  automationItems: Array<{ status?: string; executedAt?: string | Date | null }> = [],
+): boolean {
+  if (!run || String(run.status || "") !== "running") {
+    return false;
+  }
+
+  if (typeof run.automationActive === "boolean") {
+    return run.automationActive;
+  }
+
+  if (run.automationProgress?.cancelRequested) {
+    return true;
+  }
+
+  const heartbeatMs = run.automationProgress?.lastHeartbeatAt
+    ? new Date(run.automationProgress.lastHeartbeatAt).getTime()
+    : 0;
+  const heartbeatFresh = heartbeatMs > 0 && Date.now() - heartbeatMs < 20000;
+  const hasPendingCases = automationItems.some(
+    (item) => String(item.status || "untested") === "untested" && !item.executedAt,
+  );
+
+  return hasPendingCases && heartbeatFresh;
+}
 
 export function formatAutomationLiveProgress(
   progress?: AutomationProgress | null,

@@ -28,9 +28,9 @@ const buildTestPlanServices = ({
     projectId,
     versionId,
     caseIds,
-    executionMode,
     ownerId,
     assigneeIds,
+    executionMode,
     createdBy,
   }) => {
     const project = await ensureProjectExists(projectId);
@@ -288,7 +288,7 @@ const buildTestPlanServices = ({
       description: current.description,
       project: current.project,
       version: current.version,
-      executionMode: current.executionMode,
+      executionMode: current.executionMode || 'manual',
       owner: ownerId ? toObjectId(ownerId, 'ownerId') : toObjectId(userId, 'ownerId'),
       assignees: assigneeIds.map((id, index) => toObjectId(id, `assigneeIds[${index}]`)),
       items: current.items,
@@ -314,9 +314,9 @@ const buildTestPlanServices = ({
       projectId,
       versionId,
       caseIds,
-      executionMode,
       ownerId,
       assigneeIds,
+      executionMode,
     },
     userId,
   ) => {
@@ -384,11 +384,13 @@ const buildTestPlanServices = ({
         projectVersionId: project._id,
         version: nextVersionId,
         versionVersionId: version._id,
-        executionMode: executionMode && ['manual', 'automation'].includes(executionMode) ? executionMode : current.executionMode,
         owner: ownerId ? toObjectId(ownerId, 'ownerId') : current.owner,
         assignees: Array.isArray(assigneeIds)
           ? assigneeIds.map((id, index) => toObjectId(id, `assigneeIds[${index}]`))
           : current.assignees,
+        executionMode: executionMode === 'automation' || executionMode === 'manual'
+          ? executionMode
+          : (current.executionMode || 'manual'),
         items,
         createdBy: current.createdBy || userId,
       };

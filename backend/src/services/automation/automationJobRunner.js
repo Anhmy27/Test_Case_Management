@@ -5,6 +5,10 @@
 
 const TestRun = require('../../models/TestRun');
 const { executeAutomationRun } = require('./runOrchestrator');
+const {
+  loadTestCaseMapForResults,
+  isAutomationRunResult,
+} = require('../../utils/runAutomationPartition');
 
 const activeRunIds = new Set();
 
@@ -17,8 +21,13 @@ const finalizeUnexpectedFailure = async (testRunId, executedBy, error) => {
   }
 
   const message = error?.message || 'Automation runner failed unexpectedly';
+  const testCaseMap = await loadTestCaseMapForResults(testRun.results);
 
   for (const result of testRun.results) {
+    if (!isAutomationRunResult(result, testCaseMap)) {
+      continue;
+    }
+
     if (!result.executedAt) {
       result.status = 'blocked';
       result.note = message.slice(0, 5000);
@@ -28,9 +37,6 @@ const finalizeUnexpectedFailure = async (testRunId, executedBy, error) => {
     }
   }
 
-  testRun.status = 'completed';
-  testRun.endedAt = new Date();
-  testRun.endedBy = executedBy;
   await testRun.save();
 };
 

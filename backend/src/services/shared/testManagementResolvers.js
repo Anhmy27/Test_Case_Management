@@ -168,31 +168,64 @@ const attachTestPlanCases = async (testPlan) => {
     return null;
   }
 
-  const referencedCaseIds = Array.from(new Set((testPlan.items || [])
-    .map((item) => extractReferenceId(item.testCase))
-    .filter(Boolean)));
+  const items = Array.isArray(testPlan.items) ? testPlan.items : [];
+  const versionIds = Array.from(
+    new Set(items.map((item) => String(item.testCaseVersionId || '').trim()).filter(Boolean)),
+  );
+  const referencedCaseIds = Array.from(
+    new Set(items.map((item) => extractReferenceId(item.testCase)).filter(Boolean)),
+  );
+  const objectIdRefs = referencedCaseIds
+    .filter((value) => mongoose.Types.ObjectId.isValid(value))
+    .map((value) => toObjectId(value, 'testCaseId'));
 
-  const attachedCases = referencedCaseIds.length > 0
-    ? await TestCase.find({
-        $or: [
-          { _id: { $in: referencedCaseIds.filter((value) => mongoose.Types.ObjectId.isValid(value)).map((value) => toObjectId(value, 'testCaseId')) } },
-          { entityId: { $in: referencedCaseIds.filter((value) => mongoose.Types.ObjectId.isValid(value)).map((value) => toObjectId(value, 'testCaseId')) } },
+  const caseSelect = 'entityId key name caseKey title deletedAt automation.enabled automation.baseUrl';
+
+  const [versionCases, latestCases] = await Promise.all([
+    versionIds.length
+      ? TestCase.find({
+        _id: { $in: versionIds.map((value) => toObjectId(value, 'testCaseId')) },
+        deletedAt: null,
+      }).select(caseSelect).lean()
+      : [],
+    objectIdRefs.length
+      ? TestCase.find({
+        $and: [
+          {
+            $or: [
+              { _id: { $in: objectIdRefs } },
+              { entityId: { $in: objectIdRefs } },
+            ],
+          },
+          { deletedAt: null },
+          { $or: [{ isLatest: true }, { isLatest: { $exists: false } }] },
         ],
-      }).select('entityId key name caseKey title deletedAt').lean()
-    : [];
+      }).select(caseSelect).lean()
+      : [],
+  ]);
 
-  const caseMap = new Map();
-  for (const testCase of attachedCases) {
-    caseMap.set(String(testCase._id), testCase);
-    if (testCase.entityId) caseMap.set(String(testCase.entityId), testCase);
+  const versionMap = new Map(versionCases.map((testCase) => [String(testCase._id), testCase]));
+  const refMap = new Map();
+  for (const testCase of latestCases) {
+    refMap.set(String(testCase._id), testCase);
+    if (testCase.entityId) {
+      refMap.set(String(testCase.entityId), testCase);
+    }
   }
 
   return {
     ...testPlan,
-    items: (testPlan.items || []).map((item) => ({
-      ...item,
-      testCase: caseMap.get(extractReferenceId(item.testCase)) || item.testCase || null,
-    })),
+    items: items.map((item) => {
+      const pinnedId = String(item.testCaseVersionId || '').trim();
+      const pinnedCase = pinnedId ? versionMap.get(pinnedId) : null;
+      const refId = extractReferenceId(item.testCase);
+      const resolvedCase = pinnedCase || (refId ? refMap.get(refId) : null) || item.testCase || null;
+
+      return {
+        ...item,
+        testCase: resolvedCase,
+      };
+    }),
   };
 };
 

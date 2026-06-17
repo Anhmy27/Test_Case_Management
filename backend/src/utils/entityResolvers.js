@@ -215,7 +215,7 @@ const findTestPlanSnapshotForRun = async (testPlanRef) => {
     deletedAt: null,
     $or: [{ isLatest: true }, { isLatest: { $exists: false } }],
   })
-    .select('name executionMode entityId')
+    .select('name entityId')
     .lean();
 
   const snapshot = latestPlan || referencedPlan;
@@ -224,7 +224,6 @@ const findTestPlanSnapshotForRun = async (testPlanRef) => {
     _id: snapshot._id,
     entityId,
     name: snapshot.name,
-    executionMode: snapshot.executionMode,
   };
 };
 
@@ -237,7 +236,6 @@ const attachRunTestPlan = async (testRun) => {
           _id: resolvedPlan._id,
           entityId: resolvedPlan.entityId,
           name: resolvedPlan.name,
-          executionMode: resolvedPlan.executionMode,
         }
       : testRun?.testPlan || null,
   };

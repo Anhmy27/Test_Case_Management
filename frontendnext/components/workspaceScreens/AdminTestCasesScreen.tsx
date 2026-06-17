@@ -33,7 +33,6 @@ type TestCaseForm = {
 
 
 type Props = {
-  token: string;
   editingTestCaseId: string;
   testCaseForm: TestCaseForm;
   setTestCaseForm: Dispatch<SetStateAction<TestCaseForm>>;
@@ -73,7 +72,6 @@ type ManualDragPayload = { index: number };
 
 export default function AdminTestCasesScreen(props: Props) {
   const {
-    token,
     editingTestCaseId,
     testCaseForm,
     setTestCaseForm,
@@ -901,7 +899,6 @@ export default function AdminTestCasesScreen(props: Props) {
 
                 {automationForm.enabled ? (
                   <AutomationDryRunPanel
-                    token={token}
                     automationForm={automationForm}
                     testCaseId={editingTestCaseId}
                   />

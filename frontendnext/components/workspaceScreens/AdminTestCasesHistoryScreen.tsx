@@ -3,6 +3,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import ExecutionHistoryEntryActions from "@/components/execution/ExecutionHistoryEntryActions";
+import ExecutionHistoryScreenshotModal from "@/components/execution/ExecutionHistoryScreenshotModal";
 import { DataTable, Field, INPUT_CLS, SectionCard, StatusBadge } from "./shared";
 import { getId } from "@/lib/api";
 
@@ -17,6 +19,8 @@ type Props = {
   detailRows: RecordAny[];
   highlightCaseKey?: string;
   matchesSearch: (...values: Array<string | number | undefined | null>) => boolean;
+  onOpenRunResult?: (runId: string, resultId: string) => void;
+  onLogBugForResult?: (runId: string, resultId: string) => void | Promise<void>;
 };
 
 export default function AdminTestCasesHistoryScreen({
@@ -28,9 +32,15 @@ export default function AdminTestCasesHistoryScreen({
   detailRows,
   highlightCaseKey = "",
   matchesSearch,
+  onOpenRunResult,
+  onLogBugForResult,
 }: Props) {
-  const safeDetailRows = Array.isArray(detailRows) ? detailRows : [];
+  const safeDetailRows = useMemo(
+    () => (Array.isArray(detailRows) ? detailRows : []),
+    [detailRows],
+  );
   const [focusedCase, setFocusedCase] = useState<RecordAny | null>(null);
+  const [screenshotTarget, setScreenshotTarget] = useState<{ runId: string; resultId: string } | null>(null);
   const consumedHighlightRef = useRef("");
 
   useEffect(() => {
@@ -113,7 +123,7 @@ export default function AdminTestCasesHistoryScreen({
               <div className="py-8 text-center text-sm text-slate-400">Loading...</div>
             ) : (
               <DataTable
-                columns={["Case", "Group", "Priority", "Recent 1", "Recent 2", "Recent 3", "Action"]}
+                columns={["Key", "Title", "Group", "Priority", "Recent 1", "Recent 2", "Recent 3", "Action"]}
                 rows={safeDetailRows
                   .filter((testCase: RecordAny) =>
                     matchesSearch(testCase.caseKey, testCase.title, testCase.group?.name, testCase.priority, ...(testCase.recentStatuses || [])),
@@ -122,7 +132,8 @@ export default function AdminTestCasesHistoryScreen({
                     const statuses = Array.isArray(testCase.recentStatuses) ? testCase.recentStatuses : [];
                     return (
                       <>
-                        <div>{testCase.caseKey || testCase.key} - {testCase.title || testCase.name}</div>
+                        <div className="font-semibold text-slate-900">{testCase.caseKey || testCase.key || "-"}</div>
+                        <div>{testCase.title || testCase.name || "-"}</div>
                         <div>{testCase.group?.name || "-"}</div>
                         <div>{testCase.priority || "-"}</div>
                         <div>{statusCell(statuses[0])}</div>
@@ -161,7 +172,9 @@ export default function AdminTestCasesHistoryScreen({
             <div className="mb-4">
               <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Execution history</div>
               <h3 className="text-xl font-semibold text-slate-900">
-                {focusedCase.caseKey || focusedCase.key} - {focusedCase.title || focusedCase.name}
+                <span className="font-semibold">{focusedCase.caseKey || focusedCase.key || "-"}</span>
+                <span className="mx-2 font-normal text-slate-400">·</span>
+                <span>{focusedCase.title || focusedCase.name || "-"}</span>
               </h3>
               <div className="text-sm text-slate-600">
                 {focusedCase.group?.name || "-"} · {focusedCase.priority || "-"}
@@ -188,19 +201,20 @@ export default function AdminTestCasesHistoryScreen({
             </div>
 
             <div className="rounded-xl border border-slate-200">
-              <div className="grid grid-cols-[minmax(0,1.3fr)_120px_180px_160px_180px] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+              <div className="grid grid-cols-[minmax(0,1.1fr)_100px_140px_150px_minmax(0,1fr)_minmax(140px,180px)] gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                 <div>Run</div>
                 <div>Status</div>
                 <div>Started by</div>
                 <div>Executed at</div>
                 <div>Note</div>
+                <div>Actions</div>
               </div>
               <div className="max-h-[55vh] divide-y divide-slate-200 overflow-auto">
                 {focusedHistory.length === 0 ? (
                   <div className="px-4 py-6 text-sm text-slate-500">No execution history found for this case.</div>
                 ) : (
                   focusedHistory.map((entry: RecordAny, index: number) => (
-                    <div key={`${String(entry.runId || "run")}-${index}`} className="grid grid-cols-[minmax(0,1.3fr)_120px_180px_160px_180px] gap-3 px-4 py-3 text-sm">
+                    <div key={`${String(entry.runId || "run")}-${String(entry.resultId || index)}`} className="grid grid-cols-[minmax(0,1.1fr)_100px_140px_150px_minmax(0,1fr)_minmax(140px,180px)] gap-3 px-4 py-3 text-sm">
                       <div>
                         <div className="font-semibold text-slate-900">{entry.runName || entry.runId || "Run"}</div>
                         <div className="text-xs text-slate-500">{entry.runStatus || "-"}</div>
@@ -208,7 +222,15 @@ export default function AdminTestCasesHistoryScreen({
                       <div>{entry.status ? <StatusBadge status={entry.status} /> : <span className="text-slate-400">-</span>}</div>
                       <div className="text-slate-700">{entry.startedBy?.name || entry.startedBy?.email || "-"}</div>
                       <div className="text-slate-600">{entry.executedAt ? new Date(entry.executedAt).toLocaleString() : (entry.startedAt ? new Date(entry.startedAt).toLocaleString() : "-")}</div>
-                      <div className="text-slate-600">{entry.note || "-"}</div>
+                      <div className="break-words text-slate-600">{entry.note || "-"}</div>
+                      <div>
+                        <ExecutionHistoryEntryActions
+                          entry={entry}
+                          onOpenRun={onOpenRunResult}
+                          onViewScreenshot={(runId, resultId) => setScreenshotTarget({ runId, resultId })}
+                          onLogBug={onLogBugForResult}
+                        />
+                      </div>
                     </div>
                   ))
                 )}
@@ -217,6 +239,15 @@ export default function AdminTestCasesHistoryScreen({
           </div>
         </div>
       )}
+
+      {screenshotTarget ? (
+        <ExecutionHistoryScreenshotModal
+          runId={screenshotTarget.runId}
+          resultId={screenshotTarget.resultId}
+          caseLabel={`${focusedCase?.caseKey || focusedCase?.key || "-"} · ${focusedCase?.title || focusedCase?.name || ""}`}
+          onClose={() => setScreenshotTarget(null)}
+        />
+      ) : null}
     </div>
   );
 }
