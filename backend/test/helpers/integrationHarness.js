@@ -103,6 +103,24 @@ async function createIntegrationHarness() {
         mergeResponseCookies(response);
         return response;
       },
+      async put(path, body, expectedStatus) {
+        let requestBuilder = agent.put(path).set(withAuthHeaders());
+        if (body !== undefined) {
+          requestBuilder = requestBuilder.send(body);
+        }
+        const response = await requestBuilder.expect(expectedStatus);
+        mergeResponseCookies(response);
+        return response;
+      },
+      async patch(path, body, expectedStatus) {
+        let requestBuilder = agent.patch(path).set(withAuthHeaders());
+        if (body !== undefined) {
+          requestBuilder = requestBuilder.send(body);
+        }
+        const response = await requestBuilder.expect(expectedStatus);
+        mergeResponseCookies(response);
+        return response;
+      },
     };
   }
 

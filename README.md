@@ -15,7 +15,7 @@ Test Case Management System is a full-stack test management app with:
 - **Backend architecture**: domain service split + Zod validation at route boundary.
 - **Automation**: orphan run recovery on startup, artifact retention, SSRF guardrails.
 - **CI**: GitHub Actions runs backend tests, frontend build/lint, and Playwright e2e smoke tests on push/PR to `main`/`master`.
-- **Tests**: **64** backend tests (unit + integration, `npm run test:ci`; skips live Jira probes) + Playwright e2e smoke (`npm run test:e2e:ci` in `frontendnext/`).
+- **Tests**: **73** backend tests (unit + integration, `npm run test:ci`; skips live Jira probes) + Playwright e2e smoke (`npm run test:e2e:ci` in `frontendnext/`).
 
 ## Repository Layout
 
@@ -196,10 +196,12 @@ Current unit test files (13):
 - `artifactKeys.test.js`, `localArtifactStorage.test.js` — artifact path helpers
 - `jira-create-issue-probe.test.js`, `jira-log-bug-live.test.js` — optional live Jira probes (skipped in CI)
 
-Integration tests (2 files, 6 cases):
+Integration tests (4 files, 15 cases):
 
 - `integration/auth.integration.test.js` — register/login/logout cookies, CSRF guard, duplicate register quota
 - `integration/audit-log.integration.test.js` — admin project create → audit entry; employee blocked from audit API
+- `integration/test-run-execution.integration.test.js` — manual plan → run → submit result → end run → execution history; permission & duplicate-run guards
+- `integration/test-management-chain.integration.test.js` — project → version → group → case → plan CRUD chain; plan versioning & assignee access
 
 ### E2E smoke tests (Playwright)
 
