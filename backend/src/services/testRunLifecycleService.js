@@ -276,38 +276,53 @@ const applyAutomationResultsService = async ({
     throw httpError(403, 'Not authorized to submit automation results');
   }
 
-  const testRun = await TestRun.findById(toObjectId(runId, 'runId'));
-  if (!testRun) throw httpError(404, 'Test run not found');
-
-  const testPlan = await findTestPlanByReference(testRun.testPlan);
-  if (!testPlan) throw httpError(404, 'Test plan not found');
-
-  const testCaseMap = await loadTestCaseMapForResults(testRun.results);
-  if (!runHasAutomationCases(testRun.results, testCaseMap)) {
-    throw httpError(400, 'Test run has no automation-enabled cases');
-  }
-
+  const runObjectId = toObjectId(runId, 'runId');
   const isAdmin = ingestSource === 'admin' && user && user.role === 'admin';
+  const maxVersionRetries = 3;
 
-  for (const item of results) {
-    const { planItemId, status, note, notes } = item || {};
-    if (!planItemId || !['pass', 'fail', 'blocked', 'skip'].includes(status)) continue;
+  for (let attempt = 0; attempt < maxVersionRetries; attempt += 1) {
+    const testRun = await TestRun.findById(runObjectId);
+    if (!testRun) throw httpError(404, 'Test run not found');
 
-    const match = testRun.results.find((r) => String(r.planItemId) === String(planItemId));
-    if (!match) continue;
+    const testPlan = await findTestPlanByReference(testRun.testPlan);
+    if (!testPlan) throw httpError(404, 'Test plan not found');
 
-    match.status = status;
-    match.note = note || '';
-    match.notes = notes || '';
-    match.executedAt = new Date();
-    match.tester = isAdmin ? user.id : null;
+    const testCaseMap = await loadTestCaseMapForResults(testRun.results);
+    if (!runHasAutomationCases(testRun.results, testCaseMap)) {
+      throw httpError(400, 'Test run has no automation-enabled cases');
+    }
+
+    for (const item of results) {
+      const { planItemId, status, note, notes } = item || {};
+      if (!planItemId || !['pass', 'fail', 'blocked', 'skip'].includes(status)) continue;
+
+      const match = testRun.results.find((r) => String(r.planItemId) === String(planItemId));
+      if (!match) continue;
+
+      match.status = status;
+      match.note = note || '';
+      match.notes = notes || '';
+      match.executedAt = new Date();
+      match.tester = isAdmin ? user.id : null;
+    }
+
+    testRun.status = 'completed';
+    testRun.endedAt = new Date();
+    testRun.endedBy = isAdmin ? user.id : null;
+
+    try {
+      await testRun.save();
+      return { testRun };
+    } catch (error) {
+      const isVersionConflict = error?.name === 'VersionError';
+      const hasRetryLeft = attempt < maxVersionRetries - 1;
+      if (!isVersionConflict || !hasRetryLeft) {
+        throw error;
+      }
+    }
   }
 
-  testRun.status = 'completed';
-  testRun.endedAt = new Date();
-  testRun.endedBy = isAdmin ? user.id : null;
-  await testRun.save();
-  return { testRun };
+  throw httpError(500, 'Failed to apply automation results');
 };
 
 // ---------------------------------------------------------------------------
