@@ -375,15 +375,16 @@ export default function ExecutionScreen(props: Props) {
                 >
                   <option value="">Select plan</option>
 
-                  {scopedPlans.map((plan: RecordAny) => (
-                    <option key={getId(plan)} value={getId(plan)}>
-                      {plan.name} ({plan.executionMode || "manual"}
-                      {countPlanAutomationCases(plan) > 0
-                        ? `, ${countPlanAutomationCases(plan)} auto`
-                        : ""}
-                      )
-                    </option>
-                  ))}
+                  {scopedPlans.map((plan: RecordAny) => {
+                    const totalCases = (plan.items || []).length;
+                    const autoCases = countPlanAutomationCases(plan);
+                    const manualCases = totalCases - autoCases;
+                    return (
+                      <option key={getId(plan)} value={getId(plan)}>
+                        {plan.name} ({autoCases} auto, {manualCases} manual)
+                      </option>
+                    );
+                  })}
                 </select>
               </Field>
 
@@ -687,51 +688,53 @@ export default function ExecutionScreen(props: Props) {
             </div>
           </section>
 
-          {runHasAutomation ? (
-            <AutomationRunExecutionPanel
-              selectedRun={selectedRun}
-              myItems={automationItems}
-              selectedItemId={selectedItemId}
-              setSelectedItemId={setSelectedItemId}
-              selectedItem={selectedItem}
-              notes={notes}
-              canControlRun={canControlAutomationRun}
-              cancellingRun={cancellingRun}
-              retryingRun={retryingRun}
-              onCancelRun={onCancelAutomationRun}
-              onRetryFailed={onRetryFailedAutomation}
-              onLogBug={onLogBug}
-              queueFilter={queueFilter}
-              onQueueFilterChange={handleQueueFilterChange}
-            />
-          ) : null}
+          <div className="max-h-[65vh] space-y-4 overflow-y-auto">
+            {runHasAutomation ? (
+              <AutomationRunExecutionPanel
+                selectedRun={selectedRun}
+                myItems={automationItems}
+                selectedItemId={selectedItemId}
+                setSelectedItemId={setSelectedItemId}
+                selectedItem={selectedItem}
+                notes={notes}
+                canControlRun={canControlAutomationRun}
+                cancellingRun={cancellingRun}
+                retryingRun={retryingRun}
+                onCancelRun={onCancelAutomationRun}
+                onRetryFailed={onRetryFailedAutomation}
+                onLogBug={onLogBug}
+                queueFilter={queueFilter}
+                onQueueFilterChange={handleQueueFilterChange}
+              />
+            ) : null}
 
-          {runHasManual ? (
-            <ManualRunExecutionPanel
-              selectedRun={selectedRun}
-              myItems={manualItems}
-              selectedItemId={selectedItemId}
-              setSelectedItemId={setSelectedItemId}
-              selectedItem={selectedItem}
-              notes={notes}
-              setNotes={setNotes}
-              onUpdateResult={updateResult}
-              onEndRun={handleEndRun}
-              canEditRun={canEditSelectedRun}
-              canUploadFailureScreenshot={canUploadFailureScreenshot}
-              canEndRun={canEndRun}
-              onLogBug={onLogBug}
-              queueFilter={queueFilter}
-              onQueueFilterChange={handleQueueFilterChange}
-              onScreenshotUploaded={onRefreshRunItems}
-              onExportRun={onExportRun}
-              onOpenPlanInsights={
-                onOpenPlanInsights && selectedPlanId
-                  ? handleOpenPlanInsights
-                  : undefined
-              }
-            />
-          ) : null}
+            {runHasManual ? (
+              <ManualRunExecutionPanel
+                selectedRun={selectedRun}
+                myItems={manualItems}
+                selectedItemId={selectedItemId}
+                setSelectedItemId={setSelectedItemId}
+                selectedItem={selectedItem}
+                notes={notes}
+                setNotes={setNotes}
+                onUpdateResult={updateResult}
+                onEndRun={handleEndRun}
+                canEditRun={canEditSelectedRun}
+                canUploadFailureScreenshot={canUploadFailureScreenshot}
+                canEndRun={canEndRun}
+                onLogBug={onLogBug}
+                queueFilter={queueFilter}
+                onQueueFilterChange={handleQueueFilterChange}
+                onScreenshotUploaded={onRefreshRunItems}
+                onExportRun={onExportRun}
+                onOpenPlanInsights={
+                  onOpenPlanInsights && selectedPlanId
+                    ? handleOpenPlanInsights
+                    : undefined
+                }
+              />
+            ) : null}
+          </div>
         </>
       ) : showRunList ? (
         <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-6 text-center text-sm text-slate-500 shadow-sm">

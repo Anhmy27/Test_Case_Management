@@ -274,12 +274,22 @@ function AdminWorkspaceExecutionRoute() {
         }
 
         if (response.testRun) {
-          setSelectedRun(response.testRun);
+          setSelectedRun((prev) => {
+            if (JSON.stringify(prev) !== JSON.stringify(response.testRun)) {
+              return response.testRun;
+            }
+            return prev;
+          });
           if (response.testRun.status === "completed") {
             setMessage(formatAutomationRunMessage(summarizeAutomationResults(response.results || [])));
           }
         }
-        setMyItems(Array.isArray(response.results) ? response.results : []);
+        setMyItems((prev) => {
+          if (JSON.stringify(prev) !== JSON.stringify(response.results)) {
+            return Array.isArray(response.results) ? response.results : [];
+          }
+          return prev;
+        });
         setPollError("");
       } catch {
         if (!cancelled) {
@@ -555,15 +565,10 @@ function AdminWorkspaceExecutionRoute() {
           onStartNewRun={() => {
             const plan = scopedPlans.find((item) => getId(item) === insightsPlan.planId);
             setInsightsPlan(null);
-            setRunForm({
-              testPlanId: insightsPlan.planId,
-              name: buildDefaultRunName(
-                String(plan?.name || insightsPlan.planName || ""),
-                String(plan?.version?.name || ""),
-              ),
-              baseUrl: runForm.baseUrl || "",
-            });
-            window.scrollTo({ top: 0, behavior: "smooth" });
+            router.push(`${adminExecutionPath}?testPlanId=${encodeURIComponent(insightsPlan.planId)}&runName=${encodeURIComponent(buildDefaultRunName(
+              String(plan?.name || insightsPlan.planName || ""),
+              String(plan?.version?.name || ""),
+            ))}`);
           }}
         />
       ) : null}
@@ -791,12 +796,22 @@ function EmployeeWorkspaceExecutionRoute() {
         }
 
         if (response.testRun) {
-          setSelectedRun(response.testRun);
+          setSelectedRun((prev) => {
+            if (JSON.stringify(prev) !== JSON.stringify(response.testRun)) {
+              return response.testRun;
+            }
+            return prev;
+          });
           if (response.testRun.status === "completed") {
             setMessage(formatAutomationRunMessage(summarizeAutomationResults(response.results || [])));
           }
         }
-        setMyItems(Array.isArray(response.results) ? response.results : []);
+        setMyItems((prev) => {
+          if (JSON.stringify(prev) !== JSON.stringify(response.results)) {
+            return Array.isArray(response.results) ? response.results : [];
+          }
+          return prev;
+        });
       } catch {
         // Keep polling passive to avoid noisy UI.
       }
