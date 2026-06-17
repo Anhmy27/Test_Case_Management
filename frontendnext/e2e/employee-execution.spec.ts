@@ -20,9 +20,15 @@ test.describe("Employee manual execution", () => {
       timeout: 15_000,
     });
 
-    await page.getByRole("combobox", { name: "Test Plan" }).selectOption({
-      label: `${planName} (manual)`,
-    });
+    const planSelect = page.getByRole("combobox", { name: "Test Plan" });
+    const planOptionValue = await planSelect
+      .locator("option")
+      .filter({ hasText: planName })
+      .first()
+      .getAttribute("value");
+
+    expect(planOptionValue).toBeTruthy();
+    await planSelect.selectOption(planOptionValue!);
 
     const runName = `e2e-run-${Date.now()}`;
     await page
