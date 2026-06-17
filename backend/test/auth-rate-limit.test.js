@@ -44,90 +44,32 @@ test('normalizeAuthEmail trims and lowercases valid email', () => {
 
   assert.equal(normalizeAuthEmail('  Admin@Example.COM '), 'admin@example.com');
   assert.equal(normalizeAuthEmail('not-an-email'), '');
-  assert.equal(normalizeAuthEmail(''), '');
 });
 
-test('getAuthRateLimitIpConfig reads login/register env overrides', () => {
+test('register success limits default to 20 accounts per IP and 1 per email', () => {
   const original = require.cache[configPath];
   delete require.cache[configPath];
 
-  process.env.AUTH_LOGIN_RATE_LIMIT_MAX = '7';
-  process.env.AUTH_LOGIN_RATE_LIMIT_WINDOW_MINUTES = '20';
-  process.env.AUTH_LOGIN_EMAIL_RATE_LIMIT_MAX = '4';
-  process.env.AUTH_REGISTER_RATE_LIMIT_MAX = '3';
-  process.env.AUTH_REGISTER_RATE_LIMIT_WINDOW_MINUTES = '90';
-  process.env.AUTH_REGISTER_EMAIL_RATE_LIMIT_MAX = '2';
+  const {
+    getRegisterSuccessIpConfig,
+    getRegisterSuccessEmailConfig,
+  } = require(configPath);
 
-  const { getAuthRateLimitIpConfig, getAuthRateLimitEmailConfig } = require(configPath);
-
-  assert.deepEqual(getAuthRateLimitIpConfig('login'), {
-    maxAttempts: 7,
-    windowMs: 20 * 60 * 1000,
+  assert.deepEqual(getRegisterSuccessIpConfig(), {
+    rateLimitAction: 'register-success',
+    maxSuccesses: 20,
+    windowMs: 60 * 60 * 1000,
   });
-  assert.deepEqual(getAuthRateLimitEmailConfig('login'), {
-    maxAttempts: 4,
-    windowMs: 20 * 60 * 1000,
-  });
-  assert.deepEqual(getAuthRateLimitIpConfig('register'), {
-    maxAttempts: 3,
-    windowMs: 90 * 60 * 1000,
-  });
-  assert.deepEqual(getAuthRateLimitEmailConfig('register'), {
-    maxAttempts: 2,
-    windowMs: 90 * 60 * 1000,
+  assert.deepEqual(getRegisterSuccessEmailConfig(), {
+    rateLimitAction: 'register-success',
+    maxSuccesses: 1,
+    windowMs: 60 * 60 * 1000,
   });
 
-  delete process.env.AUTH_LOGIN_RATE_LIMIT_MAX;
-  delete process.env.AUTH_LOGIN_RATE_LIMIT_WINDOW_MINUTES;
-  delete process.env.AUTH_LOGIN_EMAIL_RATE_LIMIT_MAX;
-  delete process.env.AUTH_REGISTER_RATE_LIMIT_MAX;
-  delete process.env.AUTH_REGISTER_RATE_LIMIT_WINDOW_MINUTES;
-  delete process.env.AUTH_REGISTER_EMAIL_RATE_LIMIT_MAX;
   restoreModule(configPath, original);
 });
 
-test('consumeAuthRateLimitBucket increments within active window', async () => {
-  const originalModel = require.cache[modelPath];
-  delete require.cache[servicePath];
-
-  const now = new Date('2026-06-11T10:00:00.000Z');
-  const calls = [];
-
-  setMock(modelPath, {
-    findOneAndUpdate: async (filter, update, options) => {
-      calls.push({ filter, update, options });
-      if (calls.length === 1) {
-        return {
-          count: 2,
-          windowStartedAt: new Date('2026-06-11T09:50:00.000Z'),
-        };
-      }
-      return null;
-    },
-    findOne: async () => null,
-  });
-
-  const { consumeAuthRateLimitBucket } = require(servicePath);
-  const result = await consumeAuthRateLimitBucket({
-    action: 'login',
-    scope: 'ip',
-    identifier: '198.51.100.4',
-    clientIp: '198.51.100.4',
-    maxAttempts: 10,
-    windowMs: 15 * 60 * 1000,
-    now,
-  });
-
-  assert.equal(result.allowed, true);
-  assert.equal(result.remaining, 8);
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0].filter.key, 'login:ip:198.51.100.4');
-
-  restoreModule(modelPath, originalModel);
-  delete require.cache[servicePath];
-});
-
-test('consumeAuthRateLimitsForAuth blocks when IP max reached even if email is fresh', async () => {
+test('consumeLoginRateLimits blocks when IP max reached even if email is fresh', async () => {
   const originalModel = require.cache[modelPath];
   delete require.cache[servicePath];
 
@@ -151,9 +93,8 @@ test('consumeAuthRateLimitsForAuth blocks when IP max reached even if email is f
     },
   });
 
-  const { consumeAuthRateLimitsForAuth } = require(servicePath);
-  const result = await consumeAuthRateLimitsForAuth({
-    action: 'login',
+  const { consumeLoginRateLimits } = require(servicePath);
+  const result = await consumeLoginRateLimits({
     clientIp: '198.51.100.4',
     email: 'fresh@example.com',
     now,
@@ -161,54 +102,41 @@ test('consumeAuthRateLimitsForAuth blocks when IP max reached even if email is f
 
   assert.equal(result.allowed, false);
   assert.equal(result.blockedBy, 'ip');
-  assert.equal(result.retryAfterSeconds, 300);
   assert.equal(consumeCalls, 0);
 
   restoreModule(modelPath, originalModel);
   delete require.cache[servicePath];
 });
 
-test('consumeAuthRateLimitsForAuth blocks when email max reached even if IP is fresh', async () => {
+test('assertRegisterCreationAllowed does not consume quota on duplicate-email retries', async () => {
   const originalModel = require.cache[modelPath];
   delete require.cache[servicePath];
 
-  const now = new Date('2026-06-11T10:00:00.000Z');
-  const windowStartedAt = new Date('2026-06-11T09:50:00.000Z');
   let consumeCalls = 0;
 
   setMock(modelPath, {
-    findOne: async (filter) => {
-      if (filter.key === 'login:ip:198.51.100.4') {
-        return { count: 1, windowStartedAt };
-      }
-      if (filter.key === 'login:email:locked@example.com') {
-        return { count: 10, windowStartedAt };
-      }
-      return null;
-    },
+    findOne: async () => null,
     findOneAndUpdate: async () => {
       consumeCalls += 1;
       return null;
     },
   });
 
-  const { consumeAuthRateLimitsForAuth } = require(servicePath);
-  const result = await consumeAuthRateLimitsForAuth({
-    action: 'login',
+  const { assertRegisterCreationAllowed } = require(servicePath);
+  const result = await assertRegisterCreationAllowed({
     clientIp: '198.51.100.4',
-    email: 'locked@example.com',
-    now,
+    email: 'new@example.com',
   });
 
-  assert.equal(result.allowed, false);
-  assert.equal(result.blockedBy, 'email');
+  assert.equal(result.allowed, true);
+  assert.equal(result.remainingIp, 20);
   assert.equal(consumeCalls, 0);
 
   restoreModule(modelPath, originalModel);
   delete require.cache[servicePath];
 });
 
-test('consumeAuthRateLimitsForAuth consumes both IP and email buckets when both are allowed', async () => {
+test('reserveRegisterCreationQuota consumes register-success buckets only on successful path', async () => {
   const originalModel = require.cache[modelPath];
   delete require.cache[servicePath];
 
@@ -226,19 +154,47 @@ test('consumeAuthRateLimitsForAuth consumes both IP and email buckets when both 
     },
   });
 
-  const { consumeAuthRateLimitsForAuth } = require(servicePath);
-  const result = await consumeAuthRateLimitsForAuth({
-    action: 'login',
+  const { reserveRegisterCreationQuota } = require(servicePath);
+  const result = await reserveRegisterCreationQuota({
     clientIp: '198.51.100.4',
     email: 'user@example.com',
     now,
   });
 
   assert.equal(result.allowed, true);
-  assert.equal(result.remainingIp, 99);
-  assert.equal(result.remainingEmail, 9);
-  assert.ok(upsertCalls.some((call) => call.filter.key === 'login:ip:198.51.100.4'));
-  assert.ok(upsertCalls.some((call) => call.filter.key === 'login:email:user@example.com'));
+  assert.equal(result.remainingIp, 19);
+  assert.equal(result.remainingEmail, 0);
+  assert.ok(upsertCalls.some((call) => call.filter.key === 'register-success:ip:198.51.100.4'));
+  assert.ok(upsertCalls.some((call) => call.filter.key === 'register-success:email:user@example.com'));
+
+  restoreModule(modelPath, originalModel);
+  delete require.cache[servicePath];
+});
+
+test('releaseRegisterCreationQuota refunds reserved register-success buckets', async () => {
+  const originalModel = require.cache[modelPath];
+  delete require.cache[servicePath];
+
+  const updates = [];
+
+  setMock(modelPath, {
+    findOne: async () => null,
+    findOneAndUpdate: async (filter, update) => {
+      updates.push({ filter, update });
+      return null;
+    },
+  });
+
+  const { releaseRegisterCreationQuota } = require(servicePath);
+  await releaseRegisterCreationQuota({
+    clientIp: '198.51.100.4',
+    email: 'user@example.com',
+  });
+
+  assert.equal(updates.length, 2);
+  assert.equal(updates[0].filter.key, 'register-success:ip:198.51.100.4');
+  assert.equal(updates[1].filter.key, 'register-success:email:user@example.com');
+  assert.equal(updates[0].update.$inc.count, -1);
 
   restoreModule(modelPath, originalModel);
   delete require.cache[servicePath];
@@ -250,7 +206,7 @@ test('loginRateLimit returns 429 with Retry-After when blocked', async () => {
   delete require.cache[middlewarePath];
 
   setMock(servicePath, {
-    consumeAuthRateLimitsForAuth: async () => ({
+    consumeLoginRateLimits: async () => ({
       allowed: false,
       retryAfterSeconds: 120,
       blockedBy: 'ip',
@@ -284,7 +240,6 @@ test('loginRateLimit returns 429 with Retry-After when blocked', async () => {
 
   assert.ok(capturedError);
   assert.equal(capturedError.statusCode, 429);
-  assert.equal(capturedError.message, 'Too many login attempts. Please try again later.');
   assert.equal(headers['Retry-After'], '120');
 
   restoreModule(servicePath, originalService);

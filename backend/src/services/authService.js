@@ -1,6 +1,10 @@
 const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const { httpError } = require('../utils/httpError');
+const {
+  releaseRegisterCreationQuota,
+  reserveRegisterCreationQuota,
+} = require('./authRateLimitService');
 
 const SALT_ROUNDS = 10;
 
@@ -11,22 +15,33 @@ const toPublicUser = (user) => ({
   role: user.role,
 });
 
-const registerService = async ({ name, email, password }) => {
+const registerService = async ({ name, email, password }, { clientIp } = {}) => {
   const normalizedEmail = String(email).toLowerCase();
   const existingUser = await User.findOne({ email: normalizedEmail }).lean();
   if (existingUser) {
     throw httpError(409, 'Email is already in use');
   }
 
-  const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
-  const user = await User.create({
-    name,
-    email: normalizedEmail,
-    passwordHash,
-    role: 'employee',
-  });
+  if (!clientIp) {
+    throw httpError(500, 'Registration request is missing client IP context');
+  }
 
-  return { user, userPayload: toPublicUser(user) };
+  await reserveRegisterCreationQuota({ clientIp, email: normalizedEmail });
+
+  try {
+    const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+    const user = await User.create({
+      name,
+      email: normalizedEmail,
+      passwordHash,
+      role: 'employee',
+    });
+
+    return { user, userPayload: toPublicUser(user) };
+  } catch (error) {
+    await releaseRegisterCreationQuota({ clientIp, email: normalizedEmail });
+    throw error;
+  }
 };
 
 const loginService = async ({ email, password }) => {

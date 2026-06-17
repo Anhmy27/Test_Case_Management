@@ -10,7 +10,7 @@ const authRateLimitSchema = new mongoose.Schema(
     },
     action: {
       type: String,
-      enum: ['login', 'register'],
+      enum: ['login', 'register-success'],
       required: true,
     },
     scope: {

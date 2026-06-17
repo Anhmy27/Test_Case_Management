@@ -1,11 +1,18 @@
 const AuthRateLimit = require('../models/AuthRateLimit');
 const {
-  getAuthRateLimitEmailConfig,
-  getAuthRateLimitIpConfig,
+  getLoginEmailConfig,
+  getLoginIpConfig,
+  getRegisterSuccessEmailConfig,
+  getRegisterSuccessIpConfig,
 } = require('../config/authRateLimitConfig');
+const { httpError } = require('../utils/httpError');
 
-function buildRateLimitKey(action, scope, identifier) {
-  return `${action}:${scope}:${identifier}`;
+function getConfigLimit(config) {
+  return config.maxAttempts ?? config.maxSuccesses;
+}
+
+function buildRateLimitKey(rateLimitAction, scope, identifier) {
+  return `${rateLimitAction}:${scope}:${identifier}`;
 }
 
 function computeRetryAfterSeconds(windowStartedAt, windowMs, now = new Date()) {
@@ -18,14 +25,14 @@ function isWindowActive(windowStartedAt, windowMs, now = new Date()) {
 }
 
 async function getAuthRateLimitStatus({
-  action,
+  rateLimitAction,
   scope,
   identifier,
   maxAttempts,
   windowMs,
   now = new Date(),
 }) {
-  const key = buildRateLimitKey(action, scope, identifier);
+  const key = buildRateLimitKey(rateLimitAction, scope, identifier);
   const windowCutoff = new Date(now.getTime() - windowMs);
 
   const active = await AuthRateLimit.findOne({
@@ -55,7 +62,7 @@ async function getAuthRateLimitStatus({
 }
 
 async function consumeAuthRateLimitBucket({
-  action,
+  rateLimitAction,
   scope,
   identifier,
   clientIp,
@@ -64,7 +71,7 @@ async function consumeAuthRateLimitBucket({
   windowMs,
   now = new Date(),
 }) {
-  const key = buildRateLimitKey(action, scope, identifier);
+  const key = buildRateLimitKey(rateLimitAction, scope, identifier);
   const windowCutoff = new Date(now.getTime() - windowMs);
   const expiresAt = new Date(now.getTime() + windowMs);
 
@@ -78,7 +85,7 @@ async function consumeAuthRateLimitBucket({
       $inc: { count: 1 },
       $set: {
         expiresAt,
-        action,
+        action: rateLimitAction,
         scope,
         clientIp,
         ...(email ? { email } : {}),
@@ -111,7 +118,7 @@ async function consumeAuthRateLimitBucket({
     { key },
     {
       $set: {
-        action,
+        action: rateLimitAction,
         scope,
         clientIp,
         ...(email ? { email } : {}),
@@ -129,20 +136,32 @@ async function consumeAuthRateLimitBucket({
   };
 }
 
-async function consumeAuthRateLimitsForAuth({
-  action,
+async function releaseAuthRateLimitBucket({
+  rateLimitAction,
+  scope,
+  identifier,
+  now = new Date(),
+}) {
+  const key = buildRateLimitKey(rateLimitAction, scope, identifier);
+
+  await AuthRateLimit.findOneAndUpdate(
+    { key, count: { $gt: 0 } },
+    { $inc: { count: -1 } },
+  );
+}
+
+async function assertAuthRateLimitsAllowed({
+  ipConfig,
+  emailConfig,
   clientIp,
   email = '',
   now = new Date(),
 }) {
-  const ipConfig = getAuthRateLimitIpConfig(action);
-  const emailConfig = getAuthRateLimitEmailConfig(action);
-
   const ipStatus = await getAuthRateLimitStatus({
-    action,
+    rateLimitAction: ipConfig.rateLimitAction,
     scope: 'ip',
     identifier: clientIp,
-    maxAttempts: ipConfig.maxAttempts,
+    maxAttempts: getConfigLimit(ipConfig),
     windowMs: ipConfig.windowMs,
     now,
   });
@@ -157,10 +176,10 @@ async function consumeAuthRateLimitsForAuth({
 
   if (email) {
     const emailStatus = await getAuthRateLimitStatus({
-      action,
+      rateLimitAction: emailConfig.rateLimitAction,
       scope: 'email',
       identifier: email,
-      maxAttempts: emailConfig.maxAttempts,
+      maxAttempts: getConfigLimit(emailConfig),
       windowMs: emailConfig.windowMs,
       now,
     });
@@ -172,15 +191,46 @@ async function consumeAuthRateLimitsForAuth({
         blockedBy: 'email',
       };
     }
+
+    return {
+      allowed: true,
+      remainingIp: ipStatus.remaining,
+      remainingEmail: emailStatus.remaining,
+    };
+  }
+
+  return {
+    allowed: true,
+    remainingIp: ipStatus.remaining,
+  };
+}
+
+async function consumeAuthRateLimits({
+  ipConfig,
+  emailConfig,
+  clientIp,
+  email = '',
+  now = new Date(),
+}) {
+  const allowed = await assertAuthRateLimitsAllowed({
+    ipConfig,
+    emailConfig,
+    clientIp,
+    email,
+    now,
+  });
+
+  if (!allowed.allowed) {
+    return allowed;
   }
 
   const ipConsumed = await consumeAuthRateLimitBucket({
-    action,
+    rateLimitAction: ipConfig.rateLimitAction,
     scope: 'ip',
     identifier: clientIp,
     clientIp,
     email: email || undefined,
-    maxAttempts: ipConfig.maxAttempts,
+    maxAttempts: getConfigLimit(ipConfig),
     windowMs: ipConfig.windowMs,
     now,
   });
@@ -196,17 +246,24 @@ async function consumeAuthRateLimitsForAuth({
   let emailConsumed = null;
   if (email) {
     emailConsumed = await consumeAuthRateLimitBucket({
-      action,
+      rateLimitAction: emailConfig.rateLimitAction,
       scope: 'email',
       identifier: email,
       clientIp,
       email,
-      maxAttempts: emailConfig.maxAttempts,
+      maxAttempts: getConfigLimit(emailConfig),
       windowMs: emailConfig.windowMs,
       now,
     });
 
     if (!emailConsumed.allowed) {
+      await releaseAuthRateLimitBucket({
+        rateLimitAction: ipConfig.rateLimitAction,
+        scope: 'ip',
+        identifier: clientIp,
+        now,
+      });
+
       return {
         allowed: false,
         retryAfterSeconds: emailConsumed.retryAfterSeconds,
@@ -222,25 +279,88 @@ async function consumeAuthRateLimitsForAuth({
   };
 }
 
-/** @deprecated use consumeAuthRateLimitsForAuth */
-async function consumeAuthRateLimit({ action, clientIp, maxAttempts, windowMs, now = new Date() }) {
-  return consumeAuthRateLimitBucket({
-    action,
-    scope: 'ip',
-    identifier: clientIp,
+async function consumeLoginRateLimits({ clientIp, email = '', now = new Date() }) {
+  return consumeAuthRateLimits({
+    ipConfig: getLoginIpConfig(),
+    emailConfig: getLoginEmailConfig(),
     clientIp,
-    maxAttempts,
-    windowMs,
+    email,
     now,
   });
 }
 
+async function assertRegisterCreationAllowed({ clientIp, email = '', now = new Date() }) {
+  return assertAuthRateLimitsAllowed({
+    ipConfig: getRegisterSuccessIpConfig(),
+    emailConfig: getRegisterSuccessEmailConfig(),
+    clientIp,
+    email,
+    now,
+  });
+}
+
+async function reserveRegisterCreationQuota({ clientIp, email = '', now = new Date() }) {
+  const result = await consumeAuthRateLimits({
+    ipConfig: getRegisterSuccessIpConfig(),
+    emailConfig: getRegisterSuccessEmailConfig(),
+    clientIp,
+    email,
+    now,
+  });
+
+  if (!result.allowed) {
+    throw httpError(
+      429,
+      result.blockedBy === 'email'
+        ? 'Too many accounts created for this email. Please try again later.'
+        : 'Too many accounts created from this network. Please try again later.',
+      { retryAfterSeconds: result.retryAfterSeconds },
+    );
+  }
+
+  return result;
+}
+
+async function releaseRegisterCreationQuota({ clientIp, email = '', now = new Date() }) {
+  const ipConfig = getRegisterSuccessIpConfig();
+  const emailConfig = getRegisterSuccessEmailConfig();
+
+  await releaseAuthRateLimitBucket({
+    rateLimitAction: ipConfig.rateLimitAction,
+    scope: 'ip',
+    identifier: clientIp,
+    now,
+  });
+
+  if (email) {
+    await releaseAuthRateLimitBucket({
+      rateLimitAction: emailConfig.rateLimitAction,
+      scope: 'email',
+      identifier: email,
+      now,
+    });
+  }
+}
+
+/** @deprecated use consumeLoginRateLimits */
+async function consumeAuthRateLimitsForAuth({ action, clientIp, email = '', now = new Date() }) {
+  if (action !== 'login') {
+    throw new Error(`consumeAuthRateLimitsForAuth only supports login attempts, got: ${action}`);
+  }
+
+  return consumeLoginRateLimits({ clientIp, email, now });
+}
+
 module.exports = {
+  assertRegisterCreationAllowed,
   buildRateLimitKey,
   computeRetryAfterSeconds,
-  consumeAuthRateLimit,
   consumeAuthRateLimitBucket,
+  consumeAuthRateLimits,
   consumeAuthRateLimitsForAuth,
+  consumeLoginRateLimits,
   getAuthRateLimitStatus,
   isWindowActive,
+  releaseRegisterCreationQuota,
+  reserveRegisterCreationQuota,
 };

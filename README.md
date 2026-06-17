@@ -63,14 +63,17 @@ JIRA_USERNAME=your-jira-username
 JIRA_PASSWORD=your-jira-password
 
 # Auth rate limits (stored in MongoDB, not in-memory)
-# Enforced independently per IP and per email; blocked if either bucket is full.
-# IP default is generous for shared office NAT; email stays stricter per account.
-# AUTH_LOGIN_RATE_LIMIT_MAX=100
-# AUTH_LOGIN_EMAIL_RATE_LIMIT_MAX=10
-# AUTH_LOGIN_RATE_LIMIT_WINDOW_MINUTES=15
-# AUTH_REGISTER_RATE_LIMIT_MAX=100
-# AUTH_REGISTER_EMAIL_RATE_LIMIT_MAX=10
-# AUTH_REGISTER_RATE_LIMIT_WINDOW_MINUTES=60
+#
+# Login — counts every failed/successful attempt:
+# AUTH_LOGIN_ATTEMPT_LIMIT_MAX_PER_IP=100
+# AUTH_LOGIN_ATTEMPT_LIMIT_MAX_PER_EMAIL=10
+# AUTH_LOGIN_ATTEMPT_LIMIT_WINDOW_MINUTES=15
+#
+# Register — counts only successful account creation:
+# AUTH_REGISTER_SUCCESS_LIMIT_MAX_PER_IP=20
+# AUTH_REGISTER_SUCCESS_LIMIT_MAX_PER_EMAIL=1
+# AUTH_REGISTER_SUCCESS_LIMIT_WINDOW_MINUTES=60
+#
 # Set TRUST_PROXY=1 when running behind nginx/reverse proxy so client IP is read correctly
 # TRUST_PROXY=1
 ```

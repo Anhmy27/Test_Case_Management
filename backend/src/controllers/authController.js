@@ -1,6 +1,7 @@
 const { asyncHandler } = require('../utils/asyncHandler');
 const { signAccessToken } = require('../middlewares/authMiddleware');
 const { setAuthCookies, clearAuthCookies } = require('../utils/authCookies');
+const { getClientIp } = require('../utils/clientIp');
 const { revokeUserSessions } = require('../utils/authTokens');
 const {
   registerService,
@@ -9,7 +10,9 @@ const {
 } = require('../services/authService');
 
 const register = asyncHandler(async (req, res) => {
-  const { user, userPayload } = await registerService(req.body || {});
+  const { user, userPayload } = await registerService(req.body || {}, {
+    clientIp: getClientIp(req),
+  });
   const token = signAccessToken(user);
   setAuthCookies(res, token);
   res.status(201).json({ user: userPayload });

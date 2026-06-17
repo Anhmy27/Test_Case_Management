@@ -73,6 +73,10 @@ function errorMiddleware(err, req, res, next) {
 
   message = sanitizeClientErrorMessage(message, { statusCode });
 
+  if (statusCode === 429 && Number.isFinite(err.retryAfterSeconds)) {
+    res.set('Retry-After', String(err.retryAfterSeconds));
+  }
+
   const payload = {
     message,
     ...(err.conflict && { conflict: err.conflict }),
