@@ -11,6 +11,10 @@ const { csrfProtection } = require('./middlewares/csrfMiddleware');
 
 const app = express();
 
+if (String(process.env.TRUST_PROXY || '').trim() === '1') {
+  app.set('trust proxy', 1);
+}
+
 const corsOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000')
   .split(',')
   .map((origin) => origin.trim())
