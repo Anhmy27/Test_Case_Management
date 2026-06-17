@@ -1,4 +1,5 @@
 const { asyncHandler } = require('../utils/asyncHandler');
+const { auditFromRequest, pickEntityAuditFields } = require('../utils/auditFromRequest');
 const {
   createTestPlanService,
   listTestPlansService,
@@ -14,6 +15,12 @@ const createTestPlan = asyncHandler(async (req, res) => {
   const testPlan = await createTestPlanService({
     ...req.body,
     createdBy: req.user.id,
+  });
+  await auditFromRequest(req, {
+    action: 'test_plan.create',
+    resourceType: 'test_plan',
+    ...pickEntityAuditFields(testPlan),
+    projectId: String(req.body?.projectId || testPlan?.project || ''),
   });
   res.status(201).json({ testPlan });
 });
@@ -39,6 +46,12 @@ const assignTestPlanItems = asyncHandler(async (req, res) => {
     req.body || {},
     req.user.id,
   );
+  await auditFromRequest(req, {
+    action: 'test_plan.assign',
+    resourceType: 'test_plan',
+    ...pickEntityAuditFields(testPlan),
+    metadata: { itemCount: Array.isArray(testPlan?.items) ? testPlan.items.length : undefined },
+  });
   res.json({ testPlan });
 });
 
@@ -48,16 +61,31 @@ const updateTestPlan = asyncHandler(async (req, res) => {
     req.body || {},
     req.user.id,
   );
+  await auditFromRequest(req, {
+    action: 'test_plan.update',
+    resourceType: 'test_plan',
+    ...pickEntityAuditFields(testPlan),
+  });
   res.json({ testPlan });
 });
 
 const deleteTestPlan = asyncHandler(async (req, res) => {
   await deleteTestPlanService(req.params.testPlanId);
+  await auditFromRequest(req, {
+    action: 'test_plan.delete',
+    resourceType: 'test_plan',
+    resourceId: req.params.testPlanId,
+  });
   res.status(204).send();
 });
 
 const restoreTestPlan = asyncHandler(async (req, res) => {
   const testPlan = await restoreTestPlanService(req.params.testPlanId);
+  await auditFromRequest(req, {
+    action: 'test_plan.restore',
+    resourceType: 'test_plan',
+    ...pickEntityAuditFields(testPlan),
+  });
   res.json({ testPlan });
 });
 

@@ -4,6 +4,7 @@ const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
+const auditLogRoutes = require('./routes/auditLogRoutes');
 const jiraRoutes = require('./routes/jiraRoutes');
 const testManagementRoutes = require('./routes/testManagementRoutes');
 const { errorMiddleware } = require('./middlewares/errorMiddleware');
@@ -37,6 +38,7 @@ app.get('/', (req, res) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api/jira', jiraRoutes);
 app.use('/api', testManagementRoutes);
 

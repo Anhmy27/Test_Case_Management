@@ -14,15 +14,15 @@ Test Case Management System is a full-stack test management app with:
 - **Execution history**: admin Test Cases History with `resultId`, Open run / screenshot / log bug actions; backend `executionHistory` API.
 - **Backend architecture**: domain service split + Zod validation at route boundary.
 - **Automation**: orphan run recovery on startup, artifact retention, SSRF guardrails.
-- **CI**: GitHub Actions runs backend tests, frontend build, and ESLint on push/PR to `main`/`master`.
-- **Tests**: **56** backend unit tests (`npm run test:ci` for CI; skips live Jira probes).
+- **CI**: GitHub Actions runs backend tests, frontend build/lint, and Playwright e2e smoke tests on push/PR to `main`/`master`.
+- **Tests**: **64** backend tests (unit + integration, `npm run test:ci`; skips live Jira probes) + Playwright e2e smoke (`npm run test:e2e:ci` in `frontendnext/`).
 
 ## Repository Layout
 
 - `backend/` - REST API, authentication, test management, automation runner
 - `frontendnext/` - active Next.js UI for admin and employee workspaces
 - `docker-compose.yml` - local MongoDB container only
-- `.github/workflows/ci.yml` - CI pipeline (backend tests + frontend build/lint)
+- `.github/workflows/ci.yml` - CI pipeline (backend tests + frontend build/lint + e2e smoke)
 
 ## Requirements
 
@@ -174,18 +174,20 @@ Implementation: `backend/src/config/authRateLimitConfig.js`, `backend/src/servic
 
 ```bash
 cd backend
-npm test       # all tests including optional live Jira probes
-npm run test:ci  # CI suite; skips tests tagged live
+npm test              # unit + integration tests (includes optional live Jira probes)
+npm run test:ci       # CI suite; skips live probes; runs serially
+npm run test:integration  # integration tests only (in-memory MongoDB + supertest)
 ```
 
-This runs `node --test`, Node's built-in test runner. It auto-discovers files under `backend/test/` matching `*.test.js`.
+This runs `node --test`. Unit tests live under `backend/test/*.test.js`; integration tests under `backend/test/integration/*.integration.test.js` (Express + MongoDB Memory Server + cookie/CSRF flow).
 
-Current test files (13):
+Current unit test files (13):
 
 - `validators.test.js` — Zod schemas and validation middleware
 - `auth-security.test.js` — auth cookies, CSRF, error sanitization
 - `auth-controller.test.js` — register/login/logout/me flows
 - `auth-rate-limit.test.js` — login attempt + register success rate limits
+- `audit-log.test.js` — audit log service helpers
 - `jwt-auth.test.js` — JWT config, tokenVersion, session revocation
 - `automation-url-policy.test.js` — automation URL/upload sandbox policy
 - `jira-account.test.js` — Jira vault/profile helpers
@@ -194,12 +196,39 @@ Current test files (13):
 - `artifactKeys.test.js`, `localArtifactStorage.test.js` — artifact path helpers
 - `jira-create-issue-probe.test.js`, `jira-log-bug-live.test.js` — optional live Jira probes (skipped in CI)
 
+Integration tests (2 files, 6 cases):
+
+- `integration/auth.integration.test.js` — register/login/logout cookies, CSRF guard, duplicate register quota
+- `integration/audit-log.integration.test.js` — admin project create → audit entry; employee blocked from audit API
+
+### E2E smoke tests (Playwright)
+
+From `frontendnext/`:
+
+```bash
+npm run test:e2e      # local: reuses running servers when not in CI
+npm run test:e2e:ci   # CI mode: starts backend e2e server + Next dev automatically
+```
+
+Playwright config (`playwright.config.ts`) boots `backend/scripts/e2eServer.js` (in-memory MongoDB + seeded admin) and `npm run dev` with matching CORS/API base URLs.
+
+Specs in `frontendnext/e2e/`:
+
+- `auth.spec.ts` — admin login → dashboard
+- `admin-audit-log.spec.ts` — Audit Log tab visible in global scope
+
+Default e2e admin credentials (override with `E2E_ADMIN_EMAIL` / `E2E_ADMIN_PASSWORD`):
+
+- Email: `e2e-admin@test.local`
+- Password: `e2e-admin-password-123456`
+
 ### CI
 
 On push or pull request to `main` / `master`, GitHub Actions (`.github/workflows/ci.yml`) runs:
 
 1. **Backend** — `npm ci` + `npm run test:ci` in `backend/`
 2. **Frontend** — `npm ci` + `npm run build` + `npm run lint:ci` in `frontendnext/`
+3. **E2E smoke** — Playwright login + admin audit-log specs (Chromium only)
 
 ## Frontend Overview
 
@@ -448,8 +477,10 @@ Security middleware enabled on the API:
 cd backend
 npm install
 npm start
-npm test          # node --test — all backend/test/*.test.js
-npm run test:ci   # skips live Jira probe tests (same as CI)
+npm test              # unit + integration tests
+npm run test:ci       # skips live Jira probe tests (same as CI)
+npm run test:integration
+npm run e2e:server    # API + in-memory Mongo for Playwright
 ```
 
 ### Frontend
@@ -458,6 +489,8 @@ npm run test:ci   # skips live Jira probe tests (same as CI)
 cd frontendnext
 npm install
 npm run dev
+npm run test:e2e      # Playwright smoke (starts backend e2e server + Next dev in CI)
+npm run test:e2e:ci
 ```
 
 ### Docker

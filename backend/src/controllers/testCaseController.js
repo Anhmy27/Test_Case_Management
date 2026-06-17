@@ -1,4 +1,5 @@
 const { asyncHandler } = require('../utils/asyncHandler');
+const { auditFromRequest, pickEntityAuditFields } = require('../utils/auditFromRequest');
 const {
   createTestCaseService,
   listTestCasesService,
@@ -15,6 +16,12 @@ const createTestCase = asyncHandler(async (req, res) => {
   const testCase = await createTestCaseService({
     ...req.body,
     createdBy: req.user.id,
+  });
+  await auditFromRequest(req, {
+    action: 'test_case.create',
+    resourceType: 'test_case',
+    ...pickEntityAuditFields(testCase, { labelKeys: ['caseKey', 'title', 'name'] }),
+    projectId: String(req.body?.projectId || testCase?.project || ''),
   });
   res.status(201).json({ testCase });
 });
@@ -35,6 +42,16 @@ const importTestCases = asyncHandler(async (req, res) => {
     body: req.body || {},
     userId: req.user.id,
   });
+  await auditFromRequest(req, {
+    action: 'test_case.import',
+    resourceType: 'test_case',
+    projectId: String(req.body?.projectId || ''),
+    metadata: {
+      importedCount: result?.importedCount,
+      skippedCount: result?.skippedCount,
+      fileName: req.file?.originalname || '',
+    },
+  });
   res.json(result);
 });
 
@@ -50,16 +67,31 @@ const getTestCaseVersions = asyncHandler(async (req, res) => {
 
 const updateTestCase = asyncHandler(async (req, res) => {
   const testCase = await updateTestCaseService(req.params.testCaseId, req.body || {});
+  await auditFromRequest(req, {
+    action: 'test_case.update',
+    resourceType: 'test_case',
+    ...pickEntityAuditFields(testCase, { labelKeys: ['caseKey', 'title', 'name'] }),
+  });
   res.json({ testCase });
 });
 
 const deleteTestCase = asyncHandler(async (req, res) => {
   await deleteTestCaseService(req.params.testCaseId);
+  await auditFromRequest(req, {
+    action: 'test_case.delete',
+    resourceType: 'test_case',
+    resourceId: req.params.testCaseId,
+  });
   res.status(204).send();
 });
 
 const restoreTestCase = asyncHandler(async (req, res) => {
   const testCase = await restoreTestCaseService(req.params.testCaseId);
+  await auditFromRequest(req, {
+    action: 'test_case.restore',
+    resourceType: 'test_case',
+    ...pickEntityAuditFields(testCase, { labelKeys: ['caseKey', 'title', 'name'] }),
+  });
   res.json({ testCase });
 });
 

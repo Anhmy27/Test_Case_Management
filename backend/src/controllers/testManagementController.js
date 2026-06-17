@@ -1,4 +1,5 @@
 const { asyncHandler } = require('../utils/asyncHandler');
+const { auditFromRequest, pickEntityAuditFields } = require('../utils/auditFromRequest');
 const fs = require('fs');
 const {
   startTestRunService,
@@ -25,10 +26,25 @@ const {
   getDryRunFailureScreenshotService,
 } = require('../services/automation/dryRunService');
 
+function auditTestRun(req, action, testRun, metadata = null) {
+  const fields = pickEntityAuditFields(testRun, { labelKeys: ['name', 'title'] });
+  return auditFromRequest(req, {
+    action,
+    resourceType: 'test_run',
+    ...fields,
+    projectId: String(testRun?.project?.entityId || testRun?.project?._id || testRun?.project || fields.projectId || ''),
+    metadata,
+  });
+}
+
 const startTestRun = asyncHandler(async (req, res) => {
   const result = await startTestRunService({
     ...req.body,
     user: req.user,
+  });
+  await auditTestRun(req, 'test_run.start', result?.testRun, {
+    testPlanId: req.body?.testPlanId,
+    baseUrl: req.body?.baseUrl || '',
   });
   res.status(201).json(result);
 });
@@ -39,6 +55,10 @@ const applyAutomationResults = asyncHandler(async (req, res) => {
     results: req.body?.results,
     user: req.user,
     ingestSource: req.automationIngest?.source,
+  });
+  await auditTestRun(req, 'test_run.automation_results', result?.testRun, {
+    ingestSource: req.automationIngest?.source || 'unknown',
+    resultCount: Array.isArray(req.body?.results) ? req.body.results.length : 0,
   });
   res.json(result);
 });
@@ -60,16 +80,22 @@ const updateRunResult = asyncHandler(async (req, res) => {
     req.body || {},
     req.user,
   );
+  await auditTestRun(req, 'test_run.result_update', result?.testRun, {
+    resultId: req.params.resultId,
+    status: req.body?.status,
+  });
   res.json(result);
 });
 
 const endTestRun = asyncHandler(async (req, res) => {
   const result = await endTestRunService(req.params.runId, req.user);
+  await auditTestRun(req, 'test_run.end', result?.testRun);
   res.json(result);
 });
 
 const cancelAutomationRun = asyncHandler(async (req, res) => {
   const result = await cancelAutomationRunService(req.params.runId, req.user);
+  await auditTestRun(req, 'test_run.cancel', result?.testRun);
   res.json(result);
 });
 
@@ -79,6 +105,7 @@ const retryFailedAutomationRun = asyncHandler(async (req, res) => {
     req.user,
     req.body?.baseUrl || '',
   );
+  await auditTestRun(req, 'test_run.retry_failed', result?.testRun);
   res.json(result);
 });
 
@@ -109,6 +136,12 @@ const getTestPlanDetail = asyncHandler(async (req, res) => {
 
 const exportTestRun = asyncHandler(async (req, res) => {
   const payload = await exportTestRunService(req.params.runId, req.query || {}, req.user);
+  await auditFromRequest(req, {
+    action: 'test_run.export',
+    resourceType: 'test_run',
+    resourceId: req.params.runId,
+    metadata: { format: req.query?.format || 'xlsx' },
+  });
   res.setHeader('Content-Type', payload.contentType);
   res.setHeader('Content-Disposition', `attachment; filename="${payload.filename}"`);
   res.send(payload.body);
@@ -139,6 +172,12 @@ const uploadRunResultFailureScreenshot = asyncHandler(async (req, res) => {
     req.user,
     req.file,
   );
+  await auditFromRequest(req, {
+    action: 'test_run.upload_screenshot',
+    resourceType: 'test_run',
+    resourceId: req.params.runId,
+    metadata: { resultId: req.params.resultId },
+  });
   res.json(result);
 });
 
@@ -148,6 +187,12 @@ const dryRunAutomation = asyncHandler(async (req, res) => {
     automation: req.body?.automation,
     baseUrl: req.body?.baseUrl || '',
     user: req.user,
+  });
+  await auditFromRequest(req, {
+    action: 'automation.dry_run',
+    resourceType: 'test_case',
+    resourceId: req.body?.testCaseId || '',
+    metadata: { success: result?.success, dryRunId: result?.dryRunId },
   });
   res.status(200).json(result);
 });

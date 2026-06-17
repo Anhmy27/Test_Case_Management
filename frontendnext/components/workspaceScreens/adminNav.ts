@@ -14,6 +14,7 @@ export const ADMIN_NAV_ITEMS: ReadonlyArray<AppShellNavItem> = [
   { key: "test-plans", label: "Test Plans" },
   { key: "test-runs-execution", label: "Test Runs + Execution" },
   { key: "users", label: "Users" },
+  { key: "audit-log", label: "Audit Log" },
 ];
 
 const GLOBAL_SCOPE_KEYS = new Set([
@@ -21,6 +22,7 @@ const GLOBAL_SCOPE_KEYS = new Set([
   "projects",
   "issue-types",
   "users",
+  "audit-log",
 ]);
 
 const PROJECT_SCOPE_KEYS = new Set([

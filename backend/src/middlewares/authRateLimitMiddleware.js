@@ -2,6 +2,7 @@ const {
   assertRegisterCreationAllowed,
   consumeLoginRateLimits,
 } = require('../services/authRateLimitService');
+const User = require('../models/User');
 const { asyncHandler } = require('../utils/asyncHandler');
 const { getClientIp } = require('../utils/clientIp');
 const { httpError } = require('../utils/httpError');
@@ -34,6 +35,14 @@ const loginRateLimit = asyncHandler(async (req, res, next) => {
 const registerCreationRateLimitGuard = asyncHandler(async (req, res, next) => {
   const clientIp = getClientIp(req);
   const email = normalizeAuthEmail(req.body?.email);
+
+  if (email) {
+    const existingUser = await User.findOne({ email }).select('_id').lean();
+    if (existingUser) {
+      return next();
+    }
+  }
+
   const result = await assertRegisterCreationAllowed({ clientIp, email });
 
   if (!result.allowed) {

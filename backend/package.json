@@ -7,8 +7,10 @@
     "start": "node index.js",
     "dev": "node index.js",
     "seed:admin": "node src/runSeedAdmin.js",
-    "test": "node --test",
-    "test:ci": "node --test --test-skip-pattern=live"
+    "test": "node --test --test-concurrency=1 test/**/*.test.js test/integration/**/*.integration.test.js",
+    "test:ci": "node --test --test-concurrency=1 --test-skip-pattern=live test/**/*.test.js test/integration/**/*.integration.test.js",
+    "test:integration": "node --test test/integration/**/*.integration.test.js",
+    "e2e:server": "node scripts/e2eServer.js"
   },
   "keywords": [],
   "author": "",
@@ -27,5 +29,9 @@
     "playwright": "^1.55.0",
     "xlsx": "^0.18.5",
     "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "^10.4.3",
+    "supertest": "^7.2.2"
   }
 }

@@ -70,3 +70,40 @@ jobs:
 
       - name: Lint
         run: npm run lint:ci
+
+  # Job 3: Playwright e2e smoke (login + admin audit log).
+  e2e:
+    name: E2E smoke
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontendnext
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontendnext/package-lock.json
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run e2e smoke tests
+        run: npm run test:e2e:ci
+        env:
+          CI: "true"
+          JWT_SECRET: ci-e2e-jwt-secret-minimum-32-characters!!
+          JIRA_VAULT_SECRET: ci-e2e-jira-vault-secret-long-enough-123
