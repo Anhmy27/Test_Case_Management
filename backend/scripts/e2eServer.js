@@ -25,10 +25,12 @@ async function start() {
 
   const { connectDatabase } = require('../src/config/db');
   const { seedAdminIfNeeded } = require('../src/seedAdmin');
+  const { seedE2eExecution } = require('./seedE2eExecution');
   const app = require('../src/app');
 
   await connectDatabase();
   await seedAdminIfNeeded();
+  await seedE2eExecution(app);
 
   const port = Number(process.env.PORT);
   const server = http.createServer(app);

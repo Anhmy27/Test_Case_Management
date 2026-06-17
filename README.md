@@ -15,7 +15,7 @@ Test Case Management System is a full-stack test management app with:
 - **Backend architecture**: domain service split + Zod validation at route boundary.
 - **Automation**: orphan run recovery on startup, artifact retention, SSRF guardrails.
 - **CI**: GitHub Actions runs backend tests, frontend build/lint, and Playwright e2e smoke tests on push/PR to `main`/`master`.
-- **Tests**: **73** backend tests (unit + integration, `npm run test:ci`; skips live Jira probes) + Playwright e2e smoke (`npm run test:e2e:ci` in `frontendnext/`).
+- **Tests**: **81** backend tests (unit + integration, `npm run test:ci`; skips live Jira probes) + **3** Playwright e2e specs (`npm run test:e2e:ci` in `frontendnext/`).
 
 ## Repository Layout
 
@@ -196,12 +196,16 @@ Current unit test files (13):
 - `artifactKeys.test.js`, `localArtifactStorage.test.js` — artifact path helpers
 - `jira-create-issue-probe.test.js`, `jira-log-bug-live.test.js` — optional live Jira probes (skipped in CI)
 
-Integration tests (4 files, 15 cases):
+Integration tests (6 files, 23 cases):
 
 - `integration/auth.integration.test.js` — register/login/logout cookies, CSRF guard, duplicate register quota
 - `integration/audit-log.integration.test.js` — admin project create → audit entry; employee blocked from audit API
 - `integration/test-run-execution.integration.test.js` — manual plan → run → submit result → end run → execution history; permission & duplicate-run guards
 - `integration/test-management-chain.integration.test.js` — project → version → group → case → plan CRUD chain; plan versioning & assignee access
+- `integration/automation-ingest.integration.test.js` — CI automation ingest, secret guard, manual PATCH blocked, manual-only run rejected
+- `integration/soft-delete-restore.integration.test.js` — project/plan/case soft-delete & restore; child guard; run start after case delete
+
+E2e seed (`backend/scripts/seedE2eExecution.js`) creates employee + manual plan for execution flows.
 
 ### E2E smoke tests (Playwright)
 
@@ -218,11 +222,17 @@ Specs in `frontendnext/e2e/`:
 
 - `auth.spec.ts` — admin login → dashboard
 - `admin-audit-log.spec.ts` — Audit Log tab visible in global scope
+- `employee-execution.spec.ts` — employee login → start manual run → mark case pass
 
 Default e2e admin credentials (override with `E2E_ADMIN_EMAIL` / `E2E_ADMIN_PASSWORD`):
 
 - Email: `e2e-admin@test.local`
 - Password: `e2e-admin-password-123456`
+
+Default e2e employee credentials (override with `E2E_EMPLOYEE_EMAIL` / `E2E_EMPLOYEE_PASSWORD`):
+
+- Email: `e2e-employee@test.local`
+- Password: `e2e-employee-password-123456`
 
 ### CI
 

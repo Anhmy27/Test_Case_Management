@@ -21,6 +21,6 @@ test.describe("Admin audit log", () => {
       page.getByText("Global activity trail — visible only when project scope is All projects"),
     ).toBeVisible();
 
-    await expect(page.getByText(/auth · login/i)).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText(/auth · login/i).first()).toBeVisible({ timeout: 15_000 });
   });
 });

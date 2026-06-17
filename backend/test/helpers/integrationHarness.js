@@ -121,6 +121,20 @@ async function createIntegrationHarness() {
         mergeResponseCookies(response);
         return response;
       },
+      async delete(path, expectedStatus) {
+        const response = await agent.delete(path).set(withAuthHeaders()).expect(expectedStatus);
+        mergeResponseCookies(response);
+        return response;
+      },
+      async postWithHeaders(path, body, headers, expectedStatus) {
+        let requestBuilder = agent.post(path).set(headers || {});
+        if (body !== undefined) {
+          requestBuilder = requestBuilder.send(body);
+        }
+        const response = await requestBuilder.expect(expectedStatus);
+        mergeResponseCookies(response);
+        return response;
+      },
     };
   }
 
