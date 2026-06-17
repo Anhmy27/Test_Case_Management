@@ -7,26 +7,28 @@ Test Case Management System is a full-stack test management app with:
 - Playwright-based automation execution for automation test plans
 - Jira-backed bug logging for failed run items
 
-## Recent improvements (2026-06-09)
+## Recent improvements (2026-06-11)
 
-- **Security**: JWT moved from `localStorage` to httpOnly cookies; CSRF protection on mutating API calls; `helmet` security headers; production error sanitization (`NODE_ENV=production`); JWT fail-fast config, default **8h** TTL, session revocation via `tokenVersion`.
-- **Backend architecture**: monolithic `testManagementService.js` split into domain services; Zod validation at route boundary via `validateRequest` middleware.
-- **Performance / safety**: regex-escaped search (ReDoS fix), prefix regex + indexes on searched fields, delayed-plan dashboard fix for versioned plans.
-- **Frontend UX**: full-app light/dark theme, clearer sidebar active state, dashboard differs by project scope (all projects vs selected project), various execution/planning bug fixes.
-- **Identity model**: `entityId` is the canonical business id across API/UI; `_id` retained for test-run runtime access and future extension.
-- **Tests**: 31 backend unit tests (`npm test` → Node built-in `node --test` runner).
+- **Auth rate limits (MongoDB-backed)**: login counts every attempt per IP + email; register counts only **successful account creation** (failed/duplicate attempts do not consume quota). Jira log-bug is not rate-limited. See [Auth rate limits](#auth-rate-limits) below.
+- **Security**: JWT in httpOnly cookies + CSRF + `helmet`; JWT fail-fast, **8h** TTL, session revocation via `tokenVersion`; production error sanitization.
+- **Execution history**: admin Test Cases History with `resultId`, Open run / screenshot / log bug actions; backend `executionHistory` API.
+- **Backend architecture**: domain service split + Zod validation at route boundary.
+- **Automation**: orphan run recovery on startup, artifact retention, SSRF guardrails.
+- **CI**: GitHub Actions runs backend tests, frontend build, and ESLint on push/PR to `main`/`master`.
+- **Tests**: **56** backend unit tests (`npm run test:ci` for CI; skips live Jira probes).
 
 ## Repository Layout
 
 - `backend/` - REST API, authentication, test management, automation runner
 - `frontendnext/` - active Next.js UI for admin and employee workspaces
 - `docker-compose.yml` - local MongoDB container only
+- `.github/workflows/ci.yml` - CI pipeline (backend tests + frontend build/lint)
 
 ## Requirements
 
-- Node.js 18+
+- Node.js 18+ (CI uses Node 22)
 - npm
-- Docker and Docker Compose
+- Docker and Docker Compose (local MongoDB)
 
 ## Quick Start
 
@@ -117,6 +119,7 @@ The execution screen keeps `Actual result` and `Notes` persisted on run items, a
 The backend exposes REST endpoints under `/api` and includes:
 
 - cookie-based JWT authentication (httpOnly session cookie + CSRF, default **8h** TTL, revocable via `tokenVersion`)
+- **MongoDB-backed auth rate limits** on login/register (not in-memory; see [Auth rate limits](#auth-rate-limits))
 - Zod request validation at the route boundary
 - project, version, group, test case, test plan, and test run management
 - admin user seeding on first startup
@@ -133,22 +136,70 @@ Service layer is now split by domain:
 
 The backend starts from [backend/index.js](backend/index.js) and connects to MongoDB before starting Express.
 
+### Auth rate limits
+
+Counters are stored in MongoDB (`AuthRateLimit` collection), not in RAM. IP and email buckets are checked independently — a request is blocked if **either** bucket is full.
+
+| Endpoint | What is counted | Default limits |
+|----------|-----------------|----------------|
+| `POST /api/auth/login` | Every attempt (wrong password counts) | 100 / IP / 15 min; 10 / email / 15 min |
+| `POST /api/auth/register` | Only **successful** account creation | 20 / IP / 60 min; 1 / email / 60 min |
+| `POST /api/jira/log-bug` | Not rate-limited | — |
+
+Register behaviour in detail:
+
+- Duplicate email (409) and validation errors do **not** consume register quota.
+- Quota is reserved atomically before `User.create` and refunded if create fails unexpectedly.
+- Middleware pre-checks quota; `registerService` reserves on the success path.
+
+Environment variables (names reflect behaviour):
+
+```env
+# Login — every attempt
+# AUTH_LOGIN_ATTEMPT_LIMIT_MAX_PER_IP=100
+# AUTH_LOGIN_ATTEMPT_LIMIT_MAX_PER_EMAIL=10
+# AUTH_LOGIN_ATTEMPT_LIMIT_WINDOW_MINUTES=15
+
+# Register — successful creations only
+# AUTH_REGISTER_SUCCESS_LIMIT_MAX_PER_IP=20
+# AUTH_REGISTER_SUCCESS_LIMIT_MAX_PER_EMAIL=1
+# AUTH_REGISTER_SUCCESS_LIMIT_WINDOW_MINUTES=60
+
+# TRUST_PROXY=1   # behind nginx/reverse proxy
+```
+
+Implementation: `backend/src/config/authRateLimitConfig.js`, `backend/src/services/authRateLimitService.js`, `backend/src/middlewares/authRateLimitMiddleware.js`.
+
 ### Running backend tests
 
 ```bash
 cd backend
-npm test
+npm test       # all tests including optional live Jira probes
+npm run test:ci  # CI suite; skips tests tagged live
 ```
 
-This runs `node --test`, Node's built-in test runner. It auto-discovers files under `backend/test/` matching `*.test.js` — no separate Jest/Mocha config.
+This runs `node --test`, Node's built-in test runner. It auto-discovers files under `backend/test/` matching `*.test.js`.
 
-Current test files:
+Current test files (13):
 
-- `backend/test/validators.test.js` — Zod schemas and validation middleware
-- `backend/test/auth-security.test.js` — auth cookies, CSRF, error sanitization
-- `backend/test/auth-controller.test.js` — register/login/logout/me flows
-- `backend/test/jwt-auth.test.js` — JWT config, tokenVersion, session revocation
-- `backend/test/automation-url-policy.test.js` — automation URL/upload sandbox policy
+- `validators.test.js` — Zod schemas and validation middleware
+- `auth-security.test.js` — auth cookies, CSRF, error sanitization
+- `auth-controller.test.js` — register/login/logout/me flows
+- `auth-rate-limit.test.js` — login attempt + register success rate limits
+- `jwt-auth.test.js` — JWT config, tokenVersion, session revocation
+- `automation-url-policy.test.js` — automation URL/upload sandbox policy
+- `jira-account.test.js` — Jira vault/profile helpers
+- `jira-token.test.js` — Jira QuickCreate token parsing
+- `run-automation-partition.test.js` — manual vs automation result partition
+- `artifactKeys.test.js`, `localArtifactStorage.test.js` — artifact path helpers
+- `jira-create-issue-probe.test.js`, `jira-log-bug-live.test.js` — optional live Jira probes (skipped in CI)
+
+### CI
+
+On push or pull request to `main` / `master`, GitHub Actions (`.github/workflows/ci.yml`) runs:
+
+1. **Backend** — `npm ci` + `npm run test:ci` in `backend/`
+2. **Frontend** — `npm ci` + `npm run build` + `npm run lint:ci` in `frontendnext/`
 
 ## Frontend Overview
 
@@ -157,7 +208,7 @@ The UI is a Next.js App Router workspace in `frontendnext/`.
 Key points:
 
 - admin and employee workspaces are routed under `/workspace/admin/*` and `/workspace/employee/*`
-- the workspace shell is centralized in `TestCaseManagementApp`
+- the workspace shell is centralized in `AppShell.tsx` with role-specific nav (`adminNav.ts`, employee routes)
 - admin screens handle CRUD and planning
 - employee screens handle assigned plans, running tests, and execution
 - the execution UI persists both `Actual result` and `Notes` for each run item
@@ -303,6 +354,7 @@ Security middleware enabled on the API:
 - `helmet` — baseline HTTP security headers
 - `cookie-parser` — session + CSRF cookies
 - CSRF double-submit check on mutating `/api/*` routes (login/register/logout and automation ingest are excluded)
+- **Auth rate limits** — MongoDB-backed; login attempt limits + register success limits (see [Auth rate limits](#auth-rate-limits))
 
 ### Users
 
@@ -396,7 +448,8 @@ Security middleware enabled on the API:
 cd backend
 npm install
 npm start
-npm test          # node --test — auto-runs backend/test/*.test.js
+npm test          # node --test — all backend/test/*.test.js
+npm run test:ci   # skips live Jira probe tests (same as CI)
 ```
 
 ### Frontend
@@ -423,9 +476,11 @@ docker compose down -v
 - If the UI points to the wrong backend, set `NEXT_PUBLIC_API_BASE` in the frontend environment.
 - If API errors look too generic during local debugging, comment out `# NODE_ENV=production` in `backend/.env` to see stack traces again.
 - If mutating API calls return 403 CSRF errors, ensure the browser sends cookies (`credentials: 'include'`) and that login ran successfully so `tcm_csrf` is set.
+- If login/register returns **429 Too Many Requests**, auth rate limits were hit — check the `Retry-After` header or wait for the window to reset. Register limits count only successful account creation; login limits count every attempt.
 
 ## Notes
 
 - `frontendnext/` is the active frontend.
 - There is no separate legacy `frontend/` app in the current repository.
 - `docker-compose.yml` only starts MongoDB; the backend and frontend are started separately.
+- Production/security checklist: [REVIEW-2026-06-08.md](REVIEW-2026-06-08.md) is the authoritative review (`REVIEW.md` is an older snapshot).
