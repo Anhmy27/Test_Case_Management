@@ -14,7 +14,6 @@ type RecordAny = Record<string, any>;
 
 export type PlanListFilters = {
   versionId: string;
-  mode: "all" | "manual" | "automation";
   status: "all" | "has_runs" | "no_runs" | "has_failing";
 };
 
@@ -89,13 +88,12 @@ export default function AdminTestPlansRoute() {
   const [plans, setPlans] = useState<RecordAny[]>([]);
   const [runs, setRuns] = useState<RecordAny[]>([]);
   const [users, setUsers] = useState<RecordAny[]>([]);
-  const [planForm, setPlanForm] = useState<any>({ name: "", description: "", projectId: "", versionId: "", executionMode: "manual", selectedGroupIds: [], caseIds: [] });
+  const [planForm, setPlanForm] = useState<any>({ name: "", description: "", projectId: "", versionId: "", selectedGroupIds: [], caseIds: [] });
   const [assignDraft, setAssignDraft] = useState({ ownerId: "", assigneeIds: [] as string[] });
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const [editingPlanId, setEditingPlanId] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterVersionId, setFilterVersionId] = useState("");
-  const [filterMode, setFilterMode] = useState<PlanListFilters["mode"]>("all");
   const [filterStatus, setFilterStatus] = useState<PlanListFilters["status"]>("all");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
@@ -285,7 +283,7 @@ export default function AdminTestPlansRoute() {
         setMessage("Test plan created");
       }
       setEditingPlanId("");
-      setPlanForm({ name: "", description: "", projectId: selectedProjectId || "", versionId: "", executionMode: "manual", selectedGroupIds: [], caseIds: [] });
+      setPlanForm({ name: "", description: "", projectId: selectedProjectId || "", versionId: "", selectedGroupIds: [], caseIds: [] });
       await refreshAll();
       return savedPlan ? { plan: savedPlan, created: wasCreate } : null;
     } catch (error) {
@@ -314,10 +312,6 @@ export default function AdminTestPlansRoute() {
   };
 
   const deletePlan = async (planId: string) => { await apiRequest(`/api/test-plans/${planId}`, undefined, { method: "DELETE" }); await refreshAll(); };
-  const updatePlanExecutionMode = async (planId: string, mode: string) => {
-    await apiRequest(`/api/test-plans/${planId}`, undefined, { method: "PUT", body: JSON.stringify({ executionMode: mode }) });
-    await refreshAll();
-  };
   const duplicatePlan = async (plan: RecordAny) => {
     const caseIds = Array.isArray(plan.items)
       ? plan.items
@@ -331,7 +325,6 @@ export default function AdminTestPlansRoute() {
         description: plan.description || "",
         projectId: getId(plan.project),
         versionId: getId(plan.version),
-        executionMode: plan.executionMode || "manual",
         caseIds,
       }),
     });
@@ -429,16 +422,6 @@ export default function AdminTestPlansRoute() {
             ))}
           </select>
           <select
-            value={filterMode}
-            onChange={(event) => setFilterMode(event.target.value as PlanListFilters["mode"])}
-            className={TOPBAR_INPUT_CLS}
-            title="Filter by execution mode"
-          >
-            <option value="all">All modes</option>
-            <option value="manual">Manual</option>
-            <option value="automation">Automation</option>
-          </select>
-          <select
             value={filterStatus}
             onChange={(event) => setFilterStatus(event.target.value as PlanListFilters["status"])}
             className={TOPBAR_INPUT_CLS}
@@ -455,7 +438,6 @@ export default function AdminTestPlansRoute() {
 
     return () => setTopbar(null);
   }, [
-    filterMode,
     filterStatus,
     filterVersionId,
     handleProjectScopeChange,
@@ -476,7 +458,7 @@ export default function AdminTestPlansRoute() {
           planForm={planForm}
           setPlanForm={setPlanForm}
           createPlan={createPlan}
-          listFilters={{ versionId: filterVersionId, mode: filterMode, status: filterStatus }}
+          listFilters={{ versionId: filterVersionId, status: filterStatus }}
           scopedProjects={scopedProjects}
           scopedVersions={scopedVersions}
           planProjectGroups={planProjectGroups}
@@ -498,7 +480,6 @@ export default function AdminTestPlansRoute() {
           scopedPlans={plans}
           editingPlanId={editingPlanId}
           setEditingPlanId={setEditingPlanId}
-          updatePlanExecutionMode={updatePlanExecutionMode}
           deletePlan={deletePlan}
           duplicatePlan={duplicatePlan}
           runs={runs}

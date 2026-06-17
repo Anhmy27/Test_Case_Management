@@ -80,7 +80,6 @@ type Props = {
   createPlan: (event: FormEvent) => Promise<{ plan: RecordAny; created: boolean } | null>;
   listFilters: {
     versionId: string;
-    mode: "all" | "manual" | "automation";
     status: "all" | "has_runs" | "no_runs" | "has_failing";
   };
   scopedProjects: RecordAny[];
@@ -104,7 +103,6 @@ type Props = {
   scopedPlans: RecordAny[];
   editingPlanId: string;
   setEditingPlanId: Dispatch<SetStateAction<string>>;
-  updatePlanExecutionMode: (planId: string, mode: string) => Promise<void>;
   deletePlan: (planId: string) => Promise<void>;
   duplicatePlan: (plan: RecordAny) => Promise<void>;
   runs: RecordAny[];
@@ -149,7 +147,6 @@ export default function AdminTestPlansScreen(props: Props) {
     scopedPlans,
     editingPlanId,
     setEditingPlanId,
-    updatePlanExecutionMode,
     deletePlan,
     duplicatePlan,
     runs,
@@ -174,7 +171,6 @@ export default function AdminTestPlansScreen(props: Props) {
     description: "",
     projectId: isProjectScoped ? String(planForm.projectId || getId(scopedProjects[0]) || "") : "",
     versionId: "",
-    executionMode: "manual",
     selectedGroupIds: [] as string[],
     caseIds: [] as string[],
   };
@@ -295,7 +291,6 @@ export default function AdminTestPlansScreen(props: Props) {
   const ownerRole = currentUser?.role || "admin";
   const [activePlanId, setActivePlanId] = useState<string>("");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [statusBulkMode, setStatusBulkMode] = useState<"manual" | "automation">("manual");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [startRunPromptPlan, setStartRunPromptPlan] = useState<RecordAny | null>(null);
@@ -368,10 +363,6 @@ export default function AdminTestPlansScreen(props: Props) {
         return false;
       }
 
-      if (listFilters.mode !== "all" && String(plan.executionMode || "manual") !== listFilters.mode) {
-        return false;
-      }
-
       const planId = getId(plan);
       const runCount = runs.filter((run) => String(getId(run.testPlan) || "") === planId).length;
       const latestRun = planRunSnapshots.get(planId)?.latestRun;
@@ -428,8 +419,6 @@ export default function AdminTestPlansScreen(props: Props) {
         .filter(Boolean) as RecordAny[],
     [getId, runsScopePlanIds, scopedPlans],
   );
-
-  const selectedPlans = filteredPlans.filter((plan: RecordAny) => selectedSet.has(getId(plan)));
 
   const isMultiPlanRunsScope = !activePlanId && selectedIds.length > 1;
 
@@ -526,13 +515,6 @@ export default function AdminTestPlansScreen(props: Props) {
     });
   }
 
-  async function bulkUpdateExecutionMode() {
-    for (const plan of selectedPlans) {
-      await updatePlanExecutionMode(getId(plan), statusBulkMode);
-    }
-    setSelectedIds([]);
-  }
-
   function openCreatePlanModal() {
     setEditingPlanId("");
     setPlanForm(emptyPlanDraft);
@@ -576,7 +558,6 @@ export default function AdminTestPlansScreen(props: Props) {
       description: plan.description || "",
       projectId: planProjectId,
       versionId: String(getId(plan.version) || ""),
-      executionMode: String(plan.executionMode || "manual"),
       selectedGroupIds: Array.from(selectedGroupIdSet),
       caseIds,
     });
@@ -674,14 +655,7 @@ export default function AdminTestPlansScreen(props: Props) {
           <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 px-4 py-3">
             <div>
               <div className="text-sm font-semibold text-slate-900">Plan grid</div>
-              <div className="text-[11px] text-slate-500">Click row to focus · Checkbox for bulk mode</div>
-            </div>
-            <div className="ml-auto flex flex-wrap items-center gap-2">
-              <select value={statusBulkMode} onChange={(e) => setStatusBulkMode(e.target.value as "manual" | "automation")} className="rounded-lg border border-slate-200 px-2 py-1.5 text-xs">
-                <option value="manual">manual</option>
-                <option value="automation">automation</option>
-              </select>
-              <button type="button" title="Bulk update execution mode" onClick={() => void bulkUpdateExecutionMode()} disabled={selectedIds.length === 0} className="rounded-lg border border-amber-200 px-3 py-1.5 text-xs font-semibold text-amber-700 disabled:opacity-50">Bulk mode</button>
+              <div className="text-[11px] text-slate-500">Click row to focus</div>
             </div>
           </div>
           <div className="max-h-[620px] overflow-x-auto overflow-y-auto">
@@ -689,11 +663,11 @@ export default function AdminTestPlansScreen(props: Props) {
               <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-4 py-3"><input type="checkbox" checked={allVisibleSelected} onChange={() => setSelectedIds(allVisibleSelected ? [] : filteredPlans.map((item: RecordAny) => getId(item)))} /></th>
-                  <th className="px-4 py-3">Plan</th><th className="px-4 py-3">Scope</th><th className="px-4 py-3">Runs</th><th className="px-4 py-3">Last run</th><th className="px-4 py-3">Latest</th><th className="px-4 py-3">Owner</th><th className="px-4 py-3">Mode</th><th className="px-4 py-3">Auto cases</th><th className="px-4 py-3 text-right">Actions</th>
+                  <th className="px-4 py-3">Plan</th><th className="px-4 py-3">Scope</th><th className="px-4 py-3">Runs</th><th className="px-4 py-3">Last run</th><th className="px-4 py-3">Latest</th><th className="px-4 py-3">Owner</th><th className="px-4 py-3">Auto cases</th><th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {filteredPlans.length === 0 ? <tr><td colSpan={10} className="px-4 py-8 text-center text-slate-500">No plans</td></tr> : filteredPlans.map((plan: RecordAny) => {
+                {filteredPlans.length === 0 ? <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-500">No plans</td></tr> : filteredPlans.map((plan: RecordAny) => {
                   const planId = getId(plan);
                   const bulkSelected = selectedSet.has(planId);
                   const focused = activePlanId === planId;
@@ -708,11 +682,6 @@ export default function AdminTestPlansScreen(props: Props) {
                     <td className="px-4 py-3 text-xs text-slate-600">{formatPlanLastRun(runSnapshot?.lastRunAt)}</td>
                     <td className="px-4 py-3"><LatestRunResultBadge run={runSnapshot?.latestRun} /></td>
                     <td className="px-4 py-3 text-xs font-semibold text-slate-700">{userName(plan.owner)}</td>
-                    <td className="px-4 py-3">
-                      <span className={String(plan.executionMode || "manual") === "automation" ? "rounded-full bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700" : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600"}>
-                        {plan.executionMode || "manual"}
-                      </span>
-                    </td>
                     <td className="px-4 py-3 text-xs font-semibold text-slate-700">{countPlanAutomationCases(plan)} / {(plan.items || []).length}</td>
                     <td className="px-4 py-3"><div className="flex justify-end gap-1.5">
                       <button title="Insights" type="button" className="rounded-lg border border-indigo-200 px-2 py-1 text-xs text-indigo-700" onClick={(e) => { e.stopPropagation(); openPlanInsights(plan); }}>📊</button>
@@ -969,16 +938,6 @@ export default function AdminTestPlansScreen(props: Props) {
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Execution Mode">
-                  <select
-                    className={INPUT_CLS}
-                    value={planForm.executionMode || "manual"}
-                    onChange={(e) => setPlanForm((prev: any) => ({ ...prev, executionMode: e.target.value }))}
-                  >
-                    <option value="manual">Manual</option>
-                    <option value="automation">Automation</option>
-                  </select>
-                </Field>
                 <Field label="Name">
                   <input
                     className={INPUT_CLS}
