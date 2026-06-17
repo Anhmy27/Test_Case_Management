@@ -50,17 +50,29 @@ const startTestRun = asyncHandler(async (req, res) => {
 });
 
 const applyAutomationResults = asyncHandler(async (req, res) => {
-  const result = await applyAutomationResultsService({
-    runId: req.params.runId,
-    results: req.body?.results,
-    user: req.user,
-    ingestSource: req.automationIngest?.source,
-  });
-  await auditTestRun(req, 'test_run.automation_results', result?.testRun, {
-    ingestSource: req.automationIngest?.source || 'unknown',
-    resultCount: Array.isArray(req.body?.results) ? req.body.results.length : 0,
-  });
-  res.json(result);
+  try {
+    const result = await applyAutomationResultsService({
+      runId: req.params.runId,
+      results: req.body?.results,
+      user: req.user,
+      ingestSource: req.automationIngest?.source,
+    });
+    await auditTestRun(req, 'test_run.automation_results', result?.testRun, {
+      ingestSource: req.automationIngest?.source || 'unknown',
+      resultCount: Array.isArray(req.body?.results) ? req.body.results.length : 0,
+    });
+    res.json(result);
+  } catch (error) {
+    // Extra diagnostics for CI automation ingest failures
+    // eslint-disable-next-line no-console
+    console.error('[applyAutomationResults] failed:', {
+      message: error?.message,
+      name: error?.name,
+      statusCode: error?.statusCode,
+      stack: error?.stack,
+    });
+    throw error;
+  }
 });
 
 const listTestRuns = asyncHandler(async (req, res) => {
