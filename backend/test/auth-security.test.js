@@ -57,6 +57,34 @@ test('setAuthCookies sets access + csrf cookies', () => {
   assert.equal(calls[1][2].httpOnly, false);
 });
 
+test('setAuthCookies uses SameSite=None in production for cross-origin clients', () => {
+  const prevNodeEnv = process.env.NODE_ENV;
+  const prevSameSite = process.env.COOKIE_SAME_SITE;
+  process.env.NODE_ENV = 'production';
+  delete process.env.COOKIE_SAME_SITE;
+
+  const calls = [];
+  const res = {
+    cookie: (...args) => {
+      calls.push(args);
+    },
+  };
+
+  setAuthCookies(res, 'access-token');
+
+  assert.equal(calls[0][2].sameSite, 'none');
+  assert.equal(calls[0][2].secure, true);
+  assert.equal(calls[1][2].sameSite, 'none');
+  assert.equal(calls[1][2].secure, true);
+
+  process.env.NODE_ENV = prevNodeEnv;
+  if (prevSameSite === undefined) {
+    delete process.env.COOKIE_SAME_SITE;
+  } else {
+    process.env.COOKIE_SAME_SITE = prevSameSite;
+  }
+});
+
 test('clearAuthCookies clears both auth cookies', () => {
   const cleared = [];
   const res = {
