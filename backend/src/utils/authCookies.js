@@ -60,6 +60,8 @@ const setAuthCookies = (res, accessToken) => {
     httpOnly: false,
     maxAge,
   });
+
+  return csrfToken;
 };
 
 const clearAuthCookies = (res) => {

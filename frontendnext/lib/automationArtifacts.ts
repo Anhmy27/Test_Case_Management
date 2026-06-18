@@ -1,15 +1,7 @@
+import { getCsrfTokenForRequest } from "./csrfToken";
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:5000";
-const CSRF_COOKIE = "tcm_csrf";
 const CSRF_HEADER = "X-CSRF-Token";
-
-function readBrowserCookie(name: string): string {
-  if (typeof document === "undefined") {
-    return "";
-  }
-
-  const match = document.cookie.match(new RegExp(`(?:^|; )${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}=([^;]*)`));
-  return match ? decodeURIComponent(match[1]) : "";
-}
 
 export function runResultFailureScreenshotPath(runId: string, resultId: string) {
   return `/api/test-runs/${encodeURIComponent(runId)}/results/${encodeURIComponent(resultId)}/failure-screenshot`;
@@ -25,7 +17,7 @@ export function hasFailureScreenshot(failureScreenshot?: string | null) {
 
 async function fetchAuthenticatedScreenshot(path: string) {
   const headers: Record<string, string> = {};
-  const csrfToken = readBrowserCookie(CSRF_COOKIE);
+  const csrfToken = getCsrfTokenForRequest();
   if (csrfToken) {
     headers[CSRF_HEADER] = csrfToken;
   }
@@ -84,7 +76,7 @@ export async function uploadRunResultFailureScreenshot({
   formData.append("file", file);
 
   const headers: Record<string, string> = {};
-  const csrfToken = readBrowserCookie(CSRF_COOKIE);
+  const csrfToken = getCsrfTokenForRequest();
   if (csrfToken) {
     headers[CSRF_HEADER] = csrfToken;
   }
