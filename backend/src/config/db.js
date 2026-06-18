@@ -1,3 +1,4 @@
+const dns = require('dns');
 const mongoose = require('mongoose');
 const TestCase = require('../models/TestCase');
 const Project = require('../models/Project');
@@ -7,6 +8,9 @@ const TestPlan = require('../models/TestPlan');
 
 async function connectDatabase() {
   const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/test-case-management';
+  if (mongoUri.startsWith('mongodb+srv://')) {
+    dns.setServers(['8.8.8.8', '1.1.1.1']);
+  }
   console.log(`Connecting to MongoDB: ${mongoUri}`);
   await mongoose.connect(mongoUri);
   const { host, port, name } = mongoose.connection;
