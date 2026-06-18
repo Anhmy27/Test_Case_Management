@@ -5,6 +5,8 @@ Quy tắc riêng của dự án Test Case Management.
 Chỉ đọc khi thực hiện task liên quan đến codebase này.
 Không tự load ở mọi cuộc trò chuyện.
 
+**Làm automation stability (flaky / Playwright):** đọc `AUTOMATION_STABILITY_ROADMAP.md` thay vì file này.
+
 Mục tiêu:
 
 * Không phá business rule
@@ -334,15 +336,9 @@ token === ""
 
 # 8. Reusable Helpers
 
-Luôn search trước khi tạo mới.
+Luôn search trước khi tạo mới (tìm tên hàm/logic trong `backend/` và `frontendnext/`).
 
-```bash
-rg "logicName" backend frontendnext
-```
-
-Ưu tiên mở rộng helper hiện có.
-
-Không duplicate.
+Ưu tiên mở rộng helper hiện có. Không duplicate.
 
 ---
 
@@ -591,13 +587,7 @@ Không đọc UI trước khi hiểu dữ liệu.
 
 # 15. Sau Khi Code
 
-```bash
-rg "tenHam" backend frontendnext
-
-cd backend && npm test
-
-cd frontendnext && npm run lint
-```
+Kiểm tra: tìm reference hàm vừa sửa trong toàn repo; chạy `npm test` trong `backend/`; chạy `npm run lint` trong `frontendnext/`.
 
 ---
 
@@ -638,8 +628,8 @@ Trừ khi user yêu cầu:
 * reset --hard
 * đổi CI/CD
 * đổi package manager
-* tạo thêm markdown
-* tạo script phụ
+* tạo thêm markdown (trừ `AUTOMATION_STABILITY_ROADMAP.md` khi làm automation stability)
+* tạo script phụ (trừ script trong roadmap automation đã thống nhất)
 
 ---
 

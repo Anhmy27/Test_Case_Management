@@ -29,22 +29,85 @@ export type ActionMeta = {
   description: string;
   targetTypes: string[];
   needsTarget: boolean;
+  /** Hiện nhóm selector nhưng không bắt buộc (vd. press). */
+  optionalTarget?: boolean;
   needsValue: boolean;
   needsExpected: boolean;
   targetPlaceholder: string;
   valuePlaceholder: string;
   expectedPlaceholder: string;
+  valueLabel?: string;
 };
+
+export const TARGET_TYPE_LABELS: Record<string, string> = {
+  css: "CSS",
+  id: "ID",
+  placeholder: "Placeholder",
+  text: "Text",
+  label: "Label",
+  testid: "data-testid",
+  url: "URL",
+};
+
+/** Nhãn ô giá trị theo hành động — dùng trong form step. */
+export function getValueFieldLabel(action: string): string {
+  const meta = ACTION_META[action];
+  if (meta?.valueLabel) return meta.valueLabel;
+  switch (action) {
+    case "goto":
+      return "URL / path";
+    case "press":
+      return "Phím";
+    case "dragTo":
+      return "Phần tử đích";
+    case "upload":
+      return "Đường dẫn file";
+    default:
+      return "Giá trị";
+  }
+}
+
+/** Danh sách ngắn các ô cần điền (hiển thị chip gợi ý). */
+export function getActionRequiredHints(action: string): string[] {
+  const meta = ACTION_META[action] ?? ACTION_META.goto;
+
+  if (action === "wait") {
+    return ["Thời gian đợi"];
+  }
+
+  const hints: string[] = ["Timeout"];
+
+  if (meta.needsValue) {
+    hints.push(getValueFieldLabel(action));
+  }
+  if (meta.needsTarget) {
+    hints.push("Selector");
+  } else if (meta.optionalTarget) {
+    hints.push("Selector (tùy chọn)");
+  }
+  if (meta.needsExpected) {
+    hints.push("Chuỗi mong đợi");
+  }
+
+  return hints;
+}
+
+export function stepHasParameterFields(action: string): boolean {
+  if (action === "wait") return false;
+  const meta = ACTION_META[action] ?? ACTION_META.goto;
+  return meta.needsValue || meta.needsExpected || meta.needsTarget || Boolean(meta.optionalTarget);
+}
 
 export const ACTION_META: Record<string, ActionMeta> = {
   goto: {
     label: "Đi đến trang",
-    description: "Mở URL hoặc path (/login)",
+    description: "Mở URL hoặc path tương đối so với URL gốc",
     needsTarget: false, needsValue: true, needsExpected: false,
     targetTypes: [],
     targetPlaceholder: "",
     valuePlaceholder: "/login hoặc https://...",
     expectedPlaceholder: "",
+    valueLabel: "URL / path",
   },
   click: {
     label: "Nhấn phần tử",
@@ -165,12 +228,14 @@ export const ACTION_META: Record<string, ActionMeta> = {
   },
   press: {
     label: "Nhấn phím",
-    description: "Enter, Tab, Escape... Target trống = toàn trang",
+    description: "Nhấn phím trên trang hoặc trên phần tử đã chọn",
+    optionalTarget: true,
     needsTarget: false, needsValue: true, needsExpected: false,
     targetTypes: ["css", "id", "testid"],
-    targetPlaceholder: "(tùy chọn)",
+    targetPlaceholder: "Để trống = nhấn trên cả trang",
     valuePlaceholder: "Enter · Tab · Escape",
     expectedPlaceholder: "",
+    valueLabel: "Phím",
   },
   upload: {
     label: "Upload file",
