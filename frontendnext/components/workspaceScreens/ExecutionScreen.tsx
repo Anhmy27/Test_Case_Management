@@ -23,6 +23,26 @@ import {
 
 type RecordAny = Record<string, any>;
 
+const RUN_LIST_EXPANDED_STORAGE_KEY = "tcm:execution:runListExpanded";
+
+const readStoredRunListExpanded = (fallback: boolean) => {
+  if (typeof window === "undefined") {
+    return fallback;
+  }
+
+  const stored = sessionStorage.getItem(RUN_LIST_EXPANDED_STORAGE_KEY);
+  if (stored === "true") return true;
+  if (stored === "false") return false;
+  return fallback;
+};
+
+const persistRunListExpanded = (expanded: boolean) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+  sessionStorage.setItem(RUN_LIST_EXPANDED_STORAGE_KEY, String(expanded));
+};
+
 type Props = {
   runForm: { testPlanId: string; name: string; baseUrl: string };
 
@@ -165,20 +185,26 @@ export default function ExecutionScreen(props: Props) {
     () => !props.selectedRun,
   );
   const [queueFilter, setQueueFilter] = useState<ExecutionQueueFilter>("all");
-  const [runListExpanded, setRunListExpanded] = useState(
-    () => !props.selectedRun,
+  const [runListExpanded, setRunListExpanded] = useState(() =>
+    readStoredRunListExpanded(!props.selectedRun),
   );
 
   useEffect(() => {
     if (selectedRun) {
       setStartFormExpanded(false);
-      setRunListExpanded(false);
     } else {
       setStartFormExpanded(true);
-      setRunListExpanded(true);
     }
     setQueueFilter("all");
   }, [selectedRun]);
+
+  const toggleRunListExpanded = useCallback(() => {
+    setRunListExpanded((prev) => {
+      const next = !prev;
+      persistRunListExpanded(next);
+      return next;
+    });
+  }, []);
 
   const handleQueueFilterChange = useCallback(
     (filter: ExecutionQueueFilter) => {
@@ -753,7 +779,7 @@ export default function ExecutionScreen(props: Props) {
             <button
               type="button"
               className="text-sm font-semibold text-slate-700 hover:text-slate-900"
-              onClick={() => setRunListExpanded((prev) => !prev)}
+              onClick={toggleRunListExpanded}
             >
               {runListExpanded
                 ? `▴ Hide test runs (${adminRuns?.length ?? 0})`
