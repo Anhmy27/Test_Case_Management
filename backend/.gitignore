@@ -7,4 +7,6 @@ backend/.sessions/
 # Automation run artifacts (failure screenshots, traces)
 uploads/
 backend/uploads/
+# Automation stability probe output (baseline copied into AUTOMATION_STABILITY_ROADMAP.md)
+reports/
 .env*
