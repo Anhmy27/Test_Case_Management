@@ -16,8 +16,10 @@ import {
 import { usePathname, useRouter } from "next/navigation";
 import AppShell from "@/components/AppShell";
 import { useAdminSidebarNav } from "@/components/workspaceScreens/adminNav";
+import { AdminProjectScopeSelect, composeAdminTopbar } from "@/components/workspaceScreens/adminTopbar";
 import { EMPLOYEE_NAV_ITEMS } from "@/components/workspaceScreens/employeeNav";
 import { WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
+import { WorkspaceNoticeProvider, useWorkspaceNotice, type WorkspaceNoticeVariant } from "@/components/workspaceScreens/WorkspaceNotice";
 import { apiRequest, getId, matchesSelectedEntity, userName } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
@@ -48,13 +50,16 @@ type AdminWorkspaceContextValue = {
   currentUser: RecordAny;
   selectedProjectId: string;
   setSelectedProjectId: (projectId: string) => void;
+  projects: RecordAny[];
   setTopbar: (node: ReactNode | null) => void;
+  showNotice: (message: string, variant?: WorkspaceNoticeVariant) => void;
   handleLogout: () => void;
 };
 
 type EmployeeWorkspaceContextValue = {
   currentUser: RecordAny;
   setTopbar: (node: ReactNode | null) => void;
+  showNotice: (message: string, variant?: WorkspaceNoticeVariant) => void;
   handleLogout: () => void;
 };
 
@@ -92,6 +97,15 @@ export function useEmployeeWorkspace() {
 }
 
 export function AdminWorkspaceShell({ children }: { children: ReactNode }) {
+  return (
+    <WorkspaceNoticeProvider>
+      <AdminWorkspaceShellInner>{children}</AdminWorkspaceShellInner>
+    </WorkspaceNoticeProvider>
+  );
+}
+
+function AdminWorkspaceShellInner({ children }: { children: ReactNode }) {
+  const { showNotice } = useWorkspaceNotice();
   const router = useRouter();
   const pathname = usePathname();
   const activeKey = resolveAdminActiveKey(pathname);
@@ -100,6 +114,7 @@ export function AdminWorkspaceShell({ children }: { children: ReactNode }) {
   const didHydrateScopeRef = useRef(false);
   const [scopeReady, setScopeReady] = useState(false);
   const [selectedProjectId, setSelectedProjectIdState] = useState("");
+  const [projects, setProjects] = useState<RecordAny[]>([]);
   const [currentUser, setCurrentUser] = useState<RecordAny | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const { topbar, setTopbar } = useRouteTopbar(pathname);
@@ -133,19 +148,26 @@ export function AdminWorkspaceShell({ children }: { children: ReactNode }) {
   }, [isClient, selectedProjectId]);
 
   useEffect(() => {
-    if (!selectedProjectId || !currentUser) {
+    if (!currentUser) {
       return;
     }
 
     let cancelled = false;
-    const normalizeScope = async () => {
+    const syncProjects = async () => {
       try {
         const response = await apiRequest<{ projects: RecordAny[] }>("/api/projects");
         if (cancelled) {
           return;
         }
-        const projects = Array.isArray(response.projects) ? response.projects : [];
-        const matchedProject = projects.find((project) =>
+
+        const projectsList = Array.isArray(response.projects) ? response.projects : [];
+        setProjects(projectsList);
+
+        if (!selectedProjectId) {
+          return;
+        }
+
+        const matchedProject = projectsList.find((project) =>
           matchesSelectedEntity(project, selectedProjectId),
         );
         if (!matchedProject) {
@@ -161,7 +183,7 @@ export function AdminWorkspaceShell({ children }: { children: ReactNode }) {
       }
     };
 
-    void normalizeScope();
+    void syncProjects();
     return () => {
       cancelled = true;
     };
@@ -230,10 +252,12 @@ export function AdminWorkspaceShell({ children }: { children: ReactNode }) {
       currentUser,
       selectedProjectId,
       setSelectedProjectId,
+      projects,
       setTopbar,
+      showNotice,
       handleLogout,
     };
-  }, [currentUser, handleLogout, selectedProjectId, setSelectedProjectId, setTopbar]);
+  }, [currentUser, handleLogout, projects, selectedProjectId, setSelectedProjectId, setTopbar, showNotice]);
 
   const defaultTopbar = (
     <div className="flex min-h-[40px] items-center">
@@ -242,6 +266,16 @@ export function AdminWorkspaceShell({ children }: { children: ReactNode }) {
       </div>
     </div>
   );
+
+  const scopeSelect = (
+    <AdminProjectScopeSelect
+      projects={projects}
+      selectedProjectId={selectedProjectId}
+      onChange={setSelectedProjectId}
+    />
+  );
+
+  const resolvedTopbar = composeAdminTopbar(topbar ?? defaultTopbar, scopeSelect);
 
   const shellUser = currentUser
     ? {
@@ -260,7 +294,7 @@ export function AdminWorkspaceShell({ children }: { children: ReactNode }) {
         activeKey={activeKey}
         onNavChange={handleNavigate}
         onLogout={handleLogout}
-        topbar={topbar ?? defaultTopbar}
+        topbar={resolvedTopbar}
         mainRef={mainRef}
       >
         {!isClient || !authReady || !currentUser || !contextValue ? (
@@ -274,6 +308,15 @@ export function AdminWorkspaceShell({ children }: { children: ReactNode }) {
 }
 
 export function EmployeeWorkspaceShell({ children }: { children: ReactNode }) {
+  return (
+    <WorkspaceNoticeProvider>
+      <EmployeeWorkspaceShellInner>{children}</EmployeeWorkspaceShellInner>
+    </WorkspaceNoticeProvider>
+  );
+}
+
+function EmployeeWorkspaceShellInner({ children }: { children: ReactNode }) {
+  const { showNotice } = useWorkspaceNotice();
   const router = useRouter();
   const pathname = usePathname();
   const activeKey = resolveEmployeeActiveKey(pathname);
@@ -351,9 +394,10 @@ export function EmployeeWorkspaceShell({ children }: { children: ReactNode }) {
     return {
       currentUser,
       setTopbar,
+      showNotice,
       handleLogout,
     };
-  }, [currentUser, handleLogout, setTopbar]);
+  }, [currentUser, handleLogout, setTopbar, showNotice]);
 
   const defaultTopbar = (
     <div className="flex min-h-[40px] items-center">

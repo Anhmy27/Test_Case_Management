@@ -22,13 +22,12 @@ function getProjectJiraProjectKey(project?: RecordAny | null) {
 }
 
 export default function AdminProjectsRoute() {
-  const { currentUser, setTopbar } = useAdminWorkspace();
+  const { currentUser, setTopbar, showNotice } = useAdminWorkspace();
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [editingProjectId, setEditingProjectId] = useState<string>("");
   const [projectForm, setProjectForm] = useState({ name: "", code: "", pid: "", jiraProjectKey: "", description: "" });
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
 
   useEffect(() => {
     if (!currentUser) {
@@ -38,13 +37,12 @@ export default function AdminProjectsRoute() {
     let cancelled = false;
     const load = async () => {
       setLoading(true);
-      setMessage("");
       try {
         const response = await apiRequest<{ projects: RecordAny[] }>("/api/projects");
         if (cancelled) return;
         setProjects(Array.isArray(response.projects) ? response.projects : []);
       } catch (error) {
-        if (!cancelled) setMessage(error instanceof Error ? error.message : "Unable to load projects");
+        if (!cancelled) showNotice(error instanceof Error ? error.message : "Unable to load projects", "error");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -64,7 +62,6 @@ export default function AdminProjectsRoute() {
 
   const saveProject = async (event: React.FormEvent) => {
     event.preventDefault();
-    setMessage("");
     const payload = {
       ...projectForm,
       jiraProjectKey: projectForm.jiraProjectKey.trim(),
@@ -73,16 +70,16 @@ export default function AdminProjectsRoute() {
     try {
       if (editingProjectId) {
         await apiRequest(`/api/projects/${editingProjectId}`, undefined, { method: "PUT", body: JSON.stringify(payload) });
-        setMessage("Project updated");
+        showNotice("Project updated");
       } else {
         await apiRequest(`/api/projects`, undefined, { method: "POST", body: JSON.stringify(payload) });
-        setMessage("Project created");
+        showNotice("Project created");
       }
       setEditingProjectId("");
       setProjectForm({ name: "", code: "", pid: "", jiraProjectKey: "", description: "" });
       await refreshProjects();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to save project");
+      showNotice(error instanceof Error ? error.message : "Unable to save project", "error");
     }
   };
 
@@ -127,7 +124,6 @@ export default function AdminProjectsRoute() {
 
   return (
     <>
-      {message ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{message}</div> : null}
       {loading ? (
         <WorkspaceContentSkeleton />
       ) : (

@@ -2,7 +2,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AdminTestPlansScreen from "@/components/workspaceScreens/AdminTestPlansScreen";
 import AdminTestPlanInsightsModal from "@/components/workspaceScreens/AdminTestPlanInsightsModal";
@@ -80,7 +80,7 @@ export default function AdminTestPlansRoute() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const openInsightsPlanIdFromUrl = searchParams.get("openInsightsPlanId") || "";
-  const { currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
+  const { currentUser, selectedProjectId, setTopbar, showNotice } = useAdminWorkspace();
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [versions, setVersions] = useState<RecordAny[]>([]);
   const [groups, setGroups] = useState<RecordAny[]>([]);
@@ -96,7 +96,6 @@ export default function AdminTestPlansRoute() {
   const [filterVersionId, setFilterVersionId] = useState("");
   const [filterStatus, setFilterStatus] = useState<PlanListFilters["status"]>("all");
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
   const [insightsPlan, setInsightsPlan] = useState<{ planId: string; planName: string; projectId: string } | null>(null);
   const [reloading, setReloading] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
@@ -116,13 +115,12 @@ export default function AdminTestPlansRoute() {
     }
   }, [openInsightsPlanIdFromUrl, loading, plans, selectedProjectId]);
 
-  const handleProjectScopeChange = useCallback((projectId: string) => {
-    setSelectedProjectId(projectId);
+  useEffect(() => {
     setFilterVersionId("");
-    if (projectId) {
-      setPlanForm((prev: RecordAny) => ({ ...prev, projectId }));
+    if (selectedProjectId) {
+      setPlanForm((prev: RecordAny) => ({ ...prev, projectId: selectedProjectId }));
     }
-  }, [setSelectedProjectId]);
+  }, [selectedProjectId]);
 
   useEffect(() => {
     if (!currentUser) {
@@ -131,7 +129,7 @@ export default function AdminTestPlansRoute() {
 
     let cancelled = false;
     const load = async () => {
-      setLoading(true); setMessage("");
+      setLoading(true);
       try {
         const data = await fetchWorkspaceData(selectedProjectId);
         if (cancelled) return;
@@ -144,7 +142,7 @@ export default function AdminTestPlansRoute() {
           setRuns,
           setUsers,
         });
-      } catch (error) { if (!cancelled) setMessage(error instanceof Error ? error.message : "Unable to load test plans"); }
+      } catch (error) { if (!cancelled) showNotice(error instanceof Error ? error.message : "Unable to load test plans", "error"); }
       finally { if (!cancelled) setLoading(false); }
     };
 
@@ -168,13 +166,12 @@ export default function AdminTestPlansRoute() {
   const handleReload = async () => {
     setReloading(true);
     setLoading(true);
-    setMessage("");
     clearApiRequestCache();
     try {
       await refreshAll();
       setReloadToken((prev) => prev + 1);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to reload test plans");
+      showNotice(error instanceof Error ? error.message : "Unable to reload test plans", "error");
     } finally {
       setReloading(false);
       setLoading(false);
@@ -261,7 +258,7 @@ export default function AdminTestPlansRoute() {
     try {
       const payload = { ...planForm, projectId: planForm.projectId || selectedProjectId };
       if (!Array.isArray(payload.caseIds) || payload.caseIds.length === 0) {
-        setMessage("Please select at least one test case before saving the plan.");
+        showNotice("Please select at least one test case before saving the plan.", "info");
         return null;
       }
       let savedPlan: RecordAny | null = null;
@@ -272,7 +269,7 @@ export default function AdminTestPlansRoute() {
           { method: "PUT", body: JSON.stringify(payload) },
         );
         savedPlan = response.testPlan || null;
-        setMessage("Test plan updated");
+        showNotice("Test plan updated");
       } else {
         const response = await apiRequest<{ testPlan: RecordAny }>(
           `/api/test-plans`,
@@ -280,14 +277,14 @@ export default function AdminTestPlansRoute() {
           { method: "POST", body: JSON.stringify(payload) },
         );
         savedPlan = response.testPlan || null;
-        setMessage("Test plan created");
+        showNotice("Test plan created");
       }
       setEditingPlanId("");
       setPlanForm({ name: "", description: "", projectId: selectedProjectId || "", versionId: "", selectedGroupIds: [], caseIds: [] });
       await refreshAll();
       return savedPlan ? { plan: savedPlan, created: wasCreate } : null;
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to save test plan");
+      showNotice(error instanceof Error ? error.message : "Unable to save test plan", "error");
       return null;
     }
   };
@@ -304,7 +301,7 @@ export default function AdminTestPlansRoute() {
     event.preventDefault();
     if (!selectedPlanId) return;
     if (!Array.isArray(assignDraft.assigneeIds) || assignDraft.assigneeIds.length === 0) {
-      setMessage("Please assign at least one assignee before saving.");
+      showNotice("Please assign at least one assignee before saving.", "info");
       return;
     }
     await apiRequest(`/api/test-plans/${selectedPlanId}/assign`, undefined, { method: "PUT", body: JSON.stringify({ assigneeIds: assignDraft.assigneeIds, ownerId: assignDraft.ownerId || getId(currentUser) }) });
@@ -397,18 +394,6 @@ export default function AdminTestPlansRoute() {
             placeholder="Filter plans..."
           />
           <select
-            value={selectedProjectId}
-            onChange={(event) => handleProjectScopeChange(event.target.value)}
-            className={TOPBAR_INPUT_CLS}
-          >
-            <option value="">All projects</option>
-            {projects.map((project) => (
-              <option key={getId(project)} value={getId(project)}>
-                {project.name}
-              </option>
-            ))}
-          </select>
-          <select
             value={filterVersionId}
             onChange={(event) => setFilterVersionId(event.target.value)}
             className={`max-w-[140px] ${TOPBAR_INPUT_CLS}`}
@@ -440,17 +425,13 @@ export default function AdminTestPlansRoute() {
   }, [
     filterStatus,
     filterVersionId,
-    handleProjectScopeChange,
-    projects,
     searchTerm,
-    selectedProjectId,
     setTopbar,
     topbarVersionOptions,
   ]);
 
   return (
     <>
-      {message ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{message}</div> : null}
       {loading ? (
         <WorkspaceContentSkeleton />
       ) : (

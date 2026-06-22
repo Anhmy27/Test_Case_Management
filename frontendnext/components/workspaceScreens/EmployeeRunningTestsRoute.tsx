@@ -14,11 +14,10 @@ type RecordAny = Record<string, any>;
 
 export default function EmployeeRunningTestsRoute() {
   const router = useRouter();
-  const { currentUser, setTopbar } = useEmployeeWorkspace();
+  const { currentUser, setTopbar, showNotice } = useEmployeeWorkspace();
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [runs, setRuns] = useState<RecordAny[]>([]);
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState<string>("");
   const projectScope = useEmployeeProjectScope(projects);
 
@@ -31,7 +30,6 @@ export default function EmployeeRunningTestsRoute() {
 
     const loadRuns = async () => {
       setLoading(true);
-      setMessage("");
 
       try {
         const [projectsResponse, runsResponse] = await Promise.all([
@@ -46,7 +44,7 @@ export default function EmployeeRunningTestsRoute() {
         setRuns(Array.isArray(runsResponse.testRuns) ? runsResponse.testRuns : []);
       } catch (error) {
         if (!cancelled) {
-          setMessage(error instanceof Error ? error.message : "Unable to load running tests");
+          showNotice(error instanceof Error ? error.message : "Unable to load running tests", "error");
         }
       } finally {
         if (!cancelled) {
@@ -104,11 +102,6 @@ export default function EmployeeRunningTestsRoute() {
 
   return (
     <>
-      {message ? (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          {message}
-        </div>
-      ) : null}
       {loading ? (
         <WorkspaceContentSkeleton />
       ) : (

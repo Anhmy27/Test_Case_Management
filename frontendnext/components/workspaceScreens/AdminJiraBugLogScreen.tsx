@@ -16,7 +16,6 @@ type Pagination = {
 
 type Props = {
   logBugs: RecordAny[];
-  message: string;
   pagination: Pagination;
   onPageChange: (page: number) => void;
   onOpenExecution: (entry: RecordAny) => void;
@@ -71,7 +70,6 @@ function DetailRow({ label, value, multiline = false }: DetailRowProps) {
 
 export default function AdminJiraBugLogScreen({
   logBugs,
-  message,
   pagination,
   onPageChange,
   onOpenExecution,
@@ -85,12 +83,6 @@ export default function AdminJiraBugLogScreen({
         title="Jira Bug Log"
         subtitle="History of bugs logged to Jira for the selected project"
       >
-        {message ? (
-          <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300">
-            {message}
-          </div>
-        ) : null}
-
         <DataTable
           columns={["When", "Jira Issue", "Summary", "Test Case", "Test Run", "Actions", "Logged By"]}
           rows={logBugs.map((entry) => (

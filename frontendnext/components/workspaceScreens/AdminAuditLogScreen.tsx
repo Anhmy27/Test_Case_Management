@@ -15,7 +15,6 @@ type Pagination = {
 
 type Props = {
   logs: RecordAny[];
-  message: string;
   pagination: Pagination;
   onPageChange: (page: number) => void;
 };
@@ -31,19 +30,13 @@ function formatWhen(value: unknown) {
   return date.toLocaleString();
 }
 
-export default function AdminAuditLogScreen({ logs, message, pagination, onPageChange }: Props) {
+export default function AdminAuditLogScreen({ logs, pagination, onPageChange }: Props) {
   return (
     <div className="space-y-5">
       <SectionCard
         title="Audit Log"
         subtitle="Global activity trail — visible only when project scope is All projects"
       >
-        {message ? (
-          <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/30 dark:text-rose-300">
-            {message}
-          </div>
-        ) : null}
-
         <DataTable
           columns={["When", "Action", "Resource", "Actor", "IP"]}
           rows={logs.map((entry) => (

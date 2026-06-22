@@ -22,7 +22,7 @@ function generateStepId() {
 export default function AdminTestCasesRoute() {
   const searchParams = useSearchParams();
   const caseIdFromUrl = String(searchParams.get("caseId") || "").trim();
-  const { currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
+  const { currentUser, selectedProjectId, setTopbar, showNotice } = useAdminWorkspace();
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [groups, setGroups] = useState<RecordAny[]>([]);
   const [testCases, setTestCases] = useState<RecordAny[]>([]);
@@ -30,17 +30,17 @@ export default function AdminTestCasesRoute() {
   const [automationForm, setAutomationForm] = useState({ enabled: false, webId: "", baseUrl: "", userKey: "", timeoutMs: "30", steps: [{ stepId: "1", stepName: "", action: "goto", targetType: "css", target: "", value: "", expected: "", timeoutMs: "15" }] });
   const [editingTestCaseId, setEditingTestCaseId] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const consumedCaseIdRef = useRef<string>("");
 
-  const handleProjectScopeChange = useCallback((projectId: string) => {
-    setSelectedProjectId(projectId);
-    if (projectId) {
-      setTestCaseForm((prev) => ({ ...prev, projectId }));
+  useEffect(() => {
+    if (!selectedProjectId) {
+      return;
     }
-  }, [setSelectedProjectId, setTestCaseForm]);
+
+    setTestCaseForm((prev) => ({ ...prev, projectId: selectedProjectId }));
+  }, [selectedProjectId]);
 
   useEffect(() => {
     if (!currentUser) {
@@ -50,7 +50,6 @@ export default function AdminTestCasesRoute() {
     let cancelled = false;
     const load = async () => {
       setLoading(true);
-      setMessage("");
       try {
         const [projectsResponse, groupsResponse, casesResponse] = await Promise.all([
           apiRequest<{ projects: RecordAny[] }>("/api/projects"),
@@ -62,7 +61,7 @@ export default function AdminTestCasesRoute() {
         setGroups(Array.isArray(groupsResponse.groups) ? groupsResponse.groups : []);
         setTestCases(Array.isArray(casesResponse.testCases) ? casesResponse.testCases : []);
       } catch (error) {
-        if (!cancelled) setMessage(error instanceof Error ? error.message : "Unable to load test cases");
+        if (!cancelled) showNotice(error instanceof Error ? error.message : "Unable to load test cases", "error");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -127,10 +126,10 @@ export default function AdminTestCasesRoute() {
       };
       if (editingTestCaseId) {
         await apiRequest(`/api/test-cases/${editingTestCaseId}`, undefined, { method: "PUT", body: JSON.stringify(payload) });
-        setMessage("Test case updated");
+        showNotice("Test case updated");
       } else {
         await apiRequest(`/api/test-cases`, undefined, { method: "POST", body: JSON.stringify(payload) });
-        setMessage("Test case created");
+        showNotice("Test case created");
       }
       setEditingTestCaseId("");
       setTestCaseForm({ projectId: selectedProjectId || "", groupId: "", caseKey: "", title: "", priority: "medium", severity: "major", type: "functional", description: "", expected: "", steps: [{ action: "", expected: "" }] });
@@ -138,7 +137,7 @@ export default function AdminTestCasesRoute() {
       await refreshAll();
       return true;
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to save test case");
+      showNotice(error instanceof Error ? error.message : "Unable to save test case", "error");
       return false;
     }
   };
@@ -249,23 +248,23 @@ export default function AdminTestCasesRoute() {
       return { ...prev, steps: copy };
     });
   };
-  const downloadTestCaseTemplate = () => { setMessage("Use import template from backend if available"); };
+  const downloadTestCaseTemplate = () => { showNotice("Use import template from backend if available", "info"); };
   const importTestCases = async (file: File) => {
     const normalizedName = String(file?.name || "").toLowerCase();
     const hasValidExtension = EXCEL_IMPORT_EXTENSIONS.some((ext) => normalizedName.endsWith(ext));
     if (!hasValidExtension) {
-      setMessage("Only Excel files (.xls, .xlsx) are allowed");
+      showNotice("Only Excel files (.xls, .xlsx) are allowed", "error");
       return;
     }
 
     if (file.size > MAX_EXCEL_IMPORT_BYTES) {
-      setMessage("File size exceeds 50MB limit");
+      showNotice("File size exceeds 50MB limit", "error");
       return;
     }
 
     const effectiveProjectId = String(selectedProjectId || testCaseForm.projectId || "").trim();
     if (!effectiveProjectId) {
-      setMessage("Please select a project scope before importing");
+      showNotice("Please select a project scope before importing", "info");
       return;
     }
 
@@ -273,7 +272,7 @@ export default function AdminTestCasesRoute() {
     formData.append("file", file);
     formData.append("projectId", effectiveProjectId);
     await apiRequest(`/api/test-cases/import`, undefined, { method: "POST", body: formData });
-    setMessage("Excel import completed");
+    showNotice("Excel import completed");
     await refreshAll();
   };
 
@@ -298,28 +297,15 @@ export default function AdminTestCasesRoute() {
             className={`w-52 ${TOPBAR_INPUT_CLS}`}
             placeholder="Filter cases..."
           />
-          <select
-            value={selectedProjectId}
-            onChange={(event) => handleProjectScopeChange(event.target.value)}
-            className={TOPBAR_INPUT_CLS}
-          >
-            <option value="">All projects</option>
-            {projects.map((project) => (
-              <option key={getId(project)} value={getId(project)}>
-                {project.name}
-              </option>
-            ))}
-          </select>
         </div>
       </div>,
     );
 
     return () => setTopbar(null);
-  }, [handleProjectScopeChange, projects, searchTerm, selectedProjectId, setTopbar]);
+  }, [searchTerm, setTopbar]);
 
   return (
     <>
-      {message ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{message}</div> : null}
       {loading ? (
         <WorkspaceContentSkeleton />
       ) : (

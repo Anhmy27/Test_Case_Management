@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useState } from "react";
+import { useOptionalWorkspaceNotice } from "@/components/workspaceScreens/WorkspaceNotice";
 import { apiRequest } from "@/lib/api";
 import { DataTable, SectionCard, StatusBadge } from "./shared";
 import TestCaseExecutionHistoryPopup from "./TestCaseExecutionHistoryPopup";
@@ -118,6 +119,7 @@ export default function AdminTestPlanInsightsModal({
   onOpenExecution,
   onStartNewRun,
 }: Props) {
+  const noticeContext = useOptionalWorkspaceNotice();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [detail, setDetail] = useState<TestPlanDetail | null>(null);
@@ -153,6 +155,13 @@ export default function AdminTestPlanInsightsModal({
       cancelled = true;
     };
   }, [planId]);
+
+  useEffect(() => {
+    if (!error || !noticeContext) {
+      return;
+    }
+    noticeContext.showNotice(error, "error");
+  }, [error, noticeContext]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -229,7 +238,7 @@ export default function AdminTestPlanInsightsModal({
           {loading ? (
             <div className="py-12 text-center text-sm text-slate-500">Loading...</div>
           ) : error ? (
-            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</div>
+            <div className="py-12 text-center text-sm text-slate-500">Unable to load plan insights.</div>
           ) : !detail?.testPlanId ? (
             <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
               Plan not found or has no data yet.

@@ -11,7 +11,7 @@ import { apiRequest, createTextMatcher, getId } from "@/lib/api";
 type RecordAny = Record<string, any>;
 
 export default function AdminUsersRoute() {
-  const { currentUser, setTopbar } = useAdminWorkspace();
+  const { currentUser, setTopbar, showNotice } = useAdminWorkspace();
   const [users, setUsers] = useState<RecordAny[]>([]);
   const [newUserForm, setNewUserForm] = useState({
     name: "",
@@ -26,7 +26,6 @@ export default function AdminUsersRoute() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<"active" | "inactive" | "all">("active");
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
 
   useEffect(() => {
     if (!currentUser) {
@@ -36,7 +35,6 @@ export default function AdminUsersRoute() {
     let cancelled = false;
     const load = async () => {
       setLoading(true);
-      setMessage("");
       try {
         const response = await apiRequest<{ users: RecordAny[] }>(
           `/api/users?status=${encodeURIComponent(statusFilter)}`,
@@ -45,7 +43,7 @@ export default function AdminUsersRoute() {
         if (cancelled) return;
         setUsers(Array.isArray(response.users) ? response.users : []);
       } catch (error) {
-        if (!cancelled) setMessage(error instanceof Error ? error.message : "Unable to load users");
+        if (!cancelled) showNotice(error instanceof Error ? error.message : "Unable to load users", "error");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -81,10 +79,10 @@ export default function AdminUsersRoute() {
       }
       if (editingUserId) {
         await apiRequest(`/api/users/${editingUserId}`, undefined, { method: "PUT", body: JSON.stringify(payload) });
-        setMessage("User updated");
+        showNotice("User updated");
       } else {
         await apiRequest(`/api/users`, undefined, { method: "POST", body: JSON.stringify(payload) });
-        setMessage("User created");
+        showNotice("User created");
       }
       setEditingUserId("");
       setNewUserForm({
@@ -98,7 +96,7 @@ export default function AdminUsersRoute() {
       });
       await refreshUsers();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to save user");
+      showNotice(error instanceof Error ? error.message : "Unable to save user", "error");
     }
   };
 
@@ -162,7 +160,6 @@ export default function AdminUsersRoute() {
 
   return (
     <>
-      {message ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{message}</div> : null}
       {loading ? (
         <WorkspaceContentSkeleton />
       ) : (

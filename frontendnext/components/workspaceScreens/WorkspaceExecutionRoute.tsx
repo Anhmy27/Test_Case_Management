@@ -6,7 +6,7 @@ import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ExecutionScreen from "@/components/workspaceScreens/ExecutionScreen";
 import { useAdminWorkspace, useEmployeeWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
-import { WorkspaceContentSkeleton, TOPBAR_INPUT_CLS } from "@/components/workspaceScreens/shared";
+import { WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
 import { apiRequest, buildDefaultRunName, downloadTestRunExport, formatAutomationRunMessage, getId, partitionRunItemsByAutomation, resolveStartRunPayload, runHasAutomationItems, runHasManualItems, summarizeAutomationResults, userName } from "@/lib/api";
 import AdminTestPlanInsightsModal from "@/components/workspaceScreens/AdminTestPlanInsightsModal";
 import {
@@ -19,16 +19,15 @@ type RecordAny = Record<string, any>;
 
 function createExportRunHandler(
   setExportingRun: (value: boolean) => void,
-  setMessage: (value: string) => void,
+  showNotice: (message: string, variant?: "success" | "error" | "info") => void,
 ) {
   return async (runId: string, format: "xlsx" | "csv" = "xlsx") => {
     setExportingRun(true);
-    setMessage("");
     try {
       await downloadTestRunExport(runId, format);
-      setMessage(`Exported run as ${format.toUpperCase()}`);
+      showNotice(`Exported run as ${format.toUpperCase()}`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to export run");
+      showNotice(error instanceof Error ? error.message : "Unable to export run", "error");
     } finally {
       setExportingRun(false);
     }
@@ -53,7 +52,7 @@ function AdminWorkspaceExecutionRoute() {
   const fromInsightsPlanId = String(searchParams.get("fromInsightsPlanId") || "").trim();
   const fromInsightsPlanName = String(searchParams.get("fromInsightsPlanName") || "").trim();
   const adminExecutionPath = "/workspace/admin/test-runs-execution";
-  const { currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
+  const { currentUser, selectedProjectId, setTopbar, showNotice } = useAdminWorkspace();
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [plans, setPlans] = useState<RecordAny[]>([]);
   const [runs, setRuns] = useState<RecordAny[]>([]);
@@ -67,7 +66,6 @@ function AdminWorkspaceExecutionRoute() {
   const [cancellingRun, setCancellingRun] = useState(false);
   const [retryingRun, setRetryingRun] = useState(false);
   const [exportingRun, setExportingRun] = useState(false);
-  const [message, setMessage] = useState("");
   const [startRunError, setStartRunError] = useState("");
   const [pollError, setPollError] = useState("");
   const [insightsPlan, setInsightsPlan] = useState<{
@@ -76,8 +74,15 @@ function AdminWorkspaceExecutionRoute() {
     projectId?: string;
   } | null>(null);
   const { openJiraBugDialog, jiraBugDialogNode } = useJiraBugDialog({
-    onNotice: setMessage,
+    onNotice: showNotice,
   });
+
+  useEffect(() => {
+    if (pollError) {
+      showNotice(pollError, "error");
+    }
+  }, [pollError, showNotice]);
+
   useEffect(() => {
     if (!currentUser) {
       return;
@@ -87,7 +92,6 @@ function AdminWorkspaceExecutionRoute() {
 
     const load = async () => {
       setLoading(true);
-      setMessage("");
 
       try {
         const [plansResponse, runsResponse, projectsResponse] = await Promise.all([
@@ -111,7 +115,7 @@ function AdminWorkspaceExecutionRoute() {
         }
       } catch (error) {
         if (!cancelled) {
-          setMessage(error instanceof Error ? error.message : "Unable to load execution workspace");
+          showNotice(error instanceof Error ? error.message : "Unable to load execution workspace", "error");
         }
       } finally {
         if (!cancelled) {
@@ -158,13 +162,13 @@ function AdminWorkspaceExecutionRoute() {
           });
         } else {
           setSelectedRun(null);
-          setMessage("Test run not found");
+          showNotice("Test run not found", "error");
         }
 
         setMyItems(Array.isArray(response.results) ? response.results : []);
       } catch (error) {
         if (!cancelled) {
-          setMessage(error instanceof Error ? error.message : "Unable to load test run");
+          showNotice(error instanceof Error ? error.message : "Unable to load test run", "error");
           setSelectedRun(null);
           setMyItems([]);
         }
@@ -281,7 +285,7 @@ function AdminWorkspaceExecutionRoute() {
             return prev;
           });
           if (response.testRun.status === "completed") {
-            setMessage(formatAutomationRunMessage(summarizeAutomationResults(response.results || [])));
+            showNotice(formatAutomationRunMessage(summarizeAutomationResults(response.results || [])));
           }
         }
         setMyItems((prev) => {
@@ -342,7 +346,6 @@ function AdminWorkspaceExecutionRoute() {
     }
 
     setStartingRun(true);
-    setMessage("");
     setStartRunError("");
     try {
       const response = await apiRequest<{
@@ -362,11 +365,11 @@ function AdminWorkspaceExecutionRoute() {
         if (runId) {
           if (response.automationQueued) {
             setMyItems([]);
-            setMessage("Automation đang chạy nền. Kết quả sẽ cập nhật tự động.");
+            showNotice("Automation đang chạy nền. Kết quả sẽ cập nhật tự động.");
           } else if (response.automationSummary) {
-            setMessage(formatAutomationRunMessage(response.automationSummary));
+            showNotice(formatAutomationRunMessage(response.automationSummary));
           } else {
-            setMessage("Test run started");
+            showNotice("Test run started");
           }
           router.push(`${adminExecutionPath}?runId=${encodeURIComponent(runId)}`);
         }
@@ -399,8 +402,7 @@ function AdminWorkspaceExecutionRoute() {
       await loadMyItems(getId(selectedRun));
       await refreshRuns();
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to update result";
-      setMessage(message);
+      showNotice(error instanceof Error ? error.message : "Unable to update result", "error");
       throw error;
     }
   };
@@ -416,16 +418,15 @@ function AdminWorkspaceExecutionRoute() {
   const cancelAutomationRun = async () => {
     if (!activeRun) return;
     setCancellingRun(true);
-    setMessage("");
     try {
       await apiRequest(`/api/test-runs/${encodeURIComponent(getId(activeRun))}/cancel`, undefined, {
         method: "POST",
       });
-      setMessage("Đang dừng automation run...");
+      showNotice("Đang dừng automation run...");
       await loadMyItems(getId(activeRun));
       await refreshRuns();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to cancel automation run");
+      showNotice(error instanceof Error ? error.message : "Unable to cancel automation run", "error");
     } finally {
       setCancellingRun(false);
     }
@@ -434,7 +435,6 @@ function AdminWorkspaceExecutionRoute() {
   const retryFailedAutomation = async () => {
     if (!activeRun) return;
     setRetryingRun(true);
-    setMessage("");
     try {
       const response = await apiRequest<{
         testRun?: RecordAny | null;
@@ -449,17 +449,17 @@ function AdminWorkspaceExecutionRoute() {
       if (response.testRun) {
         setSelectedRun(response.testRun);
       }
-      setMessage(`Đang retry ${response.retryCount ?? 0} case fail...`);
+      showNotice(`Đang retry ${response.retryCount ?? 0} case fail...`);
       await loadMyItems(getId(activeRun));
       await refreshRuns();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to retry failed cases");
+      showNotice(error instanceof Error ? error.message : "Unable to retry failed cases", "error");
     } finally {
       setRetryingRun(false);
     }
   };
 
-  const handleExportRun = createExportRunHandler(setExportingRun, setMessage);
+  const handleExportRun = createExportRunHandler(setExportingRun, showNotice);
 
   const openPlanInsights = (planId: string) => {
     const runEntityId = getId(activeRun?.testPlanEntityId);
@@ -490,29 +490,13 @@ function AdminWorkspaceExecutionRoute() {
           </button>
         ) : null}
         <h1 className="text-xl font-semibold text-slate-900">Test Runs + Execution</h1>
-        <div className="ml-auto flex flex-wrap items-center gap-3">
-          <select
-            value={selectedProjectId}
-            onChange={(event) => setSelectedProjectId(event.target.value)}
-            className={TOPBAR_INPUT_CLS}
-          >
-            <option value="">All projects</option>
-            {projects.map((project) => (
-              <option key={getId(project)} value={getId(project)}>
-                {project.name}
-              </option>
-            ))}
-          </select>
-        </div>
       </div>,
     );
     return () => setTopbar(null);
-  }, [fromInsightsPlanId, fromInsightsPlanName, projects, router, selectedProjectId, setSelectedProjectId, setTopbar]);
+  }, [fromInsightsPlanId, fromInsightsPlanName, router, setTopbar]);
 
   return (
     <>
-      {message ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{message}</div> : null}
-      {pollError ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">{pollError}</div> : null}
       {loading ? (
         <WorkspaceContentSkeleton />
       ) : (
@@ -544,6 +528,7 @@ function AdminWorkspaceExecutionRoute() {
           onOpenRun={openRun}
           userName={userName}
           startRunError={startRunError}
+          onNotice={showNotice}
           onExportRun={handleExportRun}
           exportingRun={exportingRun}
           initialPlanFilter={testPlanIdFromUrl}
@@ -583,7 +568,7 @@ function EmployeeWorkspaceExecutionRoute() {
   const resultIdFromUrl = String(searchParams.get("resultId") || "").trim();
   const testPlanIdFromUrl = String(searchParams.get("testPlanId") || "").trim();
   const runNameFromUrl = String(searchParams.get("runName") || "").trim();
-  const { currentUser, setTopbar } = useEmployeeWorkspace();
+  const { currentUser, setTopbar, showNotice } = useEmployeeWorkspace();
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [plans, setPlans] = useState<RecordAny[]>([]);
   const [runs, setRuns] = useState<RecordAny[]>([]);
@@ -597,10 +582,9 @@ function EmployeeWorkspaceExecutionRoute() {
   const [cancellingRun, setCancellingRun] = useState(false);
   const [retryingRun, setRetryingRun] = useState(false);
   const [exportingRun, setExportingRun] = useState(false);
-  const [message, setMessage] = useState("");
   const [startRunError, setStartRunError] = useState("");
   const { openJiraBugDialog, jiraBugDialogNode } = useJiraBugDialog({
-    onNotice: setMessage,
+    onNotice: showNotice,
   });
   const employeeProjectScope = useEmployeeProjectScope(projects);
 
@@ -613,7 +597,6 @@ function EmployeeWorkspaceExecutionRoute() {
 
     const load = async () => {
       setLoading(true);
-      setMessage("");
 
       try {
         const [plansResponse, runsResponse, projectsResponse] = await Promise.all([
@@ -631,7 +614,7 @@ function EmployeeWorkspaceExecutionRoute() {
         }
       } catch (error) {
         if (!cancelled) {
-          setMessage(error instanceof Error ? error.message : "Unable to load execution workspace");
+          showNotice(error instanceof Error ? error.message : "Unable to load execution workspace", "error");
         }
       } finally {
         if (!cancelled) {
@@ -678,13 +661,13 @@ function EmployeeWorkspaceExecutionRoute() {
           });
         } else {
           setSelectedRun(null);
-          setMessage("Test run not found");
+          showNotice("Test run not found", "error");
         }
 
         setMyItems(Array.isArray(response.results) ? response.results : []);
       } catch (error) {
         if (!cancelled) {
-          setMessage(error instanceof Error ? error.message : "Unable to load test run");
+          showNotice(error instanceof Error ? error.message : "Unable to load test run", "error");
           setSelectedRun(null);
           setMyItems([]);
         }
@@ -803,7 +786,7 @@ function EmployeeWorkspaceExecutionRoute() {
             return prev;
           });
           if (response.testRun.status === "completed") {
-            setMessage(formatAutomationRunMessage(summarizeAutomationResults(response.results || [])));
+            showNotice(formatAutomationRunMessage(summarizeAutomationResults(response.results || [])));
           }
         }
         setMyItems((prev) => {
@@ -849,7 +832,6 @@ function EmployeeWorkspaceExecutionRoute() {
     }
 
     setStartingRun(true);
-    setMessage("");
     setStartRunError("");
     try {
       const response = await apiRequest<{
@@ -869,11 +851,11 @@ function EmployeeWorkspaceExecutionRoute() {
         if (runId) {
           if (response.automationQueued) {
             setMyItems([]);
-            setMessage("Automation Ä‘ang cháº¡y ná»n. Káº¿t quáº£ sáº½ cáº­p nháº­t tá»± Ä‘á»™ng.");
+            showNotice("Automation đang chạy nền. Kết quả sẽ cập nhật tự động.");
           } else if (response.automationSummary) {
-            setMessage(formatAutomationRunMessage(response.automationSummary));
+            showNotice(formatAutomationRunMessage(response.automationSummary));
           } else {
-            setMessage("Test run started");
+            showNotice("Test run started");
           }
           router.push(`/workspace/employee/execution?runId=${encodeURIComponent(runId)}`);
         }
@@ -897,8 +879,7 @@ function EmployeeWorkspaceExecutionRoute() {
       await apiRequest(`/api/test-runs/${getId(selectedRun)}/results/${resultId}`, undefined, { method: "PATCH", body: JSON.stringify({ status, note, notes: resultNotes }) });
       await loadMyItems(getId(selectedRun));
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Unable to update result";
-      setMessage(message);
+      showNotice(error instanceof Error ? error.message : "Unable to update result", "error");
       throw error;
     }
   };
@@ -913,15 +894,14 @@ function EmployeeWorkspaceExecutionRoute() {
   const cancelAutomationRun = async () => {
     if (!activeRun) return;
     setCancellingRun(true);
-    setMessage("");
     try {
       await apiRequest(`/api/test-runs/${encodeURIComponent(getId(activeRun))}/cancel`, undefined, {
         method: "POST",
       });
-      setMessage("Äang dá»«ng automation run...");
+      showNotice("Đang dừng automation run...");
       await loadMyItems(getId(activeRun));
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to cancel automation run");
+      showNotice(error instanceof Error ? error.message : "Unable to cancel automation run", "error");
     } finally {
       setCancellingRun(false);
     }
@@ -930,7 +910,6 @@ function EmployeeWorkspaceExecutionRoute() {
   const retryFailedAutomation = async () => {
     if (!activeRun) return;
     setRetryingRun(true);
-    setMessage("");
     try {
       const response = await apiRequest<{
         testRun?: RecordAny | null;
@@ -945,16 +924,16 @@ function EmployeeWorkspaceExecutionRoute() {
       if (response.testRun) {
         setSelectedRun(response.testRun);
       }
-      setMessage(`Äang retry ${response.retryCount ?? 0} case fail...`);
+      showNotice(`Đang retry ${response.retryCount ?? 0} case fail...`);
       await loadMyItems(getId(activeRun));
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to retry failed cases");
+      showNotice(error instanceof Error ? error.message : "Unable to retry failed cases", "error");
     } finally {
       setRetryingRun(false);
     }
   };
 
-  const handleExportRun = createExportRunHandler(setExportingRun, setMessage);
+  const handleExportRun = createExportRunHandler(setExportingRun, showNotice);
 
   useLayoutEffect(() => {
     setTopbar(
@@ -985,7 +964,6 @@ function EmployeeWorkspaceExecutionRoute() {
 
   return (
     <>
-      {message ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{message}</div> : null}
       {loading ? (
         <WorkspaceContentSkeleton />
       ) : (
@@ -1014,6 +992,7 @@ function EmployeeWorkspaceExecutionRoute() {
           onRetryFailedAutomation={retryFailedAutomation}
           onLogBug={openJiraBugDialog}
           startRunError={startRunError}
+          onNotice={showNotice}
           onExportRun={handleExportRun}
           exportingRun={exportingRun}
           onRefreshRunItems={activeRun ? () => loadMyItems(getId(activeRun)) : undefined}

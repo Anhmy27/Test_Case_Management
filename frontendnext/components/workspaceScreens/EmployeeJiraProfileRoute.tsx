@@ -14,10 +14,8 @@ type JiraProfile = {
 };
 
 export default function EmployeeJiraProfileRoute() {
-  const { currentUser, setTopbar } = useEmployeeWorkspace();
+  const { currentUser, setTopbar, showNotice } = useEmployeeWorkspace();
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
-  const [success, setSuccess] = useState("");
   const [profile, setProfile] = useState<JiraProfile | null>(null);
   const [jiraUsername, setJiraUsername] = useState("");
   const [jiraPassword, setJiraPassword] = useState("");
@@ -48,8 +46,6 @@ export default function EmployeeJiraProfileRoute() {
     let cancelled = false;
     const loadProfile = async () => {
       setLoading(true);
-      setMessage("");
-      setSuccess("");
       try {
         const response = await apiRequest<{ profile: JiraProfile | null }>("/api/jira/profile");
         if (cancelled) return;
@@ -57,7 +53,7 @@ export default function EmployeeJiraProfileRoute() {
         setJiraUsername(String(response.profile?.jiraUsername || ""));
       } catch (error) {
         if (!cancelled) {
-          setMessage(error instanceof Error ? error.message : "Unable to load Jira profile");
+          showNotice(error instanceof Error ? error.message : "Unable to load Jira profile", "error");
         }
       } finally {
         if (!cancelled) {
@@ -75,8 +71,6 @@ export default function EmployeeJiraProfileRoute() {
   const handleSave = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSaving(true);
-    setMessage("");
-    setSuccess("");
     try {
       const response = await apiRequest<{ profile: JiraProfile | null }>(
         "/api/jira/profile",
@@ -91,9 +85,9 @@ export default function EmployeeJiraProfileRoute() {
       );
       setProfile(response.profile || null);
       setJiraPassword("");
-      setSuccess("Saved Jira profile successfully.");
+      showNotice("Saved Jira profile successfully.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to save Jira profile");
+      showNotice(error instanceof Error ? error.message : "Unable to save Jira profile", "error");
     } finally {
       setSaving(false);
     }
@@ -108,16 +102,6 @@ export default function EmployeeJiraProfileRoute() {
 
   return (
     <div className="space-y-4">
-      {message ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          {message}
-        </div>
-      ) : null}
-      {success ? (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-          {success}
-        </div>
-      ) : null}
       {loading ? (
         <WorkspaceContentSkeleton />
       ) : (

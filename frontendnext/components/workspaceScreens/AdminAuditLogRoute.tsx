@@ -25,18 +25,16 @@ const RESOURCE_TYPES = [
 ];
 
 export default function AdminAuditLogRoute() {
-  const { currentUser, setTopbar } = useAdminWorkspace();
+  const { currentUser, setTopbar, showNotice } = useAdminWorkspace();
   const [logs, setLogs] = useState<RecordAny[]>([]);
   const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, pages: 1 });
   const [searchTerm, setSearchTerm] = useState("");
   const [resourceTypeFilter, setResourceTypeFilter] = useState("");
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
 
   const loadLogs = useCallback(async () => {
     setLoading(true);
-    setMessage("");
     try {
       const params = new URLSearchParams();
       params.set("page", String(page));
@@ -55,12 +53,12 @@ export default function AdminAuditLogRoute() {
         pages: Number(response.pagination?.pages || 1),
       });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to load audit logs");
+      showNotice(error instanceof Error ? error.message : "Unable to load audit logs", "error");
       setLogs([]);
     } finally {
       setLoading(false);
     }
-  }, [page, resourceTypeFilter, searchTerm]);
+  }, [page, resourceTypeFilter, searchTerm, showNotice]);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -128,7 +126,6 @@ export default function AdminAuditLogRoute() {
   return (
     <AdminAuditLogScreen
       logs={visibleLogs}
-      message={message}
       pagination={pagination}
       onPageChange={setPage}
     />

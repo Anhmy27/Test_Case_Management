@@ -13,7 +13,7 @@ type RecordAny = Record<string, any>;
 
 export default function AdminGroupsRoute() {
   const router = useRouter();
-  const { currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
+  const { currentUser, selectedProjectId, setTopbar, showNotice } = useAdminWorkspace();
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [groups, setGroups] = useState<RecordAny[]>([]);
   const [testCases, setTestCases] = useState<RecordAny[]>([]);
@@ -21,7 +21,6 @@ export default function AdminGroupsRoute() {
   const [editingGroupId, setEditingGroupId] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
 
   useEffect(() => {
     if (!currentUser) {
@@ -31,7 +30,6 @@ export default function AdminGroupsRoute() {
     let cancelled = false;
     const load = async () => {
       setLoading(true);
-      setMessage("");
       try {
         const [projectsResponse, groupsResponse, testCasesResponse] = await Promise.all([
           apiRequest<{ projects: RecordAny[] }>("/api/projects"),
@@ -43,7 +41,7 @@ export default function AdminGroupsRoute() {
         setGroups(Array.isArray(groupsResponse.groups) ? groupsResponse.groups : []);
         setTestCases(Array.isArray(testCasesResponse.testCases) ? testCasesResponse.testCases : []);
       } catch (error) {
-        if (!cancelled) setMessage(error instanceof Error ? error.message : "Unable to load groups");
+        if (!cancelled) showNotice(error instanceof Error ? error.message : "Unable to load groups", "error");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -86,12 +84,12 @@ export default function AdminGroupsRoute() {
         method: editingGroupId ? "PUT" : "POST",
         body: JSON.stringify(payload),
       });
-      setMessage(editingGroupId ? "Group updated" : "Group created");
+      showNotice(editingGroupId ? "Group updated" : "Group created");
       setEditingGroupId("");
       setGroupForm({ projectId: selectedProjectId || "", name: "", description: "" });
       await refreshGroups();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to save group");
+      showNotice(error instanceof Error ? error.message : "Unable to save group", "error");
     }
   };
 
@@ -125,28 +123,15 @@ export default function AdminGroupsRoute() {
             className={`w-52 ${TOPBAR_INPUT_CLS}`}
             placeholder="Filter groups..."
           />
-          <select
-            value={selectedProjectId}
-            onChange={(event) => setSelectedProjectId(event.target.value)}
-            className={TOPBAR_INPUT_CLS}
-          >
-            <option value="">All projects</option>
-            {projects.map((project) => (
-              <option key={getId(project)} value={getId(project)}>
-                {project.name}
-              </option>
-            ))}
-          </select>
         </div>
       </div>,
     );
 
     return () => setTopbar(null);
-  }, [projects, searchTerm, selectedProjectId, setSelectedProjectId, setTopbar]);
+  }, [searchTerm, setTopbar]);
 
   return (
     <>
-      {message ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{message}</div> : null}
       {loading ? (
         <WorkspaceContentSkeleton />
       ) : (

@@ -19,6 +19,7 @@ const PROJECT_SCOPE_TABS = new Set([
   "versions",
   "test-plans",
   "test-runs-execution",
+  "jira-bug-log",
 ]);
 
 export type DashboardNavigateOptions = {
@@ -28,7 +29,7 @@ export type DashboardNavigateOptions = {
 
 export default function AdminDashboardRoute() {
   const router = useRouter();
-  const { currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
+  const { currentUser, selectedProjectId, setSelectedProjectId, setTopbar, showNotice } = useAdminWorkspace();
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [plans, setPlans] = useState<RecordAny[]>([]);
   const [dashboard, setDashboard] = useState<RecordAny | null>(null);
@@ -36,7 +37,6 @@ export default function AdminDashboardRoute() {
   const [versionHealth, setVersionHealth] = useState<RecordAny[]>([]);
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState<string>("");
 
   useEffect(() => {
     if (!currentUser) {
@@ -47,7 +47,6 @@ export default function AdminDashboardRoute() {
 
     const loadDashboard = async () => {
       setLoading(true);
-      setMessage("");
 
       try {
         const dashboardQuery = selectedProjectId ? `?projectId=${encodeURIComponent(selectedProjectId)}` : "";
@@ -77,7 +76,7 @@ export default function AdminDashboardRoute() {
         setVersionHealth(Array.isArray(versionDashboardResponse.versions) ? versionDashboardResponse.versions : []);
       } catch (error) {
         if (!cancelled) {
-          setMessage(error instanceof Error ? error.message : "Unable to load dashboard");
+          showNotice(error instanceof Error ? error.message : "Unable to load dashboard", "error");
         }
       } finally {
         if (!cancelled) {
@@ -112,7 +111,7 @@ export default function AdminDashboardRoute() {
 
     if (PROJECT_SCOPE_TABS.has(tab)) {
       if (!nextProjectId) {
-        setMessage("Please select a project before opening this section.");
+        showNotice("Please select a project before opening this section.", "info");
         return;
       }
 
@@ -151,35 +150,15 @@ export default function AdminDashboardRoute() {
             className={`${dashboardInputClassName()} w-44`}
             placeholder="Filter..."
           />
-          <select
-            value={selectedProjectId}
-            onChange={(event) => setSelectedProjectId(event.target.value)}
-            className={`${dashboardInputClassName()} min-w-[148px]`}
-          >
-            <option value="">All projects</option>
-            {safeProjects.map((project) => {
-              const projectId = getId(project);
-              return (
-                <option key={projectId || project.code || project.name} value={projectId}>
-                  {project.name}
-                </option>
-              );
-            })}
-          </select>
         </div>
       </div>,
     );
 
     return () => setTopbar(null);
-  }, [isGlobalScope, safeProjects, scopedProjectName, searchTerm, selectedProjectId, setSelectedProjectId, setTopbar]);
+  }, [isGlobalScope, scopedProjectName, searchTerm, setTopbar]);
 
   return (
     <>
-      {message ? (
-        <div className="rounded-md border border-amber-200/80 bg-amber-50 px-4 py-3 text-[13px] text-amber-900">
-          {message}
-        </div>
-      ) : null}
       {loading ? (
         <WorkspaceContentSkeleton />
       ) : (

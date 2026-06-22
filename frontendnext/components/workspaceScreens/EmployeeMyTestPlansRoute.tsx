@@ -14,11 +14,10 @@ type RecordAny = Record<string, any>;
 
 export default function EmployeeMyTestPlansRoute() {
   const router = useRouter();
-  const { currentUser, setTopbar } = useEmployeeWorkspace();
+  const { currentUser, setTopbar, showNotice } = useEmployeeWorkspace();
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [plans, setPlans] = useState<RecordAny[]>([]);
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState<string>("");
   const projectScope = useEmployeeProjectScope(projects);
 
@@ -31,7 +30,6 @@ export default function EmployeeMyTestPlansRoute() {
 
     const loadPlans = async () => {
       setLoading(true);
-      setMessage("");
 
       try {
         const [projectsResponse, plansResponse] = await Promise.all([
@@ -46,7 +44,7 @@ export default function EmployeeMyTestPlansRoute() {
         setPlans(Array.isArray(plansResponse.testPlans) ? plansResponse.testPlans : []);
       } catch (error) {
         if (!cancelled) {
-          setMessage(error instanceof Error ? error.message : "Unable to load assigned plans");
+          showNotice(error instanceof Error ? error.message : "Unable to load assigned plans", "error");
         }
       } finally {
         if (!cancelled) {
@@ -115,11 +113,6 @@ export default function EmployeeMyTestPlansRoute() {
 
   return (
     <>
-      {message ? (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          {message}
-        </div>
-      ) : null}
       {loading ? (
         <WorkspaceContentSkeleton />
       ) : (

@@ -17,7 +17,7 @@ function getIssueTypeOptionValue(issueType: RecordAny) {
 
 export default function AdminJiraBugLogRoute() {
   const router = useRouter();
-  const { currentUser, selectedProjectId, setTopbar } = useAdminWorkspace();
+  const { currentUser, selectedProjectId, setTopbar, showNotice } = useAdminWorkspace();
   const [logBugs, setLogBugs] = useState<RecordAny[]>([]);
   const [issueTypes, setIssueTypes] = useState<RecordAny[]>([]);
   const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, pages: 1 });
@@ -26,7 +26,6 @@ export default function AdminJiraBugLogRoute() {
   const [issueTypeFilter, setIssueTypeFilter] = useState("");
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
 
   useEffect(() => {
     if (!currentUser) {
@@ -63,13 +62,11 @@ export default function AdminJiraBugLogRoute() {
   const loadLogBugs = useCallback(async () => {
     if (!selectedProjectId) {
       setLogBugs([]);
-      setMessage("Select a project to view Jira bug history.");
       setLoading(false);
       return;
     }
 
     setLoading(true);
-    setMessage("");
     try {
       const params = new URLSearchParams();
       params.set("projectId", selectedProjectId);
@@ -96,12 +93,19 @@ export default function AdminJiraBugLogRoute() {
         pages: Number(response.pagination?.pages || 1),
       });
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to load Jira bug history");
+      showNotice(error instanceof Error ? error.message : "Unable to load Jira bug history", "error");
       setLogBugs([]);
     } finally {
       setLoading(false);
     }
-  }, [issueTypeFilter, page, priorityFilter, searchTerm, selectedProjectId]);
+  }, [issueTypeFilter, page, priorityFilter, searchTerm, selectedProjectId, showNotice]);
+
+  useEffect(() => {
+    if (!currentUser || selectedProjectId) {
+      return;
+    }
+    showNotice("Select a project to view Jira bug history.", "info");
+  }, [currentUser, selectedProjectId, showNotice]);
 
   useEffect(() => {
     if (!currentUser) {
@@ -174,7 +178,6 @@ export default function AdminJiraBugLogRoute() {
   return (
     <AdminJiraBugLogScreen
       logBugs={logBugs}
-      message={message}
       pagination={pagination}
       onPageChange={setPage}
       onOpenExecution={(entry) => {

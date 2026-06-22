@@ -3,7 +3,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import type { Dispatch, SetStateAction } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ManualRunExecutionPanel, {
   type ExecutionQueueFilter,
 } from "../execution/ManualRunExecutionPanel";
@@ -103,6 +103,8 @@ type Props = {
 
   startRunError?: string;
 
+  onNotice?: (message: string, variant?: "success" | "error" | "info") => void;
+
   onExportRun?: (runId: string, format?: "xlsx" | "csv") => Promise<void>;
 
   exportingRun?: boolean;
@@ -169,6 +171,8 @@ export default function ExecutionScreen(props: Props) {
     userName = () => "Unassigned",
 
     startRunError = "",
+
+    onNotice,
 
     onExportRun,
 
@@ -316,6 +320,21 @@ export default function ExecutionScreen(props: Props) {
     selectedStartPlan,
   ]);
   const displayedStartRunError = startRunError || liveStartRunError;
+  const prevLiveStartRunErrorRef = useRef("");
+
+  useEffect(() => {
+    if (!onNotice) {
+      return;
+    }
+    if (startRunError) {
+      onNotice(startRunError, "error");
+      return;
+    }
+    if (liveStartRunError && !prevLiveStartRunErrorRef.current) {
+      onNotice(liveStartRunError, "error");
+    }
+    prevLiveStartRunErrorRef.current = liveStartRunError;
+  }, [liveStartRunError, onNotice, startRunError]);
 
   const handleEndRun = async () => {
     if (!selectedRun || String(selectedRun.status || "") !== "running") {
@@ -434,12 +453,6 @@ export default function ExecutionScreen(props: Props) {
               <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
                 Selected plan has no test cases. Add cases to the plan before
                 starting a run.
-              </div>
-            ) : null}
-
-            {displayedStartRunError ? (
-              <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/40 dark:text-rose-200">
-                {displayedStartRunError}
               </div>
             ) : null}
 

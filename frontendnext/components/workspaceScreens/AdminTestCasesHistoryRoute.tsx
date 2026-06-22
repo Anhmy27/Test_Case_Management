@@ -6,7 +6,7 @@ import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import AdminTestCasesHistoryScreen from "@/components/workspaceScreens/AdminTestCasesHistoryScreen";
 import { useAdminWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
-import { TOPBAR_INPUT_CLS, WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
+import { WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
 import { useJiraBugDialog } from "@/components/jira/useJiraBugDialog";
 import { apiRequest, createTextMatcher, getId } from "@/lib/api";
 
@@ -16,15 +16,14 @@ export default function AdminTestCasesHistoryRoute() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const caseKeyFromUrl = String(searchParams.get("caseKey") || "").trim();
-  const { currentUser, selectedProjectId, setSelectedProjectId, setTopbar } = useAdminWorkspace();
+  const { currentUser, selectedProjectId, setTopbar, showNotice } = useAdminWorkspace();
   const [projects, setProjects] = useState<RecordAny[]>([]);
   const [groups, setGroups] = useState<RecordAny[]>([]);
   const [detailGroupId, setDetailGroupId] = useState("");
   const [detailRows, setDetailRows] = useState<RecordAny[]>([]);
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
   const { openJiraBugDialog, jiraBugDialogNode } = useJiraBugDialog({
-    onNotice: setMessage,
+    onNotice: showNotice,
   });
 
   const openRunResult = (runId: string, resultId: string) => {
@@ -36,7 +35,6 @@ export default function AdminTestCasesHistoryRoute() {
   };
 
   const logBugForResult = async (runId: string, resultId: string) => {
-    setMessage("");
     try {
       const response = await apiRequest<{ testRun?: RecordAny | null; results: RecordAny[] }>(
         `/api/test-runs/${encodeURIComponent(runId)}/my-items`,
@@ -44,12 +42,12 @@ export default function AdminTestCasesHistoryRoute() {
       );
       const result = (response.results || []).find((item) => getId(item) === resultId);
       if (!response.testRun || !result) {
-        setMessage("Không tìm thấy kết quả run để log bug");
+        showNotice("Không tìm thấy kết quả run để log bug", "error");
         return;
       }
       await openJiraBugDialog(response.testRun, result);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to load run result for Jira");
+      showNotice(error instanceof Error ? error.message : "Unable to load run result for Jira", "error");
     }
   };
 
@@ -62,7 +60,6 @@ export default function AdminTestCasesHistoryRoute() {
 
     const load = async () => {
       setLoading(true);
-      setMessage("");
 
       try {
         const detailRequest = selectedProjectId
@@ -85,7 +82,7 @@ export default function AdminTestCasesHistoryRoute() {
         setDetailRows(Array.isArray(detailResponse.testCases) ? detailResponse.testCases : []);
       } catch (error) {
         if (!cancelled) {
-          setMessage(error instanceof Error ? error.message : "Unable to load execution history");
+          showNotice(error instanceof Error ? error.message : "Unable to load execution history", "error");
         }
       } finally {
         if (!cancelled) {
@@ -101,6 +98,13 @@ export default function AdminTestCasesHistoryRoute() {
     };
   }, [currentUser, detailGroupId, selectedProjectId]);
 
+  useEffect(() => {
+    if (!currentUser || selectedProjectId || loading) {
+      return;
+    }
+    showNotice("Select a project to view execution history.", "info");
+  }, [currentUser, loading, selectedProjectId, showNotice]);
+
   const highlightMatcher = useMemo(
     () => createTextMatcher(caseKeyFromUrl),
     [caseKeyFromUrl],
@@ -115,29 +119,14 @@ export default function AdminTestCasesHistoryRoute() {
             Filter: {caseKeyFromUrl}
           </span>
         ) : null}
-        <div className="ml-auto">
-          <select
-            value={selectedProjectId}
-            onChange={(event) => setSelectedProjectId(event.target.value)}
-            className={TOPBAR_INPUT_CLS}
-          >
-            <option value="">All projects</option>
-            {projects.map((project) => (
-              <option key={getId(project)} value={getId(project)}>
-                {project.name}
-              </option>
-            ))}
-          </select>
-        </div>
       </div>,
     );
 
     return () => setTopbar(null);
-  }, [caseKeyFromUrl, projects, selectedProjectId, setSelectedProjectId, setTopbar]);
+  }, [caseKeyFromUrl, setTopbar]);
 
   return (
     <>
-      {message ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{message}</div> : null}
       {loading ? (
         <WorkspaceContentSkeleton />
       ) : (
@@ -155,11 +144,6 @@ export default function AdminTestCasesHistoryRoute() {
         />
       )}
       {jiraBugDialogNode}
-      {!selectedProjectId && !loading ? (
-        <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-          Select a project to view execution history details.
-        </div>
-      ) : null}
     </>
   );
 }

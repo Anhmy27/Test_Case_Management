@@ -4,6 +4,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { useOptionalWorkspaceNotice } from "@/components/workspaceScreens/WorkspaceNotice";
 import { apiRequest, userName } from "@/lib/api";
 import { StatusBadge } from "./shared";
 import type { RunExecutionEntry } from "@/lib/tcmTypes";
@@ -67,6 +68,7 @@ export default function TestCaseExecutionHistoryPopup({
   fallbackHistory = [],
   onClose,
 }: Props) {
+  const noticeContext = useOptionalWorkspaceNotice();
   const [mounted, setMounted] = useState(false);
   const [loading, setLoading] = useState(Boolean(projectId));
   const [error, setError] = useState("");
@@ -140,6 +142,13 @@ export default function TestCaseExecutionHistoryPopup({
   }, [caseKey, caseTitle, fallbackHistory, projectId]);
 
   useEffect(() => {
+    if (!error || !noticeContext) {
+      return;
+    }
+    noticeContext.showNotice(error, "error");
+  }, [error, noticeContext]);
+
+  useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.stopPropagation();
@@ -198,7 +207,7 @@ export default function TestCaseExecutionHistoryPopup({
           {loading ? (
             <div className="py-10 text-center text-sm text-slate-500">Loading history...</div>
           ) : error ? (
-            <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">{error}</div>
+            <div className="py-10 text-center text-sm text-slate-500">Unable to load execution history.</div>
           ) : (
             <>
               <div className="mb-4 grid gap-3 sm:grid-cols-4">

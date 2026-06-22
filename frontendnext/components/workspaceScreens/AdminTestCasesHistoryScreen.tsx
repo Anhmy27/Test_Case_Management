@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import ExecutionHistoryEntryActions from "@/components/execution/ExecutionHistoryEntryActions";
 import ExecutionHistoryScreenshotModal from "@/components/execution/ExecutionHistoryScreenshotModal";
-import { DataTable, Field, INPUT_CLS, SectionCard, StatusBadge } from "./shared";
+import { DataTable, EmptyState, Field, INPUT_CLS, SectionCard, StatusBadge } from "./shared";
 import { getId } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
@@ -90,9 +90,10 @@ export default function AdminTestCasesHistoryScreen({
   return (
     <div className="space-y-5">
       {!selectedProjectId ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Hãy chọn project trong Project scope để xem Execution History.
-        </div>
+        <EmptyState
+          title="Select a project"
+          description="Choose project scope from the topbar to view execution history."
+        />
       ) : (
         <>
           <SectionCard title="Execution History" subtitle="Lọc theo group, xem 3 lần chạy gần nhất">

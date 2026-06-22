@@ -11,13 +11,12 @@ import { apiRequest, createTextMatcher, getId } from "@/lib/api";
 type RecordAny = Record<string, any>;
 
 export default function AdminIssueTypesRoute() {
-  const { currentUser, setTopbar } = useAdminWorkspace();
+  const { currentUser, setTopbar, showNotice } = useAdminWorkspace();
   const [issueTypes, setIssueTypes] = useState<RecordAny[]>([]);
   const [issueTypeForm, setIssueTypeForm] = useState({ name: "", idjira: "" });
   const [editingIssueTypeId, setEditingIssueTypeId] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
-  const [message, setMessage] = useState("");
 
   useEffect(() => {
     if (!currentUser) {
@@ -27,13 +26,12 @@ export default function AdminIssueTypesRoute() {
     let cancelled = false;
     const load = async () => {
       setLoading(true);
-      setMessage("");
       try {
         const response = await apiRequest<{ issueTypes: RecordAny[] }>("/api/issue-types");
         if (cancelled) return;
         setIssueTypes(Array.isArray(response.issueTypes) ? response.issueTypes : []);
       } catch (error) {
-        if (!cancelled) setMessage(error instanceof Error ? error.message : "Unable to load issue types");
+        if (!cancelled) showNotice(error instanceof Error ? error.message : "Unable to load issue types", "error");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -56,16 +54,16 @@ export default function AdminIssueTypesRoute() {
     try {
       if (editingIssueTypeId) {
         await apiRequest(`/api/issue-types/${editingIssueTypeId}`, undefined, { method: "PUT", body: JSON.stringify(issueTypeForm) });
-        setMessage("Issue type updated");
+        showNotice("Issue type updated");
       } else {
         await apiRequest(`/api/issue-types`, undefined, { method: "POST", body: JSON.stringify(issueTypeForm) });
-        setMessage("Issue type created");
+        showNotice("Issue type created");
       }
       setEditingIssueTypeId("");
       setIssueTypeForm({ name: "", idjira: "" });
       await refreshIssueTypes();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Unable to save issue type");
+      showNotice(error instanceof Error ? error.message : "Unable to save issue type", "error");
     }
   };
 
@@ -104,7 +102,6 @@ export default function AdminIssueTypesRoute() {
 
   return (
     <>
-      {message ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{message}</div> : null}
       {loading ? (
         <WorkspaceContentSkeleton />
       ) : (
