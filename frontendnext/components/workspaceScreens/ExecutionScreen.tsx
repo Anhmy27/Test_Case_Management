@@ -107,6 +107,16 @@ type Props = {
 
   onExportRun?: (runId: string, format?: "xlsx" | "csv") => Promise<void>;
 
+  onOpenRunForEdit?: (runId: string) => void;
+
+  runEditMode?: boolean;
+
+  onSaveRunName?: (name: string) => Promise<void>;
+
+  onCancelRunEdit?: () => void;
+
+  savingRunName?: boolean;
+
   exportingRun?: boolean;
 
   initialPlanFilter?: string;
@@ -176,6 +186,16 @@ export default function ExecutionScreen(props: Props) {
 
     onExportRun,
 
+    onOpenRunForEdit,
+
+    runEditMode = false,
+
+    onSaveRunName,
+
+    onCancelRunEdit,
+
+    savingRunName = false,
+
     exportingRun = false,
 
     initialPlanFilter = "",
@@ -192,6 +212,13 @@ export default function ExecutionScreen(props: Props) {
   const [runListExpanded, setRunListExpanded] = useState(() =>
     readStoredRunListExpanded(!props.selectedRun),
   );
+  const [runNameDraft, setRunNameDraft] = useState("");
+  const [runNameSaveError, setRunNameSaveError] = useState("");
+
+  useEffect(() => {
+    setRunNameDraft(String(selectedRun?.name || "").trim());
+    setRunNameSaveError("");
+  }, [selectedRun, runEditMode]);
 
   useEffect(() => {
     if (selectedRun) {
@@ -201,6 +228,21 @@ export default function ExecutionScreen(props: Props) {
     }
     setQueueFilter("all");
   }, [selectedRun]);
+
+  useEffect(() => {
+    if (!runEditMode || !selectedRun) {
+      return;
+    }
+    setStartFormExpanded(false);
+    setRunListExpanded(true);
+    persistRunListExpanded(true);
+    window.requestAnimationFrame(() => {
+      document.getElementById("execution-workbench-panel")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  }, [runEditMode, selectedRun]);
 
   const toggleRunListExpanded = useCallback(() => {
     setRunListExpanded((prev) => {
@@ -219,6 +261,23 @@ export default function ExecutionScreen(props: Props) {
     },
     [],
   );
+
+  const handleSaveRunName = async () => {
+    if (!onSaveRunName) {
+      return;
+    }
+    const trimmedName = runNameDraft.trim();
+    if (!trimmedName) {
+      setRunNameSaveError("Run name is required");
+      return;
+    }
+    setRunNameSaveError("");
+    try {
+      await onSaveRunName(trimmedName);
+    } catch (error) {
+      setRunNameSaveError(error instanceof Error ? error.message : "Unable to update test run");
+    }
+  };
 
   const handleStartNewRun = useCallback(() => {
     if (!selectedRun) return;
@@ -508,16 +567,65 @@ export default function ExecutionScreen(props: Props) {
 
       {selectedRun ? (
         <>
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <section
+            id="execution-workbench-panel"
+            className={`rounded-2xl border bg-white p-5 shadow-sm ${
+              runEditMode ? "border-indigo-300 ring-2 ring-indigo-100" : "border-slate-200"
+            }`}
+          >
             <div className="flex flex-wrap items-start gap-4">
               <div className="min-w-0 flex-1">
-                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Execution workbench
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Execution workbench
+                  </div>
+                  {runEditMode ? (
+                    <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-[11px] font-semibold text-indigo-700">
+                      Edit mode
+                    </span>
+                  ) : null}
                 </div>
 
-                <div className="text-xl font-semibold text-slate-900">
-                  {selectedRun.name}
-                </div>
+                {runEditMode ? (
+                  <div className="mt-2 space-y-3">
+                    <Field label="Run name">
+                      <input
+                        className={INPUT_CLS}
+                        value={runNameDraft}
+                        onChange={(event) => setRunNameDraft(event.target.value)}
+                        disabled={savingRunName}
+                      />
+                    </Field>
+                    {runNameSaveError ? (
+                      <p className="text-sm text-rose-600">{runNameSaveError}</p>
+                    ) : null}
+                    <p className="text-sm text-slate-500">
+                      {selectedRun.status === "completed"
+                        ? "Run đã completed — admin có thể sửa lại Pass/Fail/Blocked/Skip cho từng case bên dưới, rồi bấm Save run để lưu tên."
+                        : "Cập nhật tên run và chỉnh kết quả test case bên dưới, rồi bấm Save run."}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        size="sm"
+                        variant="primary"
+                        loading={savingRunName}
+                        onClick={() => void handleSaveRunName()}
+                      >
+                        Save run
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        disabled={savingRunName}
+                        onClick={onCancelRunEdit}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-xl font-semibold text-slate-900">{selectedRun.name}</div>
+                )}
 
                 <div className="mt-3 flex flex-wrap gap-2">
                   {[
@@ -805,6 +913,7 @@ export default function ExecutionScreen(props: Props) {
               scopedPlans={scopedPlans}
               userName={userName}
               onOpenRun={onOpenRun}
+              onOpenRunForEdit={onOpenRunForEdit}
               onExportRun={onExportRun}
               activeRunId={selectedRun ? getId(selectedRun) : ""}
               initialPlanFilter={initialPlanFilter}

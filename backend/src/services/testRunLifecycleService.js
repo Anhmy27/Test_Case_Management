@@ -402,6 +402,88 @@ const listTestRunsService = async ({ projectId, versionId, status }, user) => {
 };
 
 // ---------------------------------------------------------------------------
+// Update run metadata (in-place on TestRun document)
+// ---------------------------------------------------------------------------
+
+const enrichTestRunListItem = async (testRun) => {
+  const withPlan = await attachRunTestPlan(testRun);
+  const withAll = await attachRunProjectAndVersion(withPlan);
+  const progressSummary = computeRunProgress(testRun.results);
+
+  return withAutomationActive({
+    ...withAll,
+    progress: progressSummary.progress,
+    passRate: progressSummary.passRate,
+    totalResults: progressSummary.total,
+    executedResults: progressSummary.done,
+    doneResults: progressSummary.done,
+    untestedResults: progressSummary.untested,
+    failCount: progressSummary.fail,
+    passCount: progressSummary.pass,
+  });
+};
+
+const updateTestRunService = async (runId, { name }, user) => {
+  const trimmedName = normalizeRunName(name);
+  if (!trimmedName) {
+    throw httpError(400, 'name is required');
+  }
+
+  const testRun = await TestRun.findById(toObjectId(runId, 'runId'));
+  if (!testRun) {
+    throw httpError(404, 'Test run not found');
+  }
+
+  const isStarter = String(testRun.startedBy) === user.id;
+  const isAdmin = user.role === 'admin';
+  const hasAssignedItems = Array.isArray(testRun.results)
+    && testRun.results.some((result) => resultHasUserAssignment(result, user.id));
+  if (!isStarter && !isAdmin && !hasAssignedItems) {
+    throw httpError(403, 'You do not have permission to update this test run');
+  }
+
+  if (normalizeRunName(testRun.name) === trimmedName) {
+    const populatedRun = await TestRun.findById(testRun._id)
+      .populate('startedBy', 'name email role')
+      .populate('endedBy', 'name email role')
+      .lean();
+    return { testRun: await enrichTestRunListItem(populatedRun) };
+  }
+
+  const planSnapshot = await findTestPlanSnapshotForRun(testRun.testPlanEntityId || testRun.testPlan);
+  if (!planSnapshot) {
+    throw httpError(404, 'Test plan not found');
+  }
+
+  const testPlanEntityId = testRun.testPlanEntityId || testRun.testPlan;
+  const relatedPlanIds = await getTestPlanVersionIds(planSnapshot);
+  const existingRun = await TestRun.findOne({
+    _id: { $ne: testRun._id },
+    name: trimmedName,
+    $or: [
+      { testPlanEntityId },
+      { testPlan: { $in: relatedPlanIds } },
+    ],
+  })
+    .collation({ locale: 'en', strength: 2 })
+    .lean();
+
+  if (existingRun) {
+    throw httpError(409, 'Run name already exists in this plan');
+  }
+
+  testRun.name = trimmedName;
+  await testRun.save();
+
+  const populatedRun = await TestRun.findById(testRun._id)
+    .populate('startedBy', 'name email role')
+    .populate('endedBy', 'name email role')
+    .lean();
+
+  return { testRun: await enrichTestRunListItem(populatedRun) };
+};
+
+// ---------------------------------------------------------------------------
 // My run items
 // ---------------------------------------------------------------------------
 
@@ -477,7 +559,14 @@ const updateRunResultService = async (runId, resultId, payload, user) => {
 
   const testRun = await TestRun.findById(toObjectId(runId, 'runId'));
   if (!testRun) throw httpError(404, 'Test run not found');
-  if (testRun.status !== 'running') throw httpError(400, 'Only running test run can be updated');
+
+  const isStarter = String(testRun.startedBy) === user.id;
+  const isAdmin = user.role === 'admin';
+  if (testRun.status !== 'running') {
+    if (testRun.status !== 'completed' || !isAdmin) {
+      throw httpError(400, 'Only running test run can be updated');
+    }
+  }
 
   const result = testRun.results.id(resultId);
   if (!result) throw httpError(404, 'Run result not found');
@@ -487,8 +576,6 @@ const updateRunResultService = async (runId, resultId, payload, user) => {
     throw httpError(403, 'Automation-enabled cases cannot be updated manually');
   }
 
-  const isStarter = String(testRun.startedBy) === user.id;
-  const isAdmin = user.role === 'admin';
   const isAssigned = resultHasUserAssignment(result, user.id);
   if (!isStarter && !isAdmin && !isAssigned) {
     throw httpError(403, 'You do not have permission to update this test run');
@@ -846,6 +933,7 @@ module.exports = {
   startTestRunService,
   applyAutomationResultsService,
   listTestRunsService,
+  updateTestRunService,
   getMyRunItemsService,
   updateRunResultService,
   endTestRunService,

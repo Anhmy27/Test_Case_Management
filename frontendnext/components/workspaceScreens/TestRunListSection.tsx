@@ -13,6 +13,7 @@ type Props = {
   scopedPlans: RecordAny[];
   userName: (value: unknown) => string;
   onOpenRun: (runId: string) => void;
+  onOpenRunForEdit?: (runId: string) => void;
   onExportRun?: (runId: string, format?: "xlsx" | "csv") => Promise<void>;
   activeRunId?: string;
   initialPlanFilter?: string;
@@ -23,6 +24,7 @@ export default function TestRunListSection({
   scopedPlans,
   userName,
   onOpenRun,
+  onOpenRunForEdit,
   onExportRun,
   activeRunId = "",
   initialPlanFilter = "",
@@ -151,6 +153,15 @@ export default function TestRunListSection({
                   >
                     {actionLabel}
                   </Button>
+                  {onOpenRunForEdit && runId ? (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => onOpenRunForEdit(runId)}
+                    >
+                      Edit
+                    </Button>
+                  ) : null}
                   {onExportRun && runId ? (
                     <Button
                       size="sm"

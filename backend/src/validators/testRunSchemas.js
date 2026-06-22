@@ -28,6 +28,10 @@ const retryFailedRunBodySchema = z.object({
   baseUrl: optionalTrimmedString(),
 }).passthrough();
 
+const updateTestRunBodySchema = z.object({
+  name: nonEmptyString(),
+}).passthrough();
+
 const updateRunResultBodySchema = z.object({
   status: z.enum(['pass', 'fail', 'blocked', 'skip']),
   note: optionalTrimmedString(),
@@ -94,6 +98,7 @@ module.exports = {
   dryRunIdParamsSchema,
   startTestRunBodySchema,
   retryFailedRunBodySchema,
+  updateTestRunBodySchema,
   updateRunResultBodySchema,
   applyAutomationResultsBodySchema,
   listTestRunsQuerySchema,

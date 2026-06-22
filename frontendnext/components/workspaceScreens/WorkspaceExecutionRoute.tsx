@@ -49,6 +49,7 @@ function AdminWorkspaceExecutionRoute() {
   const resultIdFromUrl = String(searchParams.get("resultId") || "").trim();
   const testPlanIdFromUrl = String(searchParams.get("testPlanId") || "").trim();
   const runNameFromUrl = String(searchParams.get("runName") || "").trim();
+  const editRunFromUrl = searchParams.get("edit") === "1";
   const fromInsightsPlanId = String(searchParams.get("fromInsightsPlanId") || "").trim();
   const fromInsightsPlanName = String(searchParams.get("fromInsightsPlanName") || "").trim();
   const adminExecutionPath = "/workspace/admin/test-runs-execution";
@@ -66,6 +67,7 @@ function AdminWorkspaceExecutionRoute() {
   const [cancellingRun, setCancellingRun] = useState(false);
   const [retryingRun, setRetryingRun] = useState(false);
   const [exportingRun, setExportingRun] = useState(false);
+  const [savingRunName, setSavingRunName] = useState(false);
   const [startRunError, setStartRunError] = useState("");
   const [pollError, setPollError] = useState("");
   const [insightsPlan, setInsightsPlan] = useState<{
@@ -230,11 +232,14 @@ function AdminWorkspaceExecutionRoute() {
 
   const canEditSelectedRun = Boolean(
     activeRun &&
-      activeRun.status === "running" &&
       runHasManual &&
-      (String(getId(activeRun.startedBy) || "") === String(getId(currentUser) || "") ||
-        currentUser?.role === "admin" ||
-        hasRunAssignments),
+      ((activeRun.status === "running" &&
+        (String(getId(activeRun.startedBy) || "") === String(getId(currentUser) || "") ||
+          currentUser?.role === "admin" ||
+          hasRunAssignments)) ||
+        (editRunFromUrl &&
+          activeRun.status === "completed" &&
+          currentUser?.role === "admin")),
   );
   const canEndSelectedRun = Boolean(
     activeRun &&
@@ -324,6 +329,17 @@ function AdminWorkspaceExecutionRoute() {
 
   const openRun = (runId: string) => {
     router.push(`${adminExecutionPath}?runId=${encodeURIComponent(runId)}`);
+  };
+
+  const openRunForEdit = (runId: string) => {
+    router.push(`${adminExecutionPath}?runId=${encodeURIComponent(runId)}&edit=1`);
+  };
+
+  const exitRunEdit = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("edit");
+    const query = params.toString();
+    router.replace(query ? `${adminExecutionPath}?${query}` : adminExecutionPath);
   };
 
   const startRun = async (event: React.FormEvent) => {
@@ -461,6 +477,42 @@ function AdminWorkspaceExecutionRoute() {
 
   const handleExportRun = createExportRunHandler(setExportingRun, showNotice);
 
+  const handleUpdateRun = async (runId: string, payload: { name: string }) => {
+    const response = await apiRequest<{ testRun?: RecordAny | null }>(
+      `/api/test-runs/${encodeURIComponent(runId)}`,
+      undefined,
+      {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      },
+    );
+
+    if (response.testRun) {
+      const updatedRun = response.testRun;
+      setRuns((prev) =>
+        prev.map((run) => (getId(run) === runId ? { ...run, ...updatedRun } : run)),
+      );
+      setSelectedRun((prev) =>
+        prev && getId(prev) === runId ? { ...prev, ...updatedRun } : prev,
+      );
+    }
+
+    showNotice("Test run updated");
+  };
+
+  const handleSaveRunName = async (name: string) => {
+    if (!activeRun) {
+      return;
+    }
+    setSavingRunName(true);
+    try {
+      await handleUpdateRun(getId(activeRun), { name });
+      exitRunEdit();
+    } finally {
+      setSavingRunName(false);
+    }
+  };
+
   const openPlanInsights = (planId: string) => {
     const runEntityId = getId(activeRun?.testPlanEntityId);
     const resolvedPlanId = runEntityId || planId;
@@ -530,6 +582,11 @@ function AdminWorkspaceExecutionRoute() {
           startRunError={startRunError}
           onNotice={showNotice}
           onExportRun={handleExportRun}
+          onOpenRunForEdit={openRunForEdit}
+          runEditMode={editRunFromUrl && Boolean(activeRun)}
+          onSaveRunName={handleSaveRunName}
+          onCancelRunEdit={exitRunEdit}
+          savingRunName={savingRunName}
           exportingRun={exportingRun}
           initialPlanFilter={testPlanIdFromUrl}
           onOpenPlanInsights={openPlanInsights}

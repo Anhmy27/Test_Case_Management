@@ -5,6 +5,7 @@ const {
   startTestRunService,
   applyAutomationResultsService,
   listTestRunsService,
+  updateTestRunService,
   getMyRunItemsService,
   updateRunResultService,
   endTestRunService,
@@ -65,6 +66,14 @@ const applyAutomationResults = asyncHandler(async (req, res) => {
 
 const listTestRuns = asyncHandler(async (req, res) => {
   const result = await listTestRunsService(req.query || {}, req.user);
+  res.json(result);
+});
+
+const updateTestRun = asyncHandler(async (req, res) => {
+  const result = await updateTestRunService(req.params.runId, req.body || {}, req.user);
+  await auditTestRun(req, 'test_run.update', result?.testRun, {
+    name: req.body?.name,
+  });
   res.json(result);
 });
 
@@ -214,6 +223,7 @@ const getDryRunFailureScreenshot = asyncHandler(async (req, res) => {
 module.exports = {
   startTestRun,
   listTestRuns,
+  updateTestRun,
   getMyRunItems,
   updateRunResult,
   applyAutomationResults,

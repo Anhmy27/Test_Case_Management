@@ -135,6 +135,44 @@ test('duplicate run name in same plan is rejected', async () => {
   });
 });
 
+test('admin can rename test run in place without creating a new document', async () => {
+  await withHarness(async (harness) => {
+    const fixture = await seedManualExecutionFixture(harness);
+    const employeeClient = await fixture.loginAs(fixture.employee);
+    const runName = uniqueRunName('rename-run');
+
+    const startRes = await employeeClient.post(
+      '/api/test-runs',
+      { testPlanId: fixture.ids.testPlanId, name: runName },
+      201,
+    );
+
+    const runId = entityId(startRes.body.testRun);
+    const renamed = `${runName}-updated`;
+
+    const updateRes = await fixture.adminClient.patch(
+      `/api/test-runs/${runId}`,
+      { name: renamed },
+      200,
+    );
+
+    assert.equal(entityId(updateRes.body.testRun), runId);
+    assert.equal(updateRes.body.testRun.name, renamed);
+
+    const listRes = await fixture.adminClient.get('/api/test-runs', 200);
+    const listed = (listRes.body.testRuns || []).find((run) => entityId(run) === runId);
+    assert.ok(listed);
+    assert.equal(listed.name, renamed);
+
+    const duplicateRes = await employeeClient.post(
+      '/api/test-runs',
+      { testPlanId: fixture.ids.testPlanId, name: renamed },
+      409,
+    );
+    assert.match(duplicateRes.body.message, /already exists/i);
+  });
+});
+
 test('completed run rejects further result updates', async () => {
   await withHarness(async (harness) => {
     const fixture = await seedManualExecutionFixture(harness);
@@ -164,6 +202,43 @@ test('completed run rejects further result updates', async () => {
     );
 
     assert.match(res.body.message, /running test run/i);
+  });
+});
+
+test('admin can update results on completed run in place', async () => {
+  await withHarness(async (harness) => {
+    const fixture = await seedManualExecutionFixture(harness);
+    const employeeClient = await fixture.loginAs(fixture.employee);
+    const runName = uniqueRunName('admin-edit-completed');
+
+    const startRes = await employeeClient.post(
+      '/api/test-runs',
+      { testPlanId: fixture.ids.testPlanId, name: runName },
+      201,
+    );
+
+    const runId = entityId(startRes.body.testRun);
+    const resultObjectId = resultId(startRes.body.testRun.results[0]);
+
+    await employeeClient.patch(
+      `/api/test-runs/${runId}/results/${resultObjectId}`,
+      { status: 'fail', notes: 'Initial fail' },
+      200,
+    );
+    await employeeClient.patch(`/api/test-runs/${runId}/end`, {}, 200);
+
+    const updateRes = await fixture.adminClient.patch(
+      `/api/test-runs/${runId}/results/${resultObjectId}`,
+      { status: 'pass', notes: 'Corrected after review' },
+      200,
+    );
+
+    assert.equal(updateRes.body.testRun.status, 'completed');
+    const updatedResult = updateRes.body.testRun.results.find(
+      (item) => String(item._id || item.id) === String(resultObjectId),
+    );
+    assert.equal(updatedResult.status, 'pass');
+    assert.match(updatedResult.notes, /Corrected after review/i);
   });
 });
 
