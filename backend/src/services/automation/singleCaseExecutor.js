@@ -3,7 +3,8 @@
  * Shared by full test runs and dry-run previews.
  */
 
-const { runAutomationSteps, DEFAULT_TIMEOUT } = require('./playwrightExecutor');
+const { normalizeCaseTimeoutMs } = require('../../utils/automationTimeouts');
+const { runAutomationSteps } = require('./playwrightExecutor');
 
 const isCancelledError = (error) => error?.code === 'AUTOMATION_CANCELLED';
 
@@ -28,13 +29,15 @@ const executeSingleCaseAutomation = async ({
       finalNote = 'Automation spec is not configured for this test case';
       logLines.push(finalNote);
     } else {
-      page.setDefaultTimeout(Number(automation.timeoutMs) > 0 ? Number(automation.timeoutMs) : DEFAULT_TIMEOUT);
+      const caseTimeoutMs = normalizeCaseTimeoutMs(automation.timeoutMs);
+      page.setDefaultTimeout(caseTimeoutMs);
       await page.setViewportSize({ width: 1440, height: 900 });
 
       const stepLogs = await runAutomationSteps({
         page,
         steps: caseSteps,
         baseUrl,
+        caseTimeoutMs,
         onStepStart,
         shouldAbort,
       });

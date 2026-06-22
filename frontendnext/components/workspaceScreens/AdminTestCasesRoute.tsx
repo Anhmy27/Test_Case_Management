@@ -8,6 +8,7 @@ import AdminTestCasesScreen from "@/components/workspaceScreens/AdminTestCasesSc
 import { useAdminWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
 import { TOPBAR_INPUT_CLS, WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
 import { apiRequest, createTextMatcher, getId, matchesSelectedEntity } from "@/lib/api";
+import { DEFAULT_AUTOMATION_FORM, DEFAULT_AUTOMATION_STEP, normalizeAutomationStepsForApi } from "@/lib/automationStepMeta";
 
 type RecordAny = Record<string, any>;
 const MAX_EXCEL_IMPORT_BYTES = 50 * 1024 * 1024;
@@ -27,7 +28,10 @@ export default function AdminTestCasesRoute() {
   const [groups, setGroups] = useState<RecordAny[]>([]);
   const [testCases, setTestCases] = useState<RecordAny[]>([]);
   const [testCaseForm, setTestCaseForm] = useState({ projectId: "", groupId: "", caseKey: "", title: "", priority: "medium", severity: "major", type: "functional", description: "", expected: "", steps: [{ action: "", expected: "" }] });
-  const [automationForm, setAutomationForm] = useState({ enabled: false, webId: "", baseUrl: "", userKey: "", timeoutMs: "30", steps: [{ stepId: "1", stepName: "", action: "goto", targetType: "css", target: "", value: "", expected: "", timeoutMs: "15" }] });
+  const [automationForm, setAutomationForm] = useState({
+    ...DEFAULT_AUTOMATION_FORM(),
+    steps: [DEFAULT_AUTOMATION_STEP()],
+  });
   const [editingTestCaseId, setEditingTestCaseId] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [message, setMessage] = useState("");
@@ -95,20 +99,7 @@ export default function AdminTestCasesRoute() {
           expected: stepExpected || null,
         };
       });
-  const normalizeAutomationSteps = (steps: any[]) =>
-    steps
-      .filter((step) => String(step.action || "").trim())
-      .map((step, index) => ({
-        stepId: String(step.stepId || "").trim() || String(index + 1),
-        stepName: String(step.stepName || "").trim(),
-        order: index + 1,
-        action: String(step.action || "goto").trim(),
-        targetType: String(step.targetType || "css"),
-        target: String(step.target || ""),
-        value: String(step.value || ""),
-        expected: String(step.expected || ""),
-        timeoutMs: Number(step.timeoutMs || 15) * 1000,
-      }));
+  const normalizeAutomationSteps = normalizeAutomationStepsForApi;
 
   const saveTestCase = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -134,7 +125,7 @@ export default function AdminTestCasesRoute() {
       }
       setEditingTestCaseId("");
       setTestCaseForm({ projectId: selectedProjectId || "", groupId: "", caseKey: "", title: "", priority: "medium", severity: "major", type: "functional", description: "", expected: "", steps: [{ action: "", expected: "" }] });
-      setAutomationForm({ enabled: false, webId: "", baseUrl: "", userKey: "", timeoutMs: "30", steps: [{ stepId: generateStepId(), stepName: "", action: "goto", targetType: "css", target: "", value: "", expected: "", timeoutMs: "15" }] });
+      setAutomationForm({ ...DEFAULT_AUTOMATION_FORM(), steps: [DEFAULT_AUTOMATION_STEP()] });
       await refreshAll();
       return true;
     } catch (error) {
@@ -146,7 +137,7 @@ export default function AdminTestCasesRoute() {
   const cancelTestCaseEdit = () => {
     setEditingTestCaseId("");
     setTestCaseForm({ projectId: selectedProjectId || "", groupId: "", caseKey: "", title: "", priority: "medium", severity: "major", type: "functional", description: "", expected: "", steps: [{ action: "", expected: "" }] });
-    setAutomationForm({ enabled: false, webId: "", baseUrl: "", userKey: "", timeoutMs: "30", steps: [{ stepId: generateStepId(), stepName: "", action: "goto", targetType: "css", target: "", value: "", expected: "", timeoutMs: "15" }] });
+    setAutomationForm({ ...DEFAULT_AUTOMATION_FORM(), steps: [DEFAULT_AUTOMATION_STEP()] });
   };
 
   const startTestCaseEdit = useCallback((testCase: RecordAny) => {
@@ -176,9 +167,12 @@ export default function AdminTestCasesRoute() {
           target: String(step.target || ""),
           value: String(step.value || ""),
           expected: String(step.expected || ""),
-          timeoutMs: String(Math.round(Number(step.timeoutMs || 15000) / 1000)),
+          timeoutMs:
+            Number(step.timeoutMs) > 0
+              ? String(Math.round(Number(step.timeoutMs) / 1000))
+              : "",
         }))
-      : [{ stepId: generateStepId(), stepName: "", action: "goto", targetType: "css", target: "", value: "", expected: "", timeoutMs: "15" }];
+      : [DEFAULT_AUTOMATION_STEP()];
 
     setAutomationForm({
       enabled: Boolean(automation.enabled),
@@ -238,7 +232,7 @@ export default function AdminTestCasesRoute() {
       return { ...prev, steps: copy };
     });
   };
-  const addAutomationStep = () => setAutomationForm((prev) => ({ ...prev, steps: [...prev.steps, { stepId: generateStepId(), stepName: "", action: "goto", targetType: "css", target: "", value: "", expected: "", timeoutMs: "15" }] }));
+  const addAutomationStep = () => setAutomationForm((prev) => ({ ...prev, steps: [...prev.steps, { ...DEFAULT_AUTOMATION_STEP(), stepId: generateStepId() }] }));
   const updateAutomationStep = (index: number, key: string, value: string) => setAutomationForm((prev) => ({ ...prev, steps: prev.steps.map((step, stepIndex) => stepIndex === index ? { ...step, [key]: value } : step) }));
   const removeAutomationStep = (index: number) => setAutomationForm((prev) => ({ ...prev, steps: prev.steps.filter((_, stepIndex) => stepIndex !== index) }));
   const moveAutomationStep = (fromIndex: number, toIndex: number) => {

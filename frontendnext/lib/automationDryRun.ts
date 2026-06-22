@@ -1,4 +1,5 @@
 import type { AutomationForm } from "@/lib/automationStepMeta";
+import { normalizeAutomationStepsForApi } from "@/lib/automationStepMeta";
 import { apiRequest } from "@/lib/api";
 
 export type DryRunResult = {
@@ -19,22 +20,6 @@ export type DryRunResult = {
     email: string;
   };
 };
-
-function normalizeAutomationStepsForApi(steps: AutomationForm["steps"]) {
-  return steps
-    .filter((step) => String(step.action || "").trim())
-    .map((step, index) => ({
-      stepId: String(step.stepId || "").trim() || String(index + 1),
-      stepName: String(step.stepName || "").trim(),
-      order: index + 1,
-      action: String(step.action || "goto").trim(),
-      targetType: String(step.targetType || "css"),
-      target: String(step.target || ""),
-      value: String(step.value || ""),
-      expected: String(step.expected || ""),
-      timeoutMs: Number(step.timeoutMs || 15) * 1000,
-    }));
-}
 
 function buildDryRunPayload({
   automationForm,

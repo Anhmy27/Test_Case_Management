@@ -64,6 +64,8 @@ const normalizeManualSteps = (steps) => {
 
 const normalizeOverallExpected = (value) => String(value || '').trim();
 
+const { normalizeTimeoutInputMs } = require('../../utils/automationTimeouts');
+
 const normalizeAutomationSteps = (steps) => {
   if (!Array.isArray(steps)) {
     return [];
@@ -71,17 +73,25 @@ const normalizeAutomationSteps = (steps) => {
 
   return steps
     .filter((step) => step && step.action)
-    .map((step, index) => ({
-      stepId: String(step.stepId || '').trim() || String(index + 1),
-      stepName: String(step.stepName || '').trim(),
-      order: index + 1,
-      action: String(step.action || 'goto').trim(),
-      targetType: String(step.targetType || 'css').trim(),
-      target: String(step.target || '').trim(),
-      value: String(step.value || '').trim(),
-      expected: String(step.expected || '').trim(),
-      timeoutMs: Number(step.timeoutMs || 15000),
-    }));
+    .map((step, index) => {
+      const optionalTimeoutMs = normalizeTimeoutInputMs(step.timeoutMs);
+      const normalized = {
+        stepId: String(step.stepId || '').trim() || String(index + 1),
+        stepName: String(step.stepName || '').trim(),
+        order: index + 1,
+        action: String(step.action || 'goto').trim(),
+        targetType: String(step.targetType || 'css').trim(),
+        target: String(step.target || '').trim(),
+        value: String(step.value || '').trim(),
+        expected: String(step.expected || '').trim(),
+      };
+
+      if (optionalTimeoutMs !== null) {
+        normalized.timeoutMs = optionalTimeoutMs;
+      }
+
+      return normalized;
+    });
 };
 
 const applyPopulate = (query, populate = []) => {

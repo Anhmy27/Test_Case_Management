@@ -12,6 +12,7 @@ export type AutomationStep = {
   target: string;
   value: string;
   expected: string;
+  /** Giây; để trống = dùng timeout mặc định của test case */
   timeoutMs: string;
 };
 
@@ -29,7 +30,6 @@ export type ActionMeta = {
   description: string;
   targetTypes: string[];
   needsTarget: boolean;
-  /** Hiện nhóm selector nhưng không bắt buộc (vd. press). */
   optionalTarget?: boolean;
   needsValue: boolean;
   needsExpected: boolean;
@@ -49,7 +49,6 @@ export const TARGET_TYPE_LABELS: Record<string, string> = {
   url: "URL",
 };
 
-/** Nhãn ô giá trị theo hành động — dùng trong form step. */
 export function getValueFieldLabel(action: string): string {
   const meta = ACTION_META[action];
   if (meta?.valueLabel) return meta.valueLabel;
@@ -67,35 +66,91 @@ export function getValueFieldLabel(action: string): string {
   }
 }
 
-/** Danh sách ngắn các ô cần điền (hiển thị chip gợi ý). */
-export function getActionRequiredHints(action: string): string[] {
+export function getStepFieldVisibility(action: string): {
+  showTargetType: boolean;
+  showTarget: boolean;
+  showValue: boolean;
+  showExpected: boolean;
+} {
+  if (action === "wait") {
+    return { showTargetType: false, showTarget: false, showValue: false, showExpected: false };
+  }
+
   const meta = ACTION_META[action] ?? ACTION_META.goto;
 
-  if (action === "wait") {
-    return ["Thời gian đợi"];
+  // press: chỉ cần phím (value); selector tùy chọn — ẩn trong UI compact
+  if (action === "press") {
+    return {
+      showTargetType: false,
+      showTarget: false,
+      showValue: meta.needsValue,
+      showExpected: false,
+    };
   }
 
-  const hints: string[] = ["Timeout"];
+  const showSelectorGroup = meta.needsTarget || Boolean(meta.optionalTarget);
 
-  if (meta.needsValue) {
-    hints.push(getValueFieldLabel(action));
-  }
-  if (meta.needsTarget) {
-    hints.push("Selector");
-  } else if (meta.optionalTarget) {
-    hints.push("Selector (tùy chọn)");
-  }
-  if (meta.needsExpected) {
-    hints.push("Chuỗi mong đợi");
-  }
-
-  return hints;
+  return {
+    showTargetType: showSelectorGroup,
+    // Target riêng khi vừa cần selector vừa cần value (type, select, dragTo...)
+    showTarget: showSelectorGroup && meta.needsValue,
+    showValue: meta.needsValue,
+    showExpected: meta.needsExpected,
+  };
 }
 
-export function stepHasParameterFields(action: string): boolean {
-  if (action === "wait") return false;
-  const meta = ACTION_META[action] ?? ACTION_META.goto;
-  return meta.needsValue || meta.needsExpected || meta.needsTarget || Boolean(meta.optionalTarget);
+/** Target-only actions (click, hover, waitFor...): nhập ở cột giá trị / mong đợi */
+export function stepUsesTargetAsPrimaryInput(action: string): boolean {
+  const v = getStepFieldVisibility(action);
+  return v.showTargetType && !v.showTarget && !v.showValue && !v.showExpected;
+}
+
+/** @deprecated use getStepFieldVisibility */
+export function stepShowsSelector(action: string): boolean {
+  return getStepFieldVisibility(action).showTargetType;
+}
+
+/** @deprecated use getStepFieldVisibility */
+export function stepExtraField(action: string): "value" | "expected" | null {
+  const v = getStepFieldVisibility(action);
+  if (v.showValue) return "value";
+  if (v.showExpected) return "expected";
+  if (stepUsesTargetAsPrimaryInput(action)) return "value";
+  return null;
+}
+
+export const DEFAULT_AUTOMATION_TIMEOUT_SECONDS = "30";
+
+export function parseOptionalTimeoutSeconds(value: string): number | null {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
+export function normalizeAutomationStepsForApi(steps: AutomationStep[]) {
+  return steps
+    .filter((step) => String(step.action || "").trim())
+    .map((step, index) => {
+      const stepTimeoutSeconds = parseOptionalTimeoutSeconds(step.timeoutMs);
+      const normalized = {
+        stepId: String(step.stepId || "").trim() || String(index + 1),
+        stepName: String(step.stepName || "").trim(),
+        order: index + 1,
+        action: String(step.action || "goto").trim(),
+        targetType: String(step.targetType || "css"),
+        target: String(step.target || ""),
+        value: String(step.value || ""),
+        expected: String(step.expected || ""),
+      };
+
+      if (stepTimeoutSeconds !== null) {
+        return { ...normalized, timeoutMs: stepTimeoutSeconds * 1000 };
+      }
+
+      return normalized;
+    });
 }
 
 export const ACTION_META: Record<string, ActionMeta> = {
@@ -114,7 +169,7 @@ export const ACTION_META: Record<string, ActionMeta> = {
     description: "Click nút, link, ...",
     needsTarget: true, needsValue: false, needsExpected: false,
     targetTypes: ["css", "id", "text", "label", "testid"],
-    targetPlaceholder: "#submit · Đăng nhập (text)",
+    targetPlaceholder: "#submit",
     valuePlaceholder: "",
     expectedPlaceholder: "",
   },
@@ -123,7 +178,7 @@ export const ACTION_META: Record<string, ActionMeta> = {
     description: "Điền input/textarea",
     needsTarget: true, needsValue: true, needsExpected: false,
     targetTypes: ["css", "id", "placeholder", "label", "testid"],
-    targetPlaceholder: "#email · Email (placeholder)",
+    targetPlaceholder: "#email",
     valuePlaceholder: "Nội dung nhập",
     expectedPlaceholder: "",
   },
@@ -132,13 +187,13 @@ export const ACTION_META: Record<string, ActionMeta> = {
     description: "Chọn option trong select",
     needsTarget: true, needsValue: true, needsExpected: false,
     targetTypes: ["css", "id", "label", "testid"],
-    targetPlaceholder: "#status · Trạng thái (label)",
-    valuePlaceholder: "active · completed",
+    targetPlaceholder: "#status",
+    valuePlaceholder: "active",
     expectedPlaceholder: "",
   },
   wait: {
-    label: "Đợi",
-    description: "Chờ X giây, không thao tác — dùng ô timeout bên cạnh",
+    label: "Đợi trang",
+    description: "Chờ trang load/domcontentloaded (dùng timeout chung của test case)",
     needsTarget: false, needsValue: false, needsExpected: false,
     targetTypes: [],
     targetPlaceholder: "",
@@ -147,10 +202,10 @@ export const ACTION_META: Record<string, ActionMeta> = {
   },
   waitFor: {
     label: "Chờ phần tử",
-    description: "Chờ phần tử hiện ra trước bước tiếp theo",
+    description: "Chờ phần tử hiện ra",
     needsTarget: true, needsValue: false, needsExpected: false,
     targetTypes: ["css", "id", "text", "testid"],
-    targetPlaceholder: "#loading · Đang tải (text)",
+    targetPlaceholder: "#loading",
     valuePlaceholder: "",
     expectedPlaceholder: "",
   },
@@ -168,7 +223,7 @@ export const ACTION_META: Record<string, ActionMeta> = {
     description: "Phần tử đang visible",
     needsTarget: true, needsValue: false, needsExpected: false,
     targetTypes: ["css", "id", "text", "testid"],
-    targetPlaceholder: "#dashboard · Chào mừng (text)",
+    targetPlaceholder: "#dashboard",
     valuePlaceholder: "",
     expectedPlaceholder: "",
   },
@@ -213,7 +268,7 @@ export const ACTION_META: Record<string, ActionMeta> = {
     description: "Checkbox/radio đang được chọn",
     needsTarget: true, needsValue: false, needsExpected: false,
     targetTypes: ["css", "id", "testid", "label"],
-    targetPlaceholder: "#agree · Đồng ý (label)",
+    targetPlaceholder: "#agree",
     valuePlaceholder: "",
     expectedPlaceholder: "",
   },
@@ -222,7 +277,7 @@ export const ACTION_META: Record<string, ActionMeta> = {
     description: "Di chuột để mở menu/tooltip",
     needsTarget: true, needsValue: false, needsExpected: false,
     targetTypes: ["css", "id", "text", "testid"],
-    targetPlaceholder: "#avatar · Tài khoản (text)",
+    targetPlaceholder: "#avatar",
     valuePlaceholder: "",
     expectedPlaceholder: "",
   },
@@ -232,8 +287,8 @@ export const ACTION_META: Record<string, ActionMeta> = {
     optionalTarget: true,
     needsTarget: false, needsValue: true, needsExpected: false,
     targetTypes: ["css", "id", "testid"],
-    targetPlaceholder: "Để trống = nhấn trên cả trang",
-    valuePlaceholder: "Enter · Tab · Escape",
+    targetPlaceholder: "Để trống = cả trang",
+    valuePlaceholder: "Enter",
     expectedPlaceholder: "",
     valueLabel: "Phím",
   },
@@ -267,7 +322,7 @@ export const DEFAULT_AUTOMATION_STEP = (): AutomationStep => ({
   target: "",
   value: "",
   expected: "",
-  timeoutMs: "15",
+  timeoutMs: "",
 });
 
 export const DEFAULT_AUTOMATION_FORM = (): AutomationForm => ({
@@ -275,6 +330,6 @@ export const DEFAULT_AUTOMATION_FORM = (): AutomationForm => ({
   webId: "",
   baseUrl: "",
   userKey: "",
-  timeoutMs: "30",
+  timeoutMs: DEFAULT_AUTOMATION_TIMEOUT_SECONDS,
   steps: [],
 });

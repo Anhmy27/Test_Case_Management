@@ -58,7 +58,7 @@ function AutomationStepsDetail({ automation }: { automation: RecordAny }) {
         <div><span className="font-semibold text-slate-500">Base URL:</span> {automation.baseUrl || "-"}</div>
         <div><span className="font-semibold text-slate-500">Web ID:</span> {automation.webId || "-"}</div>
         <div><span className="font-semibold text-slate-500">User key:</span> {automation.userKey || "-"}</div>
-        <div><span className="font-semibold text-slate-500">Timeout:</span> {automation.timeoutMs ? `${automation.timeoutMs} ms` : "-"}</div>
+        <div><span className="font-semibold text-slate-500">Timeout:</span> {automation.timeoutMs ? `${Math.round(Number(automation.timeoutMs) / 1000)}s` : "-"}</div>
       </div>
       <div className="mt-3 space-y-2">
         {steps.length === 0 ? (
@@ -73,7 +73,7 @@ function AutomationStepsDetail({ automation }: { automation: RecordAny }) {
             if (step.target) details.push(`Target: ${step.target}`);
             if (step.value) details.push(`Value: ${step.value}`);
             if (step.expected) details.push(`Expected: ${step.expected}`);
-            if (step.timeoutMs) details.push(`Timeout: ${step.timeoutMs} ms`);
+            if (step.timeoutMs) details.push(`Timeout: ${Math.round(Number(step.timeoutMs) / 1000)}s`);
 
             return (
               <div

@@ -52,8 +52,7 @@ const automationStepSchema = new mongoose.Schema(
     },
     timeoutMs: {
       type: Number,
-      default: 15000,
-      min: 0,
+      min: 1,
     },
   },
   { _id: false }

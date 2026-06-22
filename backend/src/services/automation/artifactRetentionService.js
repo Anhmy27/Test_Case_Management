@@ -85,7 +85,6 @@ const cleanupCompletedRunArtifacts = async (retentionDays) => {
     const runId = String(run._id);
     const candidateRoots = [
       [ARTIFACT_ROOT_DIR, RUN_PREFIX],
-      [ARTIFACT_ROOT_DIR, LEGACY_RUNS_PREFIX],
       [LEGACY_ARTIFACT_NESTED_ROOT, RUN_PREFIX],
       [LEGACY_ARTIFACT_NESTED_ROOT, LEGACY_RUNS_PREFIX],
     ];

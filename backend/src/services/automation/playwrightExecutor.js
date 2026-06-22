@@ -20,7 +20,14 @@ const ALLOWED_ACTIONS = new Set([
   'dragto',
 ]);
 
-const DEFAULT_TIMEOUT = 15000;
+const {
+  DEFAULT_AUTOMATION_TIMEOUT_MS,
+  normalizeCaseTimeoutMs,
+  normalizeTimeoutInputMs,
+  resolveStepTimeoutMs,
+} = require('../../utils/automationTimeouts');
+
+const DEFAULT_TIMEOUT = DEFAULT_AUTOMATION_TIMEOUT_MS;
 
 const toString = (value) => String(value || '').trim();
 
@@ -63,7 +70,8 @@ const resolveClickLocator = (page, step) => {
   return resolveLocator(page, step).first();
 };
 
-const describeStep = (step, stepIndex, page) => {
+const describeStep = (step, stepIndex, page, caseTimeoutMs) => {
+  const resolvedTimeoutMs = resolveStepTimeoutMs(step.timeoutMs, caseTimeoutMs, DEFAULT_TIMEOUT);
   const fields = [
     `Step #${stepIndex + 1}`,
     `Action: ${toString(step.action) || '(empty)'}`,
@@ -71,37 +79,31 @@ const describeStep = (step, stepIndex, page) => {
     `Target: ${toString(step.target) || '(empty)'}`,
     `Value: ${toString(step.value) || '(empty)'}`,
     `Expected: ${toString(step.expected) || '(empty)'}`,
-    `Timeout ms: ${Number(step.timeoutMs || DEFAULT_TIMEOUT)}`,
+    `Timeout ms: ${resolvedTimeoutMs}`,
     `Page URL: ${page?.url?.() || '(unknown)'}`,
   ];
 
   return fields.join('\n');
 };
 
-const formatStepError = (step, stepIndex, page, error) => {
+const formatStepError = (step, stepIndex, page, error, caseTimeoutMs) => {
   const parts = [
     'Automation step failed',
-    describeStep(step, stepIndex, page),
+    describeStep(step, stepIndex, page, caseTimeoutMs),
     `Error: ${error?.message || 'Unknown error'}`,
   ];
 
   return parts.join('\n');
 };
 
-const capturePostActionState = async (page) => {
-  const initialUrl = page.url();
+const capturePostActionState = async (page, timeoutMs = DEFAULT_TIMEOUT) => {
   const details = [];
+  const settleTimeout = Math.min(Math.max(timeoutMs, 1000), 5000);
 
   try {
-    await page.waitForURL((currentUrl) => currentUrl.href !== initialUrl, { timeout: 2500 });
+    await page.waitForLoadState('domcontentloaded', { timeout: settleTimeout });
   } catch {
-    // Keep going: some clicks do not navigate, and we still want the snapshot.
-  }
-
-  try {
-    await page.waitForLoadState('domcontentloaded', { timeout: 1000 });
-  } catch {
-    // Ignore and capture whatever state is available.
+    // Continue with whatever state is available.
   }
 
   try {
@@ -111,13 +113,27 @@ const capturePostActionState = async (page) => {
   }
 
   try {
-    const bodyText = String(await page.locator('body').innerText({ timeout: 1000 }) || '');
+    const bodyText = String(await page.locator('body').innerText({ timeout: settleTimeout }) || '');
     details.push(`After click body preview: ${bodyText.slice(0, 500) || '(empty)'}`);
   } catch {
     details.push('After click body preview: (unavailable)');
   }
 
   return details.join('\n');
+};
+
+const waitForPageSettle = async (page, timeoutMs) => {
+  try {
+    await page.waitForLoadState('load', { timeout: timeoutMs });
+    return 'load';
+  } catch {
+    try {
+      await page.waitForLoadState('domcontentloaded', { timeout: timeoutMs });
+      return 'domcontentloaded';
+    } catch {
+      return '';
+    }
+  }
 };
 
 const waitForUrlChange = async (page, initialUrl, timeoutMs) => {
@@ -161,13 +177,13 @@ const assertWithDiagnostics = async (page, checkFn, successMessage, errorMessage
   }
 };
 
-const executeStep = async (page, step, baseUrl) => {
+const executeStep = async (page, step, baseUrl, caseTimeoutMs) => {
   const action = toString(step.action).toLowerCase();
   if (!ALLOWED_ACTIONS.has(action)) {
     throw new Error(`Unsupported automation action: ${step.action}`);
   }
 
-  const timeoutMs = Number(step.timeoutMs || DEFAULT_TIMEOUT);
+  const timeoutMs = resolveStepTimeoutMs(step.timeoutMs, caseTimeoutMs, DEFAULT_TIMEOUT);
   const targetType = toString(step.targetType || 'css').toLowerCase();
   const target = toString(step.target);
   const value = toString(step.value);
@@ -200,7 +216,7 @@ const executeStep = async (page, step, baseUrl) => {
 
     await locator.click({ timeout: timeoutMs });
 
-    const navigated = await waitForUrlChange(page, initialUrl, 2500);
+    let navigated = await waitForUrlChange(page, initialUrl, timeoutMs);
 
     if (!navigated && targetType === 'text') {
       try {
@@ -214,10 +230,14 @@ const executeStep = async (page, step, baseUrl) => {
         // Ignore and fall through to diagnostics.
       }
 
-      await waitForUrlChange(page, initialUrl, 5000);
+      navigated = await waitForUrlChange(page, initialUrl, timeoutMs);
     }
 
-    const state = await capturePostActionState(page);
+    if (navigated) {
+      await waitForPageSettle(page, timeoutMs);
+    }
+
+    const state = await capturePostActionState(page, timeoutMs);
     return `click ${target}\n${state}\nNavigation detected: ${page.url() !== initialUrl ? 'yes' : 'no'}`;
   }
 
@@ -281,14 +301,20 @@ const executeStep = async (page, step, baseUrl) => {
   }
 
   if (action === 'wait') {
-    await page.waitForTimeout(timeoutMs);
-    return `wait ${timeoutMs}ms`;
+    const settled = await waitForPageSettle(page, timeoutMs);
+    if (!settled) {
+      throw new Error(
+        `wait step timed out after ${timeoutMs}ms — page did not reach load or domcontentloaded. Prefer waitFor with a target selector.`,
+      );
+    }
+    return `wait page ${settled} (timeout ${timeoutMs}ms)`;
   }
 
   if (action === 'waitfor') {
     if (!target) {
-      await page.waitForTimeout(timeoutMs);
-      return `waitFor timeout ${timeoutMs}ms`;
+      throw new Error(
+        'waitFor step requires a target selector. Do not sleep — wait for a specific element to become visible.',
+      );
     }
 
     await locator.waitFor({ state: 'visible', timeout: timeoutMs });
@@ -424,7 +450,8 @@ const executeStep = async (page, step, baseUrl) => {
   throw new Error(`Unsupported automation action: ${step.action}`);
 };
 
-const runAutomationSteps = async ({ page, steps, baseUrl, onStepStart, shouldAbort }) => {
+const runAutomationSteps = async ({ page, steps, baseUrl, caseTimeoutMs, onStepStart, shouldAbort }) => {
+  const resolvedCaseTimeout = normalizeCaseTimeoutMs(caseTimeoutMs, DEFAULT_TIMEOUT);
   const sortedSteps = [...steps].sort((left, right) => Number(left.order || 0) - Number(right.order || 0));
   const logLines = [];
 
@@ -440,10 +467,10 @@ const runAutomationSteps = async ({ page, steps, baseUrl, onStepStart, shouldAbo
     }
 
     try {
-      const stepLog = await executeStep(page, step, baseUrl);
+      const stepLog = await executeStep(page, step, baseUrl, resolvedCaseTimeout);
       logLines.push(stepLog);
     } catch (error) {
-      throw new Error(formatStepError(step, stepIndex, page, error));
+      throw new Error(formatStepError(step, stepIndex, page, error, resolvedCaseTimeout));
     }
   }
 

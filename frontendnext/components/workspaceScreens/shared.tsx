@@ -5,6 +5,50 @@ import type { HTMLAttributes, ReactNode } from "react";
 
 // ─── Form primitives ──────────────────────────────────────────────────────
 
+/** Compact inputs for test case create/edit workbench */
+export const WORKBENCH_INPUT_CLS =
+  "w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400/20 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500";
+
+export function WorkbenchField({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <label className="flex flex-col gap-0.5">
+      <span className="text-[10px] font-normal text-slate-400 dark:text-zinc-500">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+export function WorkbenchSection({
+  title,
+  hint,
+  action,
+  children,
+}: {
+  title: string;
+  hint?: string;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <section className="rounded border border-slate-200 bg-slate-50/60 p-2 dark:border-zinc-700 dark:bg-zinc-800/40">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <div>
+          <div className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-zinc-500">{title}</div>
+          {hint ? <div className="text-[9px] text-slate-400 dark:text-zinc-500">{hint}</div> : null}
+        </div>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+
 /** Shared Tailwind class for all text inputs, selects, and textareas */
 export const INPUT_CLS =
   "w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:border-blue-500 dark:focus:ring-blue-500/20";

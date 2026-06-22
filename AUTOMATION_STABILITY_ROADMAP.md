@@ -64,7 +64,7 @@ Chạy lại stability probe (10 lần) và so sánh với baseline Phase 0.
 | Phase | Tên | Trạng thái |
 |-------|-----|------------|
 | P0 | Đo mức flaky hiện tại | ✅ Xong (AUTH3 baseline); probe thêm case khác tùy chọn |
-| P1 | Loại bỏ sleep cứng | ⬜ Chưa làm |
+| P1 | Loại bỏ sleep cứng | ✅ Code xong — chạy probe so baseline |
 | P2 | Sửa goto (`load` default) | ⬜ Chưa làm |
 | P3 | Sửa locator (bỏ `.first()` mù) | ⬜ Chưa làm |
 | P4 | Retry từng step | ⬜ Chưa làm |
@@ -185,7 +185,8 @@ Report file: `backend/reports/automation-stability-2026-06-18T03-09-46-987Z.json
 
 **Test:** Chạy lại probe 10 lần — so với baseline.
 
-- [ ] Xong
+- [x] Code xong (engine: không còn `waitForTimeout`)
+- [ ] Probe 10 lần so baseline
 - [ ] User xác nhận sang P2
 
 ---

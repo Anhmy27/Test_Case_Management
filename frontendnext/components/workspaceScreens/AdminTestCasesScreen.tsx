@@ -14,7 +14,7 @@ import AutomationDryRunPanel from "@/components/automation/AutomationDryRunPanel
 import TestCaseWorkbenchModal from "@/components/testCases/TestCaseWorkbenchModal";
 import TestCaseVersionsPanel from "@/components/testCases/TestCaseVersionsPanel";
 import type { AutomationForm } from "@/lib/automationStepMeta";
-import { Button, Field, INPUT_CLS, ScopedProjectField } from "./shared";
+import { Button, WorkbenchField, WORKBENCH_INPUT_CLS, WorkbenchSection, ScopedProjectField } from "./shared";
 
 type RecordAny = Record<string, any>;
 
@@ -611,14 +611,14 @@ export default function AdminTestCasesScreen(props: Props) {
           onSelectCase={switchWorkbenchCase}
         >
           {workbenchModal === "edit" ? (
-            <div className="mb-4 flex flex-wrap gap-2 border-b border-slate-200 pb-3">
+            <div className="mb-3 flex flex-wrap gap-1.5 border-b border-slate-100 pb-2">
               <button
                 type="button"
                 onClick={() => setWorkbenchTab("details")}
-                className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                className={`rounded px-2.5 py-1 text-[10px] ${
                   workbenchTab === "details"
-                    ? "bg-indigo-600 text-white"
-                    : "bg-slate-100 text-slate-600"
+                    ? "bg-slate-800 text-white"
+                    : "bg-slate-100 text-slate-500"
                 }`}
               >
                 Details
@@ -626,10 +626,10 @@ export default function AdminTestCasesScreen(props: Props) {
               <button
                 type="button"
                 onClick={() => setWorkbenchTab("versions")}
-                className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                className={`rounded px-2.5 py-1 text-[10px] ${
                   workbenchTab === "versions"
-                    ? "bg-indigo-600 text-white"
-                    : "bg-slate-100 text-slate-600"
+                    ? "bg-slate-800 text-white"
+                    : "bg-slate-100 text-slate-500"
                 }`}
               >
                 Versions
@@ -640,8 +640,8 @@ export default function AdminTestCasesScreen(props: Props) {
           {workbenchModal === "edit" && workbenchTab === "versions" ? (
             <TestCaseVersionsPanel testCaseId={String(effectiveActiveId)} />
           ) : (
-          <form className="space-y-4" onSubmit={handleSaveTestCase}>
-                <div className="grid grid-cols-2 gap-3">
+          <form className="space-y-3" onSubmit={handleSaveTestCase}>
+                <div className="grid grid-cols-2 gap-2">
                   <ScopedProjectField
                     isProjectScoped={isProjectScoped}
                     scopedProjectName={scopedProjectName}
@@ -656,7 +656,7 @@ export default function AdminTestCasesScreen(props: Props) {
                     }
                     getId={getId}
                   />
-                  <Field label="Group">
+                  <WorkbenchField label="Group">
                     <select
                       value={testCaseForm.groupId}
                       onChange={(e) =>
@@ -665,7 +665,7 @@ export default function AdminTestCasesScreen(props: Props) {
                           groupId: e.target.value,
                         }))
                       }
-                      className={INPUT_CLS}
+                      className={WORKBENCH_INPUT_CLS}
                       required
                     >
                       <option value="">Chọn group</option>
@@ -680,11 +680,11 @@ export default function AdminTestCasesScreen(props: Props) {
                           </option>
                         ))}
                     </select>
-                  </Field>
+                  </WorkbenchField>
                 </div>
 
-                <div className="grid grid-cols-[110px_1fr] gap-3">
-                  <Field label="Case key">
+                <div className="grid grid-cols-[100px_1fr] gap-2">
+                  <WorkbenchField label="Case key">
                     <input
                       value={testCaseForm.caseKey}
                       onChange={(e) =>
@@ -693,12 +693,12 @@ export default function AdminTestCasesScreen(props: Props) {
                           caseKey: e.target.value.toUpperCase(),
                         }))
                       }
-                      className={`${INPUT_CLS} font-mono uppercase`}
+                      className={`${WORKBENCH_INPUT_CLS} font-mono uppercase`}
                       placeholder="TC-001"
                       required
                     />
-                  </Field>
-                  <Field label="Tiêu đề">
+                  </WorkbenchField>
+                  <WorkbenchField label="Tiêu đề">
                     <input
                       value={testCaseForm.title}
                       onChange={(e) =>
@@ -707,15 +707,15 @@ export default function AdminTestCasesScreen(props: Props) {
                           title: e.target.value,
                         }))
                       }
-                      className={INPUT_CLS}
-                      placeholder="Mô tả ngắn về test case..."
+                      className={WORKBENCH_INPUT_CLS}
+                      placeholder="Mô tả ngắn..."
                       required
                     />
-                  </Field>
+                  </WorkbenchField>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3">
-                  <Field label="Priority">
+                <div className="grid grid-cols-3 gap-2">
+                  <WorkbenchField label="Priority">
                     <select
                       value={testCaseForm.priority || "medium"}
                       onChange={(e) =>
@@ -724,15 +724,15 @@ export default function AdminTestCasesScreen(props: Props) {
                           priority: e.target.value,
                         }))
                       }
-                      className={INPUT_CLS}
+                      className={WORKBENCH_INPUT_CLS}
                     >
                       <option value="low">Low</option>
                       <option value="medium">Medium</option>
                       <option value="high">High</option>
                       <option value="critical">Critical</option>
                     </select>
-                  </Field>
-                  <Field label="Severity">
+                  </WorkbenchField>
+                  <WorkbenchField label="Severity">
                     <select
                       value={testCaseForm.severity || "major"}
                       onChange={(e) =>
@@ -741,14 +741,14 @@ export default function AdminTestCasesScreen(props: Props) {
                           severity: e.target.value,
                         }))
                       }
-                      className={INPUT_CLS}
+                      className={WORKBENCH_INPUT_CLS}
                     >
                       <option value="minor">Minor</option>
                       <option value="major">Major</option>
                       <option value="critical">Critical</option>
                     </select>
-                  </Field>
-                  <Field label="Type">
+                  </WorkbenchField>
+                  <WorkbenchField label="Type">
                     <select
                       value={testCaseForm.type || "functional"}
                       onChange={(e) =>
@@ -757,7 +757,7 @@ export default function AdminTestCasesScreen(props: Props) {
                           type: e.target.value,
                         }))
                       }
-                      className={INPUT_CLS}
+                      className={WORKBENCH_INPUT_CLS}
                     >
                       <option value="functional">Functional</option>
                       <option value="api">API</option>
@@ -766,10 +766,10 @@ export default function AdminTestCasesScreen(props: Props) {
                       <option value="security">Security</option>
                       <option value="other">Other</option>
                     </select>
-                  </Field>
+                  </WorkbenchField>
                 </div>
 
-                <Field label="Mô tả">
+                <WorkbenchField label="Mô tả">
                   <textarea
                     rows={2}
                     value={testCaseForm.description}
@@ -779,101 +779,84 @@ export default function AdminTestCasesScreen(props: Props) {
                         description: e.target.value,
                       }))
                     }
-                    className={`${INPUT_CLS} resize-none`}
-                    placeholder="Mô tả thêm về mục đích test case này..."
+                    className={`${WORKBENCH_INPUT_CLS} resize-none`}
+                    placeholder="Mục đích test case..."
                   />
-                </Field>
+                </WorkbenchField>
 
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/60">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-xs font-semibold text-slate-600 dark:text-zinc-300">
-                        Các bước thực hiện
-                      </div>
-                      <div className="text-[11px] text-slate-500 dark:text-zinc-400">
-                        Kéo nút ≡ để sắp xếp lại thứ tự
-                      </div>
-                    </div>
-                    <Button
+                <WorkbenchSection
+                  title="Bước thủ công"
+                  hint="Kéo ≡ để đổi thứ tự"
+                  action={
+                    <button
                       type="button"
-                      size="sm"
-                      label="+ Thêm bước"
+                      className="rounded border border-slate-200 bg-white px-2 py-1 text-[10px] text-slate-600 hover:bg-slate-100"
                       onClick={addTestCaseStep}
-                    />
-                  </div>
-                  <div className="mt-3 space-y-2">
-                    {testCaseForm.steps.map((step, index) => (
-                      <div
-                        key={index}
-                        className="rounded-lg border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900"
-                        onDragOver={handleManualStepDragOver}
-                        onDrop={(event) =>
-                          handleManualStepDrop(index, event)
-                        }
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
+                    >
+                      + Bước
+                    </button>
+                  }
+                >
+                  {testCaseForm.steps.length > 0 ? (
+                    <div className="overflow-x-auto rounded border border-slate-200 bg-white">
+                      <div className="min-w-[520px]">
+                        <div className="grid grid-cols-[22px_24px_minmax(140px,1.4fr)_minmax(100px,1fr)_24px] items-center gap-1 border-b border-slate-100 bg-slate-50/80 px-1 py-0.5 text-[9px] uppercase tracking-wide text-slate-400">
+                          <span />
+                          <span>#</span>
+                          <span>Thao tác</span>
+                          <span>Mong đợi</span>
+                          <span />
+                        </div>
+                        {testCaseForm.steps.map((step, index) => (
+                          <div
+                            key={index}
+                            className="grid grid-cols-[22px_24px_minmax(140px,1.4fr)_minmax(100px,1fr)_24px] items-center gap-1 border-b border-slate-50 px-1 py-0.5 last:border-b-0 hover:bg-slate-50/50"
+                            onDragOver={handleManualStepDragOver}
+                            onDrop={(event) => handleManualStepDrop(index, event)}
+                          >
                             <button
                               type="button"
-                              className="cursor-grab rounded border border-slate-200 px-1.5 py-1 text-xs text-slate-400 hover:border-slate-300 hover:text-slate-600 dark:border-zinc-600 dark:text-zinc-500 dark:hover:border-zinc-500 dark:hover:text-zinc-300"
+                              className="flex h-5 w-5 cursor-grab items-center justify-center text-[10px] text-slate-300 hover:text-slate-500"
                               draggable
-                              onDragStart={(event) =>
-                                handleManualStepDragStart(index, event)
-                              }
+                              onDragStart={(event) => handleManualStepDragStart(index, event)}
                               onDragEnd={handleManualStepDragEnd}
-                              aria-label="Kéo để sắp xếp lại"
-                              title="Kéo để sắp xếp lại"
+                              aria-label="Kéo để sắp xếp"
                             >
                               ≡
                             </button>
-                            <span className="text-[11px] font-semibold text-slate-400 dark:text-zinc-500">
-                              Bước {index + 1}
-                            </span>
-                          </div>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="danger"
-                            label="Xóa"
-                            onClick={() => removeTestCaseStep(index)}
-                          />
-                        </div>
-                        <div className="mt-2">
-                          <Field label="Mô tả thao tác">
-                            <textarea
-                              rows={2}
+                            <span className="text-center text-[10px] text-slate-300">{index + 1}</span>
+                            <input
                               value={step.action}
-                              onChange={(e) =>
-                                updateTestCaseStep(index, "action", e.target.value)
-                              }
-                              placeholder="Nhập thao tác cần thực hiện..."
-                              className={`${INPUT_CLS} resize-none`}
+                              onChange={(e) => updateTestCaseStep(index, "action", e.target.value)}
+                              placeholder="Nhập thao tác..."
+                              className={WORKBENCH_INPUT_CLS}
                             />
-                          </Field>
-                        </div>
-                        <div className="mt-2">
-                          <Field label="Kết quả mong đợi của bước này (tùy chọn)">
                             <input
                               value={step.expected || ""}
-                              onChange={(e) =>
-                                updateTestCaseStep(index, "expected", e.target.value)
-                              }
-                              placeholder="Ví dụ: Hiển thị thông báo thành công..."
-                              className={INPUT_CLS}
+                              onChange={(e) => updateTestCaseStep(index, "expected", e.target.value)}
+                              placeholder="Tùy chọn"
+                              className={WORKBENCH_INPUT_CLS}
                             />
-                          </Field>
-                        </div>
+                            <button
+                              type="button"
+                              className="flex h-5 w-5 items-center justify-center text-xs text-rose-400 hover:text-rose-600"
+                              onClick={() => removeTestCaseStep(index)}
+                              aria-label="Xóa bước"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                  {testCaseForm.steps.length === 0 && (
-                    <div className="mt-2 rounded-lg border border-dashed border-slate-300 p-4 text-center text-xs text-slate-500 dark:border-zinc-600 dark:text-zinc-400">
-                      Chưa có bước nào. Nhấn &quot;+ Thêm bước&quot; để bắt đầu.
+                    </div>
+                  ) : (
+                    <div className="rounded border border-dashed border-slate-200 py-2 text-center text-[10px] text-slate-400">
+                      Chưa có bước thủ công
                     </div>
                   )}
-                </div>
+                </WorkbenchSection>
 
-                <Field label="Kết quả mong đợi (tổng quan, tùy chọn)">
+                <WorkbenchField label="Kết quả mong đợi tổng (tùy chọn)">
                   <textarea
                     rows={2}
                     value={testCaseForm.expected}
@@ -883,10 +866,10 @@ export default function AdminTestCasesScreen(props: Props) {
                         expected: e.target.value,
                       }))
                     }
-                    className={`${INPUT_CLS} resize-none`}
-                    placeholder="Mô tả kết quả mong đợi sau khi thực hiện test case..."
+                    className={`${WORKBENCH_INPUT_CLS} resize-none`}
+                    placeholder="Kết quả sau khi hoàn thành test case..."
                   />
-                </Field>
+                </WorkbenchField>
 
                 <AutomationConfigPanel
                   automationForm={automationForm}

@@ -1,3 +1,5 @@
+const { normalizeCaseTimeoutMs } = require('../utils/automationTimeouts');
+
 const buildTestCaseServices = ({
   mongoose,
   XLSX,
@@ -40,13 +42,14 @@ const buildTestCaseServices = ({
 
   const normalizeAutomationConfig = (automation, fallback = null) => {
     if (automation) {
+      const timeoutMs = normalizeCaseTimeoutMs(automation.timeoutMs);
       return {
         enabled: Boolean(automation.enabled),
         runner: 'playwright',
         webId: String(automation.webId || '').trim(),
         baseUrl: String(automation.baseUrl || '').trim(),
         userKey: String(automation.userKey || '').trim(),
-        timeoutMs: Number(automation.timeoutMs || 30000),
+        timeoutMs,
         steps: normalizeAutomationSteps(automation.steps),
       };
     }
