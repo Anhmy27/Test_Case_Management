@@ -13,6 +13,7 @@ export const ADMIN_NAV_ITEMS: ReadonlyArray<AppShellNavItem> = [
   { key: "versions", label: "Versions" },
   { key: "test-plans", label: "Test Plans" },
   { key: "test-runs-execution", label: "Test Runs + Execution" },
+  { key: "jira-bug-log", label: "Jira Bug Log" },
   { key: "users", label: "Users" },
   { key: "audit-log", label: "Audit Log" },
 ];
@@ -33,6 +34,7 @@ const PROJECT_SCOPE_KEYS = new Set([
   "versions",
   "test-plans",
   "test-runs-execution",
+  "jira-bug-log",
 ]);
 
 export function isGlobalProjectScope(selectedProjectId: string) {

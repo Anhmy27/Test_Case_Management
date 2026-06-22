@@ -198,6 +198,10 @@ export function useJiraBugDialog({ onNotice }: Options) {
         method: "POST",
         body: JSON.stringify({
           projectId: jiraBugDialog.projectId,
+          runId: jiraBugDialog.runId || undefined,
+          resultId: jiraBugDialog.resultId || undefined,
+          caseKey: jiraBugDialog.caseKey || undefined,
+          caseTitle: jiraBugDialog.caseTitle || undefined,
           summary: jiraBugDialog.summary,
           description: jiraBugDialog.description,
           issueType: jiraBugDialog.issueType,

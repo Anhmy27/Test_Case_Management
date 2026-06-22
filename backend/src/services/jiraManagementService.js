@@ -7,6 +7,7 @@ const {
   suggestVersions,
   searchAssignableUsers,
 } = require('./jiraService');
+const { listLogBugsByProject, createLogBugRecord } = require('./logBugHistoryService');
 const {
   getJiraProfileView,
   getUserJiraAccount,
@@ -40,6 +41,10 @@ const getProjectById = async (projectId) => {
 const logBugService = async ({
   user,
   projectId,
+  runId,
+  resultId,
+  caseKey,
+  caseTitle,
   summary,
   description,
   issueType,
@@ -69,10 +74,29 @@ const logBugService = async ({
     userId: user?.id || user?._id || null,
   });
 
+  const logBug = await createLogBugRecord({
+    projectObjectId: project._id,
+    testRunId: runId,
+    runResultId: resultId,
+    caseKey,
+    caseTitle,
+    issueKeyJira: created.issueKey,
+    summary,
+    description,
+    issueType,
+    priority,
+    assignee,
+    labels,
+    versions,
+    jiraLocation: created.location,
+    loggedByUserId: user?.id || user?._id || null,
+  });
+
   return {
     message: 'Jira bug created',
     issueKey: created.issueKey,
     location: created.location,
+    logBugId: String(logBug._id),
   };
 };
 
@@ -142,6 +166,25 @@ const upsertJiraProfileService = async (user, payload = {}) => {
   return { profile: getJiraProfileView(account) };
 };
 
+const listLogBugsService = async ({
+  projectId,
+  page,
+  limit,
+  search,
+  priority,
+  issueType,
+}) => {
+  const project = await getProjectById(projectId);
+  return listLogBugsByProject({
+    projectObjectId: project._id,
+    page,
+    limit,
+    search,
+    priority,
+    issueType,
+  });
+};
+
 module.exports = {
   logBugService,
   getAssignableUsersService,
@@ -149,4 +192,5 @@ module.exports = {
   getVersionSuggestionsService,
   getJiraProfileService,
   upsertJiraProfileService,
+  listLogBugsService,
 };

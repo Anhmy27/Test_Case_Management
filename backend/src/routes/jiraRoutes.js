@@ -8,6 +8,7 @@ const {
   getVersionSuggestions,
   getJiraProfile,
   upsertJiraProfile,
+  listLogBugs,
 } = require('../controllers/jiraController');
 const {
   getAssignableUsersQuerySchema,
@@ -15,6 +16,7 @@ const {
   jiraProfileBodySchema,
   getVersionSuggestionsQuerySchema,
   logBugBodySchema,
+  getLogBugsQuerySchema,
 } = require('../validators/jiraSchemas');
 
 const router = express.Router();
@@ -26,6 +28,7 @@ router.get('/label-suggestions', validateRequest({ querySchema: getLabelSuggesti
 router.get('/version-suggestions', validateRequest({ querySchema: getVersionSuggestionsQuerySchema }), getVersionSuggestions);
 router.get('/profile', getJiraProfile);
 router.put('/profile', validateRequest({ bodySchema: jiraProfileBodySchema }), upsertJiraProfile);
+router.get('/log-bugs', validateRequest({ querySchema: getLogBugsQuerySchema }), listLogBugs);
 router.post('/log-bug', validateRequest({ bodySchema: logBugBodySchema }), logBug);
 
 module.exports = router;

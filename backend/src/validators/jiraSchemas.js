@@ -6,6 +6,13 @@ const {
   optionalPositiveIntFromQuery,
 } = require('./commonSchemas');
 
+const optionalObjectIdString = z.preprocess((value) => {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+  return value;
+}, objectIdString.optional());
+
 const getAssignableUsersQuerySchema = z.object({
   projectKeys: optionalTrimmedString(),
   projectKey: optionalTrimmedString(),
@@ -30,6 +37,10 @@ const getVersionSuggestionsQuerySchema = z.object({
 
 const logBugBodySchema = z.object({
   projectId: objectIdString,
+  runId: optionalObjectIdString,
+  resultId: optionalObjectIdString,
+  caseKey: optionalTrimmedString(),
+  caseTitle: optionalTrimmedString(),
   summary: nonEmptyString(),
   description: nonEmptyString(),
   issueType: nonEmptyString(),
@@ -39,6 +50,15 @@ const logBugBodySchema = z.object({
   originalEstimate: optionalTrimmedString(),
   labels: z.union([z.string(), z.array(z.string())]).optional(),
   versions: z.union([z.string(), z.array(z.string())]).optional(),
+}).passthrough();
+
+const getLogBugsQuerySchema = z.object({
+  projectId: objectIdString,
+  search: optionalTrimmedString(),
+  priority: optionalTrimmedString(),
+  issueType: optionalTrimmedString(),
+  page: optionalPositiveIntFromQuery,
+  limit: optionalPositiveIntFromQuery,
 }).passthrough();
 
 const jiraProfileBodySchema = z.object({
@@ -51,5 +71,6 @@ module.exports = {
   getLabelSuggestionsQuerySchema,
   getVersionSuggestionsQuerySchema,
   logBugBodySchema,
+  getLogBugsQuerySchema,
   jiraProfileBodySchema,
 };

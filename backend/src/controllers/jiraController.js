@@ -7,6 +7,7 @@ const {
   getVersionSuggestionsService,
   getJiraProfileService,
   upsertJiraProfileService,
+  listLogBugsService,
 } = require('../services/jiraManagementService');
 
 const logBug = asyncHandler(async (req, res) => {
@@ -26,6 +27,13 @@ const logBug = asyncHandler(async (req, res) => {
     },
   });
   res.status(201).json(result);
+});
+
+const listLogBugs = asyncHandler(async (req, res) => {
+  const result = await listLogBugsService({
+    ...req.query,
+  });
+  res.json(result);
 });
 
 const getAssignableUsers = asyncHandler(async (req, res) => {
@@ -71,6 +79,7 @@ const upsertJiraProfile = asyncHandler(async (req, res) => {
 
 module.exports = {
   logBug,
+  listLogBugs,
   getAssignableUsers,
   getLabelSuggestions,
   getVersionSuggestions,
