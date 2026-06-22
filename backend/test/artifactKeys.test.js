@@ -10,11 +10,11 @@ const {
 test('buildRunFailureScreenshotKey uses stable logical key', () => {
   assert.equal(
     buildRunFailureScreenshotKey('run1', 'result1'),
-    'runs/run1/result1/failure.png',
+    'run/run1/result1/failure.png',
   );
   assert.equal(
     buildRunFailureScreenshotKey('run1', 'result1', 'webp'),
-    'runs/run1/result1/failure.webp',
+    'run/run1/result1/failure.webp',
   );
 });
 
@@ -28,11 +28,15 @@ test('buildDryRunFailureScreenshotKey uses dry-run namespace', () => {
 test('normalizeStoredArtifactKey migrates legacy relative paths', () => {
   assert.equal(
     normalizeStoredArtifactKey('uploads/runs/run1/result1/failure.png'),
-    'runs/run1/result1/failure.png',
+    'run/run1/result1/failure.png',
   );
   assert.equal(
     normalizeStoredArtifactKey('runs/run1/result1/failure.jpg'),
-    'runs/run1/result1/failure.jpg',
+    'run/run1/result1/failure.jpg',
+  );
+  assert.equal(
+    normalizeStoredArtifactKey('run/run1/result1/failure.jpg'),
+    'run/run1/result1/failure.jpg',
   );
 });
 

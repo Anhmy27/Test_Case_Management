@@ -6,7 +6,7 @@ Mục tiêu duy nhất trong vài tuần tới:
 
 **Không làm trong giai đoạn này:** Docker app, Queue, Redis, Swagger, Monitoring, Environment Profile.
 
-Đọc file này khi làm automation. Không cần mở `CODING_GUIDELINES.md` cho task automation stability.
+Đọc file này khi làm automation. Không cần mở `.ai/` hay `CODING_GUIDELINES.md` cho task automation stability (trừ khi đụng schema hoặc flow).
 
 ---
 

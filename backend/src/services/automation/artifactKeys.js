@@ -1,11 +1,13 @@
 const path = require('path');
 const {
   ARTIFACT_ROOT_DIR,
+  LEGACY_ARTIFACT_NESTED_ROOT,
   LEGACY_ARTIFACT_RUN_ROOT,
   DRY_RUN_ARTIFACT_NAMESPACE,
 } = require('../../config/automationArtifacts');
 
-const RUNS_PREFIX = 'runs';
+const RUN_PREFIX = 'run';
+const LEGACY_RUNS_PREFIX = 'runs';
 const DRY_RUN_PREFIX = DRY_RUN_ARTIFACT_NAMESPACE;
 const FAILURE_BASENAME = 'failure';
 
@@ -27,7 +29,7 @@ const normalizeSlashes = (value) => String(value || '').replace(/\\/g, '/').trim
 
 const buildRunFailureScreenshotKey = (runId, resultId, extension = 'png') => {
   const ext = String(extension || 'png').replace(/^\./, '').toLowerCase();
-  return `${RUNS_PREFIX}/${runId}/${resultId}/${FAILURE_BASENAME}.${ext}`;
+  return `${RUN_PREFIX}/${runId}/${resultId}/${FAILURE_BASENAME}.${ext}`;
 };
 
 const buildDryRunFailureScreenshotKey = (dryRunId) =>
@@ -41,18 +43,28 @@ const contentTypeFromKey = (key) => {
   return EXTENSION_TO_MIME[ext] || 'image/png';
 };
 
+const isRunArtifactKey = (normalized) =>
+  normalized.startsWith(`${RUN_PREFIX}/`) || normalized.startsWith(`${LEGACY_RUNS_PREFIX}/`);
+
 const isLogicalArtifactKey = (stored) => {
   const normalized = normalizeSlashes(stored);
-  return normalized.startsWith(`${RUNS_PREFIX}/`) || normalized.startsWith(`${DRY_RUN_PREFIX}/`);
+  return isRunArtifactKey(normalized) || normalized.startsWith(`${DRY_RUN_PREFIX}/`);
+};
+
+const toCanonicalRunKey = (normalized) => {
+  if (normalized.startsWith(`${LEGACY_RUNS_PREFIX}/`)) {
+    return `${RUN_PREFIX}/${normalized.slice(LEGACY_RUNS_PREFIX.length + 1)}`;
+  }
+  return normalized;
 };
 
 const extractRunFailureScreenshotKey = (stored) => {
   const normalized = normalizeSlashes(stored);
   const logicalMatch = normalized.match(
-    /(?:^|\/)(runs\/[^/]+\/[^/]+\/failure\.(?:png|jpe?g|webp))$/i,
+    /(?:^|\/)(?:run|runs)\/[^/]+\/[^/]+\/failure\.(?:png|jpe?g|webp)$/i,
   );
   if (logicalMatch) {
-    return logicalMatch[1];
+    return toCanonicalRunKey(logicalMatch[0].replace(/^\//, ''));
   }
 
   const legacyMatch = normalized.match(/([^/]+)\/([^/]+)\/failure\.(?:png|jpe?g|webp)$/i);
@@ -74,7 +86,7 @@ const normalizeStoredArtifactKey = (stored) => {
   }
 
   if (isLogicalArtifactKey(normalized)) {
-    return normalized;
+    return toCanonicalRunKey(normalized);
   }
 
   const extracted = extractRunFailureScreenshotKey(normalized);
@@ -85,6 +97,19 @@ const normalizeStoredArtifactKey = (stored) => {
   return normalized;
 };
 
+const legacyRunKeyVariants = (canonicalKey) => {
+  const key = normalizeStoredArtifactKey(canonicalKey);
+  if (!key || !key.startsWith(`${RUN_PREFIX}/`)) {
+    return key ? [key] : [];
+  }
+
+  const suffix = key.slice(RUN_PREFIX.length + 1);
+  return [
+    key,
+    `${LEGACY_RUNS_PREFIX}/${suffix}`,
+  ];
+};
+
 const resolveLegacyLocalPaths = (stored) => {
   const normalized = normalizeSlashes(stored);
   const candidates = [];
@@ -93,9 +118,14 @@ const resolveLegacyLocalPaths = (stored) => {
     candidates.push(path.resolve(process.cwd(), normalized));
   }
 
-  const key = normalizeStoredArtifactKey(stored);
-  if (key) {
-    candidates.push(path.join(ARTIFACT_ROOT_DIR, key));
+  const canonicalKey = normalizeStoredArtifactKey(stored);
+  for (const keyVariant of legacyRunKeyVariants(canonicalKey)) {
+    candidates.push(path.join(ARTIFACT_ROOT_DIR, keyVariant));
+    candidates.push(path.join(LEGACY_ARTIFACT_NESTED_ROOT, keyVariant));
+  }
+
+  if (canonicalKey.startsWith(`${DRY_RUN_PREFIX}/`)) {
+    candidates.push(path.join(LEGACY_ARTIFACT_NESTED_ROOT, canonicalKey));
   }
 
   const legacyMatch = normalized.match(/([^/]+)\/([^/]+)\/failure\.(?:png|jpe?g|webp)$/i);
@@ -108,11 +138,13 @@ const resolveLegacyLocalPaths = (stored) => {
     ));
   }
 
-  return candidates;
+  return [...new Set(candidates)];
 };
 
 module.exports = {
-  RUNS_PREFIX,
+  RUN_PREFIX,
+  LEGACY_RUNS_PREFIX,
+  RUNS_PREFIX: RUN_PREFIX,
   DRY_RUN_PREFIX,
   buildRunFailureScreenshotKey,
   buildDryRunFailureScreenshotKey,

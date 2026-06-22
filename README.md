@@ -319,7 +319,7 @@ This lets automation runs access logged-in pages without typing username and pas
 ### Automation security and recovery
 
 - **Orphaned run recovery**: on backend startup, automation runs stuck in `running` are resumed for pending cases.
-- **Artifact retention**: failure screenshots under `uploads/runs/` are cleaned up after `ARTIFACT_RETENTION_DAYS` (default 30); dry-run artifacts expire after `DRY_RUN_ARTIFACT_RETENTION_HOURS` (default 24).
+- **Artifact retention**: failure screenshots under `uploads/run/`; dry-run under `uploads/dry-run/`. Cleaned after `ARTIFACT_RETENTION_DAYS` (default 30) and `DRY_RUN_ARTIFACT_RETENTION_HOURS` (default 24). Legacy paths `uploads/artifacts/` and `uploads/runs/` still readable.
 - **SSRF guardrails**:
   - `goto` / navigation must stay on the run `baseUrl` origin unless the host is listed in `AUTOMATION_ALLOWED_HOSTS`.
   - Metadata hosts (e.g. `169.254.169.254`) are always blocked.
@@ -329,7 +329,7 @@ Optional backend env vars:
 
 ```env
 # AUTOMATION_ALLOWED_HOSTS=localhost,127.0.0.1,rd.cytech.ai,*.cytech.ai
-# ARTIFACT_ROOT_DIR=uploads/runs
+# ARTIFACT_ROOT_DIR=uploads
 # AUTOMATION_UPLOAD_DIR=uploads/test-files
 # ARTIFACT_RETENTION_DAYS=30
 # DRY_RUN_ARTIFACT_RETENTION_HOURS=24

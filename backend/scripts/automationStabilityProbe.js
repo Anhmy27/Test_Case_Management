@@ -285,8 +285,6 @@ const main = async () => {
 
   console.log('\n========================================');
   console.log(`Report saved: ${reportPath}`);
-  console.log('Copy results into AUTOMATION_STABILITY_ROADMAP.md → Kết quả baseline');
-  console.log('When ready, confirm to proceed to Phase 1.');
   console.log('========================================\n');
 
   await mongoose.disconnect();
