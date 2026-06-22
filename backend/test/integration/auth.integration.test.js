@@ -32,11 +32,13 @@ test('register → me → logout auth cookie flow', async () => {
 
     assert.equal(registerRes.body.user.email, 'employee@integration.test');
     assert.equal(registerRes.body.user.role, 'employee');
+    assert.ok(registerRes.body.csrfToken, 'register should return CSRF token');
     assert.ok(client.getCsrfToken(), 'register should set CSRF cookie');
     assert.ok(client.cookies().tcm_access_token, 'register should set access cookie');
 
     const meRes = await client.get('/api/auth/me', 200);
     assert.equal(meRes.body.user.email, 'employee@integration.test');
+    assert.ok(meRes.body.csrfToken, 'me should return CSRF token for cross-origin clients');
 
     await client.post('/api/auth/logout', {}, 204);
 

@@ -1,15 +1,11 @@
+import {
+  captureAuthCsrfToken,
+  clearAuthCsrfToken,
+  getCsrfTokenForRequest,
+} from './csrfToken';
+
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:5000';
-const CSRF_COOKIE = 'tcm_csrf';
 const CSRF_HEADER = 'X-CSRF-Token';
-
-function readBrowserCookie(name: string): string {
-  if (typeof document === 'undefined') {
-    return '';
-  }
-
-  const match = document.cookie.match(new RegExp(`(?:^|; )${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}=([^;]*)`));
-  return match ? decodeURIComponent(match[1]) : '';
-}
 
 // short in-memory cache + in-flight dedupe for GET requests to reduce burst pressure
 const _inflight = new Map<string, Promise<unknown>>();
@@ -70,7 +66,7 @@ export async function apiRequest<T>(
   }
 
   if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
-    const csrfToken = readBrowserCookie(CSRF_COOKIE);
+    const csrfToken = getCsrfTokenForRequest();
     if (csrfToken) {
       headers[CSRF_HEADER] = csrfToken;
     }
@@ -108,6 +104,11 @@ export async function apiRequest<T>(
           ? String((data as { message?: unknown }).message || text || "Request failed")
           : String(text || "Request failed");
       throw new Error(message);
+    }
+
+    captureAuthCsrfToken(data);
+    if (method === 'POST' && path.includes('/api/auth/logout')) {
+      clearAuthCsrfToken();
     }
 
     // cache GET responses briefly
@@ -776,7 +777,7 @@ export async function downloadTestRunExport(
   }
 
   const headers: Record<string, string> = {};
-  const csrfToken = readBrowserCookie(CSRF_COOKIE);
+  const csrfToken = getCsrfTokenForRequest();
   if (csrfToken) {
     headers[CSRF_HEADER] = csrfToken;
   }

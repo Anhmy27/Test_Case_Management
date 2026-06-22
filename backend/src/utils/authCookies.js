@@ -29,11 +29,19 @@ const parseDurationMs = (value, fallbackMs) => {
   return amount * (multipliers[unit] || multipliers.s);
 };
 
-const cookieBaseOptions = () => ({
-  sameSite: 'lax',
-  secure: isProduction(),
-  path: '/',
-});
+const cookieBaseOptions = () => {
+  const secure = isProduction();
+  const configuredSameSite = String(process.env.COOKIE_SAME_SITE || '').trim().toLowerCase();
+  const sameSite = configuredSameSite === 'none' || configuredSameSite === 'lax' || configuredSameSite === 'strict'
+    ? configuredSameSite
+    : (secure ? 'none' : 'lax');
+
+  return {
+    sameSite,
+    secure: sameSite === 'none' ? true : secure,
+    path: '/',
+  };
+};
 
 const getAuthCookieMaxAgeMs = () => parseDurationMs(getJwtExpiresIn(), 8 * 60 * 60 * 1000);
 
@@ -52,6 +60,8 @@ const setAuthCookies = (res, accessToken) => {
     httpOnly: false,
     maxAge,
   });
+
+  return csrfToken;
 };
 
 const clearAuthCookies = (res) => {

@@ -9,3 +9,4 @@ uploads/
 backend/uploads/
 # Automation stability probe output (baseline copied into AUTOMATION_STABILITY_ROADMAP.md)
 reports/
+.env*

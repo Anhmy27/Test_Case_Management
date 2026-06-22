@@ -99,8 +99,10 @@ test('register sets cookies and returns user payload without token', async () =>
     authCookies: {
       setAuthCookies: (res, token) => {
         setCookiesArgs = { res, token };
+        return 'csrf-mock-token';
       },
       clearAuthCookies: () => {},
+      CSRF_COOKIE: 'tcm_csrf',
     },
   }, async ({ register }) => {
     const req = { body: { email: 'a@b.com' } };
@@ -120,7 +122,7 @@ test('register sets cookies and returns user payload without token', async () =>
     await invokeHandler(register, req, res);
 
     assert.equal(statusCode, 201);
-    assert.deepEqual(payload, { user: { id: 'u1', role: 'employee' } });
+    assert.deepEqual(payload, { user: { id: 'u1', role: 'employee' }, csrfToken: 'csrf-mock-token' });
     assert.equal(setCookiesArgs.token, 'signed-token');
   });
 });
@@ -144,8 +146,10 @@ test('login sets cookies and returns user payload without token', async () => {
     authCookies: {
       setAuthCookies: (res, token) => {
         setCookiesToken = token;
+        return 'csrf-mock-token';
       },
       clearAuthCookies: () => {},
+      CSRF_COOKIE: 'tcm_csrf',
     },
   }, async ({ login }) => {
     const req = { body: { email: 'x@y.com', password: '123456' } };
@@ -160,7 +164,7 @@ test('login sets cookies and returns user payload without token', async () => {
     await invokeHandler(login, req, res);
 
     assert.equal(setCookiesToken, 'login-token');
-    assert.deepEqual(payload, { user: { id: 'u2', role: 'admin' } });
+    assert.deepEqual(payload, { user: { id: 'u2', role: 'admin' }, csrfToken: 'csrf-mock-token' });
     assert.equal('token' in payload, false);
   });
 });
@@ -215,6 +219,7 @@ test('me returns null payload when user missing', async () => {
     authCookies: {
       setAuthCookies: () => {},
       clearAuthCookies: () => {},
+      CSRF_COOKIE: 'tcm_csrf',
     },
   }, async ({ me }) => {
     const req = { user: { id: 'missing' } };
@@ -246,6 +251,7 @@ test('auth controller propagates service errors via asyncHandler', async () => {
     authCookies: {
       setAuthCookies: () => {},
       clearAuthCookies: () => {},
+      CSRF_COOKIE: 'tcm_csrf',
     },
   }, async ({ register }) => {
     const req = { body: {} };
