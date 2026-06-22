@@ -3,11 +3,12 @@ const path = require('path');
 const TestRun = require('../../models/TestRun');
 const {
   ARTIFACT_ROOT_DIR,
+  LEGACY_ARTIFACT_NESTED_ROOT,
   LEGACY_ARTIFACT_RUN_ROOT,
   DRY_RUN_ARTIFACT_NAMESPACE,
   getArtifactRetentionConfig,
 } = require('../../config/automationArtifacts');
-const { RUNS_PREFIX } = require('./artifactKeys');
+const { RUN_PREFIX, LEGACY_RUNS_PREFIX } = require('./artifactKeys');
 
 const ensureDirectory = (dirPath) => {
   if (!fs.existsSync(dirPath)) {
@@ -31,25 +32,40 @@ const isPathInsideRoot = (targetPath, rootPath) => {
     || resolvedTarget.startsWith(`${resolvedRoot}${path.sep}`);
 };
 
-const cleanupDryRunArtifacts = (dryRunRetentionHours) => {
-  const dryRunRoot = path.join(ARTIFACT_ROOT_DIR, DRY_RUN_ARTIFACT_NAMESPACE);
-  if (!fs.existsSync(dryRunRoot)) {
-    return 0;
+const removeFirstExistingDirectory = (candidates) => {
+  for (const dirPath of candidates) {
+    if (removeDirectoryIfExists(dirPath)) {
+      return true;
+    }
   }
+  return false;
+};
+
+const cleanupDryRunArtifacts = (dryRunRetentionHours) => {
+  const dryRunRoots = [
+    path.join(ARTIFACT_ROOT_DIR, DRY_RUN_ARTIFACT_NAMESPACE),
+    path.join(LEGACY_ARTIFACT_NESTED_ROOT, DRY_RUN_ARTIFACT_NAMESPACE),
+  ];
 
   const cutoffMs = Date.now() - (dryRunRetentionHours * 60 * 60 * 1000);
   let removed = 0;
 
-  for (const entry of fs.readdirSync(dryRunRoot, { withFileTypes: true })) {
-    if (!entry.isDirectory()) {
+  for (const dryRunRoot of dryRunRoots) {
+    if (!fs.existsSync(dryRunRoot)) {
       continue;
     }
 
-    const dirPath = path.join(dryRunRoot, entry.name);
-    const stats = fs.statSync(dirPath);
-    if (stats.mtimeMs <= cutoffMs) {
-      removeDirectoryIfExists(dirPath);
-      removed += 1;
+    for (const entry of fs.readdirSync(dryRunRoot, { withFileTypes: true })) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+
+      const dirPath = path.join(dryRunRoot, entry.name);
+      const stats = fs.statSync(dirPath);
+      if (stats.mtimeMs <= cutoffMs) {
+        removeDirectoryIfExists(dirPath);
+        removed += 1;
+      }
     }
   }
 
@@ -66,18 +82,21 @@ const cleanupCompletedRunArtifacts = async (retentionDays) => {
   let removed = 0;
 
   for (const run of completedRuns) {
-    const runDir = path.join(ARTIFACT_ROOT_DIR, RUNS_PREFIX, String(run._id));
-    if (!isPathInsideRoot(runDir, ARTIFACT_ROOT_DIR)) {
-      continue;
-    }
+    const runId = String(run._id);
+    const candidateRoots = [
+      [ARTIFACT_ROOT_DIR, RUN_PREFIX],
+      [ARTIFACT_ROOT_DIR, LEGACY_RUNS_PREFIX],
+      [LEGACY_ARTIFACT_NESTED_ROOT, RUN_PREFIX],
+      [LEGACY_ARTIFACT_NESTED_ROOT, LEGACY_RUNS_PREFIX],
+    ];
 
-    if (removeDirectoryIfExists(runDir)) {
-      removed += 1;
-      continue;
-    }
+    const candidates = candidateRoots
+      .map(([root, prefix]) => path.join(root, prefix, runId))
+      .filter((dirPath) => candidateRoots.some(([root]) => isPathInsideRoot(dirPath, root)));
 
-    const legacyRunDir = path.join(LEGACY_ARTIFACT_RUN_ROOT, String(run._id));
-    if (isPathInsideRoot(legacyRunDir, LEGACY_ARTIFACT_RUN_ROOT) && removeDirectoryIfExists(legacyRunDir)) {
+    candidates.push(path.join(LEGACY_ARTIFACT_RUN_ROOT, runId));
+
+    if (removeFirstExistingDirectory(candidates)) {
       removed += 1;
     }
   }
