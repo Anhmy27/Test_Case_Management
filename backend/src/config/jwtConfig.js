@@ -24,10 +24,6 @@ function getJwtSecret() {
     throw new Error('JWT_SECRET is too weak for production. Use a random string of at least 32 characters.');
   }
 
-  if (isWeak) {
-    console.warn('[JWT] JWT_SECRET is weak. Use a random string of at least 32 characters before production.');
-  }
-
   return secret;
 }
 
