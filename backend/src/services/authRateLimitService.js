@@ -91,7 +91,7 @@ async function consumeAuthRateLimitBucket({
         ...(email ? { email } : {}),
       },
     },
-    { new: true },
+    { returnDocument: 'after' },
   );
 
   if (incremented) {

@@ -8,7 +8,7 @@ async function revokeUserSessions(userId) {
   const user = await User.findByIdAndUpdate(
     userId,
     { $inc: { tokenVersion: 1 } },
-    { new: true },
+    { returnDocument: 'after' },
   ).lean();
 
   return readTokenVersion(user);
