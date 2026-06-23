@@ -6,6 +6,7 @@ const {
   resolveLocator,
   resolveTextClickLocator,
 } = require('./locatorResolution');
+const { runStepWithRetries } = require('./stepRetry');
 
 const ALLOWED_ACTIONS = new Set([
   'goto',
@@ -513,7 +514,9 @@ const runAutomationSteps = async ({
     }
 
     try {
-      const stepLog = await executeStep(page, step, baseUrl, resolvedCaseTimeout, locatorAmbiguity);
+      const stepLog = await runStepWithRetries(() =>
+        executeStep(page, step, baseUrl, resolvedCaseTimeout, locatorAmbiguity),
+      );
       logLines.push(stepLog);
     } catch (error) {
       throw new Error(formatStepError(step, stepIndex, page, error, resolvedCaseTimeout));

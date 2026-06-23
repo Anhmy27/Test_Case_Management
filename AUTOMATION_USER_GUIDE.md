@@ -39,6 +39,8 @@ Khi bạn chọn **Loại selector** + điền **Selector / text**, engine (`pla
 - **Khớp > 1** → **run thật:** fail; **dry run:** WARNING trong log và vẫn dùng phần tử đầu (để debug).
 - **`click` + Text:** tìm **button** hoặc **link** (`<a>`) có chữ đó — không chỉ button.
 
+**Retry bước (P4):** Lỗi **tạm** (timeout, phần tử chưa bấm được…) → engine **thử lại tối đa 2 lần**. **Assert sai** (text/URL không khớp mong đợi) → **không** retry.
+
 **Không được dán HTML vào ô Selector.** Chỉ điền “địa chỉ”, không phải thẻ.
 
 | Sai | Đúng |
