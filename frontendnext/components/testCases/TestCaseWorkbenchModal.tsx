@@ -4,6 +4,7 @@
 
 import { useEffect } from "react";
 import { getId } from "@/lib/api";
+import { WORKBENCH_HINT_CLS, WORKBENCH_META_CLS, WORKBENCH_SELECT_CLS } from "@/components/workspaceScreens/shared";
 import type { ReactNode } from "react";
 
 type RecordAny = Record<string, any>;
@@ -65,27 +66,27 @@ export default function TestCaseWorkbenchModal({
       onClick={onClose}
     >
       <div
-        className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+        className="flex max-h-[92vh] w-full max-w-[67.2rem] flex-col overflow-hidden rounded-lg bg-white shadow-xl"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="test-case-workbench-title"
       >
-        <div className="shrink-0 border-b border-slate-200 px-5 py-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="shrink-0 border-b border-slate-100 px-4 py-2.5">
+          <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
               <div
                 id="test-case-workbench-title"
-                className="text-lg font-semibold text-slate-900"
+                className="text-sm font-semibold text-slate-900"
               >
                 {modeTitle[mode]}
               </div>
-              <div className="text-xs text-slate-500">{modeSubtitle[mode]}</div>
+              <div className={`${WORKBENCH_HINT_CLS} normal-case`}>{modeSubtitle[mode]}</div>
             </div>
 
             <button
               type="button"
-              className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-600 hover:border-slate-400 hover:bg-slate-50"
+              className={`${WORKBENCH_META_CLS} rounded border border-slate-200 px-1.5 py-px text-slate-500 hover:bg-slate-50 hover:text-slate-700`}
               onClick={onClose}
               aria-label="Close"
             >
@@ -94,16 +95,16 @@ export default function TestCaseWorkbenchModal({
           </div>
 
           {canNavigate ? (
-            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Chọn test case
+            <div className="mt-2 flex flex-wrap items-center gap-1.5 rounded border border-slate-100 bg-slate-50/80 px-2 py-1.5">
+              <span className="text-[11px] uppercase tracking-wide text-slate-400">
+                Test case
               </span>
               <div className="flex min-w-0 flex-1 items-center gap-2">
                 <button
                   type="button"
                   disabled={activeIndex <= 0}
                   onClick={() => goToCase(-1)}
-                  className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                  className={`${WORKBENCH_META_CLS} rounded border border-slate-200 bg-white px-1 py-px hover:bg-slate-100 disabled:opacity-40`}
                   aria-label="Previous test case"
                 >
                   ‹
@@ -116,7 +117,7 @@ export default function TestCaseWorkbenchModal({
                     );
                     if (nextCase) onSelectCase(nextCase);
                   }}
-                  className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-800"
+                  className={`${WORKBENCH_SELECT_CLS} min-w-0 flex-1`}
                 >
                   {cases.map((item) => (
                     <option key={getId(item)} value={getId(item)}>
@@ -128,13 +129,13 @@ export default function TestCaseWorkbenchModal({
                   type="button"
                   disabled={activeIndex < 0 || activeIndex >= cases.length - 1}
                   onClick={() => goToCase(1)}
-                  className="rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
+                  className={`${WORKBENCH_META_CLS} rounded border border-slate-200 bg-white px-1 py-px hover:bg-slate-100 disabled:opacity-40`}
                   aria-label="Next test case"
                 >
                   ›
                 </button>
                 {activeIndex >= 0 ? (
-                  <span className="shrink-0 text-[11px] font-semibold text-slate-500">
+                  <span className={`${WORKBENCH_META_CLS} shrink-0 text-slate-500`}>
                     {activeIndex + 1}/{cases.length}
                   </span>
                 ) : null}
@@ -143,7 +144,7 @@ export default function TestCaseWorkbenchModal({
           ) : null}
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">{children}</div>
       </div>
     </div>
   );

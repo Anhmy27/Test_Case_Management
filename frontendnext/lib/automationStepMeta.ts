@@ -12,6 +12,7 @@ export type AutomationStep = {
   target: string;
   value: string;
   expected: string;
+  /** Giây; để trống = dùng timeout mặc định của test case */
   timeoutMs: string;
 };
 
@@ -29,7 +30,6 @@ export type ActionMeta = {
   description: string;
   targetTypes: string[];
   needsTarget: boolean;
-  /** Hiện nhóm selector nhưng không bắt buộc (vd. press). */
   optionalTarget?: boolean;
   needsValue: boolean;
   needsExpected: boolean;
@@ -49,7 +49,6 @@ export const TARGET_TYPE_LABELS: Record<string, string> = {
   url: "URL",
 };
 
-/** Nhãn ô giá trị theo hành động — dùng trong form step. */
 export function getValueFieldLabel(action: string): string {
   const meta = ACTION_META[action];
   if (meta?.valueLabel) return meta.valueLabel;
@@ -67,15 +66,15 @@ export function getValueFieldLabel(action: string): string {
   }
 }
 
-/** Danh sách ngắn các ô cần điền (hiển thị chip gợi ý). */
+/** Chip gợi ý ô cần điền — khớp form gốc, timeout bước là tùy chọn */
 export function getActionRequiredHints(action: string): string[] {
   const meta = ACTION_META[action] ?? ACTION_META.goto;
 
   if (action === "wait") {
-    return ["Thời gian đợi"];
+    return ["Chờ trang ổn định"];
   }
 
-  const hints: string[] = ["Timeout"];
+  const hints: string[] = [];
 
   if (meta.needsValue) {
     hints.push(getValueFieldLabel(action));
@@ -96,6 +95,40 @@ export function stepHasParameterFields(action: string): boolean {
   if (action === "wait") return false;
   const meta = ACTION_META[action] ?? ACTION_META.goto;
   return meta.needsValue || meta.needsExpected || meta.needsTarget || Boolean(meta.optionalTarget);
+}
+
+export const DEFAULT_AUTOMATION_TIMEOUT_SECONDS = "30";
+
+function parseOptionalTimeoutSeconds(value: string): number | null {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return parsed;
+}
+
+export function normalizeAutomationStepsForApi(steps: AutomationStep[]) {
+  return steps
+    .filter((step) => String(step.action || "").trim())
+    .map((step, index) => {
+      const stepTimeoutSeconds = parseOptionalTimeoutSeconds(step.timeoutMs);
+      const normalized = {
+        stepId: String(step.stepId || "").trim() || String(index + 1),
+        stepName: String(step.stepName || "").trim(),
+        order: index + 1,
+        action: String(step.action || "goto").trim(),
+        targetType: String(step.targetType || "css"),
+        target: String(step.target || ""),
+        value: String(step.value || ""),
+        expected: String(step.expected || ""),
+      };
+
+      if (stepTimeoutSeconds !== null) {
+        return { ...normalized, timeoutMs: stepTimeoutSeconds * 1000 };
+      }
+
+      return normalized;
+    });
 }
 
 export const ACTION_META: Record<string, ActionMeta> = {
@@ -138,7 +171,7 @@ export const ACTION_META: Record<string, ActionMeta> = {
   },
   wait: {
     label: "Đợi",
-    description: "Chờ X giây, không thao tác — dùng ô timeout bên cạnh",
+    description: "Chờ trang load/domcontentloaded — dùng timeout của test case hoặc bước",
     needsTarget: false, needsValue: false, needsExpected: false,
     targetTypes: [],
     targetPlaceholder: "",
@@ -267,7 +300,7 @@ export const DEFAULT_AUTOMATION_STEP = (): AutomationStep => ({
   target: "",
   value: "",
   expected: "",
-  timeoutMs: "15",
+  timeoutMs: "",
 });
 
 export const DEFAULT_AUTOMATION_FORM = (): AutomationForm => ({
@@ -275,6 +308,6 @@ export const DEFAULT_AUTOMATION_FORM = (): AutomationForm => ({
   webId: "",
   baseUrl: "",
   userKey: "",
-  timeoutMs: "30",
+  timeoutMs: DEFAULT_AUTOMATION_TIMEOUT_SECONDS,
   steps: [],
 });

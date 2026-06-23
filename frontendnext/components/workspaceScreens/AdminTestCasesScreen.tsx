@@ -14,7 +14,7 @@ import AutomationDryRunPanel from "@/components/automation/AutomationDryRunPanel
 import TestCaseWorkbenchModal from "@/components/testCases/TestCaseWorkbenchModal";
 import TestCaseVersionsPanel from "@/components/testCases/TestCaseVersionsPanel";
 import type { AutomationForm } from "@/lib/automationStepMeta";
-import { Button, Field, INPUT_CLS, ScopedProjectField } from "./shared";
+import { Button, WorkbenchField, WORKBENCH_INPUT_CLS, WORKBENCH_LABEL_CLS, WORKBENCH_META_CLS, WORKBENCH_SELECT_CLS, WORKBENCH_TEXTAREA_CLS, WorkbenchSection, ScopedProjectField } from "./shared";
 
 type RecordAny = Record<string, any>;
 
@@ -461,12 +461,14 @@ export default function AdminTestCasesScreen(props: Props) {
                         }`}
                         onClick={() => openEdit(testCase)}
                       >
-                        <td className="px-4 py-3">
+                        <td
+                          className="px-4 py-3"
+                          onClick={(event) => event.stopPropagation()}
+                        >
                           <input
                             type="checkbox"
                             checked={selected}
-                            onChange={(event) => {
-                              event.stopPropagation();
+                            onChange={() => {
                               setSelectedIds((prev) =>
                                 selected
                                   ? prev.filter((id) => id !== caseId)
@@ -611,14 +613,14 @@ export default function AdminTestCasesScreen(props: Props) {
           onSelectCase={switchWorkbenchCase}
         >
           {workbenchModal === "edit" ? (
-            <div className="mb-4 flex flex-wrap gap-2 border-b border-slate-200 pb-3">
+            <div className="mb-2 flex flex-wrap gap-1 border-b border-slate-100 pb-1.5">
               <button
                 type="button"
                 onClick={() => setWorkbenchTab("details")}
-                className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                className={`rounded px-2 py-0.5 text-[11px] ${
                   workbenchTab === "details"
-                    ? "bg-indigo-600 text-white"
-                    : "bg-slate-100 text-slate-600"
+                    ? "bg-slate-800 text-white"
+                    : "bg-slate-100 text-slate-500"
                 }`}
               >
                 Details
@@ -626,10 +628,10 @@ export default function AdminTestCasesScreen(props: Props) {
               <button
                 type="button"
                 onClick={() => setWorkbenchTab("versions")}
-                className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                className={`rounded px-2 py-0.5 text-[11px] ${
                   workbenchTab === "versions"
-                    ? "bg-indigo-600 text-white"
-                    : "bg-slate-100 text-slate-600"
+                    ? "bg-slate-800 text-white"
+                    : "bg-slate-100 text-slate-500"
                 }`}
               >
                 Versions
@@ -640,9 +642,13 @@ export default function AdminTestCasesScreen(props: Props) {
           {workbenchModal === "edit" && workbenchTab === "versions" ? (
             <TestCaseVersionsPanel testCaseId={String(effectiveActiveId)} />
           ) : (
-          <form className="space-y-4" onSubmit={handleSaveTestCase}>
-                <div className="grid grid-cols-2 gap-3">
+          <form
+            className="test-case-workbench-form space-y-2 [&_input]:!text-[10px] [&_select]:!text-[10px] [&_textarea]:!text-[10px]"
+            onSubmit={handleSaveTestCase}
+          >
+                <div className="grid grid-cols-2 gap-1.5">
                   <ScopedProjectField
+                    variant="workbench"
                     isProjectScoped={isProjectScoped}
                     scopedProjectName={scopedProjectName}
                     projectId={testCaseForm.projectId}
@@ -656,7 +662,7 @@ export default function AdminTestCasesScreen(props: Props) {
                     }
                     getId={getId}
                   />
-                  <Field label="Group">
+                  <WorkbenchField label="Group">
                     <select
                       value={testCaseForm.groupId}
                       onChange={(e) =>
@@ -665,7 +671,7 @@ export default function AdminTestCasesScreen(props: Props) {
                           groupId: e.target.value,
                         }))
                       }
-                      className={INPUT_CLS}
+                      className={WORKBENCH_SELECT_CLS}
                       required
                     >
                       <option value="">Chọn group</option>
@@ -680,11 +686,11 @@ export default function AdminTestCasesScreen(props: Props) {
                           </option>
                         ))}
                     </select>
-                  </Field>
+                  </WorkbenchField>
                 </div>
 
-                <div className="grid grid-cols-[110px_1fr] gap-3">
-                  <Field label="Case key">
+                <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-1.5">
+                  <WorkbenchField label="Case key">
                     <input
                       value={testCaseForm.caseKey}
                       onChange={(e) =>
@@ -693,12 +699,12 @@ export default function AdminTestCasesScreen(props: Props) {
                           caseKey: e.target.value.toUpperCase(),
                         }))
                       }
-                      className={`${INPUT_CLS} font-mono uppercase`}
+                      className={`${WORKBENCH_INPUT_CLS} font-mono uppercase`}
                       placeholder="TC-001"
                       required
                     />
-                  </Field>
-                  <Field label="Tiêu đề">
+                  </WorkbenchField>
+                  <WorkbenchField label="Tiêu đề">
                     <input
                       value={testCaseForm.title}
                       onChange={(e) =>
@@ -707,15 +713,15 @@ export default function AdminTestCasesScreen(props: Props) {
                           title: e.target.value,
                         }))
                       }
-                      className={INPUT_CLS}
-                      placeholder="Mô tả ngắn về test case..."
+                      className={WORKBENCH_INPUT_CLS}
+                      placeholder="Mô tả ngắn..."
                       required
                     />
-                  </Field>
+                  </WorkbenchField>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3">
-                  <Field label="Priority">
+                <div className="grid grid-cols-3 gap-1.5">
+                  <WorkbenchField label="Priority">
                     <select
                       value={testCaseForm.priority || "medium"}
                       onChange={(e) =>
@@ -724,15 +730,15 @@ export default function AdminTestCasesScreen(props: Props) {
                           priority: e.target.value,
                         }))
                       }
-                      className={INPUT_CLS}
+                      className={WORKBENCH_SELECT_CLS}
                     >
                       <option value="low">Low</option>
                       <option value="medium">Medium</option>
                       <option value="high">High</option>
                       <option value="critical">Critical</option>
                     </select>
-                  </Field>
-                  <Field label="Severity">
+                  </WorkbenchField>
+                  <WorkbenchField label="Severity">
                     <select
                       value={testCaseForm.severity || "major"}
                       onChange={(e) =>
@@ -741,14 +747,14 @@ export default function AdminTestCasesScreen(props: Props) {
                           severity: e.target.value,
                         }))
                       }
-                      className={INPUT_CLS}
+                      className={WORKBENCH_SELECT_CLS}
                     >
                       <option value="minor">Minor</option>
                       <option value="major">Major</option>
                       <option value="critical">Critical</option>
                     </select>
-                  </Field>
-                  <Field label="Type">
+                  </WorkbenchField>
+                  <WorkbenchField label="Type">
                     <select
                       value={testCaseForm.type || "functional"}
                       onChange={(e) =>
@@ -757,7 +763,7 @@ export default function AdminTestCasesScreen(props: Props) {
                           type: e.target.value,
                         }))
                       }
-                      className={INPUT_CLS}
+                      className={WORKBENCH_SELECT_CLS}
                     >
                       <option value="functional">Functional</option>
                       <option value="api">API</option>
@@ -766,12 +772,12 @@ export default function AdminTestCasesScreen(props: Props) {
                       <option value="security">Security</option>
                       <option value="other">Other</option>
                     </select>
-                  </Field>
+                  </WorkbenchField>
                 </div>
 
-                <Field label="Mô tả">
+                <WorkbenchField label="Mô tả">
                   <textarea
-                    rows={2}
+                    rows={1}
                     value={testCaseForm.description}
                     onChange={(e) =>
                       setTestCaseForm((prev) => ({
@@ -779,114 +785,95 @@ export default function AdminTestCasesScreen(props: Props) {
                         description: e.target.value,
                       }))
                     }
-                    className={`${INPUT_CLS} resize-none`}
-                    placeholder="Mô tả thêm về mục đích test case này..."
+                    className={WORKBENCH_TEXTAREA_CLS}
+                    placeholder="Mục đích test case..."
                   />
-                </Field>
+                </WorkbenchField>
 
-                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-zinc-700 dark:bg-zinc-800/60">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="text-xs font-semibold text-slate-600 dark:text-zinc-300">
-                        Các bước thực hiện
-                      </div>
-                      <div className="text-[11px] text-slate-500 dark:text-zinc-400">
-                        Kéo nút ≡ để sắp xếp lại thứ tự
-                      </div>
-                    </div>
-                    <Button
+                <WorkbenchSection
+                  title="Các bước thực hiện"
+                  hint="Kéo ≡ để đổi thứ tự"
+                  tone="manual"
+                  action={
+                    <button
                       type="button"
-                      size="sm"
-                      label="+ Thêm bước"
+                      className={`${WORKBENCH_META_CLS} rounded border border-slate-200 bg-white px-1.5 py-0.5 hover:bg-slate-100`}
                       onClick={addTestCaseStep}
-                    />
-                  </div>
-                  <div className="mt-3 space-y-2">
+                    >
+                      + Thêm bước
+                    </button>
+                  }
+                >
+                  <div className="space-y-1 rounded-md border border-slate-300/70 bg-slate-200/60 p-1.5">
                     {testCaseForm.steps.map((step, index) => (
                       <div
                         key={index}
-                        className="rounded-lg border border-slate-200 bg-white p-3 dark:border-zinc-700 dark:bg-zinc-900"
+                        className="rounded-md border border-slate-400/60 bg-slate-300/50 p-1.5"
                         onDragOver={handleManualStepDragOver}
-                        onDrop={(event) =>
-                          handleManualStepDrop(index, event)
-                        }
+                        onDrop={(event) => handleManualStepDrop(index, event)}
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              className="cursor-grab rounded border border-slate-200 px-1.5 py-1 text-xs text-slate-400 hover:border-slate-300 hover:text-slate-600 dark:border-zinc-600 dark:text-zinc-500 dark:hover:border-zinc-500 dark:hover:text-zinc-300"
-                              draggable
-                              onDragStart={(event) =>
-                                handleManualStepDragStart(index, event)
-                              }
-                              onDragEnd={handleManualStepDragEnd}
-                              aria-label="Kéo để sắp xếp lại"
-                              title="Kéo để sắp xếp lại"
-                            >
-                              ≡
-                            </button>
-                            <span className="text-[11px] font-semibold text-slate-400 dark:text-zinc-500">
-                              Bước {index + 1}
-                            </span>
-                          </div>
-                          <Button
+                        <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-1">
+                          <button
                             type="button"
-                            size="sm"
-                            variant="danger"
-                            label="Xóa"
-                            onClick={() => removeTestCaseStep(index)}
+                            className={`${WORKBENCH_META_CLS} cursor-grab rounded border border-slate-200 px-1 py-px text-slate-500 hover:text-slate-700`}
+                            draggable
+                            onDragStart={(event) => handleManualStepDragStart(index, event)}
+                            onDragEnd={handleManualStepDragEnd}
+                            aria-label="Kéo để sắp xếp lại"
+                          >
+                            ≡
+                          </button>
+                          <span className="w-3 text-center text-[10px] font-medium tabular-nums text-slate-600">
+                            {index + 1}
+                          </span>
+                          <input
+                            value={step.action}
+                            onChange={(e) => updateTestCaseStep(index, "action", e.target.value)}
+                            placeholder="Mô tả thao tác..."
+                            className={WORKBENCH_INPUT_CLS}
                           />
+                          <button
+                            type="button"
+                            className={`${WORKBENCH_META_CLS} rounded border border-rose-100 px-1.5 py-px text-rose-600 hover:bg-rose-50`}
+                            onClick={() => removeTestCaseStep(index)}
+                          >
+                            Xóa
+                          </button>
                         </div>
-                        <div className="mt-2">
-                          <Field label="Mô tả thao tác">
-                            <textarea
-                              rows={2}
-                              value={step.action}
-                              onChange={(e) =>
-                                updateTestCaseStep(index, "action", e.target.value)
-                              }
-                              placeholder="Nhập thao tác cần thực hiện..."
-                              className={`${INPUT_CLS} resize-none`}
-                            />
-                          </Field>
-                        </div>
-                        <div className="mt-2">
-                          <Field label="Kết quả mong đợi của bước này (tùy chọn)">
-                            <input
-                              value={step.expected || ""}
-                              onChange={(e) =>
-                                updateTestCaseStep(index, "expected", e.target.value)
-                              }
-                              placeholder="Ví dụ: Hiển thị thông báo thành công..."
-                              className={INPUT_CLS}
-                            />
-                          </Field>
-                        </div>
+                        <label className="mt-1 grid grid-cols-[5.5rem_minmax(0,1fr)] items-center gap-1.5">
+                          <span className={WORKBENCH_LABEL_CLS}>KQ bước</span>
+                          <input
+                            value={step.expected || ""}
+                            onChange={(e) => updateTestCaseStep(index, "expected", e.target.value)}
+                            placeholder="Tùy chọn"
+                            className={WORKBENCH_INPUT_CLS}
+                          />
+                        </label>
                       </div>
                     ))}
                   </div>
                   {testCaseForm.steps.length === 0 && (
-                    <div className="mt-2 rounded-lg border border-dashed border-slate-300 p-4 text-center text-xs text-slate-500 dark:border-zinc-600 dark:text-zinc-400">
-                      Chưa có bước nào. Nhấn &quot;+ Thêm bước&quot; để bắt đầu.
+                    <div className={`${WORKBENCH_META_CLS} rounded border border-dashed border-slate-400/70 py-1.5 text-center text-slate-600`}>
+                      Chưa có bước. Nhấn &quot;+ Thêm bước&quot;.
                     </div>
                   )}
-                </div>
 
-                <Field label="Kết quả mong đợi (tổng quan, tùy chọn)">
-                  <textarea
-                    rows={2}
-                    value={testCaseForm.expected}
-                    onChange={(e) =>
-                      setTestCaseForm((prev) => ({
-                        ...prev,
-                        expected: e.target.value,
-                      }))
-                    }
-                    className={`${INPUT_CLS} resize-none`}
-                    placeholder="Mô tả kết quả mong đợi sau khi thực hiện test case..."
-                  />
-                </Field>
+                  <div className="mt-1.5 rounded-md border border-slate-300/70 bg-slate-200/60 p-1.5">
+                    <WorkbenchField label="KQ mong đợi (tổng quan)">
+                      <input
+                        value={testCaseForm.expected}
+                        onChange={(e) =>
+                          setTestCaseForm((prev) => ({
+                            ...prev,
+                            expected: e.target.value,
+                          }))
+                        }
+                        className={WORKBENCH_INPUT_CLS}
+                        placeholder="Kết quả mong đợi sau khi thực hiện các bước thủ công"
+                      />
+                    </WorkbenchField>
+                  </div>
+                </WorkbenchSection>
 
                 <AutomationConfigPanel
                   automationForm={automationForm}
@@ -905,22 +892,23 @@ export default function AdminTestCasesScreen(props: Props) {
                 ) : null}
 
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 pt-0.5">
                   <Button
                     type="submit"
                     variant="primary"
-                    size="lg"
-                    className="flex-1 justify-center"
+                    size="sm"
+                    className="flex-1 justify-center !px-3 !py-1 !text-[11px]"
                     label={
                       workbenchModal === "edit"
-                        ? "+ Save changes"
-                        : "+ Create test case"
+                        ? "Save changes"
+                        : "Create test case"
                     }
                   />
                   {(workbenchModal === "edit" || workbenchModal === "create") && (
                     <Button
                       type="button"
-                      size="lg"
+                      size="sm"
+                      className="!px-3 !py-1 !text-[11px]"
                       label="Cancel"
                       onClick={closeWorkbench}
                     />

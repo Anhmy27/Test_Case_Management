@@ -144,7 +144,6 @@ const resolveLegacyLocalPaths = (stored) => {
 module.exports = {
   RUN_PREFIX,
   LEGACY_RUNS_PREFIX,
-  RUNS_PREFIX: RUN_PREFIX,
   DRY_RUN_PREFIX,
   buildRunFailureScreenshotKey,
   buildDryRunFailureScreenshotKey,

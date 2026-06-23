@@ -26,34 +26,11 @@ const {
 const authManager = createAuthManager();
 const artifactStorage = getArtifactStorage();
 
-const normalizeAutomationSteps = (steps) => {
-  if (!Array.isArray(steps)) {
-    return [];
-  }
-
-  return steps
-    .filter((step) => step && String(step.action || '').trim())
-    .map((step, index) => {
-      const rawTimeout = Number(step.timeoutMs || 15000);
-      const timeoutMs = rawTimeout < 1000 ? rawTimeout * 1000 : rawTimeout;
-
-      return {
-        stepId: String(step.stepId || '').trim() || String(index + 1),
-        stepName: String(step.stepName || '').trim(),
-        order: index + 1,
-        action: String(step.action || 'goto').trim(),
-        targetType: String(step.targetType || 'css').trim(),
-        target: String(step.target || '').trim(),
-        value: String(step.value || '').trim(),
-        expected: String(step.expected || '').trim(),
-        timeoutMs,
-      };
-    });
-};
+const { normalizeCaseTimeoutMs } = require('../../utils/automationTimeouts');
+const { normalizeAutomationSteps } = require('../shared/versioningCore');
 
 const normalizeAutomationConfig = (automation = {}) => {
-  const rawCaseTimeout = Number(automation.timeoutMs || 30000);
-  const timeoutMs = rawCaseTimeout < 1000 ? rawCaseTimeout * 1000 : rawCaseTimeout;
+  const timeoutMs = normalizeCaseTimeoutMs(automation.timeoutMs);
 
   return {
     enabled: Boolean(automation.enabled),
