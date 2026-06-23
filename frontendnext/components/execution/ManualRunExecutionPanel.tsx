@@ -565,7 +565,10 @@ export default function ManualRunExecutionPanel({
                       ? "Log bug to Jira without ending the run"
                       : "Mark this case as Fail to enable Log bug"
                   }
-                  onClick={() => onLogBug?.(selectedRun, selectedItem)}
+                  onClick={() => {
+                    if (!selectedItem) return;
+                    onLogBug?.(selectedRun, selectedItem);
+                  }}
                 >
                   Log bug
                 </button>
