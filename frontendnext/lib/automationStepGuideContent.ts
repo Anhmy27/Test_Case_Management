@@ -131,7 +131,7 @@ export const DRY_RUN_ERROR_ROWS: GuideErrorRow[] = [
 ];
 
 export const P3_RULES_COPY = `Engine cần đúng 1 phần tử khớp selector.
-- Khớp 0 → fail
+- Khớp 0 → chờ tới timeout bước rồi mới fail (không fail ngay 0.0s)
 - Khớp > 1 → run thật: fail; dry run: WARNING trong log
 - click + Text: tìm button hoặc link (<a>), không phải <span>
 - Không dán HTML vào ô Selector

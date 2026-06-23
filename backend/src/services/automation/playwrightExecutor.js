@@ -154,7 +154,7 @@ const assertWithDiagnostics = async (page, checkFn, successMessage, errorMessage
   }
 };
 
-const resolveActionLocator = async (page, step, action, locatorAmbiguity) => {
+const resolveActionLocator = async (page, step, action, locatorAmbiguity, timeoutMs) => {
   const targetType = toString(step.targetType || 'css').toLowerCase();
   const target = toString(step.target);
 
@@ -163,7 +163,12 @@ const resolveActionLocator = async (page, step, action, locatorAmbiguity) => {
       ? resolveTextClickLocator(page, target)
       : resolveLocator(page, step);
 
-  return requireUniqueLocator(rawLocator, { locatorAmbiguity, targetType, target });
+  return requireUniqueLocator(rawLocator, {
+    locatorAmbiguity,
+    targetType,
+    target,
+    timeoutMs,
+  });
 };
 
 const executeStep = async (page, step, baseUrl, caseTimeoutMs, locatorAmbiguity = 'fail') => {
@@ -202,7 +207,13 @@ const executeStep = async (page, step, baseUrl, caseTimeoutMs, locatorAmbiguity 
   }
 
   if (action === 'click') {
-    const { locator, warnings } = await resolveActionLocator(page, step, action, locatorAmbiguity);
+    const { locator, warnings } = await resolveActionLocator(
+      page,
+      step,
+      action,
+      locatorAmbiguity,
+      timeoutMs,
+    );
     const initialUrl = page.url();
 
     await locator.click({ timeout: timeoutMs });
@@ -258,11 +269,17 @@ const executeStep = async (page, step, baseUrl, caseTimeoutMs, locatorAmbiguity 
       step,
       'click',
       locatorAmbiguity,
+      timeoutMs,
     );
     const destinationStep = { ...step, target: destinationSelector };
     const { locator: destination, warnings: destinationWarnings } = await requireUniqueLocator(
       resolveLocator(page, destinationStep),
-      { locatorAmbiguity, targetType, target: destinationSelector },
+      {
+        locatorAmbiguity,
+        targetType,
+        target: destinationSelector,
+        timeoutMs,
+      },
     );
 
     await source.dragTo(destination, { timeout: timeoutMs });
@@ -289,7 +306,7 @@ const executeStep = async (page, step, baseUrl, caseTimeoutMs, locatorAmbiguity 
   let locatorWarnings = [];
 
   if (needsTargetLocator.has(action)) {
-    const resolved = await resolveActionLocator(page, step, action, locatorAmbiguity);
+    const resolved = await resolveActionLocator(page, step, action, locatorAmbiguity, timeoutMs);
     locator = resolved.locator;
     locatorWarnings = resolved.warnings;
   }
@@ -460,7 +477,8 @@ const executeStep = async (page, step, baseUrl, caseTimeoutMs, locatorAmbiguity 
       step,
       timeoutMs,
       locatorAmbiguity,
-      resolveActionLocator,
+      resolveActionLocator: (activePage, activeStep, activeAction, activeAmbiguity) =>
+        resolveActionLocator(activePage, activeStep, activeAction, activeAmbiguity, timeoutMs),
       appendLocatorWarnings,
       capturePageDiagnostics,
     });

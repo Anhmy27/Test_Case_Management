@@ -50,10 +50,33 @@ const buildZeroMatchMessage = (targetType, target) =>
 
 /**
  * @param {import('playwright').Locator} locator
- * @param {{ locatorAmbiguity?: 'fail'|'warn', targetType: string, target: string }} options
+ * @param {{
+ *   locatorAmbiguity?: 'fail'|'warn',
+ *   targetType: string,
+ *   target: string,
+ *   timeoutMs?: number,
+ *   waitForAppearance?: boolean,
+ * }} options
  * @returns {Promise<{ locator: import('playwright').Locator, warnings: string[] }>}
  */
-const requireUniqueLocator = async (locator, { locatorAmbiguity = 'fail', targetType, target }) => {
+const requireUniqueLocator = async (
+  locator,
+  {
+    locatorAmbiguity = 'fail',
+    targetType,
+    target,
+    timeoutMs = 30000,
+    waitForAppearance = true,
+  },
+) => {
+  if (waitForAppearance && timeoutMs > 0) {
+    try {
+      await locator.first().waitFor({ state: 'attached', timeout: timeoutMs });
+    } catch {
+      throw new Error(buildZeroMatchMessage(targetType, target));
+    }
+  }
+
   let count;
 
   try {
