@@ -125,6 +125,7 @@ const dryRunAutomationService = async ({
       page,
       automation: normalizedAutomation,
       baseUrl: resolvedBaseUrl,
+      locatorAmbiguity: 'warn',
       captureFailureScreenshot: async (activePage) => captureFailureScreenshot({
         page: activePage,
         runId: DRY_RUN_ARTIFACT_NAMESPACE,

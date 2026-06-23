@@ -5,6 +5,7 @@ import type { Dispatch, DragEvent, ReactNode, SetStateAction } from "react";
 import {
   ACTION_META,
   ALL_TARGET_TYPES,
+  GOTO_WAIT_UNTIL_OPTIONS,
   TARGET_TYPE_LABELS,
   getValueFieldLabel,
 } from "@/lib/automationStepMeta";
@@ -270,6 +271,7 @@ function AutomationStepRow({
   const allowedTargetTypes =
     meta.targetTypes.length > 0 ? meta.targetTypes : [...ALL_TARGET_TYPES];
   const isWaitStep = step.action === "wait";
+  const isGotoStep = step.action === "goto";
   const showSelectorGroup =
     !isWaitStep && (meta.needsTarget || Boolean(meta.optionalTarget));
   const selectorRequired = meta.needsTarget;
@@ -404,6 +406,28 @@ function AutomationStepRow({
                 value={step.timeoutMs}
                 onChange={setTimeout}
               />
+            </>
+          )}
+
+          {isGotoStep && (
+            <>
+              <div aria-hidden />
+              <div className="min-w-0">
+                <StepFieldLabel>Chờ trang đến</StepFieldLabel>
+                <select
+                  value={step.waitUntil || "load"}
+                  onChange={(e) => onUpdate(index, "waitUntil", e.target.value)}
+                  className={WORKBENCH_SELECT_CLS}
+                  title="Mặc định load — chờ trang load đủ trước bước tiếp theo"
+                >
+                  {GOTO_WAIT_UNTIL_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className={TIMEOUT_COL_W} aria-hidden />
             </>
           )}
 

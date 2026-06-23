@@ -15,6 +15,7 @@ const executeSingleCaseAutomation = async ({
   onStepStart,
   shouldAbort,
   captureFailureScreenshot,
+  locatorAmbiguity = 'fail',
 }) => {
   const caseSteps = Array.isArray(automation?.steps) ? automation.steps : [];
   const logLines = [];
@@ -40,6 +41,7 @@ const executeSingleCaseAutomation = async ({
         caseTimeoutMs,
         onStepStart,
         shouldAbort,
+        locatorAmbiguity,
       });
       logLines.push(...stepLogs);
 

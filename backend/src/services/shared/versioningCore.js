@@ -64,7 +64,7 @@ const normalizeManualSteps = (steps) => {
 
 const normalizeOverallExpected = (value) => String(value || '').trim();
 
-const { normalizeTimeoutInputMs } = require('../../utils/automationTimeouts');
+const { normalizeTimeoutInputMs, normalizeGotoWaitUntil } = require('../../utils/automationTimeouts');
 
 const normalizeAutomationSteps = (steps) => {
   if (!Array.isArray(steps)) {
@@ -88,6 +88,14 @@ const normalizeAutomationSteps = (steps) => {
 
       if (optionalTimeoutMs !== null) {
         normalized.timeoutMs = optionalTimeoutMs;
+      }
+
+      const action = normalized.action.toLowerCase();
+      if (action === 'goto') {
+        const waitUntil = normalizeGotoWaitUntil(step.waitUntil);
+        if (waitUntil === 'domcontentloaded') {
+          normalized.waitUntil = 'domcontentloaded';
+        }
       }
 
       return normalized;

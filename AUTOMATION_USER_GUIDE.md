@@ -32,10 +32,12 @@ Khi bạn chọn **Loại selector** + điền **Selector / text**, engine (`pla
 | **Label** | `page.getByLabel(...)` | Chữ trên `<label>` hoặc `aria-label` | Khớp một phần |
 | **data-testid** | `page.getByTestId(...)` | Giá trị `data-testid="..."` | Khớp chính xác |
 
-**Quy tắc chung sau khi tìm:**
+**Quy tắc chung sau khi tìm (P3 — locator chặt):**
 
-- Hầu hết hành động (`type`, `click` qua CSS, `assertVisible`…) dùng **`.first()`** → nếu trùng nhiều phần tử, engine lấy **cái đầu tiên** trên trang.
-- **`click` + Text** đặc biệt: chỉ tìm **`<button>`** có chữ đó (`getByRole('button')`), **không** tìm `<a>`, `<span>`, `<div>` có cùng chữ.
+- Engine **đếm** số phần tử khớp selector — cần **đúng 1** phần tử.
+- **Khớp 0** → fail ngay (không tìm thấy).
+- **Khớp > 1** → **run thật:** fail; **dry run:** WARNING trong log và vẫn dùng phần tử đầu (để debug).
+- **`click` + Text:** tìm **button** hoặc **link** (`<a>`) có chữ đó — không chỉ button.
 
 **Không được dán HTML vào ô Selector.** Chỉ điền “địa chỉ”, không phải thẻ.
 
@@ -148,7 +150,7 @@ HTML: `<input id="5">`
 - HTML: `<button>Đăng nhập</button>` hoặc `<span>Xin chào</span>`
 - Điền: loại **Text** → `Đăng nhập`
 - Khớp **một phần** chuỗi (không cần đúng 100%).
-- **`click` + Text:** chỉ tìm **button** — link `<a>Đăng nhập</a>` **không** khớp; dùng CSS `a:has-text("Đăng nhập")` hoặc click CSS `a[href="..."]`.
+- **`click` + Text:** tìm **button** hoặc **link** có chữ đó. `<span>` chỉ chữ không click được — dùng CSS hoặc `data-testid`.
 - Dùng khi: nút chỉ có chữ, không có id/class.
 
 ### data-testid
@@ -168,7 +170,7 @@ Làm theo thứ tự sau (dừng ở bước đầu tiên làm được):
 2. Có id?              → ID hoặc CSS #id
 3. Input có label?     → Label
 4. Input có placeholder? → Placeholder (chỉ type)
-5. Nút chỉ có chữ?     → Text (click) — nhớ chỉ button
+5. Nút chỉ có chữ?     → Text (click) — button hoặc link
 6. Còn lại             → CSS (class, name, type, F12 copy)
 ```
 
@@ -192,7 +194,7 @@ Làm theo thứ tự sau (dừng ở bước đầu tiên làm được):
 | Triệu chứng | Nguyên nhân | Cách sửa |
 |-------------|-------------|----------|
 | Timeout, không tìm thấy | Selector sai / phần tử chưa load | Thêm bước `waitFor` trước; kiểm tra F12 |
-| Click nhầm nút khác | Nhiều phần tử trùng, engine lấy `.first()` | Viết CSS cụ thể hơn: `form#login button` |
+| Click nhầm / flaky | Nhiều phần tử trùng selector | Engine fail (hoặc WARNING ở dry run) — viết CSS cụ thể: `form#login button` |
 | Text không click được | Chữ nằm trên `<a>` không phải `<button>` | Đổi sang CSS |
 | type không gõ được | Trỏ nhầm `<div>` thay vì `<input>` | Dùng `input[...]` hoặc Label/Placeholder |
 | `#5` fail | id là số | Dùng `[id="5"]` hoặc loại ID → `5` |
@@ -218,7 +220,7 @@ Cột **Loại selector** = các lựa chọn trong dropdown **Loại selector**
 
 | Hành động | Làm gì | Bắt buộc điền | Loại selector được chọn |
 |-----------|--------|---------------|-------------------------|
-| **goto** | Mở trang | URL/path + Timeout | *(không dùng selector)* |
+| **goto** | Mở trang | URL/path + Timeout; tùy chọn **Chờ trang đến** (`load` mặc định hoặc `domcontentloaded`) | *(không dùng selector)* |
 | **click** | Click chuột lên phần tử (nút, link…) | Selector + Timeout | CSS, ID, Text, Label, data-testid |
 | **type** | Gõ/xóa rồi điền text vào input | Selector + Giá trị + Timeout | CSS, ID, Placeholder, Label, data-testid |
 | **select** | Chọn option trong `<select>` | Selector + Giá trị option + Timeout | CSS, ID, Label, data-testid |
@@ -266,7 +268,7 @@ Cột **Loại selector** = các lựa chọn trong dropdown **Loại selector**
 | **goto** + path `/login` | Ghép với **URL gốc**: `https://app.com` + `/login` → `https://app.com/login`. |
 | **wait** (Đợi) | Có trên UI nhưng **chưa lưu được vào database** — tạm dùng **waitFor** hoặc báo team nếu cần bật. |
 | **upload** | Đường dẫn file là path trên **máy chạy backend**, không phải path trên máy bạn chọn trong trình duyệt. |
-| **click** + Text | Tìm **button** có chữ đó; nếu fail, thử đổi sang **CSS**. |
+| **click** + Text | Tìm **button** hoặc **link** có chữ đó; nếu fail, thử **CSS** hoặc `data-testid`. |
 
 ---
 

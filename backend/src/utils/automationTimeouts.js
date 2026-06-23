@@ -1,5 +1,16 @@
 const DEFAULT_AUTOMATION_TIMEOUT_MS = 30000;
 
+const GOTO_WAIT_UNTIL_VALUES = new Set(['load', 'domcontentloaded']);
+const DEFAULT_GOTO_WAIT_UNTIL = 'load';
+
+const normalizeGotoWaitUntil = (value) => {
+  const raw = String(value || '').trim().toLowerCase();
+  if (raw === 'domcontentloaded') {
+    return 'domcontentloaded';
+  }
+  return DEFAULT_GOTO_WAIT_UNTIL;
+};
+
 const normalizeTimeoutInputMs = (value) => {
   if (value === undefined || value === null || value === '') {
     return null;
@@ -31,7 +42,10 @@ const resolveStepTimeoutMs = (
 
 module.exports = {
   DEFAULT_AUTOMATION_TIMEOUT_MS,
+  DEFAULT_GOTO_WAIT_UNTIL,
+  GOTO_WAIT_UNTIL_VALUES,
   normalizeCaseTimeoutMs,
+  normalizeGotoWaitUntil,
   normalizeTimeoutInputMs,
   resolveStepTimeoutMs,
 };

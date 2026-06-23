@@ -169,6 +169,10 @@ export default function AdminTestCasesRoute() {
             Number(step.timeoutMs) > 0
               ? String(Math.round(Number(step.timeoutMs) / 1000))
               : "",
+          waitUntil:
+            String(step.waitUntil || "").trim().toLowerCase() === "domcontentloaded"
+              ? "domcontentloaded"
+              : "load",
         }))
       : [DEFAULT_AUTOMATION_STEP()];
 
