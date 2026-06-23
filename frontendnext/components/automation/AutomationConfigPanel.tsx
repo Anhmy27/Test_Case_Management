@@ -5,11 +5,13 @@ import type { Dispatch, DragEvent, ReactNode, SetStateAction } from "react";
 import {
   ACTION_META,
   ALL_TARGET_TYPES,
+  GOTO_WAIT_UNTIL_OPTIONS,
   TARGET_TYPE_LABELS,
   getValueFieldLabel,
 } from "@/lib/automationStepMeta";
 import type { AutomationForm, AutomationStep } from "@/lib/automationStepMeta";
 import { WORKBENCH_HINT_CLS, WORKBENCH_INPUT_CLS, WORKBENCH_LABEL_CLS, WORKBENCH_META_CLS, WORKBENCH_SELECT_CLS, WorkbenchField, WorkbenchSection } from "@/components/workspaceScreens/shared";
+import AutomationStepGuideModal from "@/components/automation/AutomationStepGuideModal";
 
 const ACTION_SELECT_OPTIONS = (
   <>
@@ -59,6 +61,7 @@ export default function AutomationConfigPanel({
   moveAutomationStep,
 }: Props) {
   const [draggingStep, setDraggingStep] = useState<number | null>(null);
+  const [guideOpen, setGuideOpen] = useState(false);
 
   const handleDragStart = (index: number, event: DragEvent<HTMLElement>) => {
     setDraggingStep(index);
@@ -154,7 +157,17 @@ export default function AutomationConfigPanel({
           </div>
 
           <div className="mt-1 flex items-center justify-between gap-2 border-t border-slate-100 pt-1">
-            <span className={WORKBENCH_HINT_CLS}>Bước tự động — kéo ≡</span>
+            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+              <span className={WORKBENCH_HINT_CLS}>Bước tự động — kéo ≡</span>
+              <button
+                type="button"
+                className={`${WORKBENCH_META_CLS} rounded border border-emerald-300/80 bg-white px-1.5 py-px text-emerald-800 hover:bg-emerald-50`}
+                onClick={() => setGuideOpen(true)}
+                title="Bảng hướng dẫn selector — copy từng dòng"
+              >
+                ? Hướng dẫn
+              </button>
+            </div>
             <button
               type="button"
               className={`${WORKBENCH_META_CLS} rounded border border-slate-200 bg-white px-1.5 py-px hover:bg-slate-50`}
@@ -187,6 +200,7 @@ export default function AutomationConfigPanel({
           )}
         </>
       )}
+      <AutomationStepGuideModal open={guideOpen} onClose={() => setGuideOpen(false)} />
     </WorkbenchSection>
   );
 }
@@ -270,6 +284,7 @@ function AutomationStepRow({
   const allowedTargetTypes =
     meta.targetTypes.length > 0 ? meta.targetTypes : [...ALL_TARGET_TYPES];
   const isWaitStep = step.action === "wait";
+  const isGotoStep = step.action === "goto";
   const showSelectorGroup =
     !isWaitStep && (meta.needsTarget || Boolean(meta.optionalTarget));
   const selectorRequired = meta.needsTarget;
@@ -404,6 +419,28 @@ function AutomationStepRow({
                 value={step.timeoutMs}
                 onChange={setTimeout}
               />
+            </>
+          )}
+
+          {isGotoStep && (
+            <>
+              <div aria-hidden />
+              <div className="min-w-0">
+                <StepFieldLabel>Chờ trang đến</StepFieldLabel>
+                <select
+                  value={step.waitUntil || "load"}
+                  onChange={(e) => onUpdate(index, "waitUntil", e.target.value)}
+                  className={WORKBENCH_SELECT_CLS}
+                  title="Mặc định load — chờ trang load đủ trước bước tiếp theo"
+                >
+                  {GOTO_WAIT_UNTIL_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className={TIMEOUT_COL_W} aria-hidden />
             </>
           )}
 

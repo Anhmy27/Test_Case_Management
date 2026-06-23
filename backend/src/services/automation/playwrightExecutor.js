@@ -1,5 +1,13 @@
 const { resolveNavigationUrl, resolveSandboxedUploadPaths } = require('../../utils/automationUrlPolicy');
 
+const {
+  appendLocatorWarnings,
+  requireUniqueLocator,
+  resolveLocator,
+  resolveTextClickLocator,
+} = require('./locatorResolution');
+const { runStepWithRetries } = require('./stepRetry');
+
 const ALLOWED_ACTIONS = new Set([
   'goto',
   'click',
@@ -23,49 +31,15 @@ const ALLOWED_ACTIONS = new Set([
 const {
   DEFAULT_AUTOMATION_TIMEOUT_MS,
   normalizeCaseTimeoutMs,
+  normalizeGotoWaitUntil,
   resolveStepTimeoutMs,
 } = require('../../utils/automationTimeouts');
 
 const toString = (value) => String(value || '').trim();
 
-const escapeAttributeValue = (value) => String(value || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-
 const parseFilePaths = (value) => resolveSandboxedUploadPaths(value);
 
 const joinUrl = (baseUrl, pathOrUrl) => resolveNavigationUrl(baseUrl, pathOrUrl);
-
-const resolveLocator = (page, step) => {
-  const targetType = toString(step.targetType || 'css').toLowerCase();
-  const target = toString(step.target);
-
-  switch (targetType) {
-    case 'id':
-      return page.locator(`[id="${escapeAttributeValue(target)}"]`);
-    case 'placeholder':
-      return page.getByPlaceholder(target);
-    case 'text':
-      return page.getByText(target, { exact: false });
-    case 'label':
-      return page.getByLabel(target);
-    case 'testid':
-      return page.getByTestId(target);
-    case 'url':
-    case 'css':
-    default:
-      return page.locator(target);
-  }
-};
-
-const resolveClickLocator = (page, step) => {
-  const targetType = toString(step.targetType || 'css').toLowerCase();
-  const target = toString(step.target);
-
-  if (targetType === 'text' && target) {
-    return page.getByRole('button', { name: target, exact: false }).first();
-  }
-
-  return resolveLocator(page, step).first();
-};
 
 const describeStep = (step, stepIndex, page, caseTimeoutMs) => {
   const resolvedTimeoutMs = resolveStepTimeoutMs(step.timeoutMs, caseTimeoutMs, DEFAULT_AUTOMATION_TIMEOUT_MS);
@@ -77,8 +51,13 @@ const describeStep = (step, stepIndex, page, caseTimeoutMs) => {
     `Value: ${toString(step.value) || '(empty)'}`,
     `Expected: ${toString(step.expected) || '(empty)'}`,
     `Timeout ms: ${resolvedTimeoutMs}`,
-    `Page URL: ${page?.url?.() || '(unknown)'}`,
   ];
+
+  if (toString(step.action).toLowerCase() === 'goto') {
+    fields.push(`Goto waitUntil: ${normalizeGotoWaitUntil(step.waitUntil)}`);
+  }
+
+  fields.push(`Page URL: ${page?.url?.() || '(unknown)'}`);
 
   return fields.join('\n');
 };
@@ -174,7 +153,19 @@ const assertWithDiagnostics = async (page, checkFn, successMessage, errorMessage
   }
 };
 
-const executeStep = async (page, step, baseUrl, caseTimeoutMs) => {
+const resolveActionLocator = async (page, step, action, locatorAmbiguity) => {
+  const targetType = toString(step.targetType || 'css').toLowerCase();
+  const target = toString(step.target);
+
+  const rawLocator =
+    action === 'click' && targetType === 'text' && target
+      ? resolveTextClickLocator(page, target)
+      : resolveLocator(page, step);
+
+  return requireUniqueLocator(rawLocator, { locatorAmbiguity, targetType, target });
+};
+
+const executeStep = async (page, step, baseUrl, caseTimeoutMs, locatorAmbiguity = 'fail') => {
   const action = toString(step.action).toLowerCase();
   if (!ALLOWED_ACTIONS.has(action)) {
     throw new Error(`Unsupported automation action: ${step.action}`);
@@ -192,7 +183,9 @@ const executeStep = async (page, step, baseUrl, caseTimeoutMs) => {
       throw new Error('goto step requires a URL or path in value');
     }
 
-    await page.goto(nextUrl, { waitUntil: 'domcontentloaded', timeout: timeoutMs });
+    const waitUntil = normalizeGotoWaitUntil(step.waitUntil);
+
+    await page.goto(nextUrl, { waitUntil, timeout: timeoutMs });
 
     const finalUrl = page.url();
     const isAuthRedirect = /\/(auth\/login|login|signin|sign-in)([\/?#]|$)/i.test(finalUrl);
@@ -204,11 +197,11 @@ const executeStep = async (page, step, baseUrl, caseTimeoutMs) => {
       );
     }
 
-    return `goto ${nextUrl} → landed on ${finalUrl}`;
+    return `goto ${nextUrl} (waitUntil=${waitUntil}) → landed on ${finalUrl}`;
   }
 
   if (action === 'click') {
-    const locator = resolveClickLocator(page, step);
+    const { locator, warnings } = await resolveActionLocator(page, step, action, locatorAmbiguity);
     const initialUrl = page.url();
 
     await locator.click({ timeout: timeoutMs });
@@ -235,24 +228,84 @@ const executeStep = async (page, step, baseUrl, caseTimeoutMs) => {
     }
 
     const state = await capturePostActionState(page, timeoutMs);
-    return `click ${target}\n${state}\nNavigation detected: ${page.url() !== initialUrl ? 'yes' : 'no'}`;
+    return appendLocatorWarnings(
+      `click ${target}\n${state}\nNavigation detected: ${page.url() !== initialUrl ? 'yes' : 'no'}`,
+      warnings,
+    );
   }
 
-  const locator = resolveLocator(page, step).first();
+  if (action === 'press' && !target) {
+    const keyCombination = value || target;
+
+    if (!keyCombination) {
+      throw new Error('press step requires a key combination in value or target');
+    }
+
+    await page.keyboard.press(keyCombination);
+    return `press page -> ${keyCombination}`;
+  }
+
+  if (action === 'dragto') {
+    const destinationSelector = value;
+
+    if (!target || !destinationSelector) {
+      throw new Error('dragTo step requires source target and destination selector in value');
+    }
+
+    const { locator: source, warnings: sourceWarnings } = await resolveActionLocator(
+      page,
+      step,
+      'click',
+      locatorAmbiguity,
+    );
+    const destinationStep = { ...step, target: destinationSelector };
+    const { locator: destination, warnings: destinationWarnings } = await requireUniqueLocator(
+      resolveLocator(page, destinationStep),
+      { locatorAmbiguity, targetType, target: destinationSelector },
+    );
+
+    await source.dragTo(destination, { timeout: timeoutMs });
+    return appendLocatorWarnings(
+      `dragTo ${target} -> ${destinationSelector}`,
+      [...sourceWarnings, ...destinationWarnings],
+    );
+  }
+
+  const needsTargetLocator = new Set([
+    'type',
+    'select',
+    'hover',
+    'press',
+    'upload',
+    'waitfor',
+    'assertvisible',
+    'asserthidden',
+    'assertenabled',
+    'assertchecked',
+  ]);
+
+  let locator;
+  let locatorWarnings = [];
+
+  if (needsTargetLocator.has(action)) {
+    const resolved = await resolveActionLocator(page, step, action, locatorAmbiguity);
+    locator = resolved.locator;
+    locatorWarnings = resolved.warnings;
+  }
 
   if (action === 'type') {
     await locator.fill(value, { timeout: timeoutMs });
-    return `type ${target} = ${value}`;
+    return appendLocatorWarnings(`type ${target} = ${value}`, locatorWarnings);
   }
 
   if (action === 'select') {
     await locator.selectOption(value, { timeout: timeoutMs });
-    return `select ${target} = ${value}`;
+    return appendLocatorWarnings(`select ${target} = ${value}`, locatorWarnings);
   }
 
   if (action === 'hover') {
     await locator.hover({ timeout: timeoutMs });
-    return `hover ${target}`;
+    return appendLocatorWarnings(`hover ${target}`, locatorWarnings);
   }
 
   if (action === 'press') {
@@ -262,13 +315,8 @@ const executeStep = async (page, step, baseUrl, caseTimeoutMs) => {
       throw new Error('press step requires a key combination in value or target');
     }
 
-    if (target) {
-      await locator.press(keyCombination, { timeout: timeoutMs });
-      return `press ${target} -> ${keyCombination}`;
-    }
-
-    await page.keyboard.press(keyCombination);
-    return `press page -> ${keyCombination}`;
+    await locator.press(keyCombination, { timeout: timeoutMs });
+    return appendLocatorWarnings(`press ${target} -> ${keyCombination}`, locatorWarnings);
   }
 
   if (action === 'upload') {
@@ -279,22 +327,10 @@ const executeStep = async (page, step, baseUrl, caseTimeoutMs) => {
     }
 
     await locator.setInputFiles(filePaths, { timeout: timeoutMs });
-    return `upload ${target || '(file input)'} = ${filePaths.join(', ')}`;
-  }
-
-  if (action === 'dragto') {
-    const destinationSelector = value;
-
-    if (!target || !destinationSelector) {
-      throw new Error('dragTo step requires source target and destination selector in value');
-    }
-
-    const source = resolveLocator(page, step).first();
-    const destinationStep = { ...step, target: destinationSelector };
-    const destination = resolveLocator(page, destinationStep).first();
-
-    await source.dragTo(destination, { timeout: timeoutMs });
-    return `dragTo ${target} -> ${destinationSelector}`;
+    return appendLocatorWarnings(
+      `upload ${target || '(file input)'} = ${filePaths.join(', ')}`,
+      locatorWarnings,
+    );
   }
 
   if (action === 'wait') {
@@ -315,50 +351,56 @@ const executeStep = async (page, step, baseUrl, caseTimeoutMs) => {
     }
 
     await locator.waitFor({ state: 'visible', timeout: timeoutMs });
-    return `waitFor visible ${target}`;
+    return appendLocatorWarnings(`waitFor visible ${target}`, locatorWarnings);
   }
 
   if (action === 'assertvisible') {
     await locator.waitFor({ state: 'visible', timeout: timeoutMs });
 
-    return `assertVisible ${target}`;
+    return appendLocatorWarnings(`assertVisible ${target}`, locatorWarnings);
   }
 
   if (action === 'asserthidden') {
     await locator.waitFor({ state: 'hidden', timeout: timeoutMs });
 
-    return `assertHidden ${target}`;
+    return appendLocatorWarnings(`assertHidden ${target}`, locatorWarnings);
   }
 
   if (action === 'assertenabled') {
     await locator.waitFor({ state: 'visible', timeout: timeoutMs });
 
-    return assertWithDiagnostics(
-      page,
-      async () => {
-        const enabled = await locator.isEnabled();
-        if (!enabled) {
-          throw new Error(`Expected element to be enabled: ${target}`);
-        }
-      },
-      `assertEnabled ${target}`,
-      `Expected element to be enabled: ${target}`,
+    return appendLocatorWarnings(
+      await assertWithDiagnostics(
+        page,
+        async () => {
+          const enabled = await locator.isEnabled();
+          if (!enabled) {
+            throw new Error(`Expected element to be enabled: ${target}`);
+          }
+        },
+        `assertEnabled ${target}`,
+        `Expected element to be enabled: ${target}`,
+      ),
+      locatorWarnings,
     );
   }
 
   if (action === 'assertchecked') {
     await locator.waitFor({ state: 'visible', timeout: timeoutMs });
 
-    return assertWithDiagnostics(
-      page,
-      async () => {
-        const checked = await locator.isChecked();
-        if (!checked) {
-          throw new Error(`Expected element to be checked: ${target}`);
-        }
-      },
-      `assertChecked ${target}`,
-      `Expected element to be checked: ${target}`,
+    return appendLocatorWarnings(
+      await assertWithDiagnostics(
+        page,
+        async () => {
+          const checked = await locator.isChecked();
+          if (!checked) {
+            throw new Error(`Expected element to be checked: ${target}`);
+          }
+        },
+        `assertChecked ${target}`,
+        `Expected element to be checked: ${target}`,
+      ),
+      locatorWarnings,
     );
   }
 
@@ -447,7 +489,15 @@ const executeStep = async (page, step, baseUrl, caseTimeoutMs) => {
   throw new Error(`Unsupported automation action: ${step.action}`);
 };
 
-const runAutomationSteps = async ({ page, steps, baseUrl, caseTimeoutMs, onStepStart, shouldAbort }) => {
+const runAutomationSteps = async ({
+  page,
+  steps,
+  baseUrl,
+  caseTimeoutMs,
+  onStepStart,
+  shouldAbort,
+  locatorAmbiguity = 'fail',
+}) => {
   const resolvedCaseTimeout = normalizeCaseTimeoutMs(caseTimeoutMs, DEFAULT_AUTOMATION_TIMEOUT_MS);
   const sortedSteps = [...steps].sort((left, right) => Number(left.order || 0) - Number(right.order || 0));
   const logLines = [];
@@ -464,7 +514,9 @@ const runAutomationSteps = async ({ page, steps, baseUrl, caseTimeoutMs, onStepS
     }
 
     try {
-      const stepLog = await executeStep(page, step, baseUrl, resolvedCaseTimeout);
+      const stepLog = await runStepWithRetries(() =>
+        executeStep(page, step, baseUrl, resolvedCaseTimeout, locatorAmbiguity),
+      );
       logLines.push(stepLog);
     } catch (error) {
       throw new Error(formatStepError(step, stepIndex, page, error, resolvedCaseTimeout));

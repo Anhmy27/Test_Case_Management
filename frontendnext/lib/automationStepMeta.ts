@@ -14,6 +14,8 @@ export type AutomationStep = {
   expected: string;
   /** Giây; để trống = dùng timeout mặc định của test case */
   timeoutMs: string;
+  /** Chỉ dùng cho goto: load (mặc định) | domcontentloaded */
+  waitUntil: string;
 };
 
 export type AutomationForm = {
@@ -99,6 +101,17 @@ export function stepHasParameterFields(action: string): boolean {
 
 export const DEFAULT_AUTOMATION_TIMEOUT_SECONDS = "30";
 
+export const GOTO_WAIT_UNTIL_OPTIONS = [
+  { value: "load", label: "Chờ trang load xong (load — mặc định)" },
+  { value: "domcontentloaded", label: "Chờ HTML sẵn sàng (domcontentloaded — nhanh hơn)" },
+] as const;
+
+export function normalizeGotoWaitUntilForForm(value: string): "load" | "domcontentloaded" {
+  return String(value || "").trim().toLowerCase() === "domcontentloaded"
+    ? "domcontentloaded"
+    : "load";
+}
+
 function parseOptionalTimeoutSeconds(value: string): number | null {
   const trimmed = String(value || "").trim();
   if (!trimmed) return null;
@@ -124,7 +137,21 @@ export function normalizeAutomationStepsForApi(steps: AutomationStep[]) {
       };
 
       if (stepTimeoutSeconds !== null) {
-        return { ...normalized, timeoutMs: stepTimeoutSeconds * 1000 };
+        const withTimeout = { ...normalized, timeoutMs: stepTimeoutSeconds * 1000 };
+        if (
+          String(step.action || "").trim().toLowerCase() === "goto" &&
+          normalizeGotoWaitUntilForForm(step.waitUntil) === "domcontentloaded"
+        ) {
+          return { ...withTimeout, waitUntil: "domcontentloaded" as const };
+        }
+        return withTimeout;
+      }
+
+      if (
+        String(step.action || "").trim().toLowerCase() === "goto" &&
+        normalizeGotoWaitUntilForForm(step.waitUntil) === "domcontentloaded"
+      ) {
+        return { ...normalized, waitUntil: "domcontentloaded" as const };
       }
 
       return normalized;
@@ -301,6 +328,7 @@ export const DEFAULT_AUTOMATION_STEP = (): AutomationStep => ({
   value: "",
   expected: "",
   timeoutMs: "",
+  waitUntil: "load",
 });
 
 export const DEFAULT_AUTOMATION_FORM = (): AutomationForm => ({

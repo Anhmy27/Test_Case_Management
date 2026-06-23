@@ -55,6 +55,11 @@ const automationStepSchema = new mongoose.Schema(
       type: Number,
       min: 1,
     },
+    waitUntil: {
+      type: String,
+      trim: true,
+      enum: ['load', 'domcontentloaded'],
+    },
   },
   { _id: false }
 );
