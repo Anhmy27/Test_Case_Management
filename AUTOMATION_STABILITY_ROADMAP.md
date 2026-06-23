@@ -44,6 +44,7 @@ Mục tiêu duy nhất trong vài tuần tới:
 | `backend/src/services/automation/playwrightExecutor.js` | Engine — sửa flake ở đây |
 | `backend/src/services/automation/locatorResolution.js` | P3 — đếm locator, text click button+link |
 | `backend/src/services/automation/stepRetry.js` | P4 — retry bước khi lỗi tạm thời |
+| `backend/src/services/automation/assertTextStep.js` | P5 — assertText theo locator hoặc body + warning dry run |
 | `backend/src/services/automation/singleCaseExecutor.js` | Wrapper 1 case |
 | `backend/src/services/automation/dryRunService.js` | Dry run + probe Phase 0 |
 | `backend/src/services/automation/runOrchestrator.js` | Chạy full run |
@@ -70,7 +71,7 @@ Chạy lại stability probe (10 lần) và so sánh với baseline Phase 0.
 | P2 | Sửa goto (`load` default) | ✅ Xong (AUTH3 probe 5/5 STABLE_PASS) |
 | P3 | Sửa locator (bỏ `.first()` mù) | ✅ Xong (user xác nhận; modal hướng dẫn selector) |
 | P4 | Retry từng step | ✅ Code xong — chạy probe so baseline |
-| P5 | Assert đúng phần tử | ⬜ Chưa làm |
+| P5 | Assert đúng phần tử | ✅ Code xong — chạy probe so baseline |
 | P6 | Screenshot + Trace khi fail | ⬜ Chưa làm |
 | P7 | Dry run 3x = quality gate | ⬜ Chưa làm |
 | P8 | Wait step theo điều kiện | ⬜ Chưa làm |
@@ -248,7 +249,8 @@ Report file: `backend/reports/automation-stability-2026-06-18T03-09-46-987Z.json
 
 **Test:** Probe 10 lần → mục tiêu **Consistent: YES**.
 
-- [ ] Xong
+- [x] Code xong (có `target` → assert trên locator; không `target` → body + WARNING dry run)
+- [ ] Probe 10 lần so baseline
 - [ ] User xác nhận sang P6
 
 ---

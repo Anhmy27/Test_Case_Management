@@ -135,4 +135,5 @@ export const P3_RULES_COPY = `Engine cần đúng 1 phần tử khớp selector.
 - Khớp > 1 → run thật: fail; dry run: WARNING trong log
 - click + Text: tìm button hoặc link (<a>), không phải <span>
 - Không dán HTML vào ô Selector
-- Lỗi tạm (timeout, chưa bấm được…) → thử lại tối đa 2 lần; assert sai kết quả thì không retry`;
+- Lỗi tạm (timeout, chưa bấm được…) → thử lại tối đa 2 lần; assert sai kết quả thì không retry
+- assertText: có selector → kiểm tra đúng phần tử; trống → cả trang (dry run: WARNING)`;

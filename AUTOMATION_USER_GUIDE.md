@@ -207,12 +207,13 @@ Làm theo thứ tự sau (dừng ở bước đầu tiên làm được):
 
 | | assertVisible | assertText |
 |---|---------------|------------|
-| Hỏi gì? | **Phần tử** có đang hiện không? | Trang **có chữ** đó không? |
-| Cần Selector? | Có | Không (engine quét cả `body`) |
+| Hỏi gì? | **Phần tử** có đang hiện không? | **Phần tử** (hoặc cả trang) **có chữ** đó không? |
+| Cần Selector? | Có | Tùy chọn — **nên điền** để tránh pass giả |
 | Cần chuỗi mong đợi? | Không | Có |
 
 - Chắc **ô menu / form** đã hiện → `assertVisible` + CSS `#dashboard`
-- Chắc **thông báo chữ** xuất hiện → `assertText` + `Đăng nhập thành công`
+- Chắc **thông báo chữ** trong một vùng → `assertText` + selector `#toast` + `Đăng nhập thành công`
+- Chỉ kiểm tra chữ **ở đâu đó trên trang** (ít chính xác) → `assertText` không selector — dry run sẽ **WARNING**
 
 ---
 
@@ -232,7 +233,7 @@ Cột **Loại selector** = các lựa chọn trong dropdown **Loại selector**
 | **dragTo** | Kéo phần tử A thả vào B | Nguồn (selector) + Đích (CSS) + Timeout | CSS, ID, data-testid |
 | **wait** | Chờ cố định X giây | Thời gian đợi (= Timeout bước) | *(không dùng selector)* |
 | **waitFor** | Chờ phần tử **hiện ra** | Selector + Timeout | CSS, ID, Text, data-testid |
-| **assertText** | Kiểm tra trang **có chứa** chuỗi text | Chuỗi mong đợi + Timeout | *(không dùng selector — xem mục 5)* |
+| **assertText** | Kiểm tra chuỗi **có trong phần tử** (nên điền selector) hoặc **cả trang** nếu để trống | Chuỗi mong đợi + Timeout; selector **tùy chọn** (khuyến nghị) | CSS, ID, Text, Label, data-testid *(khi có selector)* |
 | **assertVisible** | Phần tử đang nhìn thấy | Selector + Timeout | CSS, ID, Text, data-testid |
 | **assertHidden** | Phần tử đang ẩn | Selector + Timeout | CSS, ID, data-testid |
 | **assertUrl** | URL trình duyệt **chứa** chuỗi | Chuỗi mong đợi + Timeout | *(không dùng selector)* |
@@ -266,7 +267,7 @@ Cột **Loại selector** = các lựa chọn trong dropdown **Loại selector**
 
 | Tình huống | Hành vi hiện tại |
 |------------|------------------|
-| **assertText** | Kiểm tra text trên **toàn bộ trang** (`body`), không giới hạn theo một selector. Muốn kiểm tra một vùng cụ thể → dùng **assertVisible** + selector. |
+| **assertText** | Có **selector** → kiểm tra text **trong phần tử đó** (P3: đúng 1 khớp). **Trống selector** → quét cả `body` — dry run ghi **WARNING** (dễ pass giả). |
 | **goto** + path `/login` | Ghép với **URL gốc**: `https://app.com` + `/login` → `https://app.com/login`. |
 | **wait** (Đợi) | Có trên UI nhưng **chưa lưu được vào database** — tạm dùng **waitFor** hoặc báo team nếu cần bật. |
 | **upload** | Đường dẫn file là path trên **máy chạy backend**, không phải path trên máy bạn chọn trong trình duyệt. |

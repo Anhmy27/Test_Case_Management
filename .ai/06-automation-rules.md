@@ -46,6 +46,9 @@ executeSingleCaseAutomation (singleCaseExecutor.js)
 | File | Vai trò |
 |------|---------|
 | `playwrightExecutor.js` | Engine — thực thi từng step |
+| `assertTextStep.js` | P5 — assertText theo locator hoặc body + warning dry run |
+| `locatorResolution.js` | P3 — strict locator |
+| `stepRetry.js` | P4 — retry bước lỗi tạm |
 | `singleCaseExecutor.js` | Wrapper 1 case + screenshot khi fail |
 | `dryRunService.js` | Dry run API, không ghi TestRun |
 | `runOrchestrator.js` | Chạy full TestRun |

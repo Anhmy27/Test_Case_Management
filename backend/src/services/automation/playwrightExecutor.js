@@ -6,6 +6,7 @@ const {
   resolveLocator,
   resolveTextClickLocator,
 } = require('./locatorResolution');
+const { executeAssertText } = require('./assertTextStep');
 const { runStepWithRetries } = require('./stepRetry');
 
 const ALLOWED_ACTIONS = new Set([
@@ -454,36 +455,15 @@ const executeStep = async (page, step, baseUrl, caseTimeoutMs, locatorAmbiguity 
   }
 
   if (action === 'asserttext') {
-    const normalizedExpected = expected || value;
-
-    if (!normalizedExpected) {
-      throw new Error('assertText step requires expected text');
-    }
-
-    let normalizedText = '';
-
-    try {
-      await page.waitForFunction(
-        (needle) => String(document.body?.innerText || '').includes(String(needle || '')),
-        normalizedExpected,
-        { timeout: timeoutMs },
-      );
-
-      normalizedText = String(await page.locator('body').innerText({ timeout: timeoutMs }) || '');
-    } catch (error) {
-      const diagnostics = await capturePageDiagnostics(page);
-      throw new Error([
-        error?.message || 'assertText timed out',
-        `Expected text: ${normalizedExpected}`,
-        diagnostics,
-      ].join('\n'));
-    }
-
-    if (!normalizedText.includes(normalizedExpected)) {
-      throw new Error(`Expected text to include "${normalizedExpected}" but got "${normalizedText}"`);
-    }
-
-    return `assertText ${target || '(page)'} contains ${normalizedExpected}`;
+    return executeAssertText({
+      page,
+      step,
+      timeoutMs,
+      locatorAmbiguity,
+      resolveActionLocator,
+      appendLocatorWarnings,
+      capturePageDiagnostics,
+    });
   }
 
   throw new Error(`Unsupported automation action: ${step.action}`);
