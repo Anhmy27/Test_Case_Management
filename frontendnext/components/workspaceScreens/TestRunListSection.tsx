@@ -153,7 +153,7 @@ export default function TestRunListSection({
                   >
                     {actionLabel}
                   </Button>
-                  {onOpenRunForEdit && runId ? (
+                  {onOpenRunForEdit && runId && String(run.status || "") !== "running" ? (
                     <Button
                       size="sm"
                       variant="secondary"

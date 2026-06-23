@@ -1048,6 +1048,7 @@ function EmployeeWorkspaceExecutionRoute() {
           onCancelAutomationRun={cancelAutomationRun}
           onRetryFailedAutomation={retryFailedAutomation}
           onLogBug={openJiraBugDialog}
+          userName={userName}
           startRunError={startRunError}
           onNotice={showNotice}
           onExportRun={handleExportRun}

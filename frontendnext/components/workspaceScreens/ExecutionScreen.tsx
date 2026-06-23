@@ -18,6 +18,7 @@ import {
   partitionRunItemsByAutomation,
   summarizeRunResults,
   getId,
+  userName as formatUserName,
   validateStartRunForm,
 } from "@/lib/api";
 
@@ -178,7 +179,7 @@ export default function ExecutionScreen(props: Props) {
 
     onOpenRun,
 
-    userName = () => "Unassigned",
+    userName = formatUserName,
 
     startRunError = "",
 
