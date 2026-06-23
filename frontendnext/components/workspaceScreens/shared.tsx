@@ -136,7 +136,7 @@ export function ScopedProjectField({
   }
 
   return (
-    <LabelWrap label={projectLabel}>
+    <LabelWrap label="Project">
       <select
         className={selectCls}
         value={projectId}
