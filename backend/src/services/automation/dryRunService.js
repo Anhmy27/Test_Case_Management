@@ -26,35 +26,8 @@ const {
 const authManager = createAuthManager();
 const artifactStorage = getArtifactStorage();
 
-const { normalizeCaseTimeoutMs, normalizeTimeoutInputMs } = require('../../utils/automationTimeouts');
-
-const normalizeAutomationSteps = (steps) => {
-  if (!Array.isArray(steps)) {
-    return [];
-  }
-
-  return steps
-    .filter((step) => step && String(step.action || '').trim())
-    .map((step, index) => {
-      const optionalTimeoutMs = normalizeTimeoutInputMs(step.timeoutMs);
-      const normalized = {
-        stepId: String(step.stepId || '').trim() || String(index + 1),
-        stepName: String(step.stepName || '').trim(),
-        order: index + 1,
-        action: String(step.action || 'goto').trim(),
-        targetType: String(step.targetType || 'css').trim(),
-        target: String(step.target || '').trim(),
-        value: String(step.value || '').trim(),
-        expected: String(step.expected || '').trim(),
-      };
-
-      if (optionalTimeoutMs !== null) {
-        normalized.timeoutMs = optionalTimeoutMs;
-      }
-
-      return normalized;
-    });
-};
+const { normalizeCaseTimeoutMs } = require('../../utils/automationTimeouts');
+const { normalizeAutomationSteps } = require('../shared/versioningCore');
 
 const normalizeAutomationConfig = (automation = {}) => {
   const timeoutMs = normalizeCaseTimeoutMs(automation.timeoutMs);

@@ -23,11 +23,8 @@ const ALLOWED_ACTIONS = new Set([
 const {
   DEFAULT_AUTOMATION_TIMEOUT_MS,
   normalizeCaseTimeoutMs,
-  normalizeTimeoutInputMs,
   resolveStepTimeoutMs,
 } = require('../../utils/automationTimeouts');
-
-const DEFAULT_TIMEOUT = DEFAULT_AUTOMATION_TIMEOUT_MS;
 
 const toString = (value) => String(value || '').trim();
 
@@ -71,7 +68,7 @@ const resolveClickLocator = (page, step) => {
 };
 
 const describeStep = (step, stepIndex, page, caseTimeoutMs) => {
-  const resolvedTimeoutMs = resolveStepTimeoutMs(step.timeoutMs, caseTimeoutMs, DEFAULT_TIMEOUT);
+  const resolvedTimeoutMs = resolveStepTimeoutMs(step.timeoutMs, caseTimeoutMs, DEFAULT_AUTOMATION_TIMEOUT_MS);
   const fields = [
     `Step #${stepIndex + 1}`,
     `Action: ${toString(step.action) || '(empty)'}`,
@@ -96,7 +93,7 @@ const formatStepError = (step, stepIndex, page, error, caseTimeoutMs) => {
   return parts.join('\n');
 };
 
-const capturePostActionState = async (page, timeoutMs = DEFAULT_TIMEOUT) => {
+const capturePostActionState = async (page, timeoutMs = DEFAULT_AUTOMATION_TIMEOUT_MS) => {
   const details = [];
   const settleTimeout = Math.min(Math.max(timeoutMs, 1000), 5000);
 
@@ -183,7 +180,7 @@ const executeStep = async (page, step, baseUrl, caseTimeoutMs) => {
     throw new Error(`Unsupported automation action: ${step.action}`);
   }
 
-  const timeoutMs = resolveStepTimeoutMs(step.timeoutMs, caseTimeoutMs, DEFAULT_TIMEOUT);
+  const timeoutMs = resolveStepTimeoutMs(step.timeoutMs, caseTimeoutMs, DEFAULT_AUTOMATION_TIMEOUT_MS);
   const targetType = toString(step.targetType || 'css').toLowerCase();
   const target = toString(step.target);
   const value = toString(step.value);
@@ -451,7 +448,7 @@ const executeStep = async (page, step, baseUrl, caseTimeoutMs) => {
 };
 
 const runAutomationSteps = async ({ page, steps, baseUrl, caseTimeoutMs, onStepStart, shouldAbort }) => {
-  const resolvedCaseTimeout = normalizeCaseTimeoutMs(caseTimeoutMs, DEFAULT_TIMEOUT);
+  const resolvedCaseTimeout = normalizeCaseTimeoutMs(caseTimeoutMs, DEFAULT_AUTOMATION_TIMEOUT_MS);
   const sortedSteps = [...steps].sort((left, right) => Number(left.order || 0) - Number(right.order || 0));
   const logLines = [];
 
@@ -478,6 +475,5 @@ const runAutomationSteps = async ({ page, steps, baseUrl, caseTimeoutMs, onStepS
 };
 
 module.exports = {
-  DEFAULT_TIMEOUT,
   runAutomationSteps,
 };

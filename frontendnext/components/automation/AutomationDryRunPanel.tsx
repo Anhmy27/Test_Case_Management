@@ -10,7 +10,7 @@ import {
   type DryRunResult,
 } from "@/lib/automationDryRun";
 import { fetchDryRunFailureScreenshot, hasFailureScreenshot } from "@/lib/automationArtifacts";
-import { WORKBENCH_INPUT_CLS, WorkbenchSection } from "@/components/workspaceScreens/shared";
+import { WORKBENCH_INPUT_CLS, WORKBENCH_LABEL_CLS, WORKBENCH_META_CLS, WorkbenchSection } from "@/components/workspaceScreens/shared";
 import ZoomableScreenshot from "../execution/ZoomableScreenshot";
 
 type Props = {
@@ -109,19 +109,20 @@ export default function AutomationDryRunPanel({
     <WorkbenchSection
       title="Dry run"
       hint="Chạy thử không cần Save"
+      tone="automation"
       action={
         <button
           type="button"
           disabled={!canRun || running}
           onClick={() => void handleDryRun()}
-          className="rounded border border-indigo-200 bg-indigo-50 px-2 py-1 text-[10px] text-indigo-700 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50"
+          className={`${WORKBENCH_META_CLS} rounded border border-indigo-200 bg-indigo-50 px-1.5 py-px text-indigo-800 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50`}
         >
           {running ? "Đang chạy..." : "Chạy"}
         </button>
       }
     >
-      <label className="flex flex-col gap-0.5">
-        <span className="text-[10px] text-slate-400">Base URL ghi đè (tùy chọn)</span>
+      <label className="flex flex-col gap-px">
+        <span className={WORKBENCH_LABEL_CLS}>Base URL ghi đè</span>
         <input
           value={baseUrlOverride}
           onChange={(event) => setBaseUrlOverride(event.target.value)}
@@ -131,20 +132,20 @@ export default function AutomationDryRunPanel({
       </label>
 
       {!canRun && (
-        <div className="mt-1.5 rounded border border-amber-100 bg-amber-50/80 px-2 py-1 text-[10px] text-amber-800">
+        <div className={`${WORKBENCH_META_CLS} mt-1.5 rounded border border-amber-100 bg-amber-50/80 px-2 py-0.5 text-amber-900`}>
           Cần bật automation, Base URL và ít nhất một bước.
         </div>
       )}
 
       {errorMessage ? (
-        <div className="mt-1.5 rounded border border-rose-100 bg-rose-50 px-2 py-1 text-[10px] text-rose-700">
+        <div className={`${WORKBENCH_META_CLS} mt-1.5 rounded border border-rose-100 bg-rose-50 px-2 py-0.5 text-rose-700`}>
           {errorMessage}
         </div>
       ) : null}
 
       {result ? (
         <div className="mt-1.5 space-y-2">
-          <div className={`rounded border px-2 py-1 text-[10px] ${dryRunStatusClassName(result.status)}`}>
+          <div className={`rounded border px-2 py-0.5 !text-[10px] leading-snug ${dryRunStatusClassName(result.status)}`}>
             <div>
               {dryRunStatusLabel(result.status)} · {formatDryRunDuration(result.durationMs)}
             </div>
@@ -153,12 +154,12 @@ export default function AutomationDryRunPanel({
 
           {Array.isArray(result.logs) && result.logs.length > 0 ? (
             <div className="rounded border border-slate-200 bg-white p-1.5">
-              <div className="text-[9px] uppercase tracking-wide text-slate-400">Log</div>
+              <div className="text-[11px] uppercase tracking-wide text-slate-400">Log</div>
               <ol className="mt-1 space-y-0.5">
                 {result.logs.map((log, index) => (
                   <li
                     key={`${result.dryRunId}-${index}`}
-                    className="rounded border border-slate-50 px-1.5 py-0.5 text-[10px] text-slate-500"
+                    className={`${WORKBENCH_META_CLS} rounded border border-slate-50 px-1.5 py-px text-slate-600`}
                   >
                     <span className="mr-1 text-slate-300">#{index + 1}</span>
                     {log}
@@ -170,11 +171,11 @@ export default function AutomationDryRunPanel({
 
           {result.status === "fail" && hasFailureScreenshot(result.failureScreenshot) ? (
             <div className="rounded border border-rose-100 bg-rose-50/50 p-1.5">
-              <div className="text-[9px] uppercase tracking-wide text-rose-500">Screenshot</div>
+              <div className="text-[11px] uppercase tracking-wide text-rose-500">Screenshot</div>
               {loadingScreenshot ? (
-                <div className="mt-1 text-[10px] text-rose-700">Đang tải...</div>
+                <div className={`${WORKBENCH_META_CLS} mt-1 text-rose-700`}>Đang tải...</div>
               ) : screenshotError ? (
-                <div className="mt-1 text-[10px] text-rose-700">{screenshotError}</div>
+                <div className={`${WORKBENCH_META_CLS} mt-1 text-rose-700`}>{screenshotError}</div>
               ) : screenshotSrc ? (
                 <ZoomableScreenshot src={screenshotSrc} alt="Dry run failure screenshot" />
               ) : null}

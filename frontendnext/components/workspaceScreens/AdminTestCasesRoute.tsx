@@ -99,7 +99,6 @@ export default function AdminTestCasesRoute() {
           expected: stepExpected || null,
         };
       });
-  const normalizeAutomationSteps = normalizeAutomationStepsForApi;
 
   const saveTestCase = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -112,7 +111,7 @@ export default function AdminTestCasesRoute() {
         ? {
             ...automationForm,
             timeoutMs: Number(automationForm.timeoutMs || 30) * 1000,
-            steps: normalizeAutomationSteps(automationForm.steps),
+            steps: normalizeAutomationStepsForApi(automationForm.steps),
           }
         : { enabled: false, timeoutMs: 30000, steps: [] },
       };

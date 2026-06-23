@@ -6,19 +6,39 @@ import type { HTMLAttributes, ReactNode } from "react";
 // ─── Form primitives ──────────────────────────────────────────────────────
 
 /** Compact inputs for test case create/edit workbench */
+export const WORKBENCH_LABEL_CLS =
+  "text-[10px] font-medium leading-none text-slate-600 dark:text-zinc-400";
+
+export const WORKBENCH_SECTION_TITLE_CLS =
+  "text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:text-zinc-400";
+
+export const WORKBENCH_HINT_CLS =
+  "truncate text-[10px] leading-tight text-slate-500 dark:text-zinc-500";
+
+/** Ô nhập: khung to (dễ bấm), chữ nhỏ bên trong */
 export const WORKBENCH_INPUT_CLS =
-  "w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs text-slate-800 placeholder:text-slate-400 focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400/20 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500";
+  "min-h-[2rem] w-full min-w-0 rounded-md border border-slate-200 bg-white px-2 py-1.5 !text-[10px] !leading-normal font-medium text-slate-900 placeholder:font-normal placeholder:text-slate-500 focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400/20 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500";
+
+/** Select — cùng chiều cao ô input */
+export const WORKBENCH_SELECT_CLS = `${WORKBENCH_INPUT_CLS} h-[2rem] min-h-[2rem] py-1 pr-7 !leading-normal [&_option]:!text-[10px]`;
+
+export const WORKBENCH_TEXTAREA_CLS = `${WORKBENCH_INPUT_CLS} !h-auto min-h-[2.5rem] resize-y py-1.5 leading-normal`;
+
+/** Nút / meta trong workbench */
+export const WORKBENCH_META_CLS = "!text-[10px] font-medium leading-none text-slate-700";
 
 export function WorkbenchField({
   label,
   children,
+  className = "",
 }: {
   label: string;
   children: ReactNode;
+  className?: string;
 }) {
   return (
-    <label className="flex flex-col gap-0.5">
-      <span className="text-[10px] font-normal text-slate-400 dark:text-zinc-500">{label}</span>
+    <label className={`flex flex-col gap-px ${className}`}>
+      <span className={WORKBENCH_LABEL_CLS}>{label}</span>
       {children}
     </label>
   );
@@ -29,18 +49,27 @@ export function WorkbenchSection({
   hint,
   action,
   children,
+  tone = "default",
 }: {
   title: string;
   hint?: string;
   action?: ReactNode;
   children: ReactNode;
+  tone?: "default" | "manual" | "automation";
 }) {
+  const toneCls =
+    tone === "automation"
+      ? "border-emerald-200/80 bg-emerald-50/70 dark:border-emerald-800/50 dark:bg-emerald-950/30"
+      : tone === "manual"
+        ? "border-slate-300/90 bg-slate-200/80 dark:border-zinc-600 dark:bg-zinc-700/50"
+        : "border-slate-200 bg-slate-50/60 dark:border-zinc-700 dark:bg-zinc-800/40";
+
   return (
-    <section className="rounded border border-slate-200 bg-slate-50/60 p-2 dark:border-zinc-700 dark:bg-zinc-800/40">
-      <div className="mb-1.5 flex items-center justify-between gap-2">
-        <div>
-          <div className="text-[10px] uppercase tracking-wide text-slate-400 dark:text-zinc-500">{title}</div>
-          {hint ? <div className="text-[9px] text-slate-400 dark:text-zinc-500">{hint}</div> : null}
+    <section className={`rounded-md border p-1.5 ${toneCls}`}>
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className={WORKBENCH_SECTION_TITLE_CLS}>{title}</div>
+          {hint ? <div className={WORKBENCH_HINT_CLS}>{hint}</div> : null}
         </div>
         {action}
       </div>
@@ -78,6 +107,7 @@ export function ScopedProjectField({
   onProjectChange,
   getId,
   required = true,
+  variant = "default",
 }: {
   isProjectScoped: boolean;
   scopedProjectName?: string;
@@ -86,35 +116,41 @@ export function ScopedProjectField({
   onProjectChange: (projectId: string) => void;
   getId: (value: unknown) => string;
   required?: boolean;
+  variant?: "default" | "workbench";
 }) {
+  const isWorkbench = variant === "workbench";
+  const LabelWrap = isWorkbench ? WorkbenchField : Field;
+  const inputCls = isWorkbench ? WORKBENCH_INPUT_CLS : INPUT_CLS;
+  const selectCls = isWorkbench ? WORKBENCH_SELECT_CLS : INPUT_CLS;
+
   if (isProjectScoped) {
     return (
-      <Field label="Project">
+      <LabelWrap label="Project">
         <input
-          className={`${INPUT_CLS} bg-slate-50 dark:bg-zinc-800/50`}
+          className={`${inputCls} ${isWorkbench ? "" : "bg-slate-50 dark:bg-zinc-800/50"}`}
           value={scopedProjectName || "Selected project"}
           readOnly
         />
-      </Field>
+      </LabelWrap>
     );
   }
 
   return (
-    <Field label="Project">
+    <LabelWrap label={projectLabel}>
       <select
-        className={INPUT_CLS}
+        className={selectCls}
         value={projectId}
         onChange={(event) => onProjectChange(event.target.value)}
         required={required}
       >
-        <option value="">Select project</option>
+        <option value="">{isWorkbench ? "Chọn project" : "Select project"}</option>
         {projects.map((project) => (
           <option key={getId(project)} value={getId(project)}>
             {project.name}
           </option>
         ))}
       </select>
-    </Field>
+    </LabelWrap>
   );
 }
 

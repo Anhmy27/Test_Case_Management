@@ -14,6 +14,7 @@ const automationStepSchema = new mongoose.Schema(
         'click',
         'type',
         'select',
+        'wait',
         'waitFor',
         'assertText',
         'assertVisible',

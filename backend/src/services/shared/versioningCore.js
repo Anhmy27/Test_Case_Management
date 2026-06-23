@@ -72,7 +72,7 @@ const normalizeAutomationSteps = (steps) => {
   }
 
   return steps
-    .filter((step) => step && step.action)
+    .filter((step) => step && String(step.action || '').trim())
     .map((step, index) => {
       const optionalTimeoutMs = normalizeTimeoutInputMs(step.timeoutMs);
       const normalized = {
