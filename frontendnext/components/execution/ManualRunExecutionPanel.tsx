@@ -142,6 +142,9 @@ export default function ManualRunExecutionPanel({
   const canLogBug =
     (selectedRun?.status === "running" || selectedRun?.status === "completed") &&
     (panelSelectedItem?.status === "fail" || selectedItem?.status === "fail");
+  const showLogBugAction =
+    Boolean(onLogBug && selectedItem) &&
+    (selectedRun?.status === "running" || selectedRun?.status === "completed");
   const strictEndBlocked = endRunPolicy === "strict" && summary.untested > 0;
 
   const queueCounts = useMemo(() => {
@@ -222,7 +225,6 @@ export default function ManualRunExecutionPanel({
         void goToNextItem();
       } else if (event.key === "2") {
         await submitResult("fail");
-        void goToNextItem();
       } else if (event.key === "3") {
         await submitResult("blocked");
         void goToNextItem();
@@ -515,7 +517,6 @@ export default function ManualRunExecutionPanel({
                 className="rounded-lg bg-rose-600 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-500"
                 onClick={async () => {
                   await submitResult("fail");
-                  void goToNextItem();
                 }}
                 disabled={!canEditRun}
               >
@@ -550,11 +551,21 @@ export default function ManualRunExecutionPanel({
               </div>
             ) : null}
             <div className="flex items-center gap-2">
-              {canLogBug && onLogBug && selectedItem ? (
+              {showLogBugAction ? (
                 <button
                   type="button"
-                  className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600"
-                  onClick={() => onLogBug(selectedRun, selectedItem)}
+                  className={`flex-1 rounded-lg border px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${
+                    canLogBug
+                      ? "border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+                      : "border-slate-200 text-slate-400"
+                  }`}
+                  disabled={!canLogBug}
+                  title={
+                    canLogBug
+                      ? "Log bug to Jira without ending the run"
+                      : "Mark this case as Fail to enable Log bug"
+                  }
+                  onClick={() => onLogBug?.(selectedRun, selectedItem)}
                 >
                   Log bug
                 </button>

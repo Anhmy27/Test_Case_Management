@@ -47,6 +47,9 @@ export default function AutomationRunExecutionPanel({
   const canLogBug =
     (selectedRun?.status === "running" || selectedRun?.status === "completed") &&
     selectedItem?.status === "fail";
+  const showLogBugAction =
+    Boolean(onLogBug && selectedItem) &&
+    (selectedRun?.status === "running" || selectedRun?.status === "completed");
   const runIsCompleted = String(selectedRun?.status || "") === "completed";
   const runIsRunning = String(selectedRun?.status || "") === "running";
 
@@ -318,15 +321,25 @@ export default function AutomationRunExecutionPanel({
               </div>
             )}
 
-            {canLogBug && onLogBug && (
+            {showLogBugAction ? (
               <button
                 type="button"
-                className="rounded-lg border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-600"
-                onClick={() => onLogBug(selectedRun, selectedItem)}
+                className={`rounded-lg border px-3 py-2 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-50 ${
+                  canLogBug
+                    ? "border-indigo-200 bg-indigo-50 text-indigo-700 hover:bg-indigo-100"
+                    : "border-slate-200 text-slate-400"
+                }`}
+                disabled={!canLogBug}
+                title={
+                  canLogBug
+                    ? "Log bug to Jira without ending the run"
+                    : "Select a failed case to log bug"
+                }
+                onClick={() => onLogBug?.(selectedRun, selectedItem)}
               >
                 Log Bug
               </button>
-            )}
+            ) : null}
           </div>
         )}
       </section>
@@ -402,9 +415,9 @@ export default function AutomationRunExecutionPanel({
                 : "border-slate-200 bg-slate-50 text-slate-700"
           }`}>
             {runIsCompleted
-              ? "Run automation đã hoàn tất. Bạn có thể xem log từng case và Log Bug cho các case fail."
+              ? "Run automation đã hoàn tất. Chọn case fail trong queue để Log Bug."
               : runIsRunning
-                ? `${liveProgress} · ${runProgress.percent}% hoàn thành · Trang tự cập nhật mỗi 3 giây.`
+                ? `${liveProgress} · ${runProgress.percent}% hoàn thành · Case fail có thể Log Bug ngay, không cần End run.`
                 : "Chế độ xem automation — không thể chỉnh sửa kết quả thủ công."}
           </div>
 
