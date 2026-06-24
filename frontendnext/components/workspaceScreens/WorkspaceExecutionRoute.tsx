@@ -54,7 +54,6 @@ function AdminWorkspaceExecutionRoute() {
   const fromInsightsPlanName = String(searchParams.get("fromInsightsPlanName") || "").trim();
   const adminExecutionPath = "/workspace/admin/test-runs-execution";
   const { currentUser, selectedProjectId, setTopbar, showNotice } = useAdminWorkspace();
-  const [projects, setProjects] = useState<RecordAny[]>([]);
   const [plans, setPlans] = useState<RecordAny[]>([]);
   const [runs, setRuns] = useState<RecordAny[]>([]);
   const [selectedRun, setSelectedRun] = useState<RecordAny | null>(null);
@@ -96,7 +95,7 @@ function AdminWorkspaceExecutionRoute() {
       setLoading(true);
 
       try {
-        const [plansResponse, runsResponse, projectsResponse] = await Promise.all([
+        const [plansResponse, runsResponse] = await Promise.all([
           apiRequest<{ testPlans: RecordAny[] }>(
             selectedProjectId ? `/api/test-plans?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-plans",
             undefined,
@@ -105,13 +104,11 @@ function AdminWorkspaceExecutionRoute() {
             selectedProjectId ? `/api/test-runs?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-runs",
             undefined,
           ),
-          apiRequest<{ projects: RecordAny[] }>("/api/projects"),
         ]);
         if (cancelled) return;
 
         setPlans(Array.isArray(plansResponse.testPlans) ? plansResponse.testPlans : []);
         setRuns(Array.isArray(runsResponse.testRuns) ? runsResponse.testRuns : []);
-        setProjects(Array.isArray(projectsResponse.projects) ? projectsResponse.projects : []);
         if (testPlanIdFromUrl) {
           setRunForm((prev) => ({ ...prev, testPlanId: testPlanIdFromUrl, name: runNameFromUrl || prev.name }));
         }
@@ -131,7 +128,7 @@ function AdminWorkspaceExecutionRoute() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, runNameFromUrl, selectedProjectId, testPlanIdFromUrl]);
+  }, [currentUser, runNameFromUrl, selectedProjectId, showNotice, testPlanIdFromUrl]);
 
   useEffect(() => {
     if (!currentUser) {
@@ -182,7 +179,7 @@ function AdminWorkspaceExecutionRoute() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, runIdFromUrl]);
+  }, [currentUser, runIdFromUrl, showNotice]);
 
   const scopedPlans = useMemo(() => (Array.isArray(plans) ? plans : []), [plans]);
   const activeRun = runIdFromUrl ? selectedRun : null;
@@ -317,7 +314,7 @@ function AdminWorkspaceExecutionRoute() {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [runIdFromUrl, shouldPollAutomationRun]);
+  }, [runIdFromUrl, shouldPollAutomationRun, showNotice]);
 
   const refreshRuns = async () => {
     const response = await apiRequest<{ testRuns: RecordAny[] }>(
@@ -685,7 +682,7 @@ function EmployeeWorkspaceExecutionRoute() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, runNameFromUrl, testPlanIdFromUrl]);
+  }, [currentUser, runNameFromUrl, showNotice, testPlanIdFromUrl]);
 
   useEffect(() => {
     if (!currentUser) {
@@ -736,7 +733,7 @@ function EmployeeWorkspaceExecutionRoute() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, runIdFromUrl]);
+  }, [currentUser, runIdFromUrl, showNotice]);
 
   const scopedPlans = useMemo(() => {
     const safePlans = Array.isArray(plans) ? plans : [];
@@ -867,7 +864,7 @@ function EmployeeWorkspaceExecutionRoute() {
       cancelled = true;
       window.clearInterval(intervalId);
     };
-  }, [runIdFromUrl, shouldPollAutomationRun]);
+  }, [runIdFromUrl, shouldPollAutomationRun, showNotice]);
 
   const startRun = async (event: React.FormEvent) => {
     event.preventDefault();

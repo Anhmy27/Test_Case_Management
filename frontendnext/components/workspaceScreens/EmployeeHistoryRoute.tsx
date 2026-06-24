@@ -58,7 +58,7 @@ export default function EmployeeHistoryRoute() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser]);
+  }, [currentUser, showNotice]);
 
   const myScopedRuns = useMemo(() => {
     const currentUserId = String(getId(currentUser) || "").trim();

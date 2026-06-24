@@ -74,7 +74,7 @@ export default function AdminTestCasesRoute() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, selectedProjectId]);
+  }, [currentUser, selectedProjectId, showNotice]);
 
   const refreshAll = async () => {
     const [projectsResponse, groupsResponse, casesResponse] = await Promise.all([

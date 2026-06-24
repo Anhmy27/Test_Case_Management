@@ -52,7 +52,7 @@ export default function AdminUsersRoute() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, statusFilter]);
+  }, [currentUser, statusFilter, showNotice]);
 
   const matchesSearch = useMemo(() => createTextMatcher(searchTerm), [searchTerm]);
 

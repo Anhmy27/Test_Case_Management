@@ -45,7 +45,7 @@ export default function AdminVersionsRoute() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, selectedProjectId]);
+  }, [currentUser, selectedProjectId, showNotice]);
 
   const matchesSearch = useMemo(() => createTextMatcher(searchTerm), [searchTerm]);
   const scopedProjects = selectedProjectId ? projects.filter((project) => getId(project) === selectedProjectId) : projects;

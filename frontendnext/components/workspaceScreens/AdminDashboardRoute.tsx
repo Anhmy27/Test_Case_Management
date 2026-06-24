@@ -90,7 +90,7 @@ export default function AdminDashboardRoute() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, selectedProjectId]);
+  }, [currentUser, selectedProjectId, showNotice]);
 
   const safeProjects = useMemo(() => (Array.isArray(projects) ? projects : []), [projects]);
   const safePlans = useMemo(() => (Array.isArray(plans) ? plans : []), [plans]);

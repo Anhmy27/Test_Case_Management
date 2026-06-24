@@ -66,7 +66,7 @@ export default function EmployeeJiraProfileRoute() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser]);
+  }, [currentUser, showNotice]);
 
   const handleSave = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();

@@ -40,7 +40,7 @@ export default function AdminIssueTypesRoute() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser]);
+  }, [currentUser, showNotice]);
 
   const matchesSearch = useMemo(() => createTextMatcher(searchTerm), [searchTerm]);
 

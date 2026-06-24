@@ -51,7 +51,7 @@ export default function AdminProjectsRoute() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser]);
+  }, [currentUser, showNotice]);
 
   const matchesSearch = useMemo(() => createTextMatcher(searchTerm), [searchTerm]);
 

@@ -58,7 +58,7 @@ export default function EmployeeRunningTestsRoute() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser]);
+  }, [currentUser, showNotice]);
 
   const myScopedRuns = useMemo(
     () => projectScope.filterMyRuns(runs, getId(currentUser)),

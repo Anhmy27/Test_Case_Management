@@ -58,7 +58,7 @@ export default function EmployeeMyTestPlansRoute() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser]);
+  }, [currentUser, showNotice]);
 
   const scopedPlans = useMemo(
     () => projectScope.filterPlans(plans),

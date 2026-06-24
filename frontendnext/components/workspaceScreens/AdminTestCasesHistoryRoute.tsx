@@ -17,7 +17,6 @@ export default function AdminTestCasesHistoryRoute() {
   const searchParams = useSearchParams();
   const caseKeyFromUrl = String(searchParams.get("caseKey") || "").trim();
   const { currentUser, selectedProjectId, setTopbar, showNotice } = useAdminWorkspace();
-  const [projects, setProjects] = useState<RecordAny[]>([]);
   const [groups, setGroups] = useState<RecordAny[]>([]);
   const [detailGroupId, setDetailGroupId] = useState("");
   const [detailRows, setDetailRows] = useState<RecordAny[]>([]);
@@ -69,15 +68,13 @@ export default function AdminTestCasesHistoryRoute() {
             )
           : Promise.resolve<{ testCases: RecordAny[] }>({ testCases: [] });
 
-        const [projectsResponse, groupsResponse, detailResponse] = await Promise.all([
-          apiRequest<{ projects: RecordAny[] }>("/api/projects"),
+        const [groupsResponse, detailResponse] = await Promise.all([
           apiRequest<{ groups: RecordAny[] }>(selectedProjectId ? `/api/test-case-groups?projectId=${encodeURIComponent(selectedProjectId)}` : "/api/test-case-groups"),
           detailRequest,
         ]);
 
         if (cancelled) return;
 
-        setProjects(Array.isArray(projectsResponse.projects) ? projectsResponse.projects : []);
         setGroups(Array.isArray(groupsResponse.groups) ? groupsResponse.groups : []);
         setDetailRows(Array.isArray(detailResponse.testCases) ? detailResponse.testCases : []);
       } catch (error) {
@@ -96,7 +93,7 @@ export default function AdminTestCasesHistoryRoute() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, detailGroupId, selectedProjectId]);
+  }, [currentUser, detailGroupId, selectedProjectId, showNotice]);
 
   useEffect(() => {
     if (!currentUser || selectedProjectId || loading) {

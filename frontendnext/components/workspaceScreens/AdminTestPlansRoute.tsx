@@ -148,7 +148,7 @@ export default function AdminTestPlansRoute() {
 
     void load();
     return () => { cancelled = true; };
-  }, [currentUser, selectedProjectId]);
+  }, [currentUser, selectedProjectId, showNotice]);
 
   const refreshAll = async () => {
     const data = await fetchWorkspaceData(selectedProjectId);
