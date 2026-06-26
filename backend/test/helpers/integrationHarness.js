@@ -135,6 +135,20 @@ async function createIntegrationHarness() {
         mergeResponseCookies(response);
         return response;
       },
+      async postMultipart(path, fields, file, expectedStatus) {
+        let requestBuilder = agent.post(path).set(withAuthHeaders());
+        for (const [name, value] of Object.entries(fields || {})) {
+          requestBuilder = requestBuilder.field(name, value);
+        }
+        requestBuilder = requestBuilder.attach(
+          file.fieldName,
+          file.buffer,
+          { filename: file.filename, contentType: file.contentType },
+        );
+        const response = await requestBuilder.expect(expectedStatus);
+        mergeResponseCookies(response);
+        return response;
+      },
     };
   }
 

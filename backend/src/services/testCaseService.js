@@ -1,4 +1,11 @@
 const { normalizeCaseTimeoutMs } = require('../utils/automationTimeouts');
+const {
+  PRIORITY_VALUES,
+  SEVERITY_VALUES,
+  TYPE_VALUES,
+  parseManualStepsFromRow,
+  resolveImportWorksheet,
+} = require('../utils/testCaseImportTemplate');
 
 const buildTestCaseServices = ({
   mongoose,
@@ -663,7 +670,11 @@ const buildTestCaseServices = ({
 
     try {
       const workbook = XLSX.read(file.buffer, { type: 'buffer' });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const { sheet } = resolveImportWorksheet(workbook);
+      if (!sheet) {
+        throw httpError(400, 'Excel workbook has no readable sheets');
+      }
+
       const rows = XLSX.utils.sheet_to_json(sheet);
 
       if (!Array.isArray(rows) || rows.length === 0) {
@@ -731,40 +742,7 @@ const buildTestCaseServices = ({
             continue;
           }
 
-          const stepPattern = /^Step\s*(\d+)\s*Action$/i;
-          const detectedSteps = Object.keys(row)
-            .map((colKey) => {
-              const m = String(colKey).match(stepPattern);
-              if (!m) return null;
-              const idx = parseInt(m[1], 10);
-              return { key: colKey, idx };
-            })
-            .filter(Boolean)
-            .sort((a, b) => a.idx - b.idx);
-
-          const stepExpectedPattern = /^Step\s*(\d+)\s*Expected$/i;
-          const stepExpectedByIndex = Object.keys(row).reduce((acc, colKey) => {
-            const match = String(colKey).match(stepExpectedPattern);
-            if (!match) {
-              return acc;
-            }
-
-            const idx = parseInt(match[1], 10);
-            acc[idx] = normalizeStepExpected(row[colKey]);
-            return acc;
-          }, {});
-
-          const steps = [];
-          for (const s of detectedSteps) {
-            const action = String(row[s.key] || '').trim();
-            if (action) {
-              steps.push({
-                order: s.idx,
-                action,
-                expected: stepExpectedByIndex[s.idx] ?? null,
-              });
-            }
-          }
+          const steps = parseManualStepsFromRow(row, normalizeStepExpected);
 
           if (steps.length === 0) {
             errors.push({ row: i + 2, error: 'At least one step action is required' });
@@ -793,15 +771,15 @@ const buildTestCaseServices = ({
 
           const strict = String(body.strict || '').toLowerCase() === 'true';
           if (strict) {
-            if (!['low', 'medium', 'high', 'critical'].includes(priority)) {
+            if (!PRIORITY_VALUES.includes(priority)) {
               errors.push({ row: i + 2, error: `Invalid priority '${priority}'` });
               continue;
             }
-            if (!['minor', 'major', 'critical'].includes(severity)) {
+            if (!SEVERITY_VALUES.includes(severity)) {
               errors.push({ row: i + 2, error: `Invalid severity '${severity}'` });
               continue;
             }
-            if (!['functional', 'api', 'ui', 'regression', 'security', 'other'].includes(type)) {
+            if (!TYPE_VALUES.includes(type)) {
               errors.push({ row: i + 2, error: `Invalid type '${type}'` });
               continue;
             }
@@ -823,13 +801,13 @@ const buildTestCaseServices = ({
             description,
             expected: expectedResult,
             steps,
-            priority: ['low', 'medium', 'high', 'critical'].includes(priority)
+            priority: PRIORITY_VALUES.includes(priority)
               ? priority
               : 'medium',
-            severity: ['minor', 'major', 'critical'].includes(severity)
+            severity: SEVERITY_VALUES.includes(severity)
               ? severity
               : 'major',
-            type: ['functional', 'api', 'ui', 'regression', 'security', 'other'].includes(type)
+            type: TYPE_VALUES.includes(type)
               ? type
               : 'functional',
             status: 'active',

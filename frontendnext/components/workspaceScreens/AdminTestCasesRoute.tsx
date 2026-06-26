@@ -9,6 +9,7 @@ import { useAdminWorkspace } from "@/components/workspaceScreens/WorkspaceShell"
 import { TOPBAR_INPUT_CLS, WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
 import { apiRequest, createTextMatcher, getId, matchesSelectedEntity } from "@/lib/api";
 import { DEFAULT_AUTOMATION_FORM, DEFAULT_AUTOMATION_STEP, normalizeAutomationStepsForApi } from "@/lib/automationStepMeta";
+import { downloadImportErrorsExcel, downloadTestCaseImportTemplate } from "@/lib/testCaseImportTemplate";
 
 type RecordAny = Record<string, any>;
 const MAX_EXCEL_IMPORT_BYTES = 50 * 1024 * 1024;
@@ -245,7 +246,14 @@ export default function AdminTestCasesRoute() {
       return { ...prev, steps: copy };
     });
   };
-  const downloadTestCaseTemplate = () => { showNotice("Use import template from backend if available", "info"); };
+  const downloadTestCaseTemplate = () => {
+    try {
+      downloadTestCaseImportTemplate();
+      showNotice("Template downloaded");
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : "Unable to download template", "error");
+    }
+  };
   const importTestCases = async (file: File) => {
     const normalizedName = String(file?.name || "").toLowerCase();
     const hasValidExtension = EXCEL_IMPORT_EXTENSIONS.some((ext) => normalizedName.endsWith(ext));
@@ -268,9 +276,32 @@ export default function AdminTestCasesRoute() {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("projectId", effectiveProjectId);
-    await apiRequest(`/api/test-cases/import`, undefined, { method: "POST", body: formData });
-    showNotice("Excel import completed");
-    await refreshAll();
+    formData.append("strict", "true");
+
+    try {
+      const response = await apiRequest<{
+        message?: string;
+        created?: RecordAny[];
+        errors?: Array<{ row?: number; error?: string }>;
+        total?: number;
+      }>(`/api/test-cases/import`, undefined, { method: "POST", body: formData });
+
+      const importedCount = Array.isArray(response.created) ? response.created.length : 0;
+      const errorCount = Array.isArray(response.errors) ? response.errors.length : 0;
+      const baseMessage = response.message || `Imported ${importedCount} test cases`;
+      showNotice(
+        errorCount ? `${baseMessage}, ${errorCount} row(s) failed` : baseMessage,
+        errorCount ? "info" : "success",
+      );
+
+      if (errorCount > 0 && Array.isArray(response.errors)) {
+        downloadImportErrorsExcel(response.errors);
+      }
+
+      await refreshAll();
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : "Excel import failed", "error");
+    }
   };
 
   const scopedProjects = selectedProjectId
