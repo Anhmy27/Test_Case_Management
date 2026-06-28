@@ -3,7 +3,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useMemo, useState } from "react";
-import { getId } from "@/lib/api";
+import { getRunDocumentId } from "@/components/jira/jiraBugUtils";
+import { getId, matchesSelectedEntity } from "@/lib/api";
 import { Button, DataTable, SectionCard, StatusBadge } from "./shared";
 
 type RecordAny = Record<string, any>;
@@ -29,7 +30,7 @@ export default function EmployeeHistoryScreen({ myScopedRuns, matchesSearch, loa
     });
 
   const focusedRun = useMemo(
-    () => completedRuns.find((run: RecordAny) => String(run?._id || run?.id || "") === String(focusedRunId)) || completedRuns[0] || null,
+    () => completedRuns.find((run: RecordAny) => matchesSelectedEntity(run, focusedRunId)) || completedRuns[0] || null,
     [completedRuns, focusedRunId],
   );
 
@@ -49,8 +50,8 @@ export default function EmployeeHistoryScreen({ myScopedRuns, matchesSearch, loa
         <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_300px]">
           <div className="flex flex-wrap gap-2">
             {completedRuns.slice(0, 10).map((run: RecordAny) => {
-              const runId = String(run?._id || run?.id || "");
-              const isActive = String(focusedRun?._id || focusedRun?.id || "") === runId;
+              const runId = getRunDocumentId(run);
+              const isActive = focusedRun ? matchesSelectedEntity(focusedRun, runId) : false;
               return (
                 <button
                   key={runId}
@@ -135,7 +136,7 @@ export default function EmployeeHistoryScreen({ myScopedRuns, matchesSearch, loa
                   label="View"
                   icon="↗"
                   onClick={() => {
-                    const runId = String(run?._id || run?.id || "");
+                    const runId = getRunDocumentId(run);
                     if (!runId) return;
                     void loadMyItems(runId);
                   }}

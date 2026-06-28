@@ -66,18 +66,18 @@ export default function TestCaseWorkbenchModal({
       onClick={onClose}
     >
       <div
-        className="flex max-h-[92vh] w-full max-w-[67.2rem] flex-col overflow-hidden rounded-lg bg-white shadow-xl"
+        className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-zinc-900"
         onClick={(event) => event.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-labelledby="test-case-workbench-title"
       >
-        <div className="shrink-0 border-b border-slate-100 px-4 py-2.5">
-          <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="shrink-0 border-b border-slate-100 px-6 py-4 dark:border-zinc-800">
+          <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <div
                 id="test-case-workbench-title"
-                className="text-sm font-semibold text-slate-900"
+                className="text-lg font-semibold text-slate-900 dark:text-zinc-50"
               >
                 {modeTitle[mode]}
               </div>
@@ -86,7 +86,7 @@ export default function TestCaseWorkbenchModal({
 
             <button
               type="button"
-              className={`${WORKBENCH_META_CLS} rounded border border-slate-200 px-1.5 py-px text-slate-500 hover:bg-slate-50 hover:text-slate-700`}
+              className="rounded-lg border border-slate-200 px-2.5 py-1 text-sm text-slate-500 hover:bg-slate-50 hover:text-slate-700 dark:border-zinc-700 dark:hover:bg-zinc-800"
               onClick={onClose}
               aria-label="Close"
             >
@@ -144,7 +144,7 @@ export default function TestCaseWorkbenchModal({
           ) : null}
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">{children}</div>
       </div>
     </div>
   );

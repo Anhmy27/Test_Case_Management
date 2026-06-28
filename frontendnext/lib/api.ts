@@ -296,6 +296,81 @@ export const END_RUN_POLICY_STORAGE_KEY = 'tcm_end_run_policy';
 export const END_RUN_POLICIES = ['flexible', 'strict'] as const;
 export type EndRunPolicy = (typeof END_RUN_POLICIES)[number];
 
+export const ADMIN_PROJECT_SCOPE_STORAGE_KEY = 'tcm_admin_selected_project_id';
+export const EMPLOYEE_PROJECT_SCOPE_STORAGE_KEY = 'tcm_employee_selected_project_id';
+const LEGACY_PROJECT_SCOPE_STORAGE_KEY = 'tcm_selected_project_id';
+
+export function readAdminProjectScope(): string {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+
+  const stored = window.localStorage.getItem(ADMIN_PROJECT_SCOPE_STORAGE_KEY);
+  if (stored) {
+    return stored;
+  }
+
+  const legacy = window.localStorage.getItem(LEGACY_PROJECT_SCOPE_STORAGE_KEY) || '';
+  if (legacy) {
+    window.localStorage.setItem(ADMIN_PROJECT_SCOPE_STORAGE_KEY, legacy);
+  }
+  return legacy;
+}
+
+export function writeAdminProjectScope(projectId: string) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const normalized = String(projectId || '').trim();
+  if (normalized) {
+    window.localStorage.setItem(ADMIN_PROJECT_SCOPE_STORAGE_KEY, normalized);
+  } else {
+    window.localStorage.removeItem(ADMIN_PROJECT_SCOPE_STORAGE_KEY);
+  }
+}
+
+export function readEmployeeProjectScope(): string {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+
+  return window.localStorage.getItem(EMPLOYEE_PROJECT_SCOPE_STORAGE_KEY) || '';
+}
+
+export function writeEmployeeProjectScope(projectId: string) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const normalized = String(projectId || '').trim();
+  if (normalized) {
+    window.localStorage.setItem(EMPLOYEE_PROJECT_SCOPE_STORAGE_KEY, normalized);
+  } else {
+    window.localStorage.removeItem(EMPLOYEE_PROJECT_SCOPE_STORAGE_KEY);
+  }
+}
+
+/** Employee personal runs: started by user on a plan they own or are assigned to. */
+export function isEmployeePersonalRun(run: unknown, userId: string): boolean {
+  const normalizedUserId = String(userId || '').trim();
+  if (!normalizedUserId || !run || typeof run !== 'object') {
+    return false;
+  }
+
+  const record = run as {
+    startedBy?: unknown;
+    ownerSnapshot?: unknown;
+    assigneeSnapshot?: unknown[];
+  };
+  const startedByMatch = String(getId(record.startedBy) || '') === normalizedUserId;
+  const ownerSnapshotMatch = String(getId(record.ownerSnapshot) || '') === normalizedUserId;
+  const assigneeSnapshotMatch = Array.isArray(record.assigneeSnapshot)
+    && record.assigneeSnapshot.some((assignee) => String(getId(assignee) || '') === normalizedUserId);
+
+  return startedByMatch && (ownerSnapshotMatch || assigneeSnapshotMatch);
+}
+
 export type RunResultsSummary = {
   total: number;
   pass: number;

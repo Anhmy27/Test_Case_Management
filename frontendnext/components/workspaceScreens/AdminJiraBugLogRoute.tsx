@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { getRunDocumentId } from "@/components/jira/jiraBugUtils";
 import AdminJiraBugLogScreen from "@/components/workspaceScreens/AdminJiraBugLogScreen";
 import { useAdminWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
 import { TOPBAR_INPUT_CLS, WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
@@ -181,7 +182,7 @@ export default function AdminJiraBugLogRoute() {
       pagination={pagination}
       onPageChange={setPage}
       onOpenExecution={(entry) => {
-        const runId = String(entry?.testRun?._id || "").trim();
+        const runId = getRunDocumentId(entry?.testRun);
         if (!runId) {
           return;
         }

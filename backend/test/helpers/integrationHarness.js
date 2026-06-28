@@ -188,9 +188,21 @@ async function stopSharedMongo() {
   }
 }
 
+async function withIntegrationHarness(run) {
+  const harness = await createIntegrationHarness();
+  try {
+    await run(harness);
+  } finally {
+    await harness.clearDatabase();
+    await harness.close();
+    await stopSharedMongo();
+  }
+}
+
 module.exports = {
   createIntegrationHarness,
   stopSharedMongo,
+  withIntegrationHarness,
   TEST_JWT_SECRET,
   TEST_JIRA_VAULT_SECRET,
 };

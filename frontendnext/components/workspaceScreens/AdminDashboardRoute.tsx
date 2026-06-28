@@ -7,11 +7,10 @@ import { useRouter } from "next/navigation";
 import AdminDashboardScreen from "@/components/workspaceScreens/AdminDashboardScreen";
 import { useAdminWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
 import { WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
-import { apiRequest, createTextMatcher, getId, userName } from "@/lib/api";
+import { ADMIN_PROJECT_SCOPE_STORAGE_KEY, apiRequest, createTextMatcher, getId, userName } from "@/lib/api";
 import { dashboardInputClassName } from "@/components/dashboard/chartTheme";
 
 type RecordAny = Record<string, any>;
-const PROJECT_SCOPE_STORAGE_KEY = "tcm_selected_project_id";
 const PROJECT_SCOPE_TABS = new Set([
   "groups",
   "test-cases",
@@ -116,10 +115,10 @@ export default function AdminDashboardRoute() {
       }
 
       setSelectedProjectId(nextProjectId);
-      window.localStorage.setItem(PROJECT_SCOPE_STORAGE_KEY, nextProjectId);
+      window.localStorage.setItem(ADMIN_PROJECT_SCOPE_STORAGE_KEY, nextProjectId);
     } else if (explicitProjectId) {
       setSelectedProjectId(explicitProjectId);
-      window.localStorage.setItem(PROJECT_SCOPE_STORAGE_KEY, explicitProjectId);
+      window.localStorage.setItem(ADMIN_PROJECT_SCOPE_STORAGE_KEY, explicitProjectId);
     }
 
     const params = new URLSearchParams();

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type { AppShellNavItem } from "@/components/AppShell";
-import { getId, matchesSelectedEntity } from "@/lib/api";
+import { getId, isEmployeePersonalRun, matchesSelectedEntity, readEmployeeProjectScope, writeEmployeeProjectScope } from "@/lib/api";
 
 type RecordAny = Record<string, unknown>;
 
@@ -15,26 +15,13 @@ export const EMPLOYEE_NAV_ITEMS: ReadonlyArray<AppShellNavItem> = [
   { key: "execution", label: "Run Test", group: "Workspace" },
 ];
 
-const PROJECT_STORAGE_KEY = "tcm_selected_project_id";
 
 export function getStoredProjectId() {
-  if (typeof window === "undefined") {
-    return "";
-  }
-
-  return window.localStorage.getItem(PROJECT_STORAGE_KEY) || "";
+  return readEmployeeProjectScope();
 }
 
 export function persistProjectId(projectId: string) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  if (projectId) {
-    window.localStorage.setItem(PROJECT_STORAGE_KEY, projectId);
-  } else {
-    window.localStorage.removeItem(PROJECT_STORAGE_KEY);
-  }
+  writeEmployeeProjectScope(projectId);
 }
 
 export function useEmployeeProjectScope(projects: RecordAny[]) {
@@ -53,8 +40,27 @@ export function useEmployeeProjectScope(projects: RecordAny[]) {
     [projects],
   );
 
-  const selectedProject = safeProjects.find(
-    (project) => getId(project) === selectedProjectId,
+  useEffect(() => {
+    if (!selectedProjectId || safeProjects.length === 0) {
+      return;
+    }
+
+    const matchedProject = safeProjects.find((project) =>
+      matchesSelectedEntity(project, selectedProjectId),
+    );
+    if (!matchedProject) {
+      setSelectedProjectId("");
+      return;
+    }
+
+    const canonicalProjectId = getId(matchedProject);
+    if (canonicalProjectId && canonicalProjectId !== selectedProjectId) {
+      setSelectedProjectId(canonicalProjectId);
+    }
+  }, [safeProjects, selectedProjectId]);
+
+  const selectedProject = safeProjects.find((project) =>
+    matchesSelectedEntity(project, selectedProjectId),
   );
   const hasValidProjectScope = Boolean(selectedProjectId && selectedProject);
   const effectiveProjectId = hasValidProjectScope ? selectedProjectId : "";
@@ -95,13 +101,7 @@ export function useEmployeeProjectScope(projects: RecordAny[]) {
       return [];
     }
 
-    return filterRuns(runs).filter((run) => {
-      const startedByMatch = String(getId(run.startedBy) || "") === normalizedUserId;
-      const ownerSnapshotMatch = String(getId((run as { ownerSnapshot?: unknown }).ownerSnapshot) || "") === normalizedUserId;
-      const assigneeSnapshotMatch = Array.isArray((run as { assigneeSnapshot?: unknown[] }).assigneeSnapshot)
-        && (run as { assigneeSnapshot: unknown[] }).assigneeSnapshot.some((assignee) => String(getId(assignee) || "") === normalizedUserId);
-      return startedByMatch || ownerSnapshotMatch || assigneeSnapshotMatch;
-    });
+    return filterRuns(runs).filter((run) => isEmployeePersonalRun(run, normalizedUserId));
   };
 
   return {

@@ -59,18 +59,37 @@ const createUserByAdminService = async ({
 
   const normalizedRole = role === 'admin' ? 'admin' : 'employee';
   const normalizedEmail = String(email).toLowerCase();
-  const existingUser = await User.findOne({ email: normalizedEmail }).lean();
+  const nextIsActive = normalizeOptionalBoolean(isActive, 'isActive') ?? true;
+  const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+  const existingUser = await User.findOne({ email: normalizedEmail });
+
   if (existingUser) {
-    throw httpError(409, 'Email is already in use');
+    if (existingUser.isActive !== false) {
+      throw httpError(409, 'Email is already in use');
+    }
+
+    existingUser.name = name;
+    existingUser.passwordHash = passwordHash;
+    existingUser.role = normalizedRole;
+    existingUser.isActive = nextIsActive;
+    await existingUser.save();
+    await revokeUserSessions(existingUser._id);
+
+    await upsertUserJiraAccount({
+      userId: existingUser._id,
+      jiraUsername,
+      jiraPassword,
+    }).catch(() => {});
+
+    return toPublicUser(existingUser);
   }
 
-  const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
   const user = await User.create({
     name,
     email: normalizedEmail,
     passwordHash,
     role: normalizedRole,
-    isActive: normalizeOptionalBoolean(isActive, 'isActive') ?? true,
+    isActive: nextIsActive,
   });
 
   await upsertUserJiraAccount({

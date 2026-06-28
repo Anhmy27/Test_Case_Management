@@ -104,7 +104,7 @@ export default function AdminTestPlansRoute() {
   // Auto-open Insights when returning from Execution screen via "Back to Insights" button
   useEffect(() => {
     if (autoOpenInsightsTriggered.current || !openInsightsPlanIdFromUrl || loading || plans.length === 0) return;
-    const plan = plans.find((p) => getId(p) === openInsightsPlanIdFromUrl);
+    const plan = plans.find((p) => matchesSelectedEntity(p, openInsightsPlanIdFromUrl));
     if (plan) {
       autoOpenInsightsTriggered.current = true;
       setInsightsPlan({

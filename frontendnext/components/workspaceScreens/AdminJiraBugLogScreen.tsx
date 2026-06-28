@@ -3,6 +3,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useMemo, useState } from "react";
+import { getRunDocumentId } from "@/components/jira/jiraBugUtils";
 import { Button, DataTable, SectionCard } from "./shared";
 
 type RecordAny = Record<string, any>;
@@ -134,8 +135,8 @@ export default function AdminJiraBugLogScreen({
                 <div className="font-medium text-slate-900 dark:text-zinc-100">
                   {entry.testRun?.name || "-"}
                 </div>
-                {entry.testRun?._id ? (
-                  <div className="truncate text-xs text-slate-500 dark:text-zinc-500">{entry.testRun._id}</div>
+                {getRunDocumentId(entry.testRun) ? (
+                  <div className="truncate text-xs text-slate-500 dark:text-zinc-500">{getRunDocumentId(entry.testRun)}</div>
                 ) : null}
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -147,7 +148,7 @@ export default function AdminJiraBugLogScreen({
                 <Button
                   size="sm"
                   label="Open"
-                  disabled={!entry.testRun?._id}
+                  disabled={!getRunDocumentId(entry.testRun)}
                   onClick={() => onOpenExecution(entry)}
                 />
               </div>
@@ -209,7 +210,7 @@ export default function AdminJiraBugLogScreen({
               <DetailRow label="Issue Key Jira" value={String(detailLog.issueKeyJira || "")} />
               <DetailRow label="Jira URL" value={String(detailLog.jiraLocation || "")} />
               <DetailRow label="Project" value={String(detailLog.project || "")} />
-              <DetailRow label="Test Run" value={String(detailLog.testRun?._id || "")} />
+              <DetailRow label="Test Run" value={getRunDocumentId(detailLog.testRun)} />
               <DetailRow label="Test Run Name" value={String(detailLog.testRun?.name || "")} />
               <DetailRow label="Run Result _id" value={String(detailLog.runResult || "")} />
               <DetailRow label="Test Case" value={detailCase?.display || "-"} />
@@ -237,7 +238,7 @@ export default function AdminJiraBugLogScreen({
               <Button
                 size="sm"
                 label="Open"
-                disabled={!detailLog.testRun?._id}
+                disabled={!getRunDocumentId(detailLog.testRun)}
                 onClick={() => onOpenExecution(detailLog)}
               />
               <Button size="sm" label="Close" onClick={() => setDetailLog(null)} />

@@ -218,7 +218,10 @@ export function downloadTestCaseImportTemplate(filename = "test-case-template.xl
   applyGuideSheetLayout(guideSheet);
   XLSX.utils.book_append_sheet(workbook, guideSheet, TEST_CASE_GUIDE_SHEET_NAME);
 
-  workbook.Workbook = { Views: [{ activeTab: 0 }] };
+  // SheetJS supports activeTab at runtime; bundled WBView types omit it.
+  workbook.Workbook = {
+    Views: [{ activeTab: 0 }],
+  } as unknown as NonNullable<XLSX.WorkBook["Workbook"]>;
 
   const data = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
   const blob = new Blob([data], {

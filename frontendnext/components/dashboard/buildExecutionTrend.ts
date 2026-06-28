@@ -4,6 +4,7 @@ export type ExecutionTrendPoint = {
   runs: number;
   pass: number;
   fail: number;
+  blocked: number;
 };
 
 type TrendRun = {
@@ -34,16 +35,19 @@ function countResultStatuses(results: TrendRun["results"]) {
   const safeResults = Array.isArray(results) ? results : [];
   let pass = 0;
   let fail = 0;
+  let blocked = 0;
 
   for (const result of safeResults) {
     if (result?.status === "pass") {
       pass += 1;
     } else if (result?.status === "fail") {
       fail += 1;
+    } else if (result?.status === "blocked") {
+      blocked += 1;
     }
   }
 
-  return { pass, fail };
+  return { pass, fail, blocked };
 }
 
 export function buildExecutionTrendPoints(
@@ -64,6 +68,7 @@ export function buildExecutionTrendPoints(
       runs: 0,
       pass: 0,
       fail: 0,
+      blocked: 0,
     });
   }
 
@@ -87,9 +92,10 @@ export function buildExecutionTrendPoints(
     }
 
     bucket.runs += 1;
-    const { pass, fail } = countResultStatuses(run.results);
+    const { pass, fail, blocked } = countResultStatuses(run.results);
     bucket.pass += pass;
     bucket.fail += fail;
+    bucket.blocked += blocked;
   }
 
   return Array.from(buckets.values());

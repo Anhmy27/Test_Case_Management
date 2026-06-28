@@ -22,8 +22,7 @@ function getProjectJiraProjectKey(project?: RecordAny | null) {
 }
 
 export default function AdminProjectsRoute() {
-  const { currentUser, setTopbar, showNotice } = useAdminWorkspace();
-  const [projects, setProjects] = useState<RecordAny[]>([]);
+  const { currentUser, projects, refreshProjects, setTopbar, showNotice } = useAdminWorkspace();
   const [editingProjectId, setEditingProjectId] = useState<string>("");
   const [projectForm, setProjectForm] = useState({ name: "", code: "", pid: "", jiraProjectKey: "", description: "" });
   const [searchTerm, setSearchTerm] = useState("");
@@ -38,9 +37,7 @@ export default function AdminProjectsRoute() {
     const load = async () => {
       setLoading(true);
       try {
-        const response = await apiRequest<{ projects: RecordAny[] }>("/api/projects");
-        if (cancelled) return;
-        setProjects(Array.isArray(response.projects) ? response.projects : []);
+        await refreshProjects();
       } catch (error) {
         if (!cancelled) showNotice(error instanceof Error ? error.message : "Unable to load projects", "error");
       } finally {
@@ -51,14 +48,9 @@ export default function AdminProjectsRoute() {
     return () => {
       cancelled = true;
     };
-  }, [currentUser, showNotice]);
+  }, [currentUser, refreshProjects, showNotice]);
 
   const matchesSearch = useMemo(() => createTextMatcher(searchTerm), [searchTerm]);
-
-  const refreshProjects = async () => {
-    const response = await apiRequest<{ projects: RecordAny[] }>("/api/projects");
-    setProjects(Array.isArray(response.projects) ? response.projects : []);
-  };
 
   const saveProject = async (event: React.FormEvent) => {
     event.preventDefault();

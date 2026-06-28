@@ -60,25 +60,10 @@ export default function EmployeeHistoryRoute() {
     };
   }, [currentUser, showNotice]);
 
-  const myScopedRuns = useMemo(() => {
-    const currentUserId = String(getId(currentUser) || "").trim();
-    if (!currentUserId) {
-      return [];
-    }
-
-    return projectScope.filterRuns(runs).filter((run: RecordAny) => {
-      const startedByMatch = String(getId(run.startedBy) || "") === currentUserId;
-      const ownerSnapshotMatch = String(getId((run as { ownerSnapshot?: unknown }).ownerSnapshot) || "") === currentUserId;
-      const assigneeSnapshotMatch = Array.isArray((run as { assigneeSnapshot?: unknown[] }).assigneeSnapshot)
-        && (run as { assigneeSnapshot: unknown[] }).assigneeSnapshot.some(
-          (assignee) => String(getId(assignee) || "") === currentUserId,
-        );
-
-      // History should only include runs started by this employee
-      // AND runs belonging to plans assigned to them.
-      return startedByMatch && (ownerSnapshotMatch || assigneeSnapshotMatch);
-    });
-  }, [currentUser, projectScope, runs]);
+  const myScopedRuns = useMemo(
+    () => projectScope.filterMyRuns(runs, getId(currentUser)),
+    [currentUser, projectScope, runs],
+  );
   const matchesSearch = useMemo(() => createTextMatcher(searchTerm), [searchTerm]);
 
   const loadMyItems = async (runId: string) => {

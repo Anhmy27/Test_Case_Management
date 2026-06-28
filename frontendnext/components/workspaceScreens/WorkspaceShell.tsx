@@ -24,7 +24,25 @@ import { apiRequest, getId, matchesSelectedEntity, userName } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
 
-const PROJECT_STORAGE_KEY = "tcm_selected_project_id";
+const ADMIN_PROJECT_STORAGE_KEY = "tcm_admin_selected_project_id";
+const LEGACY_PROJECT_STORAGE_KEY = "tcm_selected_project_id";
+
+function readStoredAdminProjectId() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  const storedAdminScope = window.localStorage.getItem(ADMIN_PROJECT_STORAGE_KEY);
+  if (storedAdminScope) {
+    return storedAdminScope;
+  }
+
+  const legacyScope = window.localStorage.getItem(LEGACY_PROJECT_STORAGE_KEY) || "";
+  if (legacyScope) {
+    window.localStorage.setItem(ADMIN_PROJECT_STORAGE_KEY, legacyScope);
+  }
+  return legacyScope;
+}
 
 function useIsClient() {
   return useSyncExternalStore(
@@ -51,6 +69,7 @@ type AdminWorkspaceContextValue = {
   selectedProjectId: string;
   setSelectedProjectId: (projectId: string) => void;
   projects: RecordAny[];
+  refreshProjects: () => Promise<RecordAny[]>;
   setTopbar: (node: ReactNode | null) => void;
   showNotice: (message: string, variant?: WorkspaceNoticeVariant) => void;
   handleLogout: () => void;
@@ -123,6 +142,13 @@ function AdminWorkspaceShellInner({ children }: { children: ReactNode }) {
     setSelectedProjectIdState(String(projectId || "").trim());
   }, []);
 
+  const refreshProjects = useCallback(async () => {
+    const response = await apiRequest<{ projects: RecordAny[] }>("/api/projects");
+    const projectsList = Array.isArray(response.projects) ? response.projects : [];
+    setProjects(projectsList);
+    return projectsList;
+  }, []);
+
   const navItems = useAdminSidebarNav(selectedProjectId, activeKey, router, {
     enabled: isClient && scopeReady,
   });
@@ -132,7 +158,7 @@ function AdminWorkspaceShellInner({ children }: { children: ReactNode }) {
       return;
     }
     didHydrateScopeRef.current = true;
-    setSelectedProjectId(window.localStorage.getItem(PROJECT_STORAGE_KEY) || "");
+    setSelectedProjectId(readStoredAdminProjectId());
     setScopeReady(true);
   }, [isClient, setSelectedProjectId]);
 
@@ -141,9 +167,9 @@ function AdminWorkspaceShellInner({ children }: { children: ReactNode }) {
       return;
     }
     if (selectedProjectId) {
-      window.localStorage.setItem(PROJECT_STORAGE_KEY, selectedProjectId);
+      window.localStorage.setItem(ADMIN_PROJECT_STORAGE_KEY, selectedProjectId);
     } else {
-      window.localStorage.removeItem(PROJECT_STORAGE_KEY);
+      window.localStorage.removeItem(ADMIN_PROJECT_STORAGE_KEY);
     }
   }, [isClient, selectedProjectId]);
 
@@ -238,7 +264,8 @@ function AdminWorkspaceShellInner({ children }: { children: ReactNode }) {
     void apiRequest("/api/auth/logout", undefined, { method: "POST" })
       .catch(() => undefined)
       .finally(() => {
-        window.localStorage.removeItem(PROJECT_STORAGE_KEY);
+        window.localStorage.removeItem(ADMIN_PROJECT_STORAGE_KEY);
+        window.localStorage.removeItem(LEGACY_PROJECT_STORAGE_KEY);
         router.replace("/");
       });
   }, [router]);
@@ -253,11 +280,12 @@ function AdminWorkspaceShellInner({ children }: { children: ReactNode }) {
       selectedProjectId,
       setSelectedProjectId,
       projects,
+      refreshProjects,
       setTopbar,
       showNotice,
       handleLogout,
     };
-  }, [currentUser, handleLogout, projects, selectedProjectId, setSelectedProjectId, setTopbar, showNotice]);
+  }, [currentUser, handleLogout, projects, refreshProjects, selectedProjectId, setSelectedProjectId, setTopbar, showNotice]);
 
   const defaultTopbar = (
     <div className="flex min-h-[40px] items-center">
@@ -381,7 +409,8 @@ function EmployeeWorkspaceShellInner({ children }: { children: ReactNode }) {
     void apiRequest("/api/auth/logout", undefined, { method: "POST" })
       .catch(() => undefined)
       .finally(() => {
-        window.localStorage.removeItem(PROJECT_STORAGE_KEY);
+        window.localStorage.removeItem(ADMIN_PROJECT_STORAGE_KEY);
+        window.localStorage.removeItem(LEGACY_PROJECT_STORAGE_KEY);
         router.replace("/");
       });
   }, [router]);

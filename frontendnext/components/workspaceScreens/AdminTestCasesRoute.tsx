@@ -192,7 +192,7 @@ export default function AdminTestCasesRoute() {
       return;
     }
 
-    const matched = testCases.find((testCase) => getId(testCase) === caseIdFromUrl);
+    const matched = testCases.find((testCase) => matchesSelectedEntity(testCase, caseIdFromUrl));
     if (!matched) {
       return;
     }

@@ -44,7 +44,9 @@ export default function ExecutionTrendLineChart({
   embedded = false,
 }: Props) {
   const { theme } = useTheme();
-  const hasActivity = points.some((point) => point.runs > 0 || point.pass > 0 || point.fail > 0);
+  const hasActivity = points.some(
+    (point) => point.runs > 0 || point.pass > 0 || point.fail > 0 || point.blocked > 0,
+  );
   const outer = embedded ? chartSurfaceClassName() : dashboardPanelClassName();
   const gridColor = theme === "dark" ? CHART_COLORS.gridDark : CHART_COLORS.grid;
   const axisColor = theme === "dark" ? CHART_COLORS.axisDark : CHART_COLORS.axis;
@@ -113,6 +115,16 @@ export default function ExecutionTrendLineChart({
                   fill={chartGradientId(GRAD_PREFIX, "trend-fail")}
                   dot={false}
                   activeDot={{ r: 4, strokeWidth: 0, fill: "#dc2626" }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="blocked"
+                  name="Blocked"
+                  stroke="#d97706"
+                  strokeWidth={2}
+                  fill={chartGradientId(GRAD_PREFIX, "trend-blocked")}
+                  dot={false}
+                  activeDot={{ r: 4, strokeWidth: 0, fill: "#d97706" }}
                 />
               </ComposedChart>
             </ResponsiveContainer>

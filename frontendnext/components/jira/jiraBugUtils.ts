@@ -14,18 +14,24 @@ export function getProjectJiraProjectKey(project?: RecordAny | null) {
   ).trim();
 }
 
+/** Test runs use Mongo `_id` in API routes; versioned entities may also expose `entityId`. */
 export function getRunDocumentId(value: unknown) {
   if (!value) {
     return "";
   }
 
   if (typeof value === "string") {
-    return value;
+    return value.trim();
   }
 
   if (typeof value === "object" && value !== null) {
     const record = value as RecordAny;
-    return String(record._id || record.id || getId(record) || "").trim();
+    for (const candidate of [record._id, record.id, record.entityId]) {
+      const normalized = String(candidate || "").trim();
+      if (normalized) {
+        return normalized;
+      }
+    }
   }
 
   return "";

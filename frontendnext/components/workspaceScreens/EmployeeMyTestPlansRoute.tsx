@@ -64,6 +64,17 @@ export default function EmployeeMyTestPlansRoute() {
     () => projectScope.filterPlans(plans),
     [plans, projectScope],
   );
+  const scopedProjectCount = useMemo(() => {
+    const ids = new Set<string>();
+    for (const plan of scopedPlans) {
+      const projectId = getId((plan as { project?: unknown }).project);
+      if (projectId) {
+        ids.add(projectId);
+      }
+    }
+    return ids.size;
+  }, [scopedPlans]);
+
   const matchesSearch = useMemo(() => createTextMatcher(searchTerm), [searchTerm]);
 
   const openExecutionForPlan = (plan: RecordAny) => {
@@ -94,7 +105,7 @@ export default function EmployeeMyTestPlansRoute() {
         onSearchChange: setSearchTerm,
         searchPlaceholder: "Search by plan, project, version...",
         stats: [
-          { label: "projects", value: projectScope.safeProjects.length },
+          { label: "projects", value: scopedProjectCount },
           { label: "plans", value: scopedPlans.length },
         ],
       }),
@@ -107,6 +118,7 @@ export default function EmployeeMyTestPlansRoute() {
     projectScope.selectedProjectId,
     projectScope.setSelectedProjectId,
     scopedPlans.length,
+    scopedProjectCount,
     searchTerm,
     setTopbar,
   ]);

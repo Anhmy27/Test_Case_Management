@@ -133,9 +133,7 @@ export function useJiraBugDialog({ onNotice }: Options) {
         return;
       }
 
-      const project =
-        findProjectByReference(referenceData.projects, run?.project) ||
-        findProjectByReference(referenceData.projects, run?.project?._id);
+      const project = findProjectByReference(referenceData.projects, run?.project);
       const projectId = String(getId(project) || getId(run?.project) || run?.project || "").trim();
 
       if (!project || !projectId) {

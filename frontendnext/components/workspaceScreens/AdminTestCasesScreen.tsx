@@ -643,10 +643,10 @@ export default function AdminTestCasesScreen(props: Props) {
             <TestCaseVersionsPanel testCaseId={String(effectiveActiveId)} />
           ) : (
           <form
-            className="test-case-workbench-form space-y-2 [&_input]:!text-[10px] [&_select]:!text-[10px] [&_textarea]:!text-[10px]"
+            className="test-case-workbench-form space-y-5"
             onSubmit={handleSaveTestCase}
           >
-                <div className="grid grid-cols-2 gap-1.5">
+                <div className="grid grid-cols-2 gap-4">
                   <ScopedProjectField
                     variant="workbench"
                     isProjectScoped={isProjectScoped}
@@ -689,7 +689,7 @@ export default function AdminTestCasesScreen(props: Props) {
                   </WorkbenchField>
                 </div>
 
-                <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-1.5">
+                <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-4">
                   <WorkbenchField label="Case key">
                     <input
                       value={testCaseForm.caseKey}
@@ -720,7 +720,7 @@ export default function AdminTestCasesScreen(props: Props) {
                   </WorkbenchField>
                 </div>
 
-                <div className="grid grid-cols-3 gap-1.5">
+                <div className="grid grid-cols-3 gap-4">
                   <WorkbenchField label="Priority">
                     <select
                       value={testCaseForm.priority || "medium"}
@@ -892,27 +892,23 @@ export default function AdminTestCasesScreen(props: Props) {
                 ) : null}
 
 
-                <div className="flex items-center gap-1.5 pt-0.5">
+                <div className="flex flex-wrap items-center justify-end gap-3 border-t border-slate-100 pt-5 dark:border-zinc-800">
+                  <Button
+                    type="button"
+                    size="sm"
+                    label="Cancel"
+                    onClick={closeWorkbench}
+                  />
                   <Button
                     type="submit"
                     variant="primary"
                     size="sm"
-                    className="flex-1 justify-center !px-3 !py-1 !text-[11px]"
                     label={
                       workbenchModal === "edit"
                         ? "Save changes"
                         : "Create test case"
                     }
                   />
-                  {(workbenchModal === "edit" || workbenchModal === "create") && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="!px-3 !py-1 !text-[11px]"
-                      label="Cancel"
-                      onClick={closeWorkbench}
-                    />
-                  )}
                 </div>
           </form>
           )}

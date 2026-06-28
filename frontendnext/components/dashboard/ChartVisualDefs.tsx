@@ -31,6 +31,10 @@ export default function ChartVisualDefs({
             <stop offset="0%" stopColor="#a1a1aa" stopOpacity={0.35} />
             <stop offset="100%" stopColor="#52525b" stopOpacity={0.02} />
           </linearGradient>
+          <linearGradient id={id("trend-blocked")} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#fcd34d" stopOpacity={0.45} />
+            <stop offset="100%" stopColor="#d97706" stopOpacity={0.04} />
+          </linearGradient>
         </>
       ) : null}
 

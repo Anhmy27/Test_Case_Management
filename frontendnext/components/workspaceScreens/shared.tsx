@@ -7,25 +7,22 @@ import type { HTMLAttributes, ReactNode } from "react";
 
 /** Compact inputs for test case create/edit workbench */
 export const WORKBENCH_LABEL_CLS =
-  "text-[10px] font-medium leading-none text-slate-600 dark:text-zinc-400";
+  "text-xs font-medium leading-snug text-slate-700 dark:text-zinc-300";
 
 export const WORKBENCH_SECTION_TITLE_CLS =
-  "text-[10px] font-semibold uppercase tracking-wide text-slate-600 dark:text-zinc-400";
+  "text-xs font-semibold uppercase tracking-wide text-slate-700 dark:text-zinc-300";
 
 export const WORKBENCH_HINT_CLS =
-  "truncate text-[10px] leading-tight text-slate-500 dark:text-zinc-500";
+  "text-xs leading-snug text-slate-500 dark:text-zinc-400";
 
-/** Ô nhập: khung to (dễ bấm), chữ nhỏ bên trong */
 export const WORKBENCH_INPUT_CLS =
-  "min-h-[2rem] w-full min-w-0 rounded-md border border-slate-200 bg-white px-2 py-1.5 !text-[10px] !leading-normal font-medium text-slate-900 placeholder:font-normal placeholder:text-slate-500 focus:border-sky-400 focus:outline-none focus:ring-1 focus:ring-sky-400/20 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500";
+  "min-h-[2.75rem] w-full min-w-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm leading-normal text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500";
 
-/** Select — cùng chiều cao ô input */
-export const WORKBENCH_SELECT_CLS = `${WORKBENCH_INPUT_CLS} h-[2rem] min-h-[2rem] py-1 pr-7 !leading-normal [&_option]:!text-[10px]`;
+export const WORKBENCH_SELECT_CLS = `${WORKBENCH_INPUT_CLS} h-[2.75rem] min-h-[2.75rem] py-2 pr-8 leading-normal`;
 
-export const WORKBENCH_TEXTAREA_CLS = `${WORKBENCH_INPUT_CLS} !h-auto min-h-[2.5rem] resize-y py-1.5 leading-normal`;
+export const WORKBENCH_TEXTAREA_CLS = `${WORKBENCH_INPUT_CLS} !h-auto min-h-[5.5rem] resize-y py-2.5 leading-normal`;
 
-/** Nút / meta trong workbench */
-export const WORKBENCH_META_CLS = "!text-[10px] font-medium leading-none text-slate-700";
+export const WORKBENCH_META_CLS = "text-xs font-medium leading-snug text-slate-700 dark:text-zinc-300";
 
 export function WorkbenchField({
   label,
