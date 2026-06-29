@@ -1,11 +1,14 @@
 import { expect, test } from "@playwright/test";
-import { e2eManualPlanName, loginAsAdmin } from "./helpers/auth";
+import { e2eManualPlanName, e2eProjectName, loginAsAdmin } from "./helpers/auth";
 
 test.describe("Admin execution flow", () => {
-  test("admin starts manual run, marks fail, and ends run", async ({ page }) => {
+  test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
+    await page.getByLabel("Project scope").selectOption({ label: e2eProjectName });
+  });
 
-    await page.getByRole("button", { name: /Test Runs/i }).click();
+  test("admin starts manual run, marks fail, and ends run", async ({ page }) => {
+    await page.getByRole("button", { name: /Test Runs \+ Execution/i }).click();
     await expect(page).toHaveURL(/\/workspace\/admin\/test-runs-execution/);
     await expect(page.getByRole("heading", { name: "Start Test Run" })).toBeVisible({
       timeout: 15_000,
@@ -34,13 +37,12 @@ test.describe("Admin execution flow", () => {
     await page.getByRole("button", { name: "Fail (2)" }).click();
     await expect(page.locator("text=Failed").first()).toBeVisible({ timeout: 10_000 });
 
-    await page.getByRole("button", { name: "End run" }).click();
+    await page.getByTitle("End this test run").click();
     await expect(page.locator("text=Completed").first()).toBeVisible({ timeout: 15_000 });
   });
 
   test("export buttons download run results file", async ({ page }) => {
-    await loginAsAdmin(page);
-    await page.getByRole("button", { name: /Test Runs/i }).click();
+    await page.getByRole("button", { name: /Test Runs \+ Execution/i }).click();
 
     const completedRun = page
       .locator("[data-run-status='completed'], .run-list-item")

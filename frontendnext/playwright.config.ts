@@ -13,6 +13,9 @@ export default defineConfig({
   workers: 1,
   reporter: process.env.CI ? "line" : "list",
   timeout: 60_000,
+  expect: {
+    timeout: 15_000,
+  },
   use: {
     baseURL: frontendBase,
     trace: "on-first-retry",
@@ -33,6 +36,8 @@ export default defineConfig({
       env: {
         E2E_PORT: String(backendPort),
         PORT: String(backendPort),
+        AUTH_LOGIN_ATTEMPT_LIMIT_MAX_PER_EMAIL: "10000",
+        AUTH_LOGIN_ATTEMPT_LIMIT_MAX_PER_IP: "10000",
       },
     },
     {

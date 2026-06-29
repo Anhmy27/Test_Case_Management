@@ -107,3 +107,5 @@ jobs:
           CI: "true"
           JWT_SECRET: ci-e2e-jwt-secret-minimum-32-characters!!
           JIRA_VAULT_SECRET: ci-e2e-jira-vault-secret-long-enough-123
+          AUTH_LOGIN_ATTEMPT_LIMIT_MAX_PER_EMAIL: "10000"
+          AUTH_LOGIN_ATTEMPT_LIMIT_MAX_PER_IP: "10000"

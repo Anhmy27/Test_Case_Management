@@ -8,12 +8,16 @@ export const employeePassword =
 export const e2eProjectName = "E2E Execution Project";
 export const e2eManualPlanName = process.env.E2E_MANUAL_PLAN_NAME || "E2E Manual Execution Plan";
 
+const LOGIN_REDIRECT_TIMEOUT_MS = 30_000;
+
 export async function loginAsAdmin(page: Page) {
   await page.goto("/");
   await page.locator("#email").fill(adminEmail);
   await page.locator("#password").fill(adminPassword);
   await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
-  await expect(page).toHaveURL(/\/workspace\/admin\/dashboard/);
+  await expect(page).toHaveURL(/\/workspace\/admin\/dashboard/, {
+    timeout: LOGIN_REDIRECT_TIMEOUT_MS,
+  });
 }
 
 export async function loginAsEmployee(page: Page) {
@@ -21,10 +25,22 @@ export async function loginAsEmployee(page: Page) {
   await page.locator("#email").fill(employeeEmail);
   await page.locator("#password").fill(employeePassword);
   await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
-  await expect(page).toHaveURL(/\/workspace\/employee\/my-test-plans/);
+  await expect(page).toHaveURL(/\/workspace\/employee\/my-test-plans/, {
+    timeout: LOGIN_REDIRECT_TIMEOUT_MS,
+  });
 }
 
 export async function logoutFromWorkspace(page: Page) {
   await page.getByRole("button", { name: "Đăng xuất" }).click();
   await expect(page).toHaveURL("/");
+}
+
+/** First create/edit form on admin CRUD screens. */
+export function adminCreateForm(page: Page) {
+  return page.locator("form").first();
+}
+
+/** Main workspace content — avoids matching topbar project scope options. */
+export function mainContent(page: Page) {
+  return page.getByRole("main");
 }

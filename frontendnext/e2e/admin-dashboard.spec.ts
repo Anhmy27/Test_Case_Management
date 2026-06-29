@@ -23,9 +23,9 @@ test.describe("Admin dashboard", () => {
     await page.getByLabel("Project scope").selectOption({ label: e2eProjectName });
     await page.getByRole("button", { name: /Execution History/i }).click();
     await expect(page).toHaveURL(/\/workspace\/admin\/test-cases-history/);
-    await expect(page.getByRole("heading", { name: /Execution History/i })).toBeVisible({
-      timeout: 15_000,
-    });
+    await expect(
+      page.getByRole("heading", { level: 1, name: /Execution History/i }),
+    ).toBeVisible({ timeout: 15_000 });
   });
 
   test("test plans page loads under project scope", async ({ page }) => {
