@@ -1,18 +1,9 @@
 import { expect, test } from "@playwright/test";
-
-const employeeEmail = process.env.E2E_EMPLOYEE_EMAIL || "e2e-employee@test.local";
-const employeePassword = process.env.E2E_EMPLOYEE_PASSWORD || "e2e-employee-password-123456";
-const planName = process.env.E2E_MANUAL_PLAN_NAME || "E2E Manual Execution Plan";
+import { e2eManualPlanName, loginAsEmployee } from "./helpers/auth";
 
 test.describe("Employee manual execution", () => {
   test("employee starts run and marks a case as pass", async ({ page }) => {
-    await page.goto("/");
-
-    await page.locator("#email").fill(employeeEmail);
-    await page.locator("#password").fill(employeePassword);
-    await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
-
-    await expect(page).toHaveURL(/\/workspace\/employee\/my-test-plans/);
+    await loginAsEmployee(page);
 
     await page.goto("/workspace/employee/execution");
 
@@ -23,7 +14,7 @@ test.describe("Employee manual execution", () => {
     const planSelect = page.getByRole("combobox", { name: "Test Plan" });
     const planOptionValue = await planSelect
       .locator("option")
-      .filter({ hasText: planName })
+      .filter({ hasText: e2eManualPlanName })
       .first()
       .getAttribute("value");
 

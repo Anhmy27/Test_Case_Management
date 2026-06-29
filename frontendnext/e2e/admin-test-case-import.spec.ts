@@ -1,21 +1,11 @@
-import { expect, test } from "@playwright/test";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { expect, test } from "@playwright/test";
 import { buildTestCaseImportWorkbookBuffer } from "../lib/testCaseImportTemplate";
+import { e2eProjectName, loginAsAdmin } from "./helpers/auth";
 
-const adminEmail = process.env.E2E_ADMIN_EMAIL || "e2e-admin@test.local";
-const adminPassword = process.env.E2E_ADMIN_PASSWORD || "e2e-admin-password-123456";
-const e2eProjectName = "E2E Execution Project";
 const e2eGroupKey = "E2EGRP";
-
-async function loginAsAdmin(page: import("@playwright/test").Page) {
-  await page.goto("/");
-  await page.locator("#email").fill(adminEmail);
-  await page.locator("#password").fill(adminPassword);
-  await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
-  await expect(page).toHaveURL(/\/workspace\/admin\/dashboard/);
-}
 
 function writeImportFixture(caseKey: string): string {
   const buffer = buildTestCaseImportWorkbookBuffer([
@@ -78,8 +68,9 @@ test.describe("Admin test case Excel import", () => {
       await expect(page.locator(".tcm-toast")).toContainText(/Imported 1 test cases/i, {
         timeout: 15_000,
       });
-      await expect(page.getByRole("table").getByText(caseKey)).toBeVisible({ timeout: 15_000 });
-      await expect(page.getByRole("table").getByText("E2E imported test case")).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: new RegExp(`${caseKey}.*E2E imported test case`) }),
+      ).toBeVisible({ timeout: 15_000 });
     } finally {
       fs.unlinkSync(filePath);
     }

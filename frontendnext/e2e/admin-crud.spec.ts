@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { e2eProjectName, loginAsAdmin } from "./helpers/auth";
+import { adminCreateForm, adminEmail, e2eProjectName, loginAsAdmin, mainContent } from "./helpers/auth";
 
 test.describe("Admin CRUD smoke", () => {
   test.beforeEach(async ({ page }) => {
@@ -12,13 +12,19 @@ test.describe("Admin CRUD smoke", () => {
 
     await page.getByRole("button", { name: "Projects" }).click();
     await expect(page).toHaveURL(/\/workspace\/admin\/projects/);
+    await expect(page.getByRole("button", { name: /Create project/i })).toBeVisible({
+      timeout: 20_000,
+    });
 
-    await page.getByLabel("Project name").fill(name);
-    await page.getByLabel("Project code").fill(code);
-    await page.getByRole("button", { name: "＋ Create project" }).click();
+    const form = adminCreateForm(page);
+    await form.getByLabel("Name").fill(name);
+    await form.getByLabel("Code").fill(code);
+    await page.getByRole("button", { name: /Create project/i }).click();
 
-    await expect(page.getByRole("table").getByText(name)).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByRole("table").getByText(code)).toBeVisible();
+    await expect(mainContent(page).getByText(name, { exact: true })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(mainContent(page).getByText(code, { exact: true })).toBeVisible();
   });
 
   test("create version under project scope", async ({ page }) => {
@@ -27,31 +33,40 @@ test.describe("Admin CRUD smoke", () => {
     await page.getByLabel("Project scope").selectOption({ label: e2eProjectName });
     await page.getByRole("button", { name: "Versions" }).click();
     await expect(page).toHaveURL(/\/workspace\/admin\/versions/);
+    await expect(page.getByRole("button", { name: /Create version/i })).toBeVisible({
+      timeout: 20_000,
+    });
 
-    await page.getByLabel("Version name").fill(versionName);
+    await adminCreateForm(page).getByLabel("Name").fill(versionName);
     await page.getByRole("button", { name: /Create version/i }).click();
 
-    await expect(page.getByRole("table").getByText(versionName)).toBeVisible({ timeout: 15_000 });
+    await expect(mainContent(page).getByText(versionName, { exact: true })).toBeVisible({
+      timeout: 15_000,
+    });
   });
 
   test("create group under project scope", async ({ page }) => {
-    const groupKey = `EG${Date.now().toString().slice(-4)}`;
+    const groupName = `E2E Group ${Date.now()}`;
 
     await page.getByLabel("Project scope").selectOption({ label: e2eProjectName });
     await page.getByRole("button", { name: "Groups" }).click();
     await expect(page).toHaveURL(/\/workspace\/admin\/groups/);
+    await expect(page.getByRole("button", { name: /Create group/i })).toBeVisible({
+      timeout: 20_000,
+    });
 
-    await page.getByLabel("Group key").fill(groupKey);
-    await page.getByLabel("Group name").fill(`E2E Group ${groupKey}`);
+    await adminCreateForm(page).getByLabel("Name").fill(groupName);
     await page.getByRole("button", { name: /Create group/i }).click();
 
-    await expect(page.getByRole("table").getByText(groupKey)).toBeVisible({ timeout: 15_000 });
+    await expect(mainContent(page).getByText(groupName, { exact: true })).toBeVisible({
+      timeout: 15_000,
+    });
   });
 
   test("users page lists admin account", async ({ page }) => {
     await page.getByRole("button", { name: "Users" }).click();
     await expect(page).toHaveURL(/\/workspace\/admin\/users/);
-    await expect(page.getByRole("table").getByText(/e2e-admin@test\.local/i)).toBeVisible({
+    await expect(mainContent(page).getByText(adminEmail, { exact: true })).toBeVisible({
       timeout: 15_000,
     });
   });
@@ -61,11 +76,17 @@ test.describe("Admin CRUD smoke", () => {
 
     await page.getByRole("button", { name: "Issue Types" }).click();
     await expect(page).toHaveURL(/\/workspace\/admin\/issue-types/);
+    await expect(page.getByRole("button", { name: /Create issue type/i })).toBeVisible({
+      timeout: 20_000,
+    });
 
-    await page.getByLabel("Issue type name").fill(typeName);
-    await page.getByLabel("Jira issue type id").fill("10001");
+    const form = adminCreateForm(page);
+    await form.getByLabel("Name").fill(typeName);
+    await form.getByLabel("Jira ID").fill("10001");
     await page.getByRole("button", { name: /Create issue type/i }).click();
 
-    await expect(page.getByRole("table").getByText(typeName)).toBeVisible({ timeout: 15_000 });
+    await expect(mainContent(page).getByText(typeName, { exact: true })).toBeVisible({
+      timeout: 15_000,
+    });
   });
 });

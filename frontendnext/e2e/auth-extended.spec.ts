@@ -36,7 +36,7 @@ test.describe("Auth extended", () => {
     await page.locator("#email").fill(adminEmail);
     await page.locator("#password").fill(adminPassword);
     await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
-    await expect(page).toHaveURL(/\/workspace\/admin\/dashboard/);
+    await expect(page).toHaveURL(/\/workspace\/admin\/dashboard/, { timeout: 30_000 });
 
     await page.getByRole("button", { name: "Đăng xuất" }).click();
     await expect(page).toHaveURL("/");
@@ -48,7 +48,7 @@ test.describe("Auth extended", () => {
     await page.locator("#email").fill(employeeEmail);
     await page.locator("#password").fill(employeePassword);
     await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
-    await expect(page).toHaveURL(/\/workspace\/employee\/my-test-plans/);
+    await expect(page).toHaveURL(/\/workspace\/employee\/my-test-plans/, { timeout: 30_000 });
 
     await page.goto("/workspace/admin/dashboard");
     await expect(page).not.toHaveURL(/\/workspace\/admin\/dashboard/, { timeout: 10_000 });

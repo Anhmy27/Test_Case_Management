@@ -7,6 +7,11 @@ process.env.PORT = String(process.env.E2E_PORT || process.env.PORT || 5000);
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'e2e-test-jwt-secret-minimum-32-chars!!';
 process.env.JIRA_VAULT_SECRET = process.env.JIRA_VAULT_SECRET || 'e2e-jira-vault-secret-long-enough-for-tests';
 process.env.CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:3000';
+// E2e runs many logins in one CI job — avoid hitting per-email login caps.
+process.env.AUTH_LOGIN_ATTEMPT_LIMIT_MAX_PER_EMAIL =
+  process.env.AUTH_LOGIN_ATTEMPT_LIMIT_MAX_PER_EMAIL || '10000';
+process.env.AUTH_LOGIN_ATTEMPT_LIMIT_MAX_PER_IP =
+  process.env.AUTH_LOGIN_ATTEMPT_LIMIT_MAX_PER_IP || '10000';
 process.env.ADMIN_NAME = process.env.ADMIN_NAME || 'E2E Admin';
 process.env.ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'e2e-admin@test.local';
 process.env.ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'e2e-admin-password-123456';

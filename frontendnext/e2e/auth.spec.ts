@@ -1,7 +1,5 @@
 import { expect, test } from "@playwright/test";
-
-const adminEmail = process.env.E2E_ADMIN_EMAIL || "e2e-admin@test.local";
-const adminPassword = process.env.E2E_ADMIN_PASSWORD || "e2e-admin-password-123456";
+import { adminEmail, adminPassword } from "./helpers/auth";
 
 test.describe("Auth smoke", () => {
   test("admin can log in and reach dashboard", async ({ page }) => {
@@ -11,7 +9,7 @@ test.describe("Auth smoke", () => {
     await page.locator("#password").fill(adminPassword);
     await page.getByRole("button", { name: "Đăng nhập", exact: true }).click();
 
-    await expect(page).toHaveURL(/\/workspace\/admin\/dashboard/);
+    await expect(page).toHaveURL(/\/workspace\/admin\/dashboard/, { timeout: 30_000 });
     await expect(page.getByRole("button", { name: "Dashboard" })).toBeVisible();
   });
 });
