@@ -7,22 +7,27 @@ Test Case Management System is a full-stack test management app with:
 - Playwright-based automation execution for automation test plans
 - Jira-backed bug logging for failed run items
 
-## Recent improvements (2026-06-11)
+**Hướng dẫn sử dụng (tiếng Việt):** [docs/HUONG_DAN_SU_DUNG.md](docs/HUONG_DAN_SU_DUNG.md)
 
-- **Auth rate limits (MongoDB-backed)**: login counts every attempt per IP + email; register counts only **successful account creation** (failed/duplicate attempts do not consume quota). Jira log-bug is not rate-limited. See [Auth rate limits](#auth-rate-limits) below.
+## Recent improvements (2026-06-29)
+
+- **Excel import**: download 2-tab template (`TestCases` + `Hướng dẫn`), import manual steps only; automation configured on web. Strict validation + error Excel export.
+- **Execution History UX**: filter by group **and** search by case key/title; paginated history modal; deep-link via `?caseKey=`.
+- **Client-side pagination**: large admin lists (test cases, test plans, execution history modal) use shared `useClientPagination`.
+- **Run naming**: default run names use **Vietnam time** (`Asia/Ho_Chi_Minh`, `YYYY-MM-DD HH:mm`) — shown in Log Bug description.
+- **Auth rate limits (MongoDB-backed)**: login counts every attempt per IP + email; register counts only **successful account creation**. Jira log-bug is not rate-limited.
 - **Security**: JWT in httpOnly cookies + CSRF + `helmet`; JWT fail-fast, **8h** TTL, session revocation via `tokenVersion`; production error sanitization.
-- **Execution history**: admin Test Cases History with `resultId`, Open run / screenshot / log bug actions; backend `executionHistory` API.
-- **Backend architecture**: domain service split + Zod validation at route boundary.
-- **Automation**: orphan run recovery on startup, artifact retention, SSRF guardrails.
-- **CI**: GitHub Actions runs backend tests, frontend build/lint, and Playwright e2e smoke tests on push/PR to `main`/`master`.
-- **Tests**: **81** backend tests (unit + integration, `npm run test:ci`; skips live Jira probes) + **3** Playwright e2e specs (`npm run test:e2e:ci` in `frontendnext/`).
+- **Automation**: Playwright runner, dry-run, orphan run recovery, artifact retention, SSRF guardrails, demo case seeds.
+- **CI**: GitHub Actions — backend tests, frontend build/lint, Playwright e2e on push/PR to `main`/`master`.
+- **Tests**: **163** backend tests (`npm run test:ci`; skips live Jira probes) + **9** Playwright e2e specs.
 
 ## Repository Layout
 
-- `backend/` - REST API, authentication, test management, automation runner
-- `frontendnext/` - active Next.js UI for admin and employee workspaces
-- `docker-compose.yml` - local MongoDB container only
-- `.github/workflows/ci.yml` - CI pipeline (backend tests + frontend build/lint + e2e smoke)
+- `backend/` — REST API, authentication, test management, Playwright automation runner
+- `frontendnext/` — active Next.js UI for admin and employee workspaces
+- `docker-compose.yml` — optional full-stack containers (backend + frontend) or MongoDB via profile
+- `.github/workflows/ci.yml` — CI pipeline (backend tests + frontend build/lint + e2e)
+- `.ai/` — internal agent/dev rules (architecture, testing, security, deployment)
 
 ## Requirements
 
@@ -34,13 +39,15 @@ Test Case Management System is a full-stack test management app with:
 
 ### 1) Start MongoDB
 
-From the project root:
+From the project root (MongoDB uses Docker profile `local-mongo`):
 
 ```bash
-docker compose up -d
+docker compose --profile local-mongo up -d mongodb
 ```
 
 MongoDB runs in Docker on container port `27017` and is exposed to the host on `27018`.
+
+Alternatively, point `MONGO_URI` in `backend/.env` to MongoDB Atlas or another hosted instance.
 
 ### 2) Configure the backend
 
@@ -126,13 +133,17 @@ The backend exposes REST endpoints under `/api` and includes:
 - Playwright automation execution for automation-mode test plans
 - production-safe error responses when `NODE_ENV=production`
 
-Service layer is now split by domain:
+Service layer is split by domain (controllers → services → models):
 
-- `backend/src/services/projectVersionServices.js` - project + version use cases
-- `backend/src/services/issueTypeGroupServices.js` - issue type + test case group use cases
-- `backend/src/services/testCaseServices.js` - test case CRUD/import/history use cases
-- `backend/src/services/testPlanServices.js` - test plan CRUD/assignment/versioning use cases
-- shared helpers in `backend/src/services/shared/` (`versioningCore.js`, `testManagementResolvers.js`)
+- `backend/src/services/projectVersionServices.js` — project + version
+- `backend/src/services/issueTypeGroupServices.js` — issue types + test case groups
+- `backend/src/services/testCaseServices.js` / `testCaseService.js` — test case CRUD, import, execution history
+- `backend/src/services/testPlanServices.js` / `testPlanService.js` — test plan CRUD, assignment, versioning
+- `backend/src/services/testRunLifecycleService.js` — run start/update/end, export, retry
+- `backend/src/services/testRunDashboardService.js` — dashboards and analytics
+- `backend/src/services/jiraService.js` / `jiraManagementService.js` — Jira session + log bug
+- `backend/src/services/auditLogService.js` — admin audit trail
+- shared helpers in `backend/src/services/shared/` and `backend/src/utils/`
 
 The backend starts from [backend/index.js](backend/index.js) and connects to MongoDB before starting Express.
 
@@ -181,29 +192,13 @@ npm run test:integration  # integration tests only (in-memory MongoDB + supertes
 
 This runs `node --test`. Unit tests live under `backend/test/*.test.js`; integration tests under `backend/test/integration/*.integration.test.js` (Express + MongoDB Memory Server + cookie/CSRF flow).
 
-Current unit test files (13):
+**Current suite (2026-06-29): 163 tests / 35 files** (`npm run test:ci` skips live Jira probes).
 
-- `validators.test.js` — Zod schemas and validation middleware
-- `auth-security.test.js` — auth cookies, CSRF, error sanitization
-- `auth-controller.test.js` — register/login/logout/me flows
-- `auth-rate-limit.test.js` — login attempt + register success rate limits
-- `audit-log.test.js` — audit log service helpers
-- `jwt-auth.test.js` — JWT config, tokenVersion, session revocation
-- `automation-url-policy.test.js` — automation URL/upload sandbox policy
-- `jira-account.test.js` — Jira vault/profile helpers
-- `jira-token.test.js` — Jira QuickCreate token parsing
-- `run-automation-partition.test.js` — manual vs automation result partition
-- `artifactKeys.test.js`, `localArtifactStorage.test.js` — artifact path helpers
-- `jira-create-issue-probe.test.js`, `jira-log-bug-live.test.js` — optional live Jira probes (skipped in CI)
+Unit tests cover: Zod validators, cookie auth, CSRF, JWT revocation, auth rate limits, automation URL policy, Playwright step helpers (goto/wait, assertText, locator strictness, retry), Excel import parsing, Jira token/vault helpers, artifact keys/storage, run name timestamps (`Asia/Ho_Chi_Minh`).
 
-Integration tests (6 files, 23 cases):
+Integration tests cover: auth flows, admin user/project management, full test-management chain, manual + automation runs, Excel import API, dashboard, Jira log-bug (mocked), audit log, soft-delete/restore, automation ingest.
 
-- `integration/auth.integration.test.js` — register/login/logout cookies, CSRF guard, duplicate register quota
-- `integration/audit-log.integration.test.js` — admin project create → audit entry; employee blocked from audit API
-- `integration/test-run-execution.integration.test.js` — manual plan → run → submit result → end run → execution history; permission & duplicate-run guards
-- `integration/test-management-chain.integration.test.js` — project → version → group → case → plan CRUD chain; plan versioning & assignee access
-- `integration/automation-ingest.integration.test.js` — CI automation ingest, secret guard, manual PATCH blocked, manual-only run rejected
-- `integration/soft-delete-restore.integration.test.js` — project/plan/case soft-delete & restore; child guard; run start after case delete
+Optional live probes (skipped in CI): `jira-create-issue-probe.test.js`, `jira-log-bug-live.test.js`.
 
 E2e seed (`backend/scripts/seedE2eExecution.js`) creates employee + manual plan for execution flows.
 
@@ -218,11 +213,17 @@ npm run test:e2e:ci   # CI mode: starts backend e2e server + Next dev automatica
 
 Playwright config (`playwright.config.ts`) boots `backend/scripts/e2eServer.js` (in-memory MongoDB + seeded admin) and `npm run dev` with matching CORS/API base URLs.
 
-Specs in `frontendnext/e2e/`:
+Specs in `frontendnext/e2e/` (9 files):
 
 - `auth.spec.ts` — admin login → dashboard
-- `admin-audit-log.spec.ts` — Audit Log tab visible in global scope
-- `employee-execution.spec.ts` — employee login → start manual run → mark case pass
+- `auth-extended.spec.ts` — register + logout flows
+- `admin-audit-log.spec.ts` — Audit Log tab in global scope
+- `admin-crud.spec.ts` — create project, version, group
+- `admin-dashboard.spec.ts` — dashboard + execution history navigation
+- `admin-execution.spec.ts` — admin start manual run
+- `admin-test-case-import.spec.ts` — download template + import Excel
+- `employee-execution.spec.ts` — employee manual run → mark pass
+- `employee-flows.spec.ts` — employee navigation smoke
 
 Default e2e admin credentials (override with `E2E_ADMIN_EMAIL` / `E2E_ADMIN_PASSWORD`):
 
@@ -240,7 +241,7 @@ On push or pull request to `main` / `master`, GitHub Actions (`.github/workflows
 
 1. **Backend** — `npm ci` + `npm run test:ci` in `backend/`
 2. **Frontend** — `npm ci` + `npm run build` + `npm run lint:ci` in `frontendnext/`
-3. **E2E smoke** — Playwright login + admin audit-log specs (Chromium only)
+3. **E2E** — Playwright (all specs, Chromium) via `npm run test:e2e:ci`
 
 ## Frontend Overview
 
@@ -248,29 +249,31 @@ The UI is a Next.js App Router workspace in `frontendnext/`.
 
 Key points:
 
-- admin and employee workspaces are routed under `/workspace/admin/*` and `/workspace/employee/*`
-- the workspace shell is centralized in `AppShell.tsx` with role-specific nav (`adminNav.ts`, employee routes)
-- admin screens handle CRUD and planning
-- employee screens handle assigned plans, running tests, and execution
-- the execution UI persists both `Actual result` and `Notes` for each run item
-- admin dashboard adapts to project scope: cross-project overview when **All projects** is selected, project-specific metrics when one project is scoped
-- project scope (`tcm_selected_project_id`) persists in `localStorage`; JWT session does not
+- admin and employee workspaces under `/workspace/admin/*` and `/workspace/employee/*`
+- workspace shell in `WorkspaceShell.tsx` with role-specific nav (`adminNav.ts`, employee routes)
+- **project scope** in topbar (`tcm_selected_project_id` in `localStorage`) — global vs project-scoped sidebar tabs
+- light/dark theme (`tcm_theme`)
+- admin: CRUD, planning, execution, execution history, Jira bug log, audit log, users
+- employee: assigned plans, execution, running tests, history, Jira profile
+- execution UI persists `Actual result` and `Notes`; Log Bug prefills Jira description from run + case + steps
+- default run names: `{plan} - YYYY-MM-DD HH:mm` in **Vietnam timezone** (`formatRunNameTimestamp` in `frontendnext/lib/api.ts`)
 
 ## Roles
 
 ### Admin
 
-- manage projects, versions, groups, test cases, test plans, users, and test runs
-- create manual or automation test plans
-- assign plan owners and assignees
-- view dashboards and execution history
+- manage projects, issue types, versions, groups, test cases, test plans, users
+- import test cases from Excel; configure automation steps in the web UI
+- create manual or automation test plans; assign owners and assignees
+- run tests, view execution history (filter by group, search by key/title)
+- view dashboards, Jira bug log, and audit log
 
 ### Employee
 
-- view assigned test plans
-- run assigned plans
-- execute manual or automation runs that are assigned to them
+- view assigned test plans and start runs
+- execute manual or automation runs assigned to them
 - view personal running tests and history
+- manage personal Jira profile for log-bug
 
 ## Automation Test Plans
 
@@ -337,6 +340,26 @@ Optional backend env vars:
 
 Place files for automation `upload` steps inside `backend/uploads/test-files/`.
 
+Demo automation cases (stable public sites):
+
+```bash
+cd backend
+npm run automation:seed-demos
+npm run automation:stability-probe -- --caseKeys DEMO-EX01,DEMO-TODO --runs 3
+```
+
+### Excel import (manual test cases)
+
+Admin **Test Cases** screen: **Download template** → fill → **Import Excel**.
+
+- Workbook has two sheets: **`TestCases`** (data) and **`Hướng dẫn`** (instructions). Import reads `TestCases` by name.
+- **Group Key** or **Group Name** (one required per row); **Case Key** + **Title** required.
+- Manual steps via `Step N Action` / `Step N Expected` columns (default template: 5 step pairs).
+- **Automation is not imported from Excel** — configure automation on the web edit form.
+- Strict mode validates priority/severity/type enums; failed rows returned as downloadable error Excel.
+
+Implementation: `frontendnext/lib/testCaseImportTemplate.ts`, `backend/src/utils/testCaseImportTemplate.js`, `POST /api/test-cases/import`.
+
 ### Jira bug logging
 
 Failed run items can be logged to Jira from the execution screen.
@@ -376,7 +399,9 @@ The backend mounts routes as:
 
 - `/api/auth`
 - `/api/users`
-- `/api`
+- `/api/audit-logs`
+- `/api/jira`
+- `/api` (test management, dashboard, automation dry-run)
 
 ### Auth
 
@@ -422,6 +447,14 @@ Security middleware enabled on the API:
 - `DELETE /api/versions/:versionId` - admin only
 - `PATCH /api/versions/:versionId/restore` - admin only
 
+### Issue types
+
+- `GET /api/issue-types`
+- `POST /api/issue-types` - admin only
+- `GET /api/issue-types/:issueTypeId`
+- `PUT /api/issue-types/:issueTypeId` - admin only
+- `DELETE /api/issue-types/:issueTypeId` - admin only
+
 ### Test case groups
 
 - `GET /api/test-case-groups`
@@ -459,14 +492,34 @@ Security middleware enabled on the API:
 
 - `GET /api/test-runs`
 - `POST /api/test-runs` - admin or employee
+- `PATCH /api/test-runs/:runId` - admin or employee
 - `PATCH /api/test-runs/:runId/end` - admin or employee
+- `POST /api/test-runs/:runId/cancel` - cancel automation run
+- `POST /api/test-runs/:runId/retry-failed` - retry failed automation cases
+- `GET /api/test-runs/:runId/export` - export run results (Excel)
 - `GET /api/test-runs/:runId/my-items`
 - `PATCH /api/test-runs/:runId/results/:resultId`
-- `POST /api/test-runs/:runId/automation-results` - automation ingestion endpoint
+- `GET|POST /api/test-runs/:runId/results/:resultId/failure-screenshot`
+- `POST /api/test-runs/:runId/automation-results` - automation ingestion (secret header)
+
+### Automation dry-run
+
+- `POST /api/automation/dry-run` - admin only
+- `GET /api/automation/dry-runs/:dryRunId/failure-screenshot`
 
 ### Jira
 
+- `GET /api/jira/profile`
+- `PUT /api/jira/profile`
+- `GET /api/jira/assignable-users`
+- `GET /api/jira/label-suggestions`
+- `GET /api/jira/version-suggestions`
+- `GET /api/jira/log-bugs` - admin bug log history
 - `POST /api/jira/log-bug`
+
+### Audit logs
+
+- `GET /api/audit-logs` - admin only (server-side pagination)
 
 ### Dashboards
 
@@ -475,11 +528,6 @@ Security middleware enabled on the API:
 - `GET /api/dashboard/versions`
 - `GET /api/dashboard/test-plans`
 - `GET /api/dashboard/test-plans/:testPlanId`
-
-## Notes
-
-- `frontendnext/.next/` is generated by Next.js and should not be committed.
-- `frontendnext/node_modules/` is local dependency output and should stay out of source control.
 
 ## Useful Commands
 
@@ -493,6 +541,8 @@ npm test              # unit + integration tests
 npm run test:ci       # skips live Jira probe tests (same as CI)
 npm run test:integration
 npm run e2e:server    # API + in-memory Mongo for Playwright
+npm run automation:seed-demos
+npm run automation:stability-probe
 ```
 
 ### Frontend
@@ -507,11 +557,22 @@ npm run test:e2e:ci
 
 ### Docker
 
+**MongoDB only (typical local dev):**
+
 ```bash
-docker compose up -d
-docker compose down
-docker compose down -v
+docker compose --profile local-mongo up -d mongodb
+docker compose --profile local-mongo down
 ```
+
+**Full stack in containers** (backend + frontend; set `MONGO_URI` in `backend/.env` to Atlas or start Mongo separately):
+
+```bash
+docker compose up -d --build
+docker compose down
+docker compose down -v   # removes volumes including Mongo data
+```
+
+Set `NEXT_PUBLIC_API_BASE` build arg in `docker-compose.yml` when frontend must reach backend on a LAN IP.
 
 ## Troubleshooting
 
@@ -522,10 +583,12 @@ docker compose down -v
 - If API errors look too generic during local debugging, comment out `# NODE_ENV=production` in `backend/.env` to see stack traces again.
 - If mutating API calls return 403 CSRF errors, ensure the browser sends cookies (`credentials: 'include'`) and that login ran successfully so `tcm_csrf` is set.
 - If login/register returns **429 Too Many Requests**, auth rate limits were hit — check the `Retry-After` header or wait for the window to reset. Register limits count only successful account creation; login limits count every attempt.
+- If `npm run build` fails fetching Google Fonts (`fonts.gstatic.com`), the network blocked font download during build — retry with internet/VPN or build on CI.
+- Never commit `backend/.env`; use strong `JWT_SECRET` in production. Rotate secrets if they were ever committed to git history.
 
-## Notes
+## Additional notes
 
-- `frontendnext/` is the active frontend.
-- There is no separate legacy `frontend/` app in the current repository.
-- `docker-compose.yml` only starts MongoDB; the backend and frontend are started separately.
-- Production/security checklist: [REVIEW-2026-06-08.md](REVIEW-2026-06-08.md) is the authoritative review (`REVIEW.md` is an older snapshot).
+- `frontendnext/` is the only frontend app (no legacy `frontend/`).
+- `frontendnext/.next/` and `node_modules/` are generated — do not commit.
+- Internal review snapshot: [REVIEW-2026-06-08.md](REVIEW-2026-06-08.md) (partially outdated; README reflects current code).
+- Agent/dev conventions: `.ai/00-core-rules.md` and related rule files.
