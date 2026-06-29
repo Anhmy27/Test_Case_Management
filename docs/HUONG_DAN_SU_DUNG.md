@@ -26,7 +26,7 @@ Hệ thống giúp team QA:
 
 ### 2.1 Đăng nhập / Đăng ký
 
-1. Mở app (mặc định `http://localhost:3000`)
+1. Mở app (mặc định `http://192.168.111.41:3000`)
 2. **Đăng nhập** bằng email + mật khẩu
 3. Nếu công ty cho phép tự đăng ký: bấm **Register**, điền thông tin rồi đăng nhập
 
