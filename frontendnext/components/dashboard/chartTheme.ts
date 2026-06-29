@@ -88,7 +88,3 @@ export function dashboardBadgeClassName(variant: "neutral" | "success" | "danger
 export function dashboardGhostButtonClassName() {
   return "rounded-md px-2.5 py-1.5 text-[12px] font-medium text-zinc-700 transition-colors hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800 dark:hover:text-zinc-50";
 }
-
-export function dashboardInputClassName() {
-  return "h-8 rounded-md border-0 bg-zinc-100/80 px-3 text-[13px] text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:bg-zinc-100 focus:ring-2 focus:ring-zinc-900/5 dark:bg-zinc-800/80 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:focus:bg-zinc-800 dark:focus:ring-white/10";
-}

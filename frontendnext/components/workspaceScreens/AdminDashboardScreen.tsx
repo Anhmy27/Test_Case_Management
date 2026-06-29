@@ -37,8 +37,6 @@ type AdminDashboardScreenProps = {
   projects: RecordAny[];
   plans: RecordAny[];
   selectedProjectId?: string;
-  matchesSearch: (...values: Array<string | number | undefined | null>) => boolean;
-  userName: (value: unknown) => string;
   getId: (value: unknown) => string;
   onNavigate?: (tab: string, options?: string | DashboardNavigateOptions) => void;
 };
@@ -145,8 +143,6 @@ export default function AdminDashboardScreen({
   projects,
   plans,
   selectedProjectId,
-  matchesSearch,
-  userName,
   getId,
   onNavigate,
 }: AdminDashboardScreenProps) {
@@ -204,24 +200,13 @@ export default function AdminDashboardScreen({
           runId: String(runId || ""),
         },
       };
-    })
-    .filter(({ run, projectName, projectId, actionItem }: MappedRunningRun) =>
-      matchesSearch(
-        run.name,
-        run.testPlan?.name,
-        projectName,
-        projectId,
-        actionItem.versionName,
-        userName(run.startedBy),
-      ),
-    );
+    });
 
   const actionCenterRuns = mappedRunningRuns
     .filter(({ actionItem }) => Boolean(actionItem.runId))
     .map(({ actionItem }) => actionItem);
 
   const actionCenterDelayedPlans: ActionCenterDelayedPlan[] = delayedPlans
-    .filter((plan: RecordAny) => matchesSearch(plan.name, plan.project?.name))
     .slice(0, 2)
     .map((plan: RecordAny, index: number) => ({
       id: String(getId(plan) || index),
@@ -231,9 +216,6 @@ export default function AdminDashboardScreen({
     .filter((plan: ActionCenterDelayedPlan) => Boolean(plan.projectId));
 
   const topFailingCaseItems: TopFailingCaseItem[] = mostFailedCases
-    .filter((item: RecordAny) =>
-      matchesSearch(item.caseKey, item.title, item.project?.name, item.failCount, item.priority),
-    )
     .map((item: RecordAny, index: number) => ({
       id: String(item.testCaseId || getId(item) || index),
       caseKey: String(item.caseKey || ""),
@@ -246,17 +228,6 @@ export default function AdminDashboardScreen({
     .filter((item: TopFailingCaseItem) => item.failCount > 0);
 
   const scopeCompareItems: ScopeCompareItem[] = (isGlobalScope ? projectOverview : versionHealth)
-    .filter((item: RecordAny) =>
-      isGlobalScope
-        ? matchesSearch(item.name, item.code, item.latestVersion, item.progress, item.passRate)
-        : matchesSearch(
-            item.name,
-            item.totalTestPlans,
-            item.totalTests,
-            item.passRate,
-            item.progress,
-          ),
-    )
     .map((item: RecordAny) =>
       isGlobalScope
         ? {

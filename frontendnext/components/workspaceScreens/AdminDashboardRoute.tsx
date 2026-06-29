@@ -7,8 +7,7 @@ import { useRouter } from "next/navigation";
 import AdminDashboardScreen from "@/components/workspaceScreens/AdminDashboardScreen";
 import { useAdminWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
 import { WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
-import { ADMIN_PROJECT_SCOPE_STORAGE_KEY, apiRequest, createTextMatcher, getId, userName } from "@/lib/api";
-import { dashboardInputClassName } from "@/components/dashboard/chartTheme";
+import { ADMIN_PROJECT_SCOPE_STORAGE_KEY, apiRequest, getId } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
 const PROJECT_SCOPE_TABS = new Set([
@@ -34,7 +33,6 @@ export default function AdminDashboardRoute() {
   const [dashboard, setDashboard] = useState<RecordAny | null>(null);
   const [testRuns, setTestRuns] = useState<RecordAny[]>([]);
   const [versionHealth, setVersionHealth] = useState<RecordAny[]>([]);
-  const [searchTerm, setSearchTerm] = useState<string>("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -100,7 +98,6 @@ export default function AdminDashboardRoute() {
   const selectedProject = safeProjects.find((project) => getId(project) === selectedProjectId) || null;
   const scopedProjectName = selectedProject?.name || "";
   const runningRunsCount = Number(dashboardSummary.runningRuns || 0);
-  const matchesSearch = useMemo(() => createTextMatcher(searchTerm), [searchTerm]);
 
   const handleNavigate = (tab: string, options?: string | DashboardNavigateOptions) => {
     const normalized: DashboardNavigateOptions =
@@ -133,28 +130,18 @@ export default function AdminDashboardRoute() {
 
   useLayoutEffect(() => {
     setTopbar(
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="min-w-0">
-          <h1 className="text-[15px] font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">Dashboard</h1>
-          <p className="mt-0.5 text-[13px] text-zinc-500 dark:text-zinc-400">
-            {isGlobalScope
-              ? "Portfolio-wide execution health"
-              : scopedProjectName || "Project-scoped metrics"}
-          </p>
-        </div>
-        <div className="ml-auto flex flex-wrap items-center gap-2">
-          <input
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
-            className={`${dashboardInputClassName()} w-44`}
-            placeholder="Filter..."
-          />
-        </div>
+      <div className="min-w-0">
+        <h1 className="text-[15px] font-semibold tracking-tight text-zinc-900 dark:text-zinc-100">Dashboard</h1>
+        <p className="mt-0.5 text-[13px] text-zinc-500 dark:text-zinc-400">
+          {isGlobalScope
+            ? "Portfolio-wide execution health"
+            : scopedProjectName || "Project-scoped metrics"}
+        </p>
       </div>,
     );
 
     return () => setTopbar(null);
-  }, [isGlobalScope, scopedProjectName, searchTerm, setTopbar]);
+  }, [isGlobalScope, scopedProjectName, setTopbar]);
 
   return (
     <>
@@ -172,8 +159,6 @@ export default function AdminDashboardRoute() {
           projects={safeProjects}
           plans={safePlans}
           selectedProjectId={selectedProjectId}
-          matchesSearch={matchesSearch}
-          userName={userName}
           getId={getId}
           onNavigate={handleNavigate}
         />
