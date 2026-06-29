@@ -19,6 +19,7 @@
 | Auth / CSRF / SSRF | `.ai/05-security-rules.md` |
 | Automation engine (Playwright trong sản phẩm) | `AUTOMATION_STABILITY_ROADMAP.md` + `.ai/06-automation-rules.md` |
 | **Automation stability / flaky** | **Chỉ** `AUTOMATION_STABILITY_ROADMAP.md` (không mở hết `.ai/` trừ khi đụng schema/flow) |
+| **Smart Recording / ghi step** | **Chỉ** `AUTOMATION_SMART_RECORD_ROADMAP.md` |
 | Docker / `.env` / deploy | `.ai/07-deployment-rules.md` |
 | Thêm/sửa test | `.ai/08-e2e-rules.md` |
 | Giải thích cho user (tiếng Việt) | `.ai/99-prompt-templates.md` |
@@ -68,7 +69,7 @@ Chưa trả lời được: *dữ liệu nào bị ảnh hưởng? flow nào? ru
 
 * `git commit`, `git push`, `force push`, `reset --hard`
 * Đổi CI/CD, đổi package manager
-* Tạo markdown / script phụ (ngoại lệ: `AUTOMATION_STABILITY_ROADMAP.md` và script trong roadmap automation)
+* Tạo markdown / script phụ (ngoại lệ: `AUTOMATION_STABILITY_ROADMAP.md`, `AUTOMATION_SMART_RECORD_ROADMAP.md` và script trong roadmap automation)
 * Rename hàng loạt, format cả file, refactor ngoài phạm vi task
 * Tạo file mới cho helper nhỏ, panel UI nhỏ
 * Tự ý thay business rule — **hỏi user** nếu không chắc
@@ -415,6 +416,7 @@ docker compose --profile local-mongo up -d --build   # hoặc compose đã gộp
 | `.ai/08-e2e-rules.md` | 3 loại test |
 | `.ai/09-workspace-rules.md` | Admin vs employee UI |
 | `.ai/99-prompt-templates.md` | Giải thích user |
-| `AUTOMATION_STABILITY_ROADMAP.md` | Phase P0–P10 |
+| `AUTOMATION_STABILITY_ROADMAP.md` | Phase P0–P10 (stability) |
+| `AUTOMATION_SMART_RECORD_ROADMAP.md` | Smart Recording SR-0–SR-6 |
 | `AUTOMATION_USER_GUIDE.md` | Hướng dẫn viết step |
 | `CODING_GUIDELINES.md` | Index ngắn → `.ai/` |

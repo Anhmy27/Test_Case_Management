@@ -273,6 +273,8 @@ Report file: `backend/reports/automation-stability-2026-06-18T03-09-46-987Z.json
 
 ## Phase 7 — Dry run 3x quality gate
 
+> ⏸ **Tạm hoãn** — ưu tiên track **Smart Recording** (`AUTOMATION_SMART_RECORD_ROADMAP.md`). Quay lại sau SR-4.
+
 **Mục tiêu:** Chỉ đánh dấu case Stable khi 3 dry-run liên tiếp pass.
 
 - [ ] Xong
