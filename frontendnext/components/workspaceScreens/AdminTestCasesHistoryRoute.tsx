@@ -20,6 +20,7 @@ export default function AdminTestCasesHistoryRoute() {
   const [groups, setGroups] = useState<RecordAny[]>([]);
   const [detailGroupId, setDetailGroupId] = useState("");
   const [detailRows, setDetailRows] = useState<RecordAny[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
   const { openJiraBugDialog, jiraBugDialogNode } = useJiraBugDialog({
     onNotice: showNotice,
@@ -102,9 +103,15 @@ export default function AdminTestCasesHistoryRoute() {
     showNotice("Select a project to view execution history.", "info");
   }, [currentUser, loading, selectedProjectId, showNotice]);
 
-  const highlightMatcher = useMemo(
-    () => createTextMatcher(caseKeyFromUrl),
-    [caseKeyFromUrl],
+  useEffect(() => {
+    if (caseKeyFromUrl) {
+      setSearchTerm(caseKeyFromUrl);
+    }
+  }, [caseKeyFromUrl]);
+
+  const matchesSearch = useMemo(
+    () => createTextMatcher(searchTerm),
+    [searchTerm],
   );
 
   useLayoutEffect(() => {
@@ -135,7 +142,9 @@ export default function AdminTestCasesHistoryRoute() {
           detailLoading={loading}
           detailRows={detailRows}
           highlightCaseKey={caseKeyFromUrl}
-          matchesSearch={highlightMatcher}
+          searchTerm={searchTerm}
+          setSearchTerm={setSearchTerm}
+          matchesSearch={matchesSearch}
           onOpenRunResult={openRunResult}
           onLogBugForResult={logBugForResult}
         />

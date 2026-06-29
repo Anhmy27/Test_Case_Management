@@ -18,6 +18,8 @@ type Props = {
   detailLoading: boolean;
   detailRows: RecordAny[];
   highlightCaseKey?: string;
+  searchTerm: string;
+  setSearchTerm: (value: string) => void;
   matchesSearch: (...values: Array<string | number | undefined | null>) => boolean;
   onOpenRunResult?: (runId: string, resultId: string) => void;
   onLogBugForResult?: (runId: string, resultId: string) => void | Promise<void>;
@@ -31,6 +33,8 @@ export default function AdminTestCasesHistoryScreen({
   detailLoading,
   detailRows,
   highlightCaseKey = "",
+  searchTerm,
+  setSearchTerm,
   matchesSearch,
   onOpenRunResult,
   onLogBugForResult,
@@ -102,12 +106,18 @@ export default function AdminTestCasesHistoryScreen({
         />
       ) : (
         <>
-          <SectionCard title="Execution History" subtitle="Lọc theo group, xem 3 lần chạy gần nhất">
+          <SectionCard title="Execution History" subtitle="Lọc theo group hoặc tìm theo key/tên, xem 3 lần chạy gần nhất">
             <div className="flex flex-wrap items-end gap-4">
-              <div className="shrink-0">
-                <p className="text-xs font-semibold text-slate-700">Group filter</p>
-                <p className="mt-0.5 text-xs text-slate-500">Chọn group để rút gọn danh sách test case.</p>
-              </div>
+              <Field label="Search">
+                <input
+                  type="search"
+                  className={INPUT_CLS}
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Tìm theo key hoặc tên..."
+                  aria-label="Search test cases by key or title"
+                />
+              </Field>
               <Field label="Group">
                 <select
                   className={INPUT_CLS}
@@ -133,7 +143,7 @@ export default function AdminTestCasesHistoryScreen({
                 columns={["Key", "Title", "Group", "Priority", "Recent 1", "Recent 2", "Recent 3", "Action"]}
                 rows={safeDetailRows
                   .filter((testCase: RecordAny) =>
-                    matchesSearch(testCase.caseKey, testCase.title, testCase.group?.name, testCase.priority, ...(testCase.recentStatuses || [])),
+                    matchesSearch(testCase.caseKey, testCase.key, testCase.title, testCase.name),
                   )
                   .map((testCase: RecordAny) => {
                     const statuses = Array.isArray(testCase.recentStatuses) ? testCase.recentStatuses : [];
