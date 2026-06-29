@@ -16,8 +16,13 @@ const { httpError } = require('../../utils/httpError');
 const { toObjectId } = require('../../utils/entityResolvers');
 const { createAuthManager } = require('../auth/authManager');
 const { executeSingleCaseAutomation } = require('./singleCaseExecutor');
-const { captureFailureScreenshot } = require('./failureScreenshotCapture');
-const { getArtifactStorage } = require('./artifactStorage');
+const {
+  captureFailureScreenshot,
+  captureFailureTrace,
+  discardFailureTracing,
+  startFailureTracing,
+} = require('./failureScreenshotCapture');
+const { getArtifactStorage, buildArtifactDownloadPayload } = require('./artifactStorage');
 const { assertAllowedBaseUrl } = require('../../utils/automationUrlPolicy');
 const {
   DRY_RUN_ARTIFACT_NAMESPACE,
@@ -114,6 +119,7 @@ const dryRunAutomationService = async ({
       userKey: normalizedAutomation.userKey,
     });
     const { context } = authContext;
+    await startFailureTracing(context);
     const page = await context.newPage();
 
     const {
@@ -121,6 +127,7 @@ const dryRunAutomationService = async ({
       finalNote,
       logLines,
       failureScreenshot,
+      failureTrace,
     } = await executeSingleCaseAutomation({
       page,
       automation: normalizedAutomation,
@@ -131,7 +138,16 @@ const dryRunAutomationService = async ({
         runId: DRY_RUN_ARTIFACT_NAMESPACE,
         resultId: dryRunId,
       }),
+      captureFailureTrace: async (activeContext) => captureFailureTrace({
+        context: activeContext,
+        runId: DRY_RUN_ARTIFACT_NAMESPACE,
+        resultId: dryRunId,
+      }),
     });
+
+    if (finalStatus !== 'fail') {
+      await discardFailureTracing(context);
+    }
 
     await authManager
       .persistContext({ context, webKey: authContext.webKey, userKey: authContext.userKey })
@@ -145,6 +161,7 @@ const dryRunAutomationService = async ({
       note: finalNote,
       logs: logLines,
       failureScreenshot: failureScreenshot || '',
+      failureTrace: failureTrace || '',
       durationMs: Date.now() - startedAt,
       testCase: {
         id: testCaseId ? String(testCaseId) : '',
@@ -162,35 +179,36 @@ const dryRunAutomationService = async ({
   }
 };
 
-const getDryRunFailureScreenshotService = async (dryRunId) => {
+const getDryRunFailureArtifactService = async (dryRunId, { buildStorageKey, notFoundMessage, downloadFilename }) => {
   const normalizedId = String(dryRunId || '').trim();
   if (!normalizedId) {
     throw httpError(400, 'dryRunId is required');
   }
 
-  const storageKey = artifactStorage.buildDryRunFailureScreenshotKey(normalizedId);
-  const contentType = artifactStorage.getContentType(storageKey);
-
-  if (artifactStorage.driver === 's3') {
-    const payload = await artifactStorage.getReadablePayload(storageKey);
-    return {
-      stream: payload.stream,
-      contentType: payload.contentType || contentType,
-    };
+  const storageKey = buildStorageKey(normalizedId);
+  const payload = await buildArtifactDownloadPayload(artifactStorage, storageKey, { downloadFilename });
+  if (!payload) {
+    throw httpError(404, notFoundMessage);
   }
 
-  const absolutePath = artifactStorage.resolveReadablePath(storageKey);
-  if (!absolutePath) {
-    throw httpError(404, 'Dry run screenshot not found');
-  }
-
-  return {
-    absolutePath,
-    contentType,
-  };
+  return payload;
 };
+
+const getDryRunFailureScreenshotService = (dryRunId) =>
+  getDryRunFailureArtifactService(dryRunId, {
+    buildStorageKey: artifactStorage.buildDryRunFailureScreenshotKey,
+    notFoundMessage: 'Dry run screenshot not found',
+  });
+
+const getDryRunFailureTraceService = (dryRunId) =>
+  getDryRunFailureArtifactService(dryRunId, {
+    buildStorageKey: artifactStorage.buildDryRunFailureTraceKey,
+    notFoundMessage: 'Dry run trace not found',
+    downloadFilename: 'failure.trace.zip',
+  });
 
 module.exports = {
   dryRunAutomationService,
   getDryRunFailureScreenshotService,
+  getDryRunFailureTraceService,
 };

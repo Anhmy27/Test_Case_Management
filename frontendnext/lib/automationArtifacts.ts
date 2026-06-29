@@ -11,11 +11,23 @@ export function dryRunFailureScreenshotPath(dryRunId: string) {
   return `/api/automation/dry-runs/${encodeURIComponent(dryRunId)}/failure-screenshot`;
 }
 
+export function runResultFailureTracePath(runId: string, resultId: string) {
+  return `/api/test-runs/${encodeURIComponent(runId)}/results/${encodeURIComponent(resultId)}/failure-trace`;
+}
+
+export function dryRunFailureTracePath(dryRunId: string) {
+  return `/api/automation/dry-runs/${encodeURIComponent(dryRunId)}/failure-trace`;
+}
+
 export function hasFailureScreenshot(failureScreenshot?: string | null) {
   return Boolean(String(failureScreenshot || "").trim());
 }
 
-async function fetchAuthenticatedScreenshot(path: string) {
+export function hasFailureTrace(failureTrace?: string | null) {
+  return Boolean(String(failureTrace || "").trim());
+}
+
+async function fetchAuthenticatedBlob(path: string, fallbackErrorMessage = "Không tải được file") {
   const headers: Record<string, string> = {};
   const csrfToken = getCsrfTokenForRequest();
   if (csrfToken) {
@@ -29,7 +41,7 @@ async function fetchAuthenticatedScreenshot(path: string) {
   });
 
   if (!response.ok) {
-    let message = "Không tải được screenshot";
+    let message = fallbackErrorMessage;
     try {
       const payload = await response.json();
       if (payload && typeof payload.message === "string" && payload.message.trim()) {
@@ -42,7 +54,25 @@ async function fetchAuthenticatedScreenshot(path: string) {
   }
 
   const blob = await response.blob();
+  return blob;
+}
+
+async function fetchAuthenticatedScreenshot(path: string) {
+  const blob = await fetchAuthenticatedBlob(path, "Không tải được screenshot");
   return URL.createObjectURL(blob);
+}
+
+async function downloadAuthenticatedArtifact(path: string, filename: string) {
+  const blob = await fetchAuthenticatedBlob(path, "Không tải được file");
+  const objectUrl = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = objectUrl;
+  anchor.download = filename;
+  anchor.rel = "noopener";
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(objectUrl);
 }
 
 export async function fetchRunResultFailureScreenshot({
@@ -61,6 +91,28 @@ export async function fetchDryRunFailureScreenshot({
   dryRunId: string;
 }) {
   return fetchAuthenticatedScreenshot(dryRunFailureScreenshotPath(dryRunId));
+}
+
+export async function downloadRunResultFailureTrace({
+  runId,
+  resultId,
+  filename = "failure.trace.zip",
+}: {
+  runId: string;
+  resultId: string;
+  filename?: string;
+}) {
+  await downloadAuthenticatedArtifact(runResultFailureTracePath(runId, resultId), filename);
+}
+
+export async function downloadDryRunFailureTrace({
+  dryRunId,
+  filename = "failure.trace.zip",
+}: {
+  dryRunId: string;
+  filename?: string;
+}) {
+  await downloadAuthenticatedArtifact(dryRunFailureTracePath(dryRunId), filename);
 }
 
 export async function uploadRunResultFailureScreenshot({

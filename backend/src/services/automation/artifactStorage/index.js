@@ -29,8 +29,33 @@ const resetArtifactStorageForTests = () => {
   singletonStorage = null;
 };
 
+const buildArtifactDownloadPayload = async (storage, storageKey, { downloadFilename } = {}) => {
+  const contentType = storage.getContentType(storageKey);
+
+  if (storage.driver === 's3') {
+    const payload = await storage.getReadablePayload(storageKey);
+    return {
+      stream: payload.stream,
+      contentType: payload.contentType || contentType,
+      ...(downloadFilename ? { filename: downloadFilename } : {}),
+    };
+  }
+
+  const absolutePath = storage.resolveReadablePath(storageKey);
+  if (!absolutePath) {
+    return null;
+  }
+
+  return {
+    absolutePath,
+    contentType,
+    ...(downloadFilename ? { filename: downloadFilename } : {}),
+  };
+};
+
 module.exports = {
   createArtifactStorage,
   getArtifactStorage,
   resetArtifactStorageForTests,
+  buildArtifactDownloadPayload,
 };

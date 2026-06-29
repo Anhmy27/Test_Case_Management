@@ -20,11 +20,13 @@ const {
 } = require('../services/testRunDashboardService');
 const {
   getRunResultFailureScreenshotService,
+  getRunResultFailureTraceService,
   uploadRunResultFailureScreenshotService,
 } = require('../services/testRunArtifactService');
 const {
   dryRunAutomationService,
   getDryRunFailureScreenshotService,
+  getDryRunFailureTraceService,
 } = require('../services/automation/dryRunService');
 
 function auditTestRun(req, action, testRun, metadata = null) {
@@ -156,15 +158,12 @@ const exportTestRun = asyncHandler(async (req, res) => {
   res.send(payload.body);
 });
 
-const getRunResultFailureScreenshot = asyncHandler(async (req, res) => {
-  const payload = await getRunResultFailureScreenshotService(
-    req.params.runId,
-    req.params.resultId,
-    req.user,
-  );
-
+const pipeArtifactResponse = (res, payload, { attachmentFilename } = {}) => {
   res.setHeader('Content-Type', payload.contentType);
   res.setHeader('Cache-Control', 'private, max-age=3600');
+  if (attachmentFilename) {
+    res.setHeader('Content-Disposition', `attachment; filename="${attachmentFilename}"`);
+  }
 
   if (payload.stream) {
     payload.stream.pipe(res);
@@ -172,6 +171,26 @@ const getRunResultFailureScreenshot = asyncHandler(async (req, res) => {
   }
 
   fs.createReadStream(payload.absolutePath).pipe(res);
+};
+
+const getRunResultFailureScreenshot = asyncHandler(async (req, res) => {
+  const payload = await getRunResultFailureScreenshotService(
+    req.params.runId,
+    req.params.resultId,
+    req.user,
+  );
+  pipeArtifactResponse(res, payload);
+});
+
+const getRunResultFailureTrace = asyncHandler(async (req, res) => {
+  const payload = await getRunResultFailureTraceService(
+    req.params.runId,
+    req.params.resultId,
+    req.user,
+  );
+  pipeArtifactResponse(res, payload, {
+    attachmentFilename: payload.filename || 'failure.trace.zip',
+  });
 });
 
 const uploadRunResultFailureScreenshot = asyncHandler(async (req, res) => {
@@ -208,16 +227,14 @@ const dryRunAutomation = asyncHandler(async (req, res) => {
 
 const getDryRunFailureScreenshot = asyncHandler(async (req, res) => {
   const payload = await getDryRunFailureScreenshotService(req.params.dryRunId);
+  pipeArtifactResponse(res, payload);
+});
 
-  res.setHeader('Content-Type', payload.contentType);
-  res.setHeader('Cache-Control', 'private, max-age=3600');
-
-  if (payload.stream) {
-    payload.stream.pipe(res);
-    return;
-  }
-
-  fs.createReadStream(payload.absolutePath).pipe(res);
+const getDryRunFailureTrace = asyncHandler(async (req, res) => {
+  const payload = await getDryRunFailureTraceService(req.params.dryRunId);
+  pipeArtifactResponse(res, payload, {
+    attachmentFilename: payload.filename || 'failure.trace.zip',
+  });
 });
 
 module.exports = {
@@ -237,7 +254,9 @@ module.exports = {
   getTestPlanDetail,
   exportTestRun,
   getRunResultFailureScreenshot,
+  getRunResultFailureTrace,
   uploadRunResultFailureScreenshot,
   dryRunAutomation,
   getDryRunFailureScreenshot,
+  getDryRunFailureTrace,
 };

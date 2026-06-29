@@ -412,6 +412,7 @@ export default function ManualRunExecutionPanel({
                 runId={getId(selectedRun)}
                 resultId={getId(selectedItem)}
                 failureScreenshot={selectedItem.failureScreenshot}
+                failureTrace={selectedItem.failureTrace}
                 status={String(selectedItem.status || "")}
                 canUpload={canUploadFailureScreenshot}
                 onUploaded={() => void onScreenshotUploaded?.()}

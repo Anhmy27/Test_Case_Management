@@ -3,6 +3,8 @@ const assert = require('node:assert/strict');
 const {
   buildRunFailureScreenshotKey,
   buildDryRunFailureScreenshotKey,
+  buildRunFailureTraceKey,
+  buildDryRunFailureTraceKey,
   normalizeStoredArtifactKey,
   extensionFromMime,
 } = require('../src/services/automation/artifactKeys');
@@ -25,6 +27,20 @@ test('buildDryRunFailureScreenshotKey uses dry-run namespace', () => {
   );
 });
 
+test('buildRunFailureTraceKey uses stable logical key', () => {
+  assert.equal(
+    buildRunFailureTraceKey('run1', 'result1'),
+    'run/run1/result1/failure.trace.zip',
+  );
+});
+
+test('buildDryRunFailureTraceKey uses dry-run namespace', () => {
+  assert.equal(
+    buildDryRunFailureTraceKey('abc'),
+    'dry-run/abc/failure.trace.zip',
+  );
+});
+
 test('normalizeStoredArtifactKey migrates legacy relative paths', () => {
   assert.equal(
     normalizeStoredArtifactKey('uploads/runs/run1/result1/failure.png'),
@@ -43,4 +59,5 @@ test('normalizeStoredArtifactKey migrates legacy relative paths', () => {
 test('extensionFromMime maps upload content types', () => {
   assert.equal(extensionFromMime('image/jpeg'), 'jpg');
   assert.equal(extensionFromMime('image/webp'), 'webp');
+  assert.equal(extensionFromMime('application/zip'), 'zip');
 });

@@ -118,7 +118,7 @@ export default function AutomationConfigPanel({
             />
           </WorkbenchField>
 
-          <div className="grid grid-cols-3 gap-1.5">
+          <div className="grid grid-cols-3 gap-1">
             <WorkbenchField label="Web ID">
               <input
                 value={automationForm.webId}
@@ -177,7 +177,7 @@ export default function AutomationConfigPanel({
             </button>
           </div>
 
-          <div className="mt-1.5 space-y-1 rounded-md border border-emerald-200/60 bg-emerald-50/50 p-1.5">
+          <div className="mt-0.5 space-y-0.5 rounded-md border border-emerald-200/60 bg-emerald-50/50 p-1">
             {automationForm.steps.map((step, index) => (
               <AutomationStepRow
                 key={step.stepId || index}
@@ -221,7 +221,7 @@ const TIMEOUT_COL_W = "w-[2.25rem] shrink-0";
 
 function StepFieldLabel({ children }: { children: ReactNode }) {
   return (
-    <span className={`mb-0.5 block truncate ${WORKBENCH_LABEL_CLS}`}>
+    <span className={`mb-px block truncate text-[11px] ${WORKBENCH_LABEL_CLS}`}>
       {children}
     </span>
   );
@@ -303,12 +303,12 @@ function AutomationStepRow({
 
   return (
     <div
-      className="rounded-md border border-emerald-300/70 bg-emerald-50/90 p-1.5"
+      className="rounded-md border border-emerald-300/70 bg-emerald-50/90 p-1"
       onDragOver={onDragOver}
       onDrop={(e) => onDrop(index, e)}
     >
       {/* Hàng tiêu đề bước */}
-      <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-1.5">
+      <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-1">
         <button
           type="button"
           className={`${WORKBENCH_META_CLS} cursor-grab rounded border border-slate-200 px-1 py-px text-slate-500 hover:text-slate-700`}
@@ -338,8 +338,8 @@ function AutomationStepRow({
       </div>
 
       {/* Khối tham số — grid 3 cột: loại selector | field chính | timeout */}
-      <div className="mt-1 space-y-1 rounded-md border border-emerald-200/80 bg-white/80 p-1.5">
-        <div className="grid grid-cols-[3.75rem_minmax(0,1fr)_2.25rem] items-end gap-x-1.5 gap-y-1">
+      <div className="mt-0.5 space-y-0.5 rounded-md border border-emerald-200/80 bg-white/80 p-1">
+        <div className="grid grid-cols-[3.75rem_minmax(0,1fr)_2.25rem] items-end gap-x-1 gap-y-0.5">
           {/* Hàng hành động — cột 1 trống, select span cột 2 */}
           <div aria-hidden />
           <div className="min-w-0">
@@ -402,7 +402,7 @@ function AutomationStepRow({
             </>
           )}
 
-          {showValue && (
+          {showValue && !isGotoStep && (
             <>
               <div aria-hidden />
               <div className="min-w-0">
@@ -425,22 +425,37 @@ function AutomationStepRow({
           {isGotoStep && (
             <>
               <div aria-hidden />
-              <div className="min-w-0">
-                <StepFieldLabel>Chờ trang đến</StepFieldLabel>
-                <select
-                  value={step.waitUntil || "load"}
-                  onChange={(e) => onUpdate(index, "waitUntil", e.target.value)}
-                  className={WORKBENCH_SELECT_CLS}
-                  title="Mặc định load — chờ trang load đủ trước bước tiếp theo"
-                >
-                  {GOTO_WAIT_UNTIL_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+              <div className="min-w-0 grid grid-cols-[minmax(0,1fr)_7.5rem] gap-1">
+                <div>
+                  <StepFieldLabel>{valueLabel} *</StepFieldLabel>
+                  <input
+                    value={step.value}
+                    onChange={(e) => onUpdate(index, "value", e.target.value)}
+                    placeholder={meta.valuePlaceholder}
+                    className={FIELD_FULL}
+                  />
+                </div>
+                <div>
+                  <StepFieldLabel>Chờ trang đến</StepFieldLabel>
+                  <select
+                    value={step.waitUntil || "load"}
+                    onChange={(e) => onUpdate(index, "waitUntil", e.target.value)}
+                    className={WORKBENCH_SELECT_CLS}
+                    title="Mặc định load — chờ trang load đủ trước bước tiếp theo"
+                  >
+                    {GOTO_WAIT_UNTIL_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-              <div className={TIMEOUT_COL_W} aria-hidden />
+              <StepTimeoutCell
+                show={timeoutOnValue}
+                value={step.timeoutMs}
+                onChange={setTimeout}
+              />
             </>
           )}
 

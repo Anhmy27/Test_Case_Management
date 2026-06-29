@@ -294,6 +294,7 @@ Seed lại demo: `cd backend && npm run automation:seed-demos`
 
 1. Đọc log **Dry run** — ghi rõ **Step #** và lỗi.
 2. Xem **screenshot** (nếu có) ở cuối panel dry run.
+3. Tải **Playwright trace** (`.zip`) khi fail — mở trên máy dev: `npx playwright show-trace failure.trace.zip` để xem timeline từng bước.
 3. Kiểm tra **Timeout** — trang chậm thì tăng 20–30 giây.
 4. **assertText / assertTitle / assertUrl:** copy đúng chuỗi từ trang (phân biệt hoa thường nếu cần).
 5. **press:** kiểm tra tên phím (`Escape` không phải `Esc`).

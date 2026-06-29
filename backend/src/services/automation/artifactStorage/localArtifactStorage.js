@@ -6,6 +6,8 @@ const {
 const {
   buildRunFailureScreenshotKey,
   buildDryRunFailureScreenshotKey,
+  buildRunFailureTraceKey,
+  buildDryRunFailureTraceKey,
   normalizeStoredArtifactKey,
   resolveLegacyLocalPaths,
   contentTypeFromKey,
@@ -45,6 +47,8 @@ const createLocalArtifactStorage = ({ rootDir = ARTIFACT_ROOT_DIR } = {}) => {
 
     buildRunFailureScreenshotKey,
     buildDryRunFailureScreenshotKey,
+    buildRunFailureTraceKey,
+    buildDryRunFailureTraceKey,
     normalizeStoredKey: normalizeStoredArtifactKey,
 
     getLocalAbsolutePath(key) {
