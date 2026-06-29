@@ -8,7 +8,7 @@ import EmployeeMyTestPlansScreen from "@/components/workspaceScreens/EmployeeMyT
 import { buildEmployeeTopbar, useEmployeeProjectScope } from "@/components/workspaceScreens/employeeNav";
 import { useEmployeeWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
 import { WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
-import { apiRequest, createTextMatcher, getId } from "@/lib/api";
+import { apiRequest, buildDefaultRunName, createTextMatcher, getId } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
 
@@ -83,8 +83,7 @@ export default function EmployeeMyTestPlansRoute() {
       return;
     }
 
-    const stamp = new Date().toISOString().slice(0, 16).replace("T", " ");
-    const runName = `${plan.name || "Test plan"} - ${stamp}`;
+    const runName = buildDefaultRunName(plan.name || "Test plan");
     const params = new URLSearchParams({
       testPlanId: planId,
       runName,

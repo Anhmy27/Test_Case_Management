@@ -12,6 +12,7 @@ const TestPlan = require('../models/TestPlan');
 const TestRun = require('../models/TestRun');
 const TestCaseGroup = require('../models/TestCaseGroup');
 const { httpError } = require('../utils/httpError');
+const { formatRunNameTimestamp } = require('../utils/runNameTimestamp');
 const {
   toObjectId,
   isPlanAssignedToUser,
@@ -771,7 +772,7 @@ const retryFailedManualRunService = async (runId, user) => {
   if (!resolvedVersion) throw httpError(404, 'Version not found');
 
   const testPlanEntityId = planSnapshot.entityId || planSnapshot._id;
-  const timestamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+  const timestamp = formatRunNameTimestamp();
   let retryName = `${sourceRun.name} retry ${timestamp}`.trim();
   const relatedPlanIds = await getTestPlanVersionIds(planSnapshot);
   let suffix = 1;

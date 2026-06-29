@@ -446,10 +446,25 @@ export function isValidHttpUrl(value: string): boolean {
   }
 }
 
+export const RUN_NAME_TIME_ZONE = 'Asia/Ho_Chi_Minh';
+
+/** `YYYY-MM-DD HH:mm` in Vietnam time — used in default test run names. */
+export function formatRunNameTimestamp(date: Date = new Date()): string {
+  return new Intl.DateTimeFormat('sv-SE', {
+    timeZone: RUN_NAME_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date);
+}
+
 export function buildDefaultRunName(planName: string, versionName?: string): string {
   const safePlan = String(planName || 'Test plan').trim() || 'Test plan';
   const safeVersion = String(versionName || '').trim();
-  const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ');
+  const stamp = formatRunNameTimestamp();
   return safeVersion ? `${safePlan} - ${safeVersion} - ${stamp}` : `${safePlan} - ${stamp}`;
 }
 
