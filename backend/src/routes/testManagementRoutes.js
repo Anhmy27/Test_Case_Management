@@ -66,11 +66,13 @@ const {
   exportTestRun,
   applyAutomationResults,
   getRunResultFailureScreenshot,
+  getRunResultFailureTrace,
   uploadRunResultFailureScreenshot,
   cancelAutomationRun,
   retryFailedAutomationRun,
   dryRunAutomation,
   getDryRunFailureScreenshot,
+  getDryRunFailureTrace,
 } = require('../controllers/testManagementController');
 const { authenticate, authenticateAutomationIngest, authorize } = require('../middlewares/authMiddleware');
 const { httpError } = require('../utils/httpError');
@@ -234,11 +236,13 @@ router.patch('/test-runs/:runId/end', authorize('admin', 'employee'), validateRe
 router.get('/test-runs/:runId/export', authorize('admin', 'employee'), validateRequest({ paramsSchema: runIdParamsSchema, querySchema: exportTestRunQuerySchema }), exportTestRun);
 router.get('/test-runs/:runId/my-items', validateRequest({ paramsSchema: runIdParamsSchema }), getMyRunItems);
 router.get('/test-runs/:runId/results/:resultId/failure-screenshot', authorize('admin', 'employee'), validateRequest({ paramsSchema: runResultParamsSchema }), getRunResultFailureScreenshot);
+router.get('/test-runs/:runId/results/:resultId/failure-trace', authorize('admin', 'employee'), validateRequest({ paramsSchema: runResultParamsSchema }), getRunResultFailureTrace);
 router.post('/test-runs/:runId/results/:resultId/failure-screenshot', authorize('admin', 'employee'), screenshotUpload.single('file'), validateRequest({ paramsSchema: runResultParamsSchema }), uploadRunResultFailureScreenshot);
 router.patch('/test-runs/:runId/results/:resultId', validateRequest({ paramsSchema: runResultParamsSchema, bodySchema: updateRunResultBodySchema }), updateRunResult);
 
 router.post('/automation/dry-run', authorize('admin'), validateRequest({ bodySchema: dryRunAutomationBodySchema }), dryRunAutomation);
 router.get('/automation/dry-runs/:dryRunId/failure-screenshot', authorize('admin'), validateRequest({ paramsSchema: dryRunIdParamsSchema }), getDryRunFailureScreenshot);
+router.get('/automation/dry-runs/:dryRunId/failure-trace', authorize('admin'), validateRequest({ paramsSchema: dryRunIdParamsSchema }), getDryRunFailureTrace);
 
 router.get('/dashboard', authorize('admin'), validateRequest({ querySchema: dashboardQuerySchema }), getDashboard);
 

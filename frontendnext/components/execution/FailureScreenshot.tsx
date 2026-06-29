@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  downloadRunResultFailureTrace,
   fetchRunResultFailureScreenshot,
   hasFailureScreenshot,
+  hasFailureTrace,
   uploadRunResultFailureScreenshot,
 } from "@/lib/automationArtifacts";
 import ZoomableScreenshot from "./ZoomableScreenshot";
@@ -12,6 +14,7 @@ type FailureScreenshotProps = {
   runId: string;
   resultId: string;
   failureScreenshot?: string;
+  failureTrace?: string;
   status?: string;
   canUpload?: boolean;
   onUploaded?: (storageKey: string) => void;
@@ -21,6 +24,7 @@ export default function FailureScreenshot({
   runId,
   resultId,
   failureScreenshot,
+  failureTrace,
   status,
   canUpload = false,
   onUploaded,
@@ -29,6 +33,7 @@ export default function FailureScreenshot({
   const [errorMessage, setErrorMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [downloadingTrace, setDownloadingTrace] = useState(false);
   const [screenshotKey, setScreenshotKey] = useState(failureScreenshot || "");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -37,6 +42,7 @@ export default function FailureScreenshot({
   }, [failureScreenshot]);
 
   const canShowScreenshot = status === "fail" && hasFailureScreenshot(screenshotKey);
+  const canShowTrace = status === "fail" && hasFailureTrace(failureTrace);
 
   useEffect(() => {
     if (!canShowScreenshot) {
@@ -99,6 +105,18 @@ export default function FailureScreenshot({
     }
   };
 
+  const handleDownloadTrace = async () => {
+    setDownloadingTrace(true);
+    setErrorMessage("");
+    try {
+      await downloadRunResultFailureTrace({ runId, resultId });
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Không tải được trace");
+    } finally {
+      setDownloadingTrace(false);
+    }
+  };
+
   if (status !== "fail") {
     return null;
   }
@@ -154,6 +172,25 @@ export default function FailureScreenshot({
         </div>
       ) : !errorMessage ? (
         <div className="mt-2 text-xs text-rose-800">Không tải được preview screenshot.</div>
+      ) : null}
+
+      {canShowTrace ? (
+        <div className="mt-3 border-t border-rose-200 pt-3">
+          <div className="text-xs font-semibold uppercase tracking-wide text-rose-700">
+            Playwright trace
+          </div>
+          <p className="mt-1 text-xs text-rose-800">
+            Tải file zip và mở bằng: <code className="rounded bg-white px-1">npx playwright show-trace failure.trace.zip</code>
+          </p>
+          <button
+            type="button"
+            disabled={downloadingTrace}
+            onClick={() => void handleDownloadTrace()}
+            className="mt-2 rounded-lg border border-rose-300 bg-white px-2.5 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {downloadingTrace ? "Đang tải trace..." : "Tải trace (.zip)"}
+          </button>
+        </div>
       ) : null}
     </div>
   );

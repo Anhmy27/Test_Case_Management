@@ -9,7 +9,7 @@ import {
   runAutomationDryRun,
   type DryRunResult,
 } from "@/lib/automationDryRun";
-import { fetchDryRunFailureScreenshot, hasFailureScreenshot } from "@/lib/automationArtifacts";
+import { fetchDryRunFailureScreenshot, hasFailureScreenshot, hasFailureTrace, downloadDryRunFailureTrace } from "@/lib/automationArtifacts";
 import { WORKBENCH_INPUT_CLS, WORKBENCH_LABEL_CLS, WORKBENCH_META_CLS, WorkbenchSection } from "@/components/workspaceScreens/shared";
 import ZoomableScreenshot from "../execution/ZoomableScreenshot";
 
@@ -28,7 +28,9 @@ export default function AutomationDryRunPanel({
   const [result, setResult] = useState<DryRunResult | null>(null);
   const [screenshotSrc, setScreenshotSrc] = useState<string | null>(null);
   const [screenshotError, setScreenshotError] = useState("");
+  const [traceError, setTraceError] = useState("");
   const [loadingScreenshot, setLoadingScreenshot] = useState(false);
+  const [downloadingTrace, setDownloadingTrace] = useState(false);
 
   useEffect(() => {
     setBaseUrlOverride("");
@@ -84,6 +86,7 @@ export default function AutomationDryRunPanel({
     setRunning(true);
     setErrorMessage("");
     setResult(null);
+    setTraceError("");
 
     try {
       const dryRunResult = await runAutomationDryRun({
@@ -179,6 +182,34 @@ export default function AutomationDryRunPanel({
               ) : screenshotSrc ? (
                 <ZoomableScreenshot src={screenshotSrc} alt="Dry run failure screenshot" />
               ) : null}
+            </div>
+          ) : null}
+
+          {result.status === "fail" && hasFailureTrace(result.failureTrace) ? (
+            <div className="rounded border border-rose-100 bg-rose-50/50 p-1.5">
+              <div className="text-[11px] uppercase tracking-wide text-rose-500">Playwright trace</div>
+              <p className={`${WORKBENCH_META_CLS} mt-1 text-rose-800`}>
+                Mở bằng: <code className="rounded bg-white px-1">npx playwright show-trace failure.trace.zip</code>
+              </p>
+              {traceError ? (
+                <div className={`${WORKBENCH_META_CLS} mt-1 text-rose-700`}>{traceError}</div>
+              ) : null}
+              <button
+                type="button"
+                disabled={downloadingTrace}
+                onClick={() => {
+                  setTraceError("");
+                  setDownloadingTrace(true);
+                  void downloadDryRunFailureTrace({ dryRunId: result.dryRunId })
+                    .catch((error) => {
+                      setTraceError(error instanceof Error ? error.message : "Không tải được trace");
+                    })
+                    .finally(() => setDownloadingTrace(false));
+                }}
+                className={`${WORKBENCH_META_CLS} mt-1 rounded border border-rose-200 bg-white px-2 py-0.5 text-rose-800 hover:bg-rose-100 disabled:opacity-60`}
+              >
+                {downloadingTrace ? "Đang tải trace..." : "Tải trace (.zip)"}
+              </button>
             </div>
           ) : null}
         </div>

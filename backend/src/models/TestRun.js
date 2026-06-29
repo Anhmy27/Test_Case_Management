@@ -54,6 +54,11 @@ const runResultSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
+    failureTrace: {
+      type: String,
+      default: '',
+      trim: true,
+    },
     executedAt: {
       type: Date,
     },

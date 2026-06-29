@@ -15,6 +15,7 @@ const executeSingleCaseAutomation = async ({
   onStepStart,
   shouldAbort,
   captureFailureScreenshot,
+  captureFailureTrace,
   locatorAmbiguity = 'fail',
 }) => {
   const caseSteps = Array.isArray(automation?.steps) ? automation.steps : [];
@@ -22,6 +23,7 @@ const executeSingleCaseAutomation = async ({
   let finalStatus = 'blocked';
   let finalNote = 'Automation spec is missing';
   let failureScreenshot = '';
+  let failureTrace = '';
   let cancelled = false;
 
   try {
@@ -73,10 +75,23 @@ const executeSingleCaseAutomation = async ({
           logLines.push(`Failure screenshot capture failed: ${screenshotCapture.error}`);
         }
       }
+
+      if (typeof captureFailureTrace === 'function') {
+        const traceContext = page?.context?.();
+        if (traceContext) {
+          const traceCapture = await captureFailureTrace(traceContext);
+          if (traceCapture.storageKey) {
+            failureTrace = traceCapture.storageKey;
+            logLines.push(`Failure trace saved: ${failureTrace}`);
+          } else if (traceCapture.error) {
+            logLines.push(`Failure trace capture failed: ${traceCapture.error}`);
+          }
+        }
+      }
     }
   }
 
-  return { finalStatus, finalNote, logLines, failureScreenshot, cancelled };
+  return { finalStatus, finalNote, logLines, failureScreenshot, failureTrace, cancelled };
 };
 
 module.exports = {

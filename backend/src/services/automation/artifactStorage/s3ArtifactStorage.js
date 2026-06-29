@@ -17,6 +17,8 @@
 const {
   buildRunFailureScreenshotKey,
   buildDryRunFailureScreenshotKey,
+  buildRunFailureTraceKey,
+  buildDryRunFailureTraceKey,
   normalizeStoredArtifactKey,
   contentTypeFromKey,
 } = require('../artifactKeys');
@@ -78,6 +80,8 @@ const createS3ArtifactStorage = ({
 
     buildRunFailureScreenshotKey,
     buildDryRunFailureScreenshotKey,
+    buildRunFailureTraceKey,
+    buildDryRunFailureTraceKey,
     normalizeStoredKey: normalizeStoredArtifactKey,
 
     async saveBuffer(key, buffer, contentType) {

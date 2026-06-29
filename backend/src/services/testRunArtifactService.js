@@ -2,7 +2,7 @@ const mongoose = require('mongoose');
 
 const TestRun = require('../models/TestRun');
 
-const { getArtifactStorage } = require('./automation/artifactStorage');
+const { getArtifactStorage, buildArtifactDownloadPayload } = require('./automation/artifactStorage');
 
 const { extensionFromMime } = require('./automation/artifactKeys');
 
@@ -50,7 +50,7 @@ const resultHasUserAssignment = (result, userId) => {
 
 
 
-const assertResultScreenshotPermission = (testRun, result, user) => {
+const assertResultArtifactPermission = (testRun, result, user, forbiddenMessage) => {
 
   const isAdmin = user.role === 'admin';
 
@@ -60,7 +60,7 @@ const assertResultScreenshotPermission = (testRun, result, user) => {
 
   if (!isAdmin && !isStarter && !hasAssignedItem) {
 
-    throw httpError(403, 'You do not have permission to modify this screenshot');
+    throw httpError(403, forbiddenMessage);
 
   }
 
@@ -68,7 +68,19 @@ const assertResultScreenshotPermission = (testRun, result, user) => {
 
 
 
-const getRunResultFailureScreenshotService = async (runId, resultId, user) => {
+const getRunResultFailureArtifactPayload = async (runId, resultId, user, {
+
+  storageKeyField,
+
+  resourceLabel,
+
+  notFoundMessage,
+
+  missingFileMessage,
+
+  downloadFilename,
+
+}) => {
 
   const storage = getArtifactStorage();
 
@@ -86,10 +98,6 @@ const getRunResultFailureScreenshotService = async (runId, resultId, user) => {
 
 
 
-  const isAdmin = user.role === 'admin';
-
-  const isStarter = String(testRun.startedBy?._id || testRun.startedBy) === user.id;
-
   const result = (testRun.results || []).find((entry) => String(entry._id) === String(resultId));
 
   if (!result) {
@@ -100,63 +108,49 @@ const getRunResultFailureScreenshotService = async (runId, resultId, user) => {
 
 
 
-  const hasAssignedItem = resultHasUserAssignment(result, user.id);
-
-  if (!isAdmin && !isStarter && !hasAssignedItem) {
-
-    throw httpError(403, 'You do not have permission to view this screenshot');
-
-  }
+  assertResultArtifactPermission(testRun, result, user, `You do not have permission to view this ${resourceLabel}`);
 
 
 
-  if (!result.failureScreenshot) {
+  const storageKey = result[storageKeyField];
 
-    throw httpError(404, 'Failure screenshot not found');
+  if (!storageKey) {
+
+    throw httpError(404, notFoundMessage);
 
   }
 
 
 
-  const contentType = storage.getContentType(result.failureScreenshot);
+  const payload = await buildArtifactDownloadPayload(storage, storageKey, { downloadFilename });
 
+  if (!payload) {
 
-
-  if (storage.driver === 's3') {
-
-    const payload = await storage.getReadablePayload(result.failureScreenshot);
-
-    return {
-
-      stream: payload.stream,
-
-      contentType: payload.contentType || contentType,
-
-    };
+    throw httpError(404, missingFileMessage);
 
   }
 
 
 
-  const absolutePath = storage.resolveReadablePath(result.failureScreenshot);
-
-  if (!absolutePath) {
-
-    throw httpError(404, 'Failure screenshot file is missing');
-
-  }
-
-
-
-  return {
-
-    absolutePath,
-
-    contentType,
-
-  };
+  return payload;
 
 };
+
+
+
+const getRunResultFailureScreenshotService = (runId, resultId, user) =>
+
+  getRunResultFailureArtifactPayload(runId, resultId, user, {
+
+    storageKeyField: 'failureScreenshot',
+
+    resourceLabel: 'screenshot',
+
+    notFoundMessage: 'Failure screenshot not found',
+
+    missingFileMessage: 'Failure screenshot file is missing',
+
+  });
 
 
 
@@ -224,13 +218,15 @@ const uploadRunResultFailureScreenshotService = async (runId, resultId, user, fi
 
 
 
-  assertResultScreenshotPermission(
+  assertResultArtifactPermission(
 
     { startedBy: testRun.startedBy },
 
     result,
 
     user,
+
+    'You do not have permission to modify this screenshot',
 
   );
 
@@ -262,9 +258,29 @@ const uploadRunResultFailureScreenshotService = async (runId, resultId, user, fi
 
 
 
+const getRunResultFailureTraceService = (runId, resultId, user) =>
+
+  getRunResultFailureArtifactPayload(runId, resultId, user, {
+
+    storageKeyField: 'failureTrace',
+
+    resourceLabel: 'trace',
+
+    notFoundMessage: 'Failure trace not found',
+
+    missingFileMessage: 'Failure trace file is missing',
+
+    downloadFilename: 'failure.trace.zip',
+
+  });
+
+
+
 module.exports = {
 
   getRunResultFailureScreenshotService,
+
+  getRunResultFailureTraceService,
 
   uploadRunResultFailureScreenshotService,
 

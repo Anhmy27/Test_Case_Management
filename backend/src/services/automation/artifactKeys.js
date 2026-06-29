@@ -10,12 +10,14 @@ const RUN_PREFIX = 'run';
 const LEGACY_RUNS_PREFIX = 'runs';
 const DRY_RUN_PREFIX = DRY_RUN_ARTIFACT_NAMESPACE;
 const FAILURE_BASENAME = 'failure';
+const FAILURE_TRACE_BASENAME = 'failure.trace';
 
 const MIME_TO_EXTENSION = {
   'image/png': 'png',
   'image/jpeg': 'jpg',
   'image/jpg': 'jpg',
   'image/webp': 'webp',
+  'application/zip': 'zip',
 };
 
 const EXTENSION_TO_MIME = {
@@ -23,6 +25,7 @@ const EXTENSION_TO_MIME = {
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
   webp: 'image/webp',
+  zip: 'application/zip',
 };
 
 const normalizeSlashes = (value) => String(value || '').replace(/\\/g, '/').trim();
@@ -34,6 +37,12 @@ const buildRunFailureScreenshotKey = (runId, resultId, extension = 'png') => {
 
 const buildDryRunFailureScreenshotKey = (dryRunId) =>
   `${DRY_RUN_PREFIX}/${dryRunId}/${FAILURE_BASENAME}.png`;
+
+const buildRunFailureTraceKey = (runId, resultId) =>
+  `${RUN_PREFIX}/${runId}/${resultId}/${FAILURE_TRACE_BASENAME}.zip`;
+
+const buildDryRunFailureTraceKey = (dryRunId) =>
+  `${DRY_RUN_PREFIX}/${dryRunId}/${FAILURE_TRACE_BASENAME}.zip`;
 
 const extensionFromMime = (mimeType) =>
   MIME_TO_EXTENSION[String(mimeType || '').toLowerCase()] || 'png';
@@ -147,6 +156,8 @@ module.exports = {
   DRY_RUN_PREFIX,
   buildRunFailureScreenshotKey,
   buildDryRunFailureScreenshotKey,
+  buildRunFailureTraceKey,
+  buildDryRunFailureTraceKey,
   extensionFromMime,
   contentTypeFromKey,
   normalizeStoredArtifactKey,

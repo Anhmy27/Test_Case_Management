@@ -698,6 +698,7 @@ const retryFailedAutomationRunService = async (runId, user, baseUrl = '') => {
     result.notes = '';
     result.automationLogs = [];
     result.failureScreenshot = '';
+    result.failureTrace = '';
     result.executedAt = null;
   }
 

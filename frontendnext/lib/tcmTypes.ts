@@ -88,6 +88,7 @@ export interface TestRunResultRecord {
   notes?: string;
   automationLogs?: string[];
   failureScreenshot?: string;
+  failureTrace?: string;
   executedAt?: string;
   testCase?: TestCaseRecord;
 }

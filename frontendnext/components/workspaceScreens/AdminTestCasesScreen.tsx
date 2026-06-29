@@ -657,10 +657,10 @@ export default function AdminTestCasesScreen(props: Props) {
             <TestCaseVersionsPanel testCaseId={String(effectiveActiveId)} />
           ) : (
           <form
-            className="test-case-workbench-form space-y-5"
+            className="test-case-workbench-form space-y-3"
             onSubmit={handleSaveTestCase}
           >
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-2">
                   <ScopedProjectField
                     variant="workbench"
                     isProjectScoped={isProjectScoped}
@@ -703,7 +703,7 @@ export default function AdminTestCasesScreen(props: Props) {
                   </WorkbenchField>
                 </div>
 
-                <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-4">
+                <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2">
                   <WorkbenchField label="Case key">
                     <input
                       value={testCaseForm.caseKey}
@@ -734,7 +734,7 @@ export default function AdminTestCasesScreen(props: Props) {
                   </WorkbenchField>
                 </div>
 
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-3 gap-2">
                   <WorkbenchField label="Priority">
                     <select
                       value={testCaseForm.priority || "medium"}
@@ -818,11 +818,11 @@ export default function AdminTestCasesScreen(props: Props) {
                     </button>
                   }
                 >
-                  <div className="space-y-1 rounded-md border border-slate-300/70 bg-slate-200/60 p-1.5">
+                  <div className="space-y-0.5 rounded-md border border-slate-300/70 bg-slate-200/60 p-1">
                     {testCaseForm.steps.map((step, index) => (
                       <div
                         key={index}
-                        className="rounded-md border border-slate-400/60 bg-slate-300/50 p-1.5"
+                        className="rounded-md border border-slate-400/60 bg-slate-300/50 p-1"
                         onDragOver={handleManualStepDragOver}
                         onDrop={(event) => handleManualStepDrop(index, event)}
                       >
@@ -854,7 +854,7 @@ export default function AdminTestCasesScreen(props: Props) {
                             Xóa
                           </button>
                         </div>
-                        <label className="mt-1 grid grid-cols-[5.5rem_minmax(0,1fr)] items-center gap-1.5">
+                        <label className="mt-0.5 grid grid-cols-[5.5rem_minmax(0,1fr)] items-center gap-1">
                           <span className={WORKBENCH_LABEL_CLS}>KQ bước</span>
                           <input
                             value={step.expected || ""}
@@ -872,7 +872,7 @@ export default function AdminTestCasesScreen(props: Props) {
                     </div>
                   )}
 
-                  <div className="mt-1.5 rounded-md border border-slate-300/70 bg-slate-200/60 p-1.5">
+                  <div className="mt-1 rounded-md border border-slate-300/70 bg-slate-200/60 p-1">
                     <WorkbenchField label="KQ mong đợi (tổng quan)">
                       <input
                         value={testCaseForm.expected}
@@ -906,7 +906,7 @@ export default function AdminTestCasesScreen(props: Props) {
                 ) : null}
 
 
-                <div className="flex flex-wrap items-center justify-end gap-3 border-t border-slate-100 pt-5 dark:border-zinc-800">
+                <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-3 dark:border-zinc-800">
                   <Button
                     type="button"
                     size="sm"

@@ -144,7 +144,7 @@ export default function TestCaseWorkbenchModal({
           ) : null}
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3">{children}</div>
       </div>
     </div>
   );

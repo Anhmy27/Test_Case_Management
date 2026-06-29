@@ -8,6 +8,7 @@ export type DryRunResult = {
   note: string;
   logs: string[];
   failureScreenshot: string;
+  failureTrace: string;
   durationMs: number;
   testCase: {
     id: string;

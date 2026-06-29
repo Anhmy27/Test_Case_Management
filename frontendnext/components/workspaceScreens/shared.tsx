@@ -18,11 +18,11 @@ export const WORKBENCH_HINT_CLS =
   "text-xs leading-snug text-slate-500 dark:text-zinc-400";
 
 export const WORKBENCH_INPUT_CLS =
-  "min-h-[2.75rem] w-full min-w-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm leading-normal text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500";
+  "h-7 min-h-[1.75rem] w-full min-w-0 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs leading-tight text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500/20 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500";
 
-export const WORKBENCH_SELECT_CLS = `${WORKBENCH_INPUT_CLS} h-[2.75rem] min-h-[2.75rem] py-2 pr-8 leading-normal`;
+export const WORKBENCH_SELECT_CLS = `${WORKBENCH_INPUT_CLS} pr-7`;
 
-export const WORKBENCH_TEXTAREA_CLS = `${WORKBENCH_INPUT_CLS} !h-auto min-h-[5.5rem] resize-y py-2.5 leading-normal`;
+export const WORKBENCH_TEXTAREA_CLS = `${WORKBENCH_INPUT_CLS} !h-auto min-h-[2.75rem] resize-y py-1 leading-snug`;
 
 export const WORKBENCH_META_CLS = "text-xs font-medium leading-snug text-slate-700 dark:text-zinc-300";
 
@@ -64,8 +64,8 @@ export function WorkbenchSection({
         : "border-slate-200 bg-slate-50/60 dark:border-zinc-700 dark:bg-zinc-800/40";
 
   return (
-    <section className={`rounded-md border p-1.5 ${toneCls}`}>
-      <div className="mb-1 flex items-center justify-between gap-2">
+    <section className={`rounded-md border p-1 ${toneCls}`}>
+      <div className="mb-0.5 flex items-center justify-between gap-2">
         <div className="min-w-0">
           <div className={WORKBENCH_SECTION_TITLE_CLS}>{title}</div>
           {hint ? <div className={WORKBENCH_HINT_CLS}>{hint}</div> : null}

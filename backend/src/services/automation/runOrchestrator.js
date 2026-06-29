@@ -16,7 +16,12 @@ const TestCase = require('../../models/TestCase');
 const TestRun = require('../../models/TestRun');
 const { httpError } = require('../../utils/httpError');
 const { createAuthManager } = require('../auth/authManager');
-const { captureFailureScreenshot } = require('./failureScreenshotCapture');
+const {
+  captureFailureScreenshot,
+  captureFailureTrace,
+  discardFailureTracing,
+  startFailureTracing,
+} = require('./failureScreenshotCapture');
 const { executeSingleCaseAutomation } = require('./singleCaseExecutor');
 const { assertAllowedBaseUrl } = require('../../utils/automationUrlPolicy');
 
@@ -213,6 +218,7 @@ const executeAutomationRun = async ({
         userKey: automation.userKey,
       });
       const { context } = authContext;
+      await startFailureTracing(context);
       const page = await context.newPage();
 
       const shouldAbort = () => isCancelRequested(testRunId);
@@ -228,6 +234,7 @@ const executeAutomationRun = async ({
         finalNote,
         logLines,
         failureScreenshot,
+        failureTrace,
         cancelled: caseCancelled,
       } = await executeSingleCaseAutomation({
         page,
@@ -240,7 +247,16 @@ const executeAutomationRun = async ({
           runId: testRun._id,
           resultId: result._id,
         }),
+        captureFailureTrace: async (activeContext) => captureFailureTrace({
+          context: activeContext,
+          runId: testRun._id,
+          resultId: result._id,
+        }),
       });
+
+      if (finalStatus !== 'fail') {
+        await discardFailureTracing(context);
+      }
 
       await authManager
         .persistContext({ context, webKey: authContext.webKey, userKey: authContext.userKey })
@@ -252,6 +268,7 @@ const executeAutomationRun = async ({
       result.note = finalNote.slice(0, 5000);
       result.automationLogs = logLines.slice(0, 200);
       result.failureScreenshot = failureScreenshot || '';
+      result.failureTrace = failureTrace || '';
       result.executedAt = new Date();
       result.tester = executedBy;
 
