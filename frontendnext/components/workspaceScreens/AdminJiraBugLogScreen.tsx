@@ -86,6 +86,7 @@ export default function AdminJiraBugLogScreen({
       >
         <DataTable
           columns={["When", "Jira Issue", "Summary", "Test Case", "Test Run", "Actions", "Logged By"]}
+          enablePagination={false}
           rows={logBugs.map((entry) => (
             <>
               <div className="whitespace-nowrap text-sm text-slate-600 dark:text-zinc-400">

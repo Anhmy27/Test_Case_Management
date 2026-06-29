@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction, FormEvent } from "react";
-import { ActionButton, Button, Field, INPUT_CLS, ScopedProjectField, StatusBadge } from "./shared";
+import { ActionButton, Button, ClientPaginationBar, Field, INPUT_CLS, ScopedProjectField, StatusBadge, useClientPagination } from "./shared";
 import { apiRequest, countPlanAutomationCases, findEntityByReference, isEntityReferenceSelected, matchesEntityId, matchesSelectedEntity, normalizeEntityReferences, summarizeRunResults } from "@/lib/api";
 import type { TestPlanDetail } from "@/lib/tcmTypes";
 
@@ -216,6 +216,9 @@ export default function AdminTestPlansScreen(props: Props) {
     () => visibleCases.map(({ testCase }) => getId(testCase)).filter(Boolean),
     [getId, visibleCases],
   );
+  const planCasePickerResetKey = `${selectedPlanGroupIds.size}|${visibleCases.length}`;
+  const planCasePickerPagination = useClientPagination(visibleCases, 12, planCasePickerResetKey);
+  const paginatedVisibleCases = planCasePickerPagination.visibleItems;
 
   const selectedPlanProject = useMemo(() => {
     if (!effectivePlanProjectId) {
@@ -381,6 +384,10 @@ export default function AdminTestPlansScreen(props: Props) {
     });
   }, [getId, listFilters, matchesSearch, planRunSnapshots, runs, scopedPlans, userName]);
 
+  const planListResetKey = `${listFilters.versionId}|${listFilters.status}|${filteredPlans.length}`;
+  const planListPagination = useClientPagination(filteredPlans, 15, planListResetKey);
+  const paginatedPlans = planListPagination.visibleItems;
+
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const allVisibleSelected =
     filteredPlans.length > 0 && filteredPlans.every((plan: RecordAny) => selectedSet.has(getId(plan)));
@@ -466,6 +473,13 @@ export default function AdminTestPlansScreen(props: Props) {
       };
     });
   }, [activePlan, focusedPlanInsights, getId, planProjectCases]);
+
+  const focusedCaseRowsPagination = useClientPagination(
+    focusedPlanCaseRows,
+    8,
+    `${activePlanId}|${focusedPlanCaseRows.length}`,
+  );
+  const paginatedFocusedPlanCaseRows = focusedCaseRowsPagination.visibleItems;
 
   const focusedSummary = focusedPlanInsights?.summary;
   const focusedRunSnapshot = activePlan ? planRunSnapshots.get(getId(activePlan)) : null;
@@ -667,7 +681,7 @@ export default function AdminTestPlansScreen(props: Props) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {filteredPlans.length === 0 ? <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-500">No plans</td></tr> : filteredPlans.map((plan: RecordAny) => {
+                {filteredPlans.length === 0 ? <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-500">No plans</td></tr> : paginatedPlans.map((plan: RecordAny) => {
                   const planId = getId(plan);
                   const bulkSelected = selectedSet.has(planId);
                   const focused = activePlanId === planId;
@@ -695,6 +709,14 @@ export default function AdminTestPlansScreen(props: Props) {
               </tbody>
             </table>
           </div>
+          {planListPagination.hasPagination ? (
+            <ClientPaginationBar
+              currentPage={planListPagination.currentPage}
+              totalPages={planListPagination.totalPages}
+              totalItems={planListPagination.totalItems}
+              onPageChange={planListPagination.setCurrentPage}
+            />
+          ) : null}
         </section>
 
         <aside className="space-y-4 xl:sticky xl:top-24">
@@ -778,7 +800,7 @@ export default function AdminTestPlansScreen(props: Props) {
                   {focusedPlanCaseRows.length === 0 ? (
                     <div className="py-2 text-xs text-slate-400">No cases in this plan</div>
                   ) : (
-                    focusedPlanCaseRows.map((item) => (
+                    paginatedFocusedPlanCaseRows.map((item) => (
                       <div key={item.id} className="flex items-center justify-between gap-2 rounded-md px-1 py-1.5 text-xs hover:bg-slate-50">
                         <div className="min-w-0">
                           <div className="truncate font-semibold text-slate-800">{item.caseKey}</div>
@@ -789,6 +811,14 @@ export default function AdminTestPlansScreen(props: Props) {
                     ))
                   )}
                 </div>
+                {focusedCaseRowsPagination.hasPagination ? (
+                  <ClientPaginationBar
+                    currentPage={focusedCaseRowsPagination.currentPage}
+                    totalPages={focusedCaseRowsPagination.totalPages}
+                    totalItems={focusedCaseRowsPagination.totalItems}
+                    onPageChange={focusedCaseRowsPagination.setCurrentPage}
+                  />
+                ) : null}
               </details>
               <div className="flex flex-wrap gap-2">
                 <button type="button" className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700" onClick={() => openPlanInsights(activePlan)}>View insights</button>
@@ -1045,8 +1075,8 @@ export default function AdminTestPlansScreen(props: Props) {
                       : "Các group đã chọn chưa có test case."}
                   </div>
                 ) : (
-                  <div className="mt-3 max-h-[300px] space-y-1 overflow-y-auto">
-                    {visibleCases.map(({ testCase, group }) => {
+                  <div className="mt-3 space-y-1">
+                    {paginatedVisibleCases.map(({ testCase, group }) => {
                       const caseId = getId(testCase);
                       const checked = isEntityReferenceSelected(testCase, selectedPlanCaseIds);
                       return (
@@ -1059,6 +1089,15 @@ export default function AdminTestPlansScreen(props: Props) {
                         </label>
                       );
                     })}
+                    {planCasePickerPagination.hasPagination ? (
+                      <ClientPaginationBar
+                        currentPage={planCasePickerPagination.currentPage}
+                        totalPages={planCasePickerPagination.totalPages}
+                        totalItems={planCasePickerPagination.totalItems}
+                        onPageChange={planCasePickerPagination.setCurrentPage}
+                        className="rounded-lg border border-slate-200"
+                      />
+                    ) : null}
                   </div>
                 )}
               </div>

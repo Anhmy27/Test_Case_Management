@@ -39,6 +39,7 @@ export default function AdminAuditLogScreen({ logs, pagination, onPageChange }: 
       >
         <DataTable
           columns={["When", "Action", "Resource", "Actor", "IP"]}
+          enablePagination={false}
           rows={logs.map((entry) => (
             <>
               <div className="whitespace-nowrap text-sm text-slate-600 dark:text-zinc-400">

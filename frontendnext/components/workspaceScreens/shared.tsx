@@ -1,7 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { HTMLAttributes, ReactNode } from "react";
+
+export const DEFAULT_CLIENT_PAGE_SIZE = 15;
 
 // ─── Form primitives ──────────────────────────────────────────────────────
 
@@ -458,13 +460,90 @@ export function EmptyState({
 
 // ─── DataTable ─────────────────────────────────────────────────────────────
 
+export function useClientPagination<T>(
+  items: T[],
+  pageSize = DEFAULT_CLIENT_PAGE_SIZE,
+  resetKey?: string | number,
+) {
+  const [currentPage, setCurrentPage] = useState(1);
+  const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
+  const safePage = Math.min(currentPage, totalPages);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [resetKey]);
+
+  const visibleItems = useMemo(() => {
+    if (items.length <= pageSize) {
+      return items;
+    }
+    const start = (safePage - 1) * pageSize;
+    return items.slice(start, start + pageSize);
+  }, [items, pageSize, safePage]);
+
+  return {
+    visibleItems,
+    currentPage: safePage,
+    totalPages,
+    setCurrentPage,
+    pageSize,
+    totalItems: items.length,
+    hasPagination: items.length > pageSize,
+  };
+}
+
+type ClientPaginationBarProps = {
+  currentPage: number;
+  totalPages: number;
+  totalItems: number;
+  onPageChange: (page: number) => void;
+  className?: string;
+};
+
+export function ClientPaginationBar({
+  currentPage,
+  totalPages,
+  totalItems,
+  onPageChange,
+  className = "",
+}: ClientPaginationBarProps) {
+  return (
+    <div
+      className={`flex items-center justify-between gap-3 border-t border-slate-100 bg-white px-4 py-2.5 text-xs text-slate-500 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-400 ${className}`.trim()}
+    >
+      <span>
+        {totalItems} items · trang {currentPage}/{totalPages}
+      </span>
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          className="rounded-lg border border-slate-200 px-2.5 py-1 font-medium transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-800"
+          disabled={currentPage <= 1}
+          onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+        >
+          ← Trước
+        </button>
+        <button
+          type="button"
+          className="rounded-lg border border-slate-200 px-2.5 py-1 font-medium transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:hover:bg-zinc-800"
+          disabled={currentPage >= totalPages}
+          onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+        >
+          Tiếp →
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function DataTable({
   columns,
   rows,
   emptyText,
-  pageSize = 15,
+  pageSize = DEFAULT_CLIENT_PAGE_SIZE,
   enablePagination = true,
   getRowProps,
+  paginationResetKey,
 }: {
   columns: string[];
   rows: ReactNode[];
@@ -472,19 +551,18 @@ export function DataTable({
   pageSize?: number;
   enablePagination?: boolean;
   getRowProps?: (index: number) => HTMLAttributes<HTMLDivElement>;
+  paginationResetKey?: string | number;
 }) {
-  const [currentPage, setCurrentPage] = useState(1);
+  const pagination = useClientPagination(
+    rows,
+    pageSize,
+    paginationResetKey ?? rows.length,
+  );
+  const displayRows = enablePagination ? pagination.visibleItems : rows;
+  const safePage = enablePagination ? pagination.currentPage : 1;
   const colStyle = {
     gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))`,
   };
-  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
-  const safePage = Math.min(currentPage, totalPages);
-
-  const visibleRows = useMemo(() => {
-    if (!enablePagination) return rows;
-    const start = (safePage - 1) * pageSize;
-    return rows.slice(start, start + pageSize);
-  }, [enablePagination, pageSize, rows, safePage]);
 
   return (
     <div className="overflow-hidden">
@@ -503,7 +581,7 @@ export function DataTable({
         <div className="px-4 py-12 text-center text-sm text-slate-400">{emptyText}</div>
       ) : (
         <div>
-          {visibleRows.map((row, i) => {
+          {displayRows.map((row, i) => {
             const rowIndex = enablePagination ? (safePage - 1) * pageSize + i : i;
             const rowProps = getRowProps?.(rowIndex) || {};
             return (
@@ -521,30 +599,13 @@ export function DataTable({
       )}
 
       {/* Pagination */}
-      {enablePagination && rows.length > pageSize && (
-        <div className="flex items-center justify-between gap-3 border-t border-slate-100 bg-white px-4 py-2.5 text-xs text-slate-500">
-          <span>
-            {rows.length} items · trang {safePage}/{totalPages}
-          </span>
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              className="rounded-lg border border-slate-200 px-2.5 py-1 font-medium transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-              disabled={safePage <= 1}
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            >
-              ← Trước
-            </button>
-            <button
-              type="button"
-              className="rounded-lg border border-slate-200 px-2.5 py-1 font-medium transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-              disabled={safePage >= totalPages}
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            >
-              Tiếp →
-            </button>
-          </div>
-        </div>
+      {enablePagination && pagination.hasPagination && (
+        <ClientPaginationBar
+          currentPage={pagination.currentPage}
+          totalPages={pagination.totalPages}
+          totalItems={pagination.totalItems}
+          onPageChange={pagination.setCurrentPage}
+        />
       )}
     </div>
   );

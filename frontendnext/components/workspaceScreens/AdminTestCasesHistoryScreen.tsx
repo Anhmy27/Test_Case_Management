@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import ExecutionHistoryEntryActions from "@/components/execution/ExecutionHistoryEntryActions";
 import ExecutionHistoryScreenshotModal from "@/components/execution/ExecutionHistoryScreenshotModal";
-import { DataTable, EmptyState, Field, INPUT_CLS, SectionCard, StatusBadge } from "./shared";
+import { DataTable, ClientPaginationBar, EmptyState, Field, INPUT_CLS, SectionCard, StatusBadge, useClientPagination } from "./shared";
 import { getId } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
@@ -69,6 +69,12 @@ export default function AdminTestCasesHistoryScreen({
       Array.isArray(focusedCase?.executionHistory) ? focusedCase.executionHistory : [],
     [focusedCase],
   );
+  const historyPagination = useClientPagination(
+    focusedHistory,
+    10,
+    `${getId(focusedCase)}|${focusedHistory.length}`,
+  );
+  const paginatedFocusedHistory = historyPagination.visibleItems;
 
   const focusedSummary = useMemo(() => {
     return focusedHistory.reduce(
@@ -214,7 +220,7 @@ export default function AdminTestCasesHistoryScreen({
                 {focusedHistory.length === 0 ? (
                   <div className="px-4 py-6 text-sm text-slate-500">No execution history found for this case.</div>
                 ) : (
-                  focusedHistory.map((entry: RecordAny, index: number) => (
+                  paginatedFocusedHistory.map((entry: RecordAny, index: number) => (
                     <div key={`${String(entry.runId || "run")}-${String(entry.resultId || index)}`} className="grid grid-cols-[minmax(0,1.1fr)_100px_140px_150px_minmax(0,1fr)_minmax(140px,180px)] gap-3 px-4 py-3 text-sm">
                       <div>
                         <div className="font-semibold text-slate-900">{entry.runName || entry.runId || "Run"}</div>
@@ -236,6 +242,14 @@ export default function AdminTestCasesHistoryScreen({
                   ))
                 )}
               </div>
+              {historyPagination.hasPagination ? (
+                <ClientPaginationBar
+                  currentPage={historyPagination.currentPage}
+                  totalPages={historyPagination.totalPages}
+                  totalItems={historyPagination.totalItems}
+                  onPageChange={historyPagination.setCurrentPage}
+                />
+              ) : null}
             </div>
           </div>
         </div>

@@ -14,7 +14,7 @@ import AutomationDryRunPanel from "@/components/automation/AutomationDryRunPanel
 import TestCaseWorkbenchModal from "@/components/testCases/TestCaseWorkbenchModal";
 import TestCaseVersionsPanel from "@/components/testCases/TestCaseVersionsPanel";
 import type { AutomationForm } from "@/lib/automationStepMeta";
-import { Button, WorkbenchField, WORKBENCH_INPUT_CLS, WORKBENCH_LABEL_CLS, WORKBENCH_META_CLS, WORKBENCH_SELECT_CLS, WORKBENCH_TEXTAREA_CLS, WorkbenchSection, ScopedProjectField } from "./shared";
+import { Button, ClientPaginationBar, useClientPagination, WorkbenchField, WORKBENCH_INPUT_CLS, WORKBENCH_LABEL_CLS, WORKBENCH_META_CLS, WORKBENCH_SELECT_CLS, WORKBENCH_TEXTAREA_CLS, WorkbenchSection, ScopedProjectField } from "./shared";
 
 type RecordAny = Record<string, any>;
 
@@ -178,6 +178,10 @@ export default function AdminTestCasesScreen(props: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- resolveScopedName reads scopedProjects/scopedGroups already listed
   }, [groupFilter, matchesSearch, preset, scopedGroups, scopedProjects, testCases]);
 
+  const caseListResetKey = `${preset}|${groupFilter}|${filteredCases.length}`;
+  const caseListPagination = useClientPagination(filteredCases, 15, caseListResetKey);
+  const paginatedCases = caseListPagination.visibleItems;
+
   const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
   const allVisibleSelected =
     filteredCases.length > 0 &&
@@ -200,6 +204,8 @@ export default function AdminTestCasesScreen(props: Props) {
         new Date(a.updatedAt || a.createdAt || 0).getTime(),
     );
   }, [testCases]);
+  const recentModalPagination = useClientPagination(allRecentCases, 12, allRecentCases.length);
+  const paginatedRecentCases = recentModalPagination.visibleItems;
 
   const presetButtons: Array<{ key: FilterPreset; label: string }> = [
     { key: "all", label: "All" },
@@ -448,7 +454,7 @@ export default function AdminTestCasesScreen(props: Props) {
                     </td>
                   </tr>
                 ) : (
-                  filteredCases.map((testCase) => {
+                  paginatedCases.map((testCase) => {
                     const caseId = getId(testCase);
                     const selected = selectedSet.has(caseId);
                     return (
@@ -558,6 +564,14 @@ export default function AdminTestCasesScreen(props: Props) {
               </tbody>
             </table>
           </div>
+          {caseListPagination.hasPagination ? (
+            <ClientPaginationBar
+              currentPage={caseListPagination.currentPage}
+              totalPages={caseListPagination.totalPages}
+              totalItems={caseListPagination.totalItems}
+              onPageChange={caseListPagination.setCurrentPage}
+            />
+          ) : null}
         </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -945,7 +959,7 @@ export default function AdminTestCasesScreen(props: Props) {
                   No test cases found.
                 </div>
               ) : (
-                allRecentCases.map((item) => {
+                paginatedRecentCases.map((item) => {
                   const stepCount = Array.isArray(item.steps)
                     ? item.steps.length
                     : 0;
@@ -1024,6 +1038,15 @@ export default function AdminTestCasesScreen(props: Props) {
                 })
               )}
             </div>
+            {recentModalPagination.hasPagination ? (
+              <ClientPaginationBar
+                currentPage={recentModalPagination.currentPage}
+                totalPages={recentModalPagination.totalPages}
+                totalItems={recentModalPagination.totalItems}
+                onPageChange={recentModalPagination.setCurrentPage}
+                className="mt-4 rounded-xl border border-slate-200"
+              />
+            ) : null}
           </div>
         </div>
       )}
