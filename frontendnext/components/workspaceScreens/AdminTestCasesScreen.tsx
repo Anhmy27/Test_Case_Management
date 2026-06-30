@@ -70,6 +70,26 @@ type Props = {
 type FilterPreset = "all" | "high-risk" | "automation" | "manual" | "recent";
 type ManualDragPayload = { index: number };
 
+const compareTestCaseListOrder = (
+  left: RecordAny,
+  right: RecordAny,
+  preset: FilterPreset,
+) => {
+  if (preset === "recent") {
+    return (
+      new Date(right.updatedAt || right.createdAt || 0).getTime() -
+      new Date(left.updatedAt || left.createdAt || 0).getTime()
+    );
+  }
+
+  const leftKey = String(left.caseKey || left.key || "");
+  const rightKey = String(right.caseKey || right.key || "");
+  return leftKey.localeCompare(rightKey, undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+};
+
 export default function AdminTestCasesScreen(props: Props) {
   const {
     editingTestCaseId,
@@ -174,7 +194,8 @@ export default function AdminTestCasesScreen(props: Props) {
           return updated > 0;
         }
         return true;
-      });
+      })
+      .sort((left, right) => compareTestCaseListOrder(left, right, preset));
     // eslint-disable-next-line react-hooks/exhaustive-deps -- resolveScopedName reads scopedProjects/scopedGroups already listed
   }, [groupFilter, matchesSearch, preset, scopedGroups, scopedProjects, testCases]);
 
