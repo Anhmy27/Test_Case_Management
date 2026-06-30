@@ -11,14 +11,11 @@ export type TestCasePriority = (typeof TEST_CASE_PRIORITY_OPTIONS)[number]["valu
 export const TEST_CASE_PRIORITY_VALUES: TestCasePriority[] =
   TEST_CASE_PRIORITY_OPTIONS.map((option) => option.value);
 
-/** Map legacy DB/import values to a form select value. */
+/** Normalize unknown priority values to a supported form select value. */
 export function normalizePriorityForForm(
   priority?: string | null,
 ): TestCasePriority {
   const normalized = String(priority || "medium").trim().toLowerCase();
-  if (normalized === "critical") {
-    return "highest";
-  }
   if (TEST_CASE_PRIORITY_VALUES.includes(normalized as TestCasePriority)) {
     return normalized as TestCasePriority;
   }
@@ -33,5 +30,5 @@ export function formatPriorityLabel(priority?: string | null): string {
 
 export function isHighRiskPriority(priority?: string | null): boolean {
   const normalized = String(priority || "").trim().toLowerCase();
-  return ["high", "highest", "critical"].includes(normalized);
+  return ["high", "highest"].includes(normalized);
 }

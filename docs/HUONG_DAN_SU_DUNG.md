@@ -99,7 +99,7 @@ Project → Version → Group → Test Case → Test Plan → Chạy test → Xe
 |-----|---------|
 | Group Key **hoặc** Group Name | Chỉ cần một trong hai |
 | Case Key, Title | Bắt buộc |
-| Priority | `low` \| `medium` \| `high` \| `critical` |
+| Priority | `lowest` \| `low` \| `medium` \| `high` \| `highest` |
 | Severity | `minor` \| `major` \| `critical` |
 | Type | `functional`, `api`, `ui`, ... |
 | Step N Action / Step N Expected | Bước thủ công |

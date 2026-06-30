@@ -128,7 +128,6 @@ export function buildJiraBugDescription(
 
 export function mapPriorityToJira(priority?: string) {
   switch (String(priority || "").toLowerCase()) {
-    case "critical":
     case "highest":
       return "1";
     case "high":

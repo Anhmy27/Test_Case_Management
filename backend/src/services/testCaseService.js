@@ -37,19 +37,11 @@ const buildTestCaseServices = ({
   softDeleteVersionSeries,
   restoreVersionSeries,
 }) => {
-  const normalizePriority = (value) => {
-    const raw = String(value || '').trim().toLowerCase();
-    if (!raw) return '';
-    // Legacy alias
-    if (raw === 'critical') return 'highest';
-    return raw;
-  };
+  const normalizePriority = (value) => String(value || '').trim().toLowerCase();
 
   const normalizePriorityOrDefault = (value, fallback = 'medium') => {
     const normalized = normalizePriority(value) || normalizePriority(fallback) || 'medium';
-    // PRIORITY_VALUES is imported from testCaseImportTemplate and includes legacy 'critical';
-    // here we persist only the normalized set.
-    return normalized === 'critical' ? 'highest' : normalized;
+    return normalized;
   };
   const defaultAutomation = () => ({
     enabled: false,

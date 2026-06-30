@@ -12,7 +12,6 @@ export function priorityBadgeClass(priority?: string | null): string {
     case "high":
       return `${PRIORITY_BADGE_BASE} bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300`;
     case "highest":
-    case "critical":
       return `${PRIORITY_BADGE_BASE} bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300`;
     default:
       return `${PRIORITY_BADGE_BASE} bg-slate-100 text-slate-600 dark:bg-zinc-800 dark:text-zinc-300`;

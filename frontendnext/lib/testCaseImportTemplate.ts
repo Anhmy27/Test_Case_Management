@@ -4,8 +4,7 @@ export const MANUAL_STEP_COLUMNS = 5;
 export const TEST_CASE_IMPORT_SHEET_NAME = "TestCases";
 export const TEST_CASE_GUIDE_SHEET_NAME = "Hướng dẫn";
 
-// Keep "critical" for legacy imports; normalized to "highest" in backend.
-export const PRIORITY_VALUES = ["lowest", "low", "medium", "high", "highest", "critical"] as const;
+export const PRIORITY_VALUES = ["lowest", "low", "medium", "high", "highest"] as const;
 export const SEVERITY_VALUES = ["minor", "major", "critical"] as const;
 export const TYPE_VALUES = ["functional", "api", "ui", "regression", "security", "other"] as const;
 
@@ -182,7 +181,7 @@ function buildGuideSheetRows(): string[][] {
     ["low", "Độ ưu tiên thấp"],
     ["medium", "Độ ưu tiên trung bình (mặc định)"],
     ["high", "Độ ưu tiên cao"],
-    ["highest", "Độ ưu tiên rất cao (critical cũ được chấp nhận khi import)"],
+    ["highest", "Độ ưu tiên rất cao"],
     [""],
     ["GIÁ TRỊ CỐ ĐỊNH — SEVERITY"],
     ["minor", "Lỗi nhẹ"],
