@@ -9,6 +9,7 @@ import type {
   SetStateAction,
 } from "react";
 import { collectEntityIds, getId } from "@/lib/api";
+import { priorityBadgeClass } from "@/lib/testCaseBadges";
 import AutomationConfigPanel from "@/components/automation/AutomationConfigPanel";
 import AutomationDryRunPanel from "@/components/automation/AutomationDryRunPanel";
 import TestCaseWorkbenchModal from "@/components/testCases/TestCaseWorkbenchModal";
@@ -524,7 +525,7 @@ export default function AdminTestCasesScreen(props: Props) {
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          <span className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">
+                          <span className={priorityBadgeClass(testCase.priority)}>
                             {testCase.priority || "medium"}
                           </span>
                         </td>
@@ -1019,7 +1020,7 @@ export default function AdminTestCasesScreen(props: Props) {
                       </div>
 
                       <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                        <span className="rounded-full bg-rose-50 px-2.5 py-1 font-semibold text-rose-700">
+                        <span className={priorityBadgeClass(item.priority)}>
                           {item.priority || "medium"}
                         </span>
                         <span className="rounded-full bg-amber-50 px-2.5 py-1 font-semibold text-amber-700">

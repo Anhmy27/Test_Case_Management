@@ -7,6 +7,7 @@ import ExecutionHistoryEntryActions from "@/components/execution/ExecutionHistor
 import ExecutionHistoryScreenshotModal from "@/components/execution/ExecutionHistoryScreenshotModal";
 import { DataTable, ClientPaginationBar, EmptyState, Field, INPUT_CLS, SectionCard, StatusBadge, useClientPagination } from "./shared";
 import { getId } from "@/lib/api";
+import { priorityBadgeClass } from "@/lib/testCaseBadges";
 
 type RecordAny = Record<string, any>;
 
@@ -152,7 +153,11 @@ export default function AdminTestCasesHistoryScreen({
                         <div className="font-semibold text-slate-900">{testCase.caseKey || testCase.key || "-"}</div>
                         <div>{testCase.title || testCase.name || "-"}</div>
                         <div>{testCase.group?.name || "-"}</div>
-                        <div>{testCase.priority || "-"}</div>
+                        <div>
+                          <span className={priorityBadgeClass(testCase.priority)}>
+                            {testCase.priority || "-"}
+                          </span>
+                        </div>
                         <div>{statusCell(statuses[0])}</div>
                         <div>{statusCell(statuses[1])}</div>
                         <div>{statusCell(statuses[2])}</div>
