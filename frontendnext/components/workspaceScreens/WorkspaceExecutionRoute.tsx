@@ -461,11 +461,27 @@ function AdminWorkspaceExecutionRoute() {
           baseUrl: runForm.baseUrl || activeRun.automationBaseUrl || "",
         }),
       });
-      if (response.testRun) {
-        setSelectedRun(response.testRun);
+      const retryRun = response.testRun;
+      const retryRunId = retryRun ? getId(retryRun) : "";
+      if (!retryRun || !retryRunId) {
+        showNotice("Unable to retry failed cases", "error");
+        return;
       }
-      showNotice(`Đang retry ${response.retryCount ?? 0} case fail...`);
-      await loadMyItems(getId(activeRun));
+
+      setRuns((prev) => [
+        retryRun,
+        ...prev.filter((run) => getId(run) !== retryRunId),
+      ]);
+
+      if (response.automationQueued) {
+        showNotice(`Đang chạy lại ${response.retryCount ?? 0} case fail (automation)...`);
+      } else {
+        showNotice(
+          `Đã tạo run retry với ${response.retryCount ?? 0} case fail. Bắt đầu test lại.`,
+        );
+      }
+
+      router.push(`${adminExecutionPath}?runId=${encodeURIComponent(retryRunId)}`);
       await refreshRuns();
     } catch (error) {
       showNotice(error instanceof Error ? error.message : "Unable to retry failed cases", "error");
@@ -978,11 +994,27 @@ function EmployeeWorkspaceExecutionRoute() {
           baseUrl: runForm.baseUrl || activeRun.automationBaseUrl || "",
         }),
       });
-      if (response.testRun) {
-        setSelectedRun(response.testRun);
+      const retryRun = response.testRun;
+      const retryRunId = retryRun ? getId(retryRun) : "";
+      if (!retryRun || !retryRunId) {
+        showNotice("Unable to retry failed cases", "error");
+        return;
       }
-      showNotice(`Đang retry ${response.retryCount ?? 0} case fail...`);
-      await loadMyItems(getId(activeRun));
+
+      setRuns((prev) => [
+        retryRun,
+        ...prev.filter((run) => getId(run) !== retryRunId),
+      ]);
+
+      if (response.automationQueued) {
+        showNotice(`Đang chạy lại ${response.retryCount ?? 0} case fail (automation)...`);
+      } else {
+        showNotice(
+          `Đã tạo run retry với ${response.retryCount ?? 0} case fail. Bắt đầu test lại.`,
+        );
+      }
+
+      router.push(`/workspace/employee/execution?runId=${encodeURIComponent(retryRunId)}`);
     } catch (error) {
       showNotice(error instanceof Error ? error.message : "Unable to retry failed cases", "error");
     } finally {
