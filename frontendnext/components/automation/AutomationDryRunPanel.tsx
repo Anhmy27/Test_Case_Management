@@ -10,7 +10,7 @@ import {
   type DryRunResult,
 } from "@/lib/automationDryRun";
 import { fetchDryRunFailureScreenshot, hasFailureScreenshot, hasFailureTrace, downloadDryRunFailureTrace } from "@/lib/automationArtifacts";
-import { WORKBENCH_HINT_CLS, WORKBENCH_INPUT_CLS, WORKBENCH_LABEL_CLS, WORKBENCH_META_CLS, WorkbenchField, WorkbenchSection } from "@/components/workspaceScreens/shared";
+import { WORKBENCH_HINT_CLS, WORKBENCH_INPUT_CLS, WORKBENCH_META_CLS, WorkbenchField, WorkbenchSection } from "@/components/workspaceScreens/shared";
 import ZoomableScreenshot from "../execution/ZoomableScreenshot";
 
 type Props = {
