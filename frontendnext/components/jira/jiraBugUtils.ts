@@ -1,4 +1,4 @@
-import { collectEntityIds } from "@/lib/api";
+import { collectEntityIds, getId } from "@/lib/api";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type RecordAny = Record<string, any>;
@@ -61,6 +61,33 @@ export function findProjectByReference(projects: RecordAny[], reference: unknown
       return false;
     }) || null
   );
+}
+
+/** Merge unsaved execution textarea values before opening Log Bug. */
+export function mergeExecutionDraftNotes(
+  result: RecordAny,
+  draftNotesByItemId: Record<string, string>,
+) {
+  const resultId = String(getId(result) || "").trim();
+  if (!resultId) {
+    return result;
+  }
+
+  const hasDraftNote = Object.prototype.hasOwnProperty.call(draftNotesByItemId, resultId);
+  const hasDraftExtraNotes = Object.prototype.hasOwnProperty.call(
+    draftNotesByItemId,
+    `${resultId}:notes`,
+  );
+
+  if (!hasDraftNote && !hasDraftExtraNotes) {
+    return result;
+  }
+
+  return {
+    ...result,
+    ...(hasDraftNote ? { note: draftNotesByItemId[resultId] } : {}),
+    ...(hasDraftExtraNotes ? { notes: draftNotesByItemId[`${resultId}:notes`] } : {}),
+  };
 }
 
 export function buildJiraBugDescription(

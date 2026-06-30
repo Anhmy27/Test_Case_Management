@@ -7,6 +7,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { ConfirmDialog, StatusBadge } from "../workspaceScreens/shared";
 import CaseHistoryButton from "./CaseHistoryButton";
 import FailureScreenshot from "./FailureScreenshot";
+import { mergeExecutionDraftNotes } from "@/components/jira/jiraBugUtils";
 
 type RecordAny = Record<string, any>;
 
@@ -568,7 +569,10 @@ export default function ManualRunExecutionPanel({
                   }
                   onClick={() => {
                     if (!selectedItem) return;
-                    onLogBug?.(selectedRun, selectedItem);
+                    onLogBug?.(
+                      selectedRun,
+                      mergeExecutionDraftNotes(selectedItem, notes),
+                    );
                   }}
                 >
                   Log bug

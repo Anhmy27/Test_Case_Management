@@ -146,99 +146,117 @@ export default function AutomationConfigPanel({
       />
 
       {automationForm.enabled ? (
-        <div className="mt-3 space-y-3 border-t border-emerald-200/60 pt-3 dark:border-emerald-800/40">
-          <WorkbenchField label="URL gốc">
-            <input
-              value={automationForm.baseUrl}
-              onChange={(e) =>
-                setAutomationForm((prev) => ({ ...prev, baseUrl: e.target.value }))
-              }
-              className={WORKBENCH_INPUT_CLS}
-              placeholder="https://app.example.com"
-              title="Goto có thể dùng path tương đối (/login)"
-            />
-          </WorkbenchField>
-
-          <div className="grid grid-cols-3 gap-1">
-            <WorkbenchField label="Web ID">
-              <input
-                value={automationForm.webId}
-                onChange={(e) =>
-                  setAutomationForm((prev) => ({ ...prev, webId: e.target.value }))
-                }
-                className={WORKBENCH_INPUT_CLS}
-                placeholder="my-app-staging"
-              />
-            </WorkbenchField>
-
-            <WorkbenchField label="Profile user">
-              <input
-                value={automationForm.userKey}
-                onChange={(e) =>
-                  setAutomationForm((prev) => ({ ...prev, userKey: e.target.value }))
-                }
-                className={WORKBENCH_INPUT_CLS}
-                placeholder="admin"
-              />
-            </WorkbenchField>
-
-            <WorkbenchField label="Timeout (s)">
-              <input
-                type="number"
-                min="1"
-                value={automationForm.timeoutMs}
-                onChange={(e) =>
-                  setAutomationForm((prev) => ({ ...prev, timeoutMs: e.target.value }))
-                }
-                className={WORKBENCH_INPUT_CLS}
-                placeholder="30"
-                title="Mặc định 30s khi bước không khai timeout riêng"
-              />
-            </WorkbenchField>
-          </div>
-
-          <div className="mt-1 flex items-center justify-between gap-2 border-t border-slate-100 pt-1">
-            <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-              <span className={WORKBENCH_HINT_CLS}>Bước tự động — kéo ≡</span>
-              <button
-                type="button"
-                className={`${WORKBENCH_META_CLS} rounded border border-emerald-300/80 bg-white px-1.5 py-px text-emerald-800 hover:bg-emerald-50`}
-                onClick={() => setGuideOpen(true)}
-                title="Bảng hướng dẫn selector — copy từng dòng"
-              >
-                ? Hướng dẫn
-              </button>
+        <div className="mt-4 space-y-4 border-t border-emerald-200/60 pt-4 dark:border-emerald-800/40">
+          <div className="rounded-lg border border-emerald-200/80 bg-white p-3 shadow-sm dark:border-emerald-800/50 dark:bg-zinc-900/60">
+            <div className="text-xs font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-300">
+              Cấu hình chung
             </div>
-            <button
-              type="button"
-              className={`${WORKBENCH_META_CLS} rounded border border-slate-200 bg-white px-1.5 py-px hover:bg-slate-50`}
-              onClick={addAutomationStep}
-            >
-              + Thêm bước
-            </button>
-          </div>
+            <p className={`${WORKBENCH_HINT_CLS} mt-0.5`}>
+              URL mặc định và tham số Playwright worker
+            </p>
 
-          <div className="mt-0.5 space-y-0.5 rounded-md border border-emerald-200/60 bg-emerald-50/50 p-1">
-            {automationForm.steps.map((step, index) => (
-              <AutomationStepRow
-                key={step.stepId || index}
-                step={step}
-                index={index}
-                onUpdate={updateAutomationStep}
-                onRemove={removeAutomationStep}
-                onDragStart={handleDragStart}
-                onDragOver={handleDragOver}
-                onDrop={handleDrop}
-                onDragEnd={() => setDraggingStep(null)}
-              />
-            ))}
-          </div>
+            <div className="mt-3 space-y-3">
+              <WorkbenchField label="URL gốc">
+                <input
+                  value={automationForm.baseUrl}
+                  onChange={(e) =>
+                    setAutomationForm((prev) => ({ ...prev, baseUrl: e.target.value }))
+                  }
+                  className={WORKBENCH_INPUT_CLS}
+                  placeholder="https://app.example.com"
+                  title="Goto có thể dùng path tương đối (/login)"
+                />
+              </WorkbenchField>
 
-          {automationForm.steps.length === 0 && (
-            <div className={`${WORKBENCH_META_CLS} mt-1.5 rounded border border-dashed border-slate-200 py-1.5 text-center text-slate-500`}>
-              Chưa có bước nào. Nhấn &quot;+ Thêm bước&quot; để bắt đầu.
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <WorkbenchField label="Web ID">
+                  <input
+                    value={automationForm.webId}
+                    onChange={(e) =>
+                      setAutomationForm((prev) => ({ ...prev, webId: e.target.value }))
+                    }
+                    className={WORKBENCH_INPUT_CLS}
+                    placeholder="my-app-staging"
+                  />
+                </WorkbenchField>
+
+                <WorkbenchField label="Profile user">
+                  <input
+                    value={automationForm.userKey}
+                    onChange={(e) =>
+                      setAutomationForm((prev) => ({ ...prev, userKey: e.target.value }))
+                    }
+                    className={WORKBENCH_INPUT_CLS}
+                    placeholder="admin"
+                  />
+                </WorkbenchField>
+
+                <WorkbenchField label="Timeout (s)">
+                  <input
+                    type="number"
+                    min="1"
+                    value={automationForm.timeoutMs}
+                    onChange={(e) =>
+                      setAutomationForm((prev) => ({ ...prev, timeoutMs: e.target.value }))
+                    }
+                    className={WORKBENCH_INPUT_CLS}
+                    placeholder="30"
+                    title="Mặc định 30s khi bước không khai timeout riêng"
+                  />
+                </WorkbenchField>
+              </div>
             </div>
-          )}
+          </div>
+
+          <div className="rounded-lg border border-emerald-200/80 bg-white/90 p-3 shadow-sm dark:border-emerald-800/50 dark:bg-zinc-900/40">
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-300">
+                  Bước tự động
+                </div>
+                <p className={`${WORKBENCH_HINT_CLS} mt-0.5`}>Kéo ≡ để đổi thứ tự</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  className="rounded-md border border-emerald-200 bg-white px-2.5 py-1 text-xs font-medium text-emerald-800 shadow-sm hover:bg-emerald-50 dark:border-emerald-800 dark:bg-zinc-900 dark:hover:bg-emerald-950/40"
+                  onClick={() => setGuideOpen(true)}
+                  title="Bảng hướng dẫn selector — copy từng dòng"
+                >
+                  ? Hướng dẫn
+                </button>
+                <button
+                  type="button"
+                  className="rounded-md border border-emerald-600 bg-emerald-600 px-2.5 py-1 text-xs font-medium text-white shadow-sm hover:bg-emerald-700"
+                  onClick={addAutomationStep}
+                >
+                  + Thêm bước
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              {automationForm.steps.map((step, index) => (
+                <AutomationStepRow
+                  key={step.stepId || index}
+                  step={step}
+                  index={index}
+                  onUpdate={updateAutomationStep}
+                  onRemove={removeAutomationStep}
+                  onDragStart={handleDragStart}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                  onDragEnd={() => setDraggingStep(null)}
+                />
+              ))}
+            </div>
+
+            {automationForm.steps.length === 0 && (
+              <div className="rounded-lg border border-dashed border-emerald-200 bg-emerald-50/40 py-4 text-center text-xs text-slate-500 dark:border-emerald-800 dark:bg-emerald-950/20">
+                Chưa có bước nào. Nhấn &quot;+ Thêm bước&quot; để bắt đầu.
+              </div>
+            )}
+          </div>
         </div>
       ) : null}
       <AutomationStepGuideModal open={guideOpen} onClose={() => setGuideOpen(false)} />
@@ -258,7 +276,7 @@ type StepRowProps = {
 };
 
 const FIELD_FULL = WORKBENCH_INPUT_CLS;
-const TIMEOUT_COL_W = "w-[2.25rem] shrink-0";
+const TIMEOUT_COL_W = "w-10 shrink-0";
 
 function StepFieldLabel({ children }: { children: ReactNode }) {
   return (
@@ -344,15 +362,14 @@ function AutomationStepRow({
 
   return (
     <div
-      className="rounded-md border border-emerald-300/70 bg-emerald-50/90 p-1"
+      className="rounded-lg border border-slate-200 bg-white p-2.5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/70"
       onDragOver={onDragOver}
       onDrop={(e) => onDrop(index, e)}
     >
-      {/* Hàng tiêu đề bước */}
-      <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-1">
+      <div className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-2">
         <button
           type="button"
-          className={`${WORKBENCH_META_CLS} cursor-grab rounded border border-slate-200 px-1 py-px text-slate-500 hover:text-slate-700`}
+          className={`${WORKBENCH_META_CLS} cursor-grab rounded-md border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700`}
           draggable
           onDragStart={(e) => onDragStart(index, e)}
           onDragEnd={onDragEnd}
@@ -360,27 +377,26 @@ function AutomationStepRow({
         >
           ≡
         </button>
-        <span className="w-3 text-center text-[10px] font-medium tabular-nums text-slate-600">
+        <span className="w-4 text-center text-xs font-semibold tabular-nums text-emerald-700">
           {index + 1}
         </span>
         <input
           value={step.stepName}
           onChange={(e) => onUpdate(index, "stepName", e.target.value)}
-          placeholder={`Tên — ${meta.label}`}
+          placeholder={`Tên bước — ${meta.label}`}
           className={FIELD_FULL}
         />
         <button
           type="button"
-          className={`${WORKBENCH_META_CLS} rounded border border-rose-100 px-1.5 py-px text-rose-600 hover:bg-rose-50`}
+          className={`${WORKBENCH_META_CLS} rounded-md border border-rose-100 px-2 py-0.5 text-rose-600 hover:bg-rose-50`}
           onClick={() => onRemove(index)}
         >
           Xóa
         </button>
       </div>
 
-      {/* Khối tham số — grid 3 cột: loại selector | field chính | timeout */}
-      <div className="mt-0.5 space-y-0.5 rounded-md border border-emerald-200/80 bg-white/80 p-1">
-        <div className="grid grid-cols-[3.75rem_minmax(0,1fr)_2.25rem] items-end gap-x-1 gap-y-0.5">
+      <div className="mt-2 rounded-lg border border-slate-100 bg-slate-50/90 p-2 dark:border-zinc-700 dark:bg-zinc-800/50">
+        <div className="grid grid-cols-[4rem_minmax(0,1fr)_2.5rem] items-end gap-x-2 gap-y-2">
           {/* Hàng hành động — cột 1 trống, select span cột 2 */}
           <div aria-hidden />
           <div className="min-w-0">
