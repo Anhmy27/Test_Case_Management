@@ -101,6 +101,7 @@ export interface DashboardSummary {
   pass: number;
   fail: number;
   blocked: number;
+  skip: number;
   untested: number;
   passRate: number;
   completionRate: number;

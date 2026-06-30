@@ -31,6 +31,7 @@ const emptyDashboardPayload = () => ({
     pass: 0,
     fail: 0,
     blocked: 0,
+    skip: 0,
     untested: 0,
     executed: 0,
     passRate: 0,
@@ -44,6 +45,24 @@ const emptyDashboardPayload = () => ({
   testerActivity: [],
   projectOverview: [],
 });
+
+const countResultStatuses = (results) => {
+  const counts = { pass: 0, fail: 0, blocked: 0, skip: 0, notRun: 0 };
+  for (const result of (Array.isArray(results) ? results : [])) {
+    const status = result?.status;
+    if (status === 'pass') counts.pass += 1;
+    else if (status === 'fail') counts.fail += 1;
+    else if (status === 'blocked') counts.blocked += 1;
+    else if (status === 'skip') counts.skip += 1;
+    else if (status === 'untested') counts.notRun += 1;
+  }
+  return counts;
+};
+
+const computePassRate = ({ pass = 0, fail = 0, blocked = 0, skip = 0 } = {}) => {
+  const denominator = pass + fail + blocked + skip;
+  return denominator > 0 ? Number(((pass / denominator) * 100).toFixed(2)) : 0;
+};
 
 // ---------------------------------------------------------------------------
 // Main dashboard
@@ -93,7 +112,8 @@ const getDashboardService = async ({ projectId, versionId }) => {
         passCount: { $size: { $filter: { input: '$results', as: 'r', cond: { $eq: ['$$r.status', 'pass'] } } } },
         failCount: { $size: { $filter: { input: '$results', as: 'r', cond: { $eq: ['$$r.status', 'fail'] } } } },
         blockedCount: { $size: { $filter: { input: '$results', as: 'r', cond: { $eq: ['$$r.status', 'blocked'] } } } },
-        untestedCount: { $size: { $filter: { input: '$results', as: 'r', cond: { $in: ['$$r.status', ['untested', 'skip']] } } } },
+        skipCount: { $size: { $filter: { input: '$results', as: 'r', cond: { $eq: ['$$r.status', 'skip'] } } } },
+        untestedCount: { $size: { $filter: { input: '$results', as: 'r', cond: { $eq: ['$$r.status', 'untested'] } } } },
       },
     },
   ]);
@@ -104,13 +124,14 @@ const getDashboardService = async ({ projectId, versionId }) => {
     acc.pass += run.passCount;
     acc.fail += run.failCount;
     acc.blocked += run.blockedCount;
+    acc.skip += run.skipCount || 0;
     acc.untested += run.untestedCount;
     if (run.status === 'running') acc.runningRuns += 1;
     return acc;
-  }, { totalRuns: 0, runningRuns: 0, totalCases: 0, pass: 0, fail: 0, blocked: 0, untested: 0 });
+  }, { totalRuns: 0, runningRuns: 0, totalCases: 0, pass: 0, fail: 0, blocked: 0, skip: 0, untested: 0 });
 
-  summary.executed = summary.pass + summary.fail + summary.blocked;
-  summary.passRate = summary.executed > 0 ? Number(((summary.pass / summary.executed) * 100).toFixed(2)) : 0;
+  summary.executed = summary.pass + summary.fail + summary.blocked + summary.skip;
+  summary.passRate = computePassRate(summary);
   summary.completionRate = summary.totalCases > 0
     ? Number(((summary.executed / summary.totalCases) * 100).toFixed(2))
     : 0;
@@ -331,6 +352,7 @@ const getDashboardService = async ({ projectId, versionId }) => {
           passCount: { $size: { $filter: { input: '$results', as: 'r', cond: { $eq: ['$$r.status', 'pass'] } } } },
           failCount: { $size: { $filter: { input: '$results', as: 'r', cond: { $eq: ['$$r.status', 'fail'] } } } },
           blockedCount: { $size: { $filter: { input: '$results', as: 'r', cond: { $eq: ['$$r.status', 'blocked'] } } } },
+          skipCount: { $size: { $filter: { input: '$results', as: 'r', cond: { $eq: ['$$r.status', 'skip'] } } } },
         },
       },
     ]);
@@ -339,7 +361,8 @@ const getDashboardService = async ({ projectId, versionId }) => {
     const passCount = projectRuns.reduce((acc, run) => acc + run.passCount, 0);
     const failCount = projectRuns.reduce((acc, run) => acc + run.failCount, 0);
     const blockedCount = projectRuns.reduce((acc, run) => acc + (run.blockedCount || 0), 0);
-    const executed = passCount + failCount + blockedCount;
+    const skipCount = projectRuns.reduce((acc, run) => acc + (run.skipCount || 0), 0);
+    const executed = passCount + failCount + blockedCount + skipCount;
 
     return {
       _id: String(project._id),
@@ -351,7 +374,7 @@ const getDashboardService = async ({ projectId, versionId }) => {
       passCount,
       failCount,
       blockedCount,
-      passRate: executed > 0 ? Number(((passCount / executed) * 100).toFixed(2)) : 0,
+      passRate: computePassRate({ pass: passCount, fail: failCount, blocked: blockedCount, skip: skipCount }),
       progress: totalTests > 0 ? Number(((executed / totalTests) * 100).toFixed(2)) : 0,
     };
   }));
@@ -490,7 +513,9 @@ const getVersionDashboardService = async ({ projectId }) => {
           total: { $size: '$results' },
           passCount: { $size: { $filter: { input: '$results', as: 'r', cond: { $eq: ['$$r.status', 'pass'] } } } },
           failCount: { $size: { $filter: { input: '$results', as: 'r', cond: { $eq: ['$$r.status', 'fail'] } } } },
-          notRunCount: { $size: { $filter: { input: '$results', as: 'r', cond: { $in: ['$$r.status', ['untested', 'skip']] } } } },
+          blockedCount: { $size: { $filter: { input: '$results', as: 'r', cond: { $eq: ['$$r.status', 'blocked'] } } } },
+          skipCount: { $size: { $filter: { input: '$results', as: 'r', cond: { $eq: ['$$r.status', 'skip'] } } } },
+          notRunCount: { $size: { $filter: { input: '$results', as: 'r', cond: { $eq: ['$$r.status', 'untested'] } } } },
         },
       },
     ]);
@@ -498,8 +523,10 @@ const getVersionDashboardService = async ({ projectId }) => {
     const totalTests = runs.reduce((acc, run) => acc + run.total, 0);
     const passCount = runs.reduce((acc, run) => acc + run.passCount, 0);
     const failCount = runs.reduce((acc, run) => acc + run.failCount, 0);
+    const blockedCount = runs.reduce((acc, run) => acc + (run.blockedCount || 0), 0);
+    const skipCount = runs.reduce((acc, run) => acc + (run.skipCount || 0), 0);
     const notRunCount = runs.reduce((acc, run) => acc + run.notRunCount, 0);
-    const executed = passCount + failCount;
+    const executed = passCount + failCount + blockedCount + skipCount;
 
     return {
       _id: String(version._id),
@@ -512,7 +539,7 @@ const getVersionDashboardService = async ({ projectId }) => {
       failCount,
       notRunCount,
       progress: totalTests > 0 ? Number((((totalTests - notRunCount) / totalTests) * 100).toFixed(2)) : 0,
-      passRate: executed > 0 ? Number(((passCount / executed) * 100).toFixed(2)) : 0,
+      passRate: computePassRate({ pass: passCount, fail: failCount, blocked: blockedCount, skip: skipCount }),
     };
   }));
 
@@ -553,10 +580,10 @@ const getTestPlanStatsService = async ({ versionId }) => {
 
     if (latestRun) {
       const total = latestRun.results.length;
-      const passCount = latestRun.results.filter((r) => r.status === 'pass').length;
-      const executed = latestRun.results.filter((r) => !['untested', 'skip'].includes(r.status)).length;
+      const counts = countResultStatuses(latestRun.results);
+      const executed = counts.pass + counts.fail + counts.blocked + counts.skip;
       progress = total > 0 ? Number(((executed / total) * 100).toFixed(2)) : 0;
-      passRate = executed > 0 ? Number(((passCount / executed) * 100).toFixed(2)) : 0;
+      passRate = computePassRate(counts);
       lastRunTime = latestRun.startedAt;
     }
 
@@ -578,18 +605,6 @@ const getTestPlanStatsService = async ({ versionId }) => {
 // ---------------------------------------------------------------------------
 // Test plan detail (history + per-case run timeline)
 // ---------------------------------------------------------------------------
-
-const countResultStatuses = (results) => {
-  const counts = { pass: 0, fail: 0, blocked: 0, notRun: 0 };
-  for (const result of (Array.isArray(results) ? results : [])) {
-    const status = result?.status;
-    if (status === 'pass') counts.pass += 1;
-    else if (status === 'fail') counts.fail += 1;
-    else if (status === 'blocked') counts.blocked += 1;
-    else if (['untested', 'skip'].includes(status)) counts.notRun += 1;
-  }
-  return counts;
-};
 
 const buildCaseRunTimeline = (runs, caseEntityId, refToEntityId) => runs.map((run) => {
   const match = (run.results || []).find((result) => {
@@ -685,8 +700,8 @@ const getTestPlanDetailService = async (testPlanId) => {
     summary.passCount = counts.pass;
     summary.failCount = counts.fail;
     summary.notRunCount = counts.notRun;
-    const executed = counts.pass + counts.fail + counts.blocked;
-    summary.passRate = executed > 0 ? Number(((summary.passCount / executed) * 100).toFixed(2)) : 0;
+    const executed = counts.pass + counts.fail + counts.blocked + counts.skip;
+    summary.passRate = computePassRate(counts);
     summary.progress = summary.totalTests > 0 ? Number(((executed / summary.totalTests) * 100).toFixed(2)) : 0;
   }
 
