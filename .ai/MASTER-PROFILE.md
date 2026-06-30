@@ -11,7 +11,7 @@
 
 | Tình huống | Đọc |
 |------------|-----|
-| Mọi task code | File này + `.ai/00-core-rules.md` |
+| Mọi task code | File này + `.ai/AI-DELIVERY-WORKFLOW.md` + `.ai/00-core-rules.md` |
 | Backend / API / service | `.ai/01-backend-rules.md` |
 | Frontend / component | `.ai/02-frontend-rules.md` + `.ai/09-workspace-rules.md` |
 | Model / schema / versioning | `.ai/03-database-rules.md` |
@@ -405,6 +405,7 @@ docker compose --profile local-mongo up -d --build   # hoặc compose đã gộp
 
 | File | Nội dung |
 |------|----------|
+| `.ai/AI-DELIVERY-WORKFLOW.md` | **Code → tự kiểm tra → test → xong phần** (đọc mỗi lần làm feature) |
 | `.ai/00-core-rules.md` | Core, checklist, git/CI |
 | `.ai/01-backend-rules.md` | Flow backend, helper |
 | `.ai/02-frontend-rules.md` | api.ts, mirror |

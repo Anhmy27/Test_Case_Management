@@ -74,6 +74,13 @@ const {
   getDryRunFailureScreenshot,
   getDryRunFailureTrace,
 } = require('../controllers/testManagementController');
+const {
+  startRecordingSession,
+  appendRecordingEvents,
+  stopRecordingSession,
+  getRecordingSession,
+  discardRecordingSession,
+} = require('../controllers/recordingController');
 const { authenticate, authenticateAutomationIngest, authorize } = require('../middlewares/authMiddleware');
 const { httpError } = require('../utils/httpError');
 const { validateRequest } = require('../middlewares/validateRequest');
@@ -128,6 +135,12 @@ const {
   testPlanStatsQuerySchema,
   dryRunAutomationBodySchema,
 } = require('../validators/testRunSchemas');
+const {
+  recordingSessionIdParamsSchema,
+  startRecordingSessionBodySchema,
+  appendRecordingEventsBodySchema,
+  discardRecordingSessionBodySchema,
+} = require('../validators/recordingSchemas');
 
 const router = express.Router();
 const MAX_IMPORT_FILE_SIZE = 50 * 1024 * 1024; // 50MB
@@ -243,6 +256,12 @@ router.patch('/test-runs/:runId/results/:resultId', validateRequest({ paramsSche
 router.post('/automation/dry-run', authorize('admin'), validateRequest({ bodySchema: dryRunAutomationBodySchema }), dryRunAutomation);
 router.get('/automation/dry-runs/:dryRunId/failure-screenshot', authorize('admin'), validateRequest({ paramsSchema: dryRunIdParamsSchema }), getDryRunFailureScreenshot);
 router.get('/automation/dry-runs/:dryRunId/failure-trace', authorize('admin'), validateRequest({ paramsSchema: dryRunIdParamsSchema }), getDryRunFailureTrace);
+
+router.post('/recording/sessions', authorize('admin'), validateRequest({ bodySchema: startRecordingSessionBodySchema }), startRecordingSession);
+router.get('/recording/sessions/:sessionId', authorize('admin'), validateRequest({ paramsSchema: recordingSessionIdParamsSchema }), getRecordingSession);
+router.post('/recording/sessions/:sessionId/events', authorize('admin'), validateRequest({ paramsSchema: recordingSessionIdParamsSchema, bodySchema: appendRecordingEventsBodySchema }), appendRecordingEvents);
+router.post('/recording/sessions/:sessionId/stop', authorize('admin'), validateRequest({ paramsSchema: recordingSessionIdParamsSchema }), stopRecordingSession);
+router.post('/recording/sessions/:sessionId/discard', authorize('admin'), validateRequest({ paramsSchema: recordingSessionIdParamsSchema, bodySchema: discardRecordingSessionBodySchema }), discardRecordingSession);
 
 router.get('/dashboard', authorize('admin'), validateRequest({ querySchema: dashboardQuerySchema }), getDashboard);
 

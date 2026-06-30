@@ -4,6 +4,8 @@ Quy tắc đã tách vào `.ai/` — **chỉ đọc file liên quan task** để
 
 | File | Khi nào đọc |
 |------|-------------|
+| [`.ai/AI-DELIVERY-WORKFLOW.md`](.ai/AI-DELIVERY-WORKFLOW.md) | **Mỗi lần AI làm feature:** code → tự kiểm tra → test → xong phần |
+| [`.ai/MASTER-PROFILE.md`](.ai/MASTER-PROFILE.md) | Profile đầy đủ — đọc kèm workflow |
 | [`.ai/00-core-rules.md`](.ai/00-core-rules.md) | Luôn đọc trước: thứ tự làm việc, coding rules, checklist, git/CI |
 | [`.ai/01-backend-rules.md`](.ai/01-backend-rules.md) | Service, controller, route, flow chạy test, helper backend |
 | [`.ai/02-frontend-rules.md`](.ai/02-frontend-rules.md) | Component, `lib/api.ts`, mirror BE↔FE |
