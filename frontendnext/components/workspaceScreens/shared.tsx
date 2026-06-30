@@ -60,18 +60,20 @@ export function WorkbenchSection({
     tone === "automation"
       ? "border-emerald-200/80 bg-emerald-50/70 dark:border-emerald-800/50 dark:bg-emerald-950/30"
       : tone === "manual"
-        ? "border-slate-300/90 bg-slate-200/80 dark:border-zinc-600 dark:bg-zinc-700/50"
+        ? "border-slate-200 bg-slate-50/90 dark:border-zinc-600 dark:bg-zinc-800/40"
         : "border-slate-200 bg-slate-50/60 dark:border-zinc-700 dark:bg-zinc-800/40";
 
   return (
-    <section className={`rounded-md border p-1 ${toneCls}`}>
-      <div className="mb-0.5 flex items-center justify-between gap-2">
-        <div className="min-w-0">
-          <div className={WORKBENCH_SECTION_TITLE_CLS}>{title}</div>
-          {hint ? <div className={WORKBENCH_HINT_CLS}>{hint}</div> : null}
+    <section className={`rounded-lg border p-3 ${toneCls}`}>
+      {(title || hint || action) && (
+        <div className="mb-2 flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+          <div className="min-w-0 flex-1">
+            {title ? <div className={WORKBENCH_SECTION_TITLE_CLS}>{title}</div> : null}
+            {hint ? <div className={WORKBENCH_HINT_CLS}>{hint}</div> : null}
+          </div>
+          {action ? <div className="shrink-0 self-end">{action}</div> : null}
         </div>
-        {action}
-      </div>
+      )}
       {children}
     </section>
   );

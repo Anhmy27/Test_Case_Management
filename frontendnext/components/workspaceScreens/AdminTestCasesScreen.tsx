@@ -657,10 +657,11 @@ export default function AdminTestCasesScreen(props: Props) {
             <TestCaseVersionsPanel testCaseId={String(effectiveActiveId)} />
           ) : (
           <form
-            className="test-case-workbench-form space-y-3"
+            className="test-case-workbench-form space-y-4"
             onSubmit={handleSaveTestCase}
           >
-                <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-3 dark:border-zinc-800 dark:bg-zinc-900/30">
+                <div className="grid grid-cols-2 gap-3">
                   <ScopedProjectField
                     variant="workbench"
                     isProjectScoped={isProjectScoped}
@@ -703,7 +704,7 @@ export default function AdminTestCasesScreen(props: Props) {
                   </WorkbenchField>
                 </div>
 
-                <div className="grid grid-cols-[5.5rem_minmax(0,1fr)] gap-2">
+                <div className="mt-3 grid grid-cols-[5.5rem_minmax(0,1fr)] gap-3">
                   <WorkbenchField label="Case key">
                     <input
                       value={testCaseForm.caseKey}
@@ -734,7 +735,7 @@ export default function AdminTestCasesScreen(props: Props) {
                   </WorkbenchField>
                 </div>
 
-                <div className="grid grid-cols-3 gap-2">
+                <div className="mt-3 grid grid-cols-3 gap-3">
                   <WorkbenchField label="Priority">
                     <select
                       value={testCaseForm.priority || "medium"}
@@ -789,9 +790,10 @@ export default function AdminTestCasesScreen(props: Props) {
                   </WorkbenchField>
                 </div>
 
+                <div className="mt-3">
                 <WorkbenchField label="Mô tả">
                   <textarea
-                    rows={1}
+                    rows={2}
                     value={testCaseForm.description}
                     onChange={(e) =>
                       setTestCaseForm((prev) => ({
@@ -803,6 +805,8 @@ export default function AdminTestCasesScreen(props: Props) {
                     placeholder="Mục đích test case..."
                   />
                 </WorkbenchField>
+                </div>
+                </div>
 
                 <WorkbenchSection
                   title="Các bước thực hiện"
@@ -811,18 +815,18 @@ export default function AdminTestCasesScreen(props: Props) {
                   action={
                     <button
                       type="button"
-                      className={`${WORKBENCH_META_CLS} rounded border border-slate-200 bg-white px-1.5 py-0.5 hover:bg-slate-100`}
+                      className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-700 shadow-sm hover:bg-slate-50"
                       onClick={addTestCaseStep}
                     >
                       + Thêm bước
                     </button>
                   }
                 >
-                  <div className="space-y-0.5 rounded-md border border-slate-300/70 bg-slate-200/60 p-1">
+                  <div className="space-y-2">
                     {testCaseForm.steps.map((step, index) => (
                       <div
                         key={index}
-                        className="rounded-md border border-slate-400/60 bg-slate-300/50 p-1"
+                        className="rounded-lg border border-slate-200 bg-white p-2 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60"
                         onDragOver={handleManualStepDragOver}
                         onDrop={(event) => handleManualStepDrop(index, event)}
                       >
@@ -854,7 +858,7 @@ export default function AdminTestCasesScreen(props: Props) {
                             Xóa
                           </button>
                         </div>
-                        <label className="mt-0.5 grid grid-cols-[5.5rem_minmax(0,1fr)] items-center gap-1">
+                        <label className="mt-1.5 grid grid-cols-[5.5rem_minmax(0,1fr)] items-center gap-2">
                           <span className={WORKBENCH_LABEL_CLS}>KQ bước</span>
                           <input
                             value={step.expected || ""}
@@ -867,12 +871,12 @@ export default function AdminTestCasesScreen(props: Props) {
                     ))}
                   </div>
                   {testCaseForm.steps.length === 0 && (
-                    <div className={`${WORKBENCH_META_CLS} rounded border border-dashed border-slate-400/70 py-1.5 text-center text-slate-600`}>
+                    <div className="rounded-lg border border-dashed border-slate-200 bg-white py-4 text-center text-xs text-slate-500">
                       Chưa có bước. Nhấn &quot;+ Thêm bước&quot;.
                     </div>
                   )}
 
-                  <div className="mt-1 rounded-md border border-slate-300/70 bg-slate-200/60 p-1">
+                  <div className="mt-2 rounded-lg border border-slate-200 bg-white p-2 shadow-sm dark:border-zinc-700 dark:bg-zinc-900/60">
                     <WorkbenchField label="KQ mong đợi (tổng quan)">
                       <input
                         value={testCaseForm.expected}
@@ -906,7 +910,7 @@ export default function AdminTestCasesScreen(props: Props) {
                 ) : null}
 
 
-                <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-3 dark:border-zinc-800">
+                <div className="sticky bottom-0 -mx-1 flex flex-wrap items-center justify-end gap-2 border-t border-slate-200 bg-white/95 px-1 py-3 backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-900/95">
                   <Button
                     type="button"
                     size="sm"

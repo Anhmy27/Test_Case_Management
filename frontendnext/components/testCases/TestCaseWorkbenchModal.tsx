@@ -72,7 +72,7 @@ export default function TestCaseWorkbenchModal({
         aria-modal="true"
         aria-labelledby="test-case-workbench-title"
       >
-        <div className="shrink-0 border-b border-slate-100 px-6 py-4 dark:border-zinc-800">
+        <div className="shrink-0 border-b border-slate-100 bg-gradient-to-b from-slate-50/80 to-white px-6 py-4 dark:border-zinc-800 dark:from-zinc-900 dark:to-zinc-900">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
               <div
@@ -144,7 +144,7 @@ export default function TestCaseWorkbenchModal({
           ) : null}
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/40 px-6 py-4 dark:bg-zinc-950/30">{children}</div>
       </div>
     </div>
   );

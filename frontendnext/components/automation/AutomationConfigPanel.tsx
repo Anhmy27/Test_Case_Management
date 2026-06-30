@@ -52,6 +52,48 @@ type Props = {
   moveAutomationStep: (fromIndex: number, toIndex: number) => void;
 };
 
+function AutomationModeToggle({
+  enabled,
+  onChange,
+}: {
+  enabled: boolean;
+  onChange: (enabled: boolean) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className={WORKBENCH_LABEL_CLS}>Chế độ chạy</span>
+      <div
+        className="inline-flex w-fit rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm dark:border-zinc-600 dark:bg-zinc-900"
+        role="group"
+        aria-label="Chế độ chạy test case"
+      >
+        <button
+          type="button"
+          onClick={() => onChange(false)}
+          className={`rounded-md px-3.5 py-1.5 text-xs font-semibold transition ${
+            !enabled
+              ? "bg-slate-800 text-white shadow-sm dark:bg-zinc-100 dark:text-zinc-900"
+              : "text-slate-600 hover:bg-slate-50 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          }`}
+        >
+          Thủ công
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(true)}
+          className={`rounded-md px-3.5 py-1.5 text-xs font-semibold transition ${
+            enabled
+              ? "bg-emerald-600 text-white shadow-sm"
+              : "text-slate-600 hover:bg-slate-50 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          }`}
+        >
+          Tự động
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function AutomationConfigPanel({
   automationForm,
   setAutomationForm,
@@ -86,26 +128,25 @@ export default function AutomationConfigPanel({
   return (
     <WorkbenchSection
       title="Automation"
-      hint={automationForm.enabled ? "Auto" : "Tắt"}
-      tone={automationForm.enabled ? "automation" : "default"}
-      action={
-        <select
-          value={automationForm.enabled ? "true" : "false"}
-          onChange={(e) =>
-            setAutomationForm((prev) => ({
-              ...prev,
-              enabled: e.target.value === "true",
-            }))
-          }
-          className={`${WORKBENCH_SELECT_CLS} w-auto shrink-0`}
-        >
-          <option value="false">Thủ công</option>
-          <option value="true">Auto</option>
-        </select>
+      hint={
+        automationForm.enabled
+          ? "Playwright — cấu hình bước tự động bên dưới"
+          : "Chạy thủ công theo các bước ở trên"
       }
+      tone={automationForm.enabled ? "automation" : "default"}
     >
-      {automationForm.enabled && (
-        <>
+      <AutomationModeToggle
+        enabled={automationForm.enabled}
+        onChange={(enabled) =>
+          setAutomationForm((prev) => ({
+            ...prev,
+            enabled,
+          }))
+        }
+      />
+
+      {automationForm.enabled ? (
+        <div className="mt-3 space-y-3 border-t border-emerald-200/60 pt-3 dark:border-emerald-800/40">
           <WorkbenchField label="URL gốc">
             <input
               value={automationForm.baseUrl}
@@ -198,8 +239,8 @@ export default function AutomationConfigPanel({
               Chưa có bước nào. Nhấn &quot;+ Thêm bước&quot; để bắt đầu.
             </div>
           )}
-        </>
-      )}
+        </div>
+      ) : null}
       <AutomationStepGuideModal open={guideOpen} onClose={() => setGuideOpen(false)} />
     </WorkbenchSection>
   );
