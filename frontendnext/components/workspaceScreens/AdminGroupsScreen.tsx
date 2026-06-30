@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import { ActionButton, Field, INPUT_CLS, ScopedProjectField, SectionCard } from "./shared";
+import { ActionButton, Field, INPUT_CLS, SCROLLABLE_LIST_COMPACT_MAX_HEIGHT, ScrollableListBody, ScopedProjectField, SectionCard } from "./shared";
 import { getId } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
@@ -195,10 +195,29 @@ export default function AdminGroupsScreen({
             <div className="py-4 text-center text-sm text-slate-400 dark:text-zinc-500">
               No test cases in this group
             </div>
+          ) : shouldScrollCases ? (
+            <ScrollableListBody maxHeightClass={SCROLLABLE_LIST_COMPACT_MAX_HEIGHT} className="space-y-2 pr-1">
+              {groupCases.map((testCase: RecordAny) => (
+                <button
+                  key={getId(testCase)}
+                  type="button"
+                  className="w-full rounded-lg border border-white bg-white px-3 py-2 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-zinc-600 dark:hover:bg-zinc-800"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    startTestCaseEdit(testCase);
+                  }}
+                >
+                  <div className="font-semibold text-slate-900 dark:text-zinc-50">
+                    {testCase.caseKey} - {testCase.title}
+                  </div>
+                  <div className="text-xs text-slate-500 dark:text-zinc-400">
+                    {testCase.description || "No description"}
+                  </div>
+                </button>
+              ))}
+            </ScrollableListBody>
           ) : (
-            <div
-              className={`space-y-2 ${shouldScrollCases ? "max-h-[240px] overflow-y-auto pr-1" : ""}`}
-            >
+            <div className="space-y-2">
               {groupCases.map((testCase: RecordAny) => (
                 <button
                   key={getId(testCase)}
@@ -308,13 +327,11 @@ export default function AdminGroupsScreen({
             </span>
           ) : null}
         </div>
-        <div className="space-y-3">
-          <div className="max-h-[620px] overflow-y-auto pr-1">
-            {visibleHierarchyProjects.length === 0 ? (
-              <div className="py-8 text-center text-sm text-slate-400 dark:text-zinc-500">No groups</div>
-            ) : (
-              <div className="space-y-3">
-                {visibleHierarchyProjects.map(
+        <ScrollableListBody className="space-y-3 pr-1">
+          {visibleHierarchyProjects.length === 0 ? (
+            <div className="py-8 text-center text-sm text-slate-400 dark:text-zinc-500">No groups</div>
+          ) : (
+            visibleHierarchyProjects.map(
                   ({ project, groups: projectGroups }) => (
                     <details
                       key={`list-${getId(project)}`}
@@ -353,10 +370,9 @@ export default function AdminGroupsScreen({
                       </div>
                     </details>
                   ),
-                )}
-              </div>
-            )}
-          </div>
+                )
+          )}
+        </ScrollableListBody>
           {totalHierarchyPages > 1 ? (
             <div className="flex items-center justify-end gap-2">
               <ActionButton
@@ -373,7 +389,6 @@ export default function AdminGroupsScreen({
               />
             </div>
           ) : null}
-        </div>
       </SectionCard>
     </div>
   );

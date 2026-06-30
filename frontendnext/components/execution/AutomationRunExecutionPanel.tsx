@@ -7,6 +7,7 @@ import FailureScreenshot from "./FailureScreenshot";
 import CaseHistoryButton from "./CaseHistoryButton";
 import { formatAutomationLiveProgress, getAutomationRunProgress, getId, isAutomationWorkerActive, summarizeRunResults } from "@/lib/api";
 import { sortByTestCaseKey } from "@/lib/testCaseSort";
+import { SCROLLABLE_LIST_EXECUTION_QUEUE_MAX_HEIGHT, ScrollableListBody } from "@/components/workspaceScreens/shared";
 import type { ExecutionQueueFilter } from "./ManualRunExecutionPanel";
 
 type RecordAny = Record<string, any>;
@@ -178,7 +179,7 @@ export default function AutomationRunExecutionPanel({
             Next failed
           </button>
         </div>
-        <div className="max-h-[520px] overflow-auto">
+        <ScrollableListBody maxHeightClass={SCROLLABLE_LIST_EXECUTION_QUEUE_MAX_HEIGHT}>
           {queueItems.length === 0 ? (
             <div className="p-4 text-sm text-slate-500">Không tìm thấy case nào</div>
           ) : (
@@ -208,7 +209,7 @@ export default function AutomationRunExecutionPanel({
               );
             })
           )}
-        </div>
+        </ScrollableListBody>
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">

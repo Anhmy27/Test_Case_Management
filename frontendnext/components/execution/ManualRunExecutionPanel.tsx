@@ -6,6 +6,7 @@ import { getEndRunPolicy, isAutomationEnabledTestCase, setEndRunPolicy, summariz
 import { priorityBadgeClass } from "@/lib/testCaseBadges";
 import { formatPriorityLabel } from "@/lib/testCasePriority";
 import { sortByTestCaseKey } from "@/lib/testCaseSort";
+import { SCROLLABLE_LIST_EXECUTION_QUEUE_MAX_HEIGHT, ScrollableListBody } from "@/components/workspaceScreens/shared";
 import type { Dispatch, SetStateAction } from "react";
 import { ConfirmDialog, StatusBadge } from "../workspaceScreens/shared";
 import CaseHistoryButton from "./CaseHistoryButton";
@@ -288,7 +289,7 @@ export default function ManualRunExecutionPanel({
             Next failed
           </button>
         </div>
-        <div className="max-h-[520px] overflow-auto">
+        <ScrollableListBody maxHeightClass={SCROLLABLE_LIST_EXECUTION_QUEUE_MAX_HEIGHT}>
           {queueItems.length === 0 ? (
             <div className="p-4 text-sm text-slate-500">No cases found</div>
           ) : (
@@ -316,7 +317,7 @@ export default function ManualRunExecutionPanel({
               );
             })
           )}
-        </div>
+        </ScrollableListBody>
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">

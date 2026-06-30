@@ -460,6 +460,94 @@ export function EmptyState({
   );
 }
 
+// ─── Scrollable list layout ─────────────────────────────────────────────────
+
+/** Scroll only record rows; keep headers/toolbars/pagination outside. */
+export const SCROLLABLE_LIST_BODY_CLASS = "min-h-0 overflow-x-auto overflow-y-auto";
+
+export const DEFAULT_SCROLLABLE_LIST_MAX_HEIGHT = "max-h-[min(62vh,620px)]";
+export const SCROLLABLE_LIST_COMPACT_MAX_HEIGHT = "max-h-60";
+export const SCROLLABLE_LIST_EXECUTION_QUEUE_MAX_HEIGHT = "max-h-[520px]";
+
+export const TABLE_HEAD_ROW_CLASS =
+  "bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:bg-zinc-900/80 dark:text-zinc-400";
+
+export function ScrollableListBody({
+  children,
+  maxHeightClass = DEFAULT_SCROLLABLE_LIST_MAX_HEIGHT,
+  className = "",
+  ...rest
+}: {
+  children: ReactNode;
+  maxHeightClass?: string;
+  className?: string;
+} & Omit<HTMLAttributes<HTMLDivElement>, "children" | "className">) {
+  return (
+    <div
+      className={`${SCROLLABLE_LIST_BODY_CLASS} ${maxHeightClass} ${className}`.trim()}
+      {...rest}
+    >
+      {children}
+    </div>
+  );
+}
+
+type ScrollableTableProps = {
+  tableClassName?: string;
+  maxHeightClass?: string;
+  colWidths?: string[];
+  headRow: ReactNode;
+  children: ReactNode;
+  isEmpty?: boolean;
+  emptyContent?: ReactNode;
+  footer?: ReactNode;
+};
+
+export function ScrollableTable({
+  tableClassName = "min-w-full table-fixed text-left text-sm",
+  maxHeightClass = DEFAULT_SCROLLABLE_LIST_MAX_HEIGHT,
+  colWidths,
+  headRow,
+  children,
+  isEmpty = false,
+  emptyContent,
+  footer,
+}: ScrollableTableProps) {
+  const colGroup = colWidths?.length ? (
+    <colgroup>
+      {colWidths.map((width, index) => (
+        <col key={index} style={{ width }} />
+      ))}
+    </colgroup>
+  ) : null;
+
+  return (
+    <div className="flex flex-col overflow-hidden">
+      <div className="shrink-0 overflow-x-auto border-b border-slate-100 dark:border-zinc-800">
+        <table className={tableClassName}>
+          {colGroup}
+          <thead className={TABLE_HEAD_ROW_CLASS}>{headRow}</thead>
+        </table>
+      </div>
+      <ScrollableListBody maxHeightClass={maxHeightClass}>
+        {isEmpty ? (
+          emptyContent ?? (
+            <div className="px-4 py-8 text-center text-sm text-slate-500 dark:text-zinc-400">
+              No items
+            </div>
+          )
+        ) : (
+          <table className={tableClassName}>
+            {colGroup}
+            <tbody className="divide-y divide-slate-200 dark:divide-zinc-800">{children}</tbody>
+          </table>
+        )}
+      </ScrollableListBody>
+      {footer}
+    </div>
+  );
+}
+
 // ─── DataTable ─────────────────────────────────────────────────────────────
 
 export function useClientPagination<T>(
@@ -546,6 +634,7 @@ export function DataTable({
   enablePagination = true,
   getRowProps,
   paginationResetKey,
+  maxBodyHeightClass = DEFAULT_SCROLLABLE_LIST_MAX_HEIGHT,
 }: {
   columns: string[];
   rows: ReactNode[];
@@ -554,6 +643,7 @@ export function DataTable({
   enablePagination?: boolean;
   getRowProps?: (index: number) => HTMLAttributes<HTMLDivElement>;
   paginationResetKey?: string | number;
+  maxBodyHeightClass?: string;
 }) {
   const pagination = useClientPagination(
     rows,
@@ -567,10 +657,10 @@ export function DataTable({
   };
 
   return (
-    <div className="overflow-hidden">
-      {/* Head */}
+    <div className="flex flex-col overflow-hidden">
+      {/* Head — fixed outside scroll */}
       <div
-        className="grid gap-3 border-b border-slate-100 bg-slate-50 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500"
+        className="grid shrink-0 gap-3 border-b border-slate-100 bg-slate-50 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-zinc-800 dark:bg-zinc-900/80 dark:text-zinc-400"
         style={colStyle}
       >
         {columns.map((col) => (
@@ -578,11 +668,11 @@ export function DataTable({
         ))}
       </div>
 
-      {/* Body */}
+      {/* Body — scrollable records only */}
       {rows.length === 0 ? (
-        <div className="px-4 py-12 text-center text-sm text-slate-400">{emptyText}</div>
+        <div className="px-4 py-12 text-center text-sm text-slate-400 dark:text-zinc-500">{emptyText}</div>
       ) : (
-        <div>
+        <ScrollableListBody maxHeightClass={maxBodyHeightClass}>
           {displayRows.map((row, i) => {
             const rowIndex = enablePagination ? (safePage - 1) * pageSize + i : i;
             const rowProps = getRowProps?.(rowIndex) || {};
@@ -590,17 +680,17 @@ export function DataTable({
               <div
                 key={i}
                 {...rowProps}
-                className={`grid items-center gap-3 border-b border-slate-100 px-4 py-3 last:border-0 hover:bg-slate-50/70 ${rowProps.className || ""}`}
+                className={`grid items-center gap-3 border-b border-slate-100 px-4 py-3 last:border-0 hover:bg-slate-50/70 dark:border-zinc-800 dark:hover:bg-zinc-800/50 ${rowProps.className || ""}`}
                 style={colStyle}
               >
                 {row}
               </div>
             );
           })}
-        </div>
+        </ScrollableListBody>
       )}
 
-      {/* Pagination */}
+      {/* Pagination — fixed outside scroll */}
       {enablePagination && pagination.hasPagination && (
         <ClientPaginationBar
           currentPage={pagination.currentPage}

@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import ExecutionHistoryEntryActions from "@/components/execution/ExecutionHistoryEntryActions";
 import ExecutionHistoryScreenshotModal from "@/components/execution/ExecutionHistoryScreenshotModal";
-import { DataTable, ClientPaginationBar, EmptyState, Field, INPUT_CLS, SectionCard, StatusBadge, useClientPagination } from "./shared";
+import { DataTable, ClientPaginationBar, EmptyState, Field, INPUT_CLS, ScrollableListBody, SectionCard, StatusBadge, useClientPagination } from "./shared";
 import { getId } from "@/lib/api";
 import { priorityBadgeClass } from "@/lib/testCaseBadges";
 import { formatPriorityLabel } from "@/lib/testCasePriority";
@@ -237,7 +237,7 @@ export default function AdminTestCasesHistoryScreen({
                 <div>Note</div>
                 <div>Actions</div>
               </div>
-              <div className="max-h-[55vh] divide-y divide-slate-200 overflow-auto">
+              <ScrollableListBody maxHeightClass="max-h-[55vh]" className="divide-y divide-slate-200">
                 {focusedHistory.length === 0 ? (
                   <div className="px-4 py-6 text-sm text-slate-500">No execution history found for this case.</div>
                 ) : (
@@ -262,7 +262,7 @@ export default function AdminTestCasesHistoryScreen({
                     </div>
                   ))
                 )}
-              </div>
+              </ScrollableListBody>
               {historyPagination.hasPagination ? (
                 <ClientPaginationBar
                   currentPage={historyPagination.currentPage}

@@ -22,7 +22,7 @@ import AutomationDryRunPanel from "@/components/automation/AutomationDryRunPanel
 import TestCaseWorkbenchModal from "@/components/testCases/TestCaseWorkbenchModal";
 import TestCaseVersionsPanel from "@/components/testCases/TestCaseVersionsPanel";
 import type { AutomationForm } from "@/lib/automationStepMeta";
-import { Button, ClientPaginationBar, useClientPagination, WorkbenchField, WORKBENCH_INPUT_CLS, WORKBENCH_LABEL_CLS, WORKBENCH_META_CLS, WORKBENCH_SELECT_CLS, WORKBENCH_TEXTAREA_CLS, WorkbenchSection, ScopedProjectField } from "./shared";
+import { Button, ClientPaginationBar, ScrollableTable, useClientPagination, WorkbenchField, WORKBENCH_INPUT_CLS, WORKBENCH_LABEL_CLS, WORKBENCH_META_CLS, WORKBENCH_SELECT_CLS, WORKBENCH_TEXTAREA_CLS, WorkbenchSection, ScopedProjectField } from "./shared";
 
 type RecordAny = Record<string, any>;
 
@@ -440,162 +440,155 @@ export default function AdminTestCasesScreen(props: Props) {
             </div>
           </div>
 
-          <div className="max-h-155 overflow-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="px-4 py-3">
+          <ScrollableTable
+            colWidths={["3rem", "22%", "18%", "10%", "10%", "12%", "18%"]}
+            isEmpty={filteredCases.length === 0}
+            emptyContent={
+              <div className="px-4 py-6 text-center text-sm text-slate-500">No test cases found</div>
+            }
+            footer={
+              caseListPagination.hasPagination ? (
+                <ClientPaginationBar
+                  currentPage={caseListPagination.currentPage}
+                  totalPages={caseListPagination.totalPages}
+                  totalItems={caseListPagination.totalItems}
+                  onPageChange={caseListPagination.setCurrentPage}
+                />
+              ) : null
+            }
+            headRow={
+              <tr>
+                <th className="px-4 py-3">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={() => {
+                      if (allVisibleSelected) {
+                        setSelectedIds([]);
+                      } else {
+                        setSelectedIds(
+                          filteredCases.map((item) => getId(item)),
+                        );
+                      }
+                    }}
+                  />
+                </th>
+                <th className="px-4 py-3">Case</th>
+                <th className="px-4 py-3">Project / Group</th>
+                <th className="px-4 py-3">Priority</th>
+                <th className="px-4 py-3">Type</th>
+                <th className="px-4 py-3">Automation</th>
+                <th className="px-4 py-3 text-right">Quick actions</th>
+              </tr>
+            }
+          >
+            {paginatedCases.map((testCase) => {
+              const caseId = getId(testCase);
+              const selected = selectedSet.has(caseId);
+              return (
+                <tr
+                  key={caseId}
+                  className={`cursor-pointer transition hover:bg-slate-50 ${
+                    String(effectiveActiveId) === caseId
+                      ? "bg-slate-50"
+                      : ""
+                  }`}
+                  onClick={() => openEdit(testCase)}
+                >
+                  <td
+                    className="px-4 py-3"
+                    onClick={(event) => event.stopPropagation()}
+                  >
                     <input
                       type="checkbox"
-                      checked={allVisibleSelected}
+                      checked={selected}
                       onChange={() => {
-                        if (allVisibleSelected) {
-                          setSelectedIds([]);
-                        } else {
-                          setSelectedIds(
-                            filteredCases.map((item) => getId(item)),
-                          );
-                        }
+                        setSelectedIds((prev) =>
+                          selected
+                            ? prev.filter((id) => id !== caseId)
+                            : [...prev, caseId],
+                        );
                       }}
                     />
-                  </th>
-                  <th className="px-4 py-3">Case</th>
-                  <th className="px-4 py-3">Project / Group</th>
-                  <th className="px-4 py-3">Priority</th>
-                  <th className="px-4 py-3">Type</th>
-                  <th className="px-4 py-3">Automation</th>
-                  <th className="px-4 py-3 text-right">Quick actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {filteredCases.length === 0 ? (
-                  <tr>
-                    <td
-                      colSpan={7}
-                      className="px-4 py-6 text-center text-sm text-slate-500"
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="font-semibold text-slate-900">
+                      {testCase.caseKey}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      {testCase.title}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-slate-600">
+                    <div className="font-semibold text-slate-700">
+                      {resolveScopedName(
+                        testCase.project,
+                        scopedProjects,
+                      )}
+                    </div>
+                    <div>
+                      {resolveScopedName(testCase.group, scopedGroups)}
+                    </div>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={priorityBadgeClass(testCase.priority)}>
+                      {formatPriorityLabel(testCase.priority)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-xs text-slate-600">
+                    {testCase.type || "functional"}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={
+                        testCase.automation?.enabled
+                          ? "rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700"
+                          : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500"
+                      }
                     >
-                      No test cases found
-                    </td>
-                  </tr>
-                ) : (
-                  paginatedCases.map((testCase) => {
-                    const caseId = getId(testCase);
-                    const selected = selectedSet.has(caseId);
-                    return (
-                      <tr
-                        key={caseId}
-                        className={`cursor-pointer transition hover:bg-slate-50 ${
-                          String(effectiveActiveId) === caseId
-                            ? "bg-slate-50"
-                            : ""
-                        }`}
-                        onClick={() => openEdit(testCase)}
+                      {testCase.automation?.enabled
+                        ? "Enabled"
+                        : "Manual"}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          openEdit(testCase);
+                        }}
                       >
-                        <td
-                          className="px-4 py-3"
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selected}
-                            onChange={() => {
-                              setSelectedIds((prev) =>
-                                selected
-                                  ? prev.filter((id) => id !== caseId)
-                                  : [...prev, caseId],
-                              );
-                            }}
-                          />
-                        </td>
-                        <td className="px-4 py-3">
-                          <div className="font-semibold text-slate-900">
-                            {testCase.caseKey}
-                          </div>
-                          <div className="text-xs text-slate-500">
-                            {testCase.title}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-xs text-slate-600">
-                          <div className="font-semibold text-slate-700">
-                            {resolveScopedName(
-                              testCase.project,
-                              scopedProjects,
-                            )}
-                          </div>
-                          <div>
-                            {resolveScopedName(testCase.group, scopedGroups)}
-                          </div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className={priorityBadgeClass(testCase.priority)}>
-                            {formatPriorityLabel(testCase.priority)}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-xs text-slate-600">
-                          {testCase.type || "functional"}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={
-                              testCase.automation?.enabled
-                                ? "rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700"
-                                : "rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500"
-                            }
-                          >
-                            {testCase.automation?.enabled
-                              ? "Enabled"
-                              : "Manual"}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex justify-end gap-2">
-                            <button
-                              type="button"
-                              className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                openEdit(testCase);
-                              }}
-                            >
-                              ✎ Edit
-                            </button>
-                            <button
-                              type="button"
-                              className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                void duplicateTestCase(testCase);
-                              }}
-                            >
-                              ⧉ Duplicate
-                            </button>
-                            <button
-                              type="button"
-                              className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:border-rose-300 hover:bg-rose-100"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                deleteTestCase(caseId);
-                              }}
-                            >
-                              🗑 Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-          {caseListPagination.hasPagination ? (
-            <ClientPaginationBar
-              currentPage={caseListPagination.currentPage}
-              totalPages={caseListPagination.totalPages}
-              totalItems={caseListPagination.totalItems}
-              onPageChange={caseListPagination.setCurrentPage}
-            />
-          ) : null}
+                        ✎ Edit
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:border-slate-400 hover:bg-slate-50"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void duplicateTestCase(testCase);
+                        }}
+                      >
+                        ⧉ Duplicate
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700 hover:border-rose-300 hover:bg-rose-100"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          deleteTestCase(caseId);
+                        }}
+                      >
+                        🗑 Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </ScrollableTable>
         </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
