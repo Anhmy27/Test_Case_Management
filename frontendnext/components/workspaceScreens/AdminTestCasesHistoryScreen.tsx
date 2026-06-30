@@ -8,6 +8,7 @@ import ExecutionHistoryScreenshotModal from "@/components/execution/ExecutionHis
 import { DataTable, ClientPaginationBar, EmptyState, Field, INPUT_CLS, SectionCard, StatusBadge, useClientPagination } from "./shared";
 import { getId } from "@/lib/api";
 import { priorityBadgeClass } from "@/lib/testCaseBadges";
+import { sortByTestCaseKey } from "@/lib/testCaseSort";
 
 type RecordAny = Record<string, any>;
 
@@ -98,6 +99,14 @@ export default function AdminTestCasesHistoryScreen({
     return status ? <StatusBadge status={status} /> : <span className="text-slate-400">-</span>;
   }
 
+  const visibleRows = useMemo(() => {
+    return sortByTestCaseKey(
+      safeDetailRows.filter((testCase: RecordAny) =>
+        matchesSearch(testCase.caseKey, testCase.key, testCase.title, testCase.name),
+      ),
+    );
+  }, [matchesSearch, safeDetailRows]);
+
   return (
     <div className="space-y-5">
       {!selectedProjectId ? (
@@ -142,11 +151,7 @@ export default function AdminTestCasesHistoryScreen({
             ) : (
               <DataTable
                 columns={["Key", "Title", "Group", "Priority", "Recent 1", "Recent 2", "Recent 3", "Action"]}
-                rows={safeDetailRows
-                  .filter((testCase: RecordAny) =>
-                    matchesSearch(testCase.caseKey, testCase.key, testCase.title, testCase.name),
-                  )
-                  .map((testCase: RecordAny) => {
+                rows={visibleRows.map((testCase: RecordAny) => {
                     const statuses = Array.isArray(testCase.recentStatuses) ? testCase.recentStatuses : [];
                     return (
                       <>
