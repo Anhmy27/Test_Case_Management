@@ -37,6 +37,20 @@ const buildTestCaseServices = ({
   softDeleteVersionSeries,
   restoreVersionSeries,
 }) => {
+  const normalizePriority = (value) => {
+    const raw = String(value || '').trim().toLowerCase();
+    if (!raw) return '';
+    // Legacy alias
+    if (raw === 'critical') return 'highest';
+    return raw;
+  };
+
+  const normalizePriorityOrDefault = (value, fallback = 'medium') => {
+    const normalized = normalizePriority(value) || normalizePriority(fallback) || 'medium';
+    // PRIORITY_VALUES is imported from testCaseImportTemplate and includes legacy 'critical';
+    // here we persist only the normalized set.
+    return normalized === 'critical' ? 'highest' : normalized;
+  };
   const defaultAutomation = () => ({
     enabled: false,
     runner: 'playwright',
@@ -84,6 +98,7 @@ const buildTestCaseServices = ({
     const normalizedKey = normalizeKey(key || caseKey);
     const normalizedName = normalizeName(name || title);
     const normalizedAutomation = normalizeAutomationConfig(automation);
+    const normalizedPriority = normalizePriorityOrDefault(priority, 'medium');
 
     if (normalizedAutomation.enabled && normalizedAutomation.steps.length === 0) {
       throw httpError(400, 'automation.steps[] are required when automation is enabled');
@@ -119,7 +134,7 @@ const buildTestCaseServices = ({
       description: description || '',
       expected: normalizeOverallExpected(expected),
       steps: normalizeManualSteps(steps),
-      priority: priority || 'medium',
+      priority: PRIORITY_VALUES.includes(normalizedPriority) ? normalizedPriority : 'medium',
       severity: severity || 'major',
       type: type || 'functional',
       automation: normalizedAutomation,
@@ -557,6 +572,7 @@ const buildTestCaseServices = ({
 
       const normalizedKey = normalizeKey(key || caseKey || current.key || current.caseKey);
       const normalizedName = normalizeName(name || title || current.name || current.title);
+      const normalizedPriority = normalizePriorityOrDefault(priority, current.priority || 'medium');
 
       const duplicate = await TestCase.findOne({
         _id: { $ne: current._id },
@@ -597,7 +613,7 @@ const buildTestCaseServices = ({
         description: description !== undefined ? description || '' : current.description,
         expected: nextExpected,
         steps: nextSteps,
-        priority: priority || current.priority,
+        priority: PRIORITY_VALUES.includes(normalizedPriority) ? normalizedPriority : (current.priority || 'medium'),
         severity: severity || current.severity,
         type: type || current.type,
         status: status && ['active', 'deprecated'].includes(status) ? status : current.status,
@@ -692,7 +708,7 @@ const buildTestCaseServices = ({
           const caseKey = String(row['Case Key'] || '').trim();
           const title = String(row.Title || '').trim();
           const description = String(row.Description || '').trim();
-          const priority = String(row.Priority || 'medium').trim().toLowerCase();
+          const priority = normalizePriority(String(row.Priority || 'medium').trim());
           const severity = String(row.Severity || 'major').trim().toLowerCase();
           const type = String(row.Type || 'functional').trim().toLowerCase();
 
@@ -802,7 +818,7 @@ const buildTestCaseServices = ({
             expected: expectedResult,
             steps,
             priority: PRIORITY_VALUES.includes(priority)
-              ? priority
+              ? normalizePriorityOrDefault(priority, 'medium')
               : 'medium',
             severity: SEVERITY_VALUES.includes(severity)
               ? severity

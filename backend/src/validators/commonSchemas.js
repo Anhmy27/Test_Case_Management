@@ -6,9 +6,12 @@ const trimString = () => z.string().trim();
 
 const nonEmptyString = () => z.string().trim().min(1, 'Required');
 
-const optionalTrimmedString = () => z.union([z.string(), z.number(), z.boolean()])
-  .transform((value) => String(value).trim())
-  .optional();
+const optionalTrimmedString = () => z.preprocess(
+  (value) => (value === null ? undefined : value),
+  z.union([z.string(), z.number(), z.boolean()])
+    .transform((value) => String(value).trim())
+    .optional(),
+);
 
 const objectIdString = z
   .string()

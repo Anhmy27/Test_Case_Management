@@ -115,7 +115,8 @@ const testCaseSchema = new mongoose.Schema(
     },
     priority: {
       type: String,
-      enum: ['low', 'medium', 'high', 'critical'],
+      // NOTE: Keep 'critical' for legacy documents; normalize to 'highest' on write.
+      enum: ['lowest', 'low', 'medium', 'high', 'highest', 'critical'],
       default: 'medium',
       index: true,
     },

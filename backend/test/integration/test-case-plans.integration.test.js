@@ -22,6 +22,23 @@ test('duplicate caseKey in same group is rejected', async () => {
   });
 });
 
+test('test case update accepts null step expected (legacy client payload)', async () => {
+  await withIntegrationHarness(async (harness) => {
+    const fixture = await seedManualExecutionFixture(harness);
+
+    const res = await fixture.adminClient.put(
+      `/api/test-cases/${fixture.ids.testCaseId}`,
+      {
+        priority: 'highest',
+        steps: [{ order: 1, action: 'Open endpoint groups menu', expected: null }],
+      },
+      200,
+    );
+    assert.equal(res.body.testCase.priority, 'highest');
+    assert.equal(res.body.testCase.steps[0].action, 'Open endpoint groups menu');
+  });
+});
+
 test('test case update creates version history', async () => {
   await withIntegrationHarness(async (harness) => {
     const fixture = await seedManualExecutionFixture(harness);

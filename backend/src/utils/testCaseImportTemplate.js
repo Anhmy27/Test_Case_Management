@@ -1,7 +1,8 @@
 const MANUAL_STEP_COLUMNS = 5;
 const TEST_CASE_IMPORT_SHEET_NAME = 'TestCases';
 
-const PRIORITY_VALUES = ['low', 'medium', 'high', 'critical'];
+// Keep 'critical' for legacy imports; normalize to 'highest' in service layer.
+const PRIORITY_VALUES = ['lowest', 'low', 'medium', 'high', 'highest', 'critical'];
 const SEVERITY_VALUES = ['minor', 'major', 'critical'];
 const TYPE_VALUES = ['functional', 'api', 'ui', 'regression', 'security', 'other'];
 

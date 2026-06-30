@@ -8,6 +8,7 @@ import ExecutionHistoryScreenshotModal from "@/components/execution/ExecutionHis
 import { DataTable, ClientPaginationBar, EmptyState, Field, INPUT_CLS, SectionCard, StatusBadge, useClientPagination } from "./shared";
 import { getId } from "@/lib/api";
 import { priorityBadgeClass } from "@/lib/testCaseBadges";
+import { formatPriorityLabel } from "@/lib/testCasePriority";
 import { sortByTestCaseKey } from "@/lib/testCaseSort";
 
 type RecordAny = Record<string, any>;
@@ -160,7 +161,7 @@ export default function AdminTestCasesHistoryScreen({
                         <div>{testCase.group?.name || "-"}</div>
                         <div>
                           <span className={priorityBadgeClass(testCase.priority)}>
-                            {testCase.priority || "-"}
+                            {formatPriorityLabel(testCase.priority) || "-"}
                           </span>
                         </div>
                         <div>{statusCell(statuses[0])}</div>
@@ -204,7 +205,7 @@ export default function AdminTestCasesHistoryScreen({
                 <span>{focusedCase.title || focusedCase.name || "-"}</span>
               </h3>
               <div className="text-sm text-slate-600">
-                {focusedCase.group?.name || "-"} · {focusedCase.priority || "-"}
+                {focusedCase.group?.name || "-"} · {formatPriorityLabel(focusedCase.priority) || "-"}
               </div>
             </div>
 

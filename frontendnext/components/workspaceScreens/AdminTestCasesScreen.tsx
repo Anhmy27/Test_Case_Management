@@ -10,6 +10,12 @@ import type {
 } from "react";
 import { collectEntityIds, getId } from "@/lib/api";
 import { priorityBadgeClass } from "@/lib/testCaseBadges";
+import {
+  formatPriorityLabel,
+  isHighRiskPriority,
+  normalizePriorityForForm,
+  TEST_CASE_PRIORITY_OPTIONS,
+} from "@/lib/testCasePriority";
 import { compareTestCaseKeys } from "@/lib/testCaseSort";
 import AutomationConfigPanel from "@/components/automation/AutomationConfigPanel";
 import AutomationDryRunPanel from "@/components/automation/AutomationDryRunPanel";
@@ -180,7 +186,7 @@ export default function AdminTestCasesScreen(props: Props) {
         if (preset === "manual") return !testCase.automation?.enabled;
         if (preset === "high-risk") {
           return (
-            ["high", "critical"].includes(String(testCase.priority || "")) ||
+            isHighRiskPriority(testCase.priority) ||
             String(testCase.severity || "") === "critical"
           );
         }
@@ -522,7 +528,7 @@ export default function AdminTestCasesScreen(props: Props) {
                         </td>
                         <td className="px-4 py-3">
                           <span className={priorityBadgeClass(testCase.priority)}>
-                            {testCase.priority || "medium"}
+                            {formatPriorityLabel(testCase.priority)}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-xs text-slate-600">
@@ -756,7 +762,7 @@ export default function AdminTestCasesScreen(props: Props) {
                 <div className="mt-3 grid grid-cols-3 gap-3">
                   <WorkbenchField label="Priority">
                     <select
-                      value={testCaseForm.priority || "medium"}
+                      value={normalizePriorityForForm(testCaseForm.priority)}
                       onChange={(e) =>
                         setTestCaseForm((prev) => ({
                           ...prev,
@@ -765,10 +771,11 @@ export default function AdminTestCasesScreen(props: Props) {
                       }
                       className={WORKBENCH_SELECT_CLS}
                     >
-                      <option value="low">Low</option>
-                      <option value="medium">Medium</option>
-                      <option value="high">High</option>
-                      <option value="critical">Critical</option>
+                      {TEST_CASE_PRIORITY_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
                     </select>
                   </WorkbenchField>
                   <WorkbenchField label="Severity">
@@ -1017,7 +1024,7 @@ export default function AdminTestCasesScreen(props: Props) {
 
                       <div className="mt-3 flex flex-wrap gap-2 text-xs">
                         <span className={priorityBadgeClass(item.priority)}>
-                          {item.priority || "medium"}
+                          {formatPriorityLabel(item.priority)}
                         </span>
                         <span className="rounded-full bg-amber-50 px-2.5 py-1 font-semibold text-amber-700">
                           {item.severity || "major"}

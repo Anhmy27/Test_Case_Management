@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getEndRunPolicy, isAutomationEnabledTestCase, setEndRunPolicy, summarizeRunResults, getId, type EndRunPolicy } from "@/lib/api";
 import { priorityBadgeClass } from "@/lib/testCaseBadges";
+import { formatPriorityLabel } from "@/lib/testCasePriority";
 import { sortByTestCaseKey } from "@/lib/testCaseSort";
 import type { Dispatch, SetStateAction } from "react";
 import { ConfirmDialog, StatusBadge } from "../workspaceScreens/shared";
@@ -344,7 +345,7 @@ export default function ManualRunExecutionPanel({
 
             <div className="flex flex-wrap items-center gap-2">
               <span className={priorityBadgeClass(selectedItem.testCase?.priority)}>
-                {selectedItem.testCase?.priority || "n/a"}
+                {formatPriorityLabel(selectedItem.testCase?.priority) || "n/a"}
               </span>
               <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
                 {selectedItem.testCase?.severity || "n/a"}

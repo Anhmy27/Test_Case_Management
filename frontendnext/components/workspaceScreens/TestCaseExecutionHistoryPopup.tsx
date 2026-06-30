@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useOptionalWorkspaceNotice } from "@/components/workspaceScreens/WorkspaceNotice";
 import { apiRequest, userName } from "@/lib/api";
+import { formatPriorityLabel } from "@/lib/testCasePriority";
 import { StatusBadge } from "./shared";
 import type { RunExecutionEntry } from "@/lib/tcmTypes";
 
@@ -189,7 +190,9 @@ export default function TestCaseExecutionHistoryPopup({
               </h3>
               {testCase?.group?.name || testCase?.priority ? (
                 <div className="mt-0.5 text-sm text-slate-500">
-                  {[testCase.group?.name, testCase.priority].filter(Boolean).join(" · ")}
+                  {[testCase.group?.name, formatPriorityLabel(testCase.priority)]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </div>
               ) : null}
             </div>
