@@ -8,6 +8,7 @@ import ExecutionScreen from "@/components/workspaceScreens/ExecutionScreen";
 import { useAdminWorkspace, useEmployeeWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
 import { WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
 import { apiRequest, buildDefaultRunName, downloadTestRunExport, formatAutomationRunMessage, getId, partitionRunItemsByAutomation, resolveStartRunPayload, runHasAutomationItems, runHasManualItems, summarizeAutomationResults, userName } from "@/lib/api";
+import { sortByTestCaseKey } from "@/lib/testCaseSort";
 import AdminTestPlanInsightsModal from "@/components/workspaceScreens/AdminTestPlanInsightsModal";
 import {
   buildEmployeeTopbar,
@@ -164,7 +165,7 @@ function AdminWorkspaceExecutionRoute() {
           showNotice("Test run not found", "error");
         }
 
-        setMyItems(Array.isArray(response.results) ? response.results : []);
+        setMyItems(sortByTestCaseKey(Array.isArray(response.results) ? response.results : []));
       } catch (error) {
         if (!cancelled) {
           showNotice(error instanceof Error ? error.message : "Unable to load test run", "error");
@@ -291,8 +292,9 @@ function AdminWorkspaceExecutionRoute() {
           }
         }
         setMyItems((prev) => {
-          if (JSON.stringify(prev) !== JSON.stringify(response.results)) {
-            return Array.isArray(response.results) ? response.results : [];
+          const nextItems = sortByTestCaseKey(Array.isArray(response.results) ? response.results : []);
+          if (JSON.stringify(prev) !== JSON.stringify(nextItems)) {
+            return nextItems;
           }
           return prev;
         });
@@ -405,7 +407,7 @@ function AdminWorkspaceExecutionRoute() {
         return [response.testRun as RecordAny, ...filtered];
       });
     }
-    setMyItems(Array.isArray(response.results) ? response.results : []);
+    setMyItems(sortByTestCaseKey(Array.isArray(response.results) ? response.results : []));
   };
 
   const updateResult = async (resultId: string, status: "pass" | "fail" | "blocked" | "skip", note: string, resultNotes: string) => {
@@ -718,7 +720,7 @@ function EmployeeWorkspaceExecutionRoute() {
           showNotice("Test run not found", "error");
         }
 
-        setMyItems(Array.isArray(response.results) ? response.results : []);
+        setMyItems(sortByTestCaseKey(Array.isArray(response.results) ? response.results : []));
       } catch (error) {
         if (!cancelled) {
           showNotice(error instanceof Error ? error.message : "Unable to load test run", "error");
@@ -844,8 +846,9 @@ function EmployeeWorkspaceExecutionRoute() {
           }
         }
         setMyItems((prev) => {
-          if (JSON.stringify(prev) !== JSON.stringify(response.results)) {
-            return Array.isArray(response.results) ? response.results : [];
+          const nextItems = sortByTestCaseKey(Array.isArray(response.results) ? response.results : []);
+          if (JSON.stringify(prev) !== JSON.stringify(nextItems)) {
+            return nextItems;
           }
           return prev;
         });
@@ -924,7 +927,7 @@ function EmployeeWorkspaceExecutionRoute() {
   const loadMyItems = async (runId: string) => {
     const response = await apiRequest<{ testRun?: RecordAny | null; results: RecordAny[] }>(`/api/test-runs/${runId}/my-items`, undefined);
     if (response.testRun) setSelectedRun(response.testRun);
-    setMyItems(Array.isArray(response.results) ? response.results : []);
+    setMyItems(sortByTestCaseKey(Array.isArray(response.results) ? response.results : []));
   };
 
   const updateResult = async (resultId: string, status: "pass" | "fail" | "blocked" | "skip", note: string, resultNotes: string) => {

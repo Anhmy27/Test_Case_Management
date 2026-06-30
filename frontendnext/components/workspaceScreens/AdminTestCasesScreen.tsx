@@ -10,6 +10,7 @@ import type {
 } from "react";
 import { collectEntityIds, getId } from "@/lib/api";
 import { priorityBadgeClass } from "@/lib/testCaseBadges";
+import { compareTestCaseKeys } from "@/lib/testCaseSort";
 import AutomationConfigPanel from "@/components/automation/AutomationConfigPanel";
 import AutomationDryRunPanel from "@/components/automation/AutomationDryRunPanel";
 import TestCaseWorkbenchModal from "@/components/testCases/TestCaseWorkbenchModal";
@@ -83,12 +84,7 @@ const compareTestCaseListOrder = (
     );
   }
 
-  const leftKey = String(left.caseKey || left.key || "");
-  const rightKey = String(right.caseKey || right.key || "");
-  return leftKey.localeCompare(rightKey, undefined, {
-    numeric: true,
-    sensitivity: "base",
-  });
+  return compareTestCaseKeys(left, right);
 };
 
 export default function AdminTestCasesScreen(props: Props) {

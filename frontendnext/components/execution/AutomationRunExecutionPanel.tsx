@@ -6,6 +6,7 @@ import type { Dispatch, SetStateAction } from "react";
 import FailureScreenshot from "./FailureScreenshot";
 import CaseHistoryButton from "./CaseHistoryButton";
 import { formatAutomationLiveProgress, getAutomationRunProgress, getId, isAutomationWorkerActive, summarizeRunResults } from "@/lib/api";
+import { sortByTestCaseKey } from "@/lib/testCaseSort";
 import type { ExecutionQueueFilter } from "./ManualRunExecutionPanel";
 
 type RecordAny = Record<string, any>;
@@ -83,18 +84,20 @@ export default function AutomationRunExecutionPanel({
 
   const queueItems = useMemo(() => {
     const normalized = queueSearch.trim().toLowerCase();
-    return myItems.filter((item: RecordAny) => {
-      const status = String(item.status || "untested");
-      if (queueFilter === "pending" && !["untested", "skip"].includes(status)) return false;
-      if (queueFilter === "failed" && status !== "fail") return false;
-      if (queueFilter === "passed" && status !== "pass") return false;
-      if (queueFilter === "blocked" && status !== "blocked") return false;
-      if (queueFilter === "skip" && status !== "skip") return false;
-      if (!normalized) return true;
-      const key = String(item.testCase?.caseKey || "").toLowerCase();
-      const title = String(item.testCase?.title || "").toLowerCase();
-      return key.includes(normalized) || title.includes(normalized);
-    });
+    return sortByTestCaseKey(
+      myItems.filter((item: RecordAny) => {
+        const status = String(item.status || "untested");
+        if (queueFilter === "pending" && !["untested", "skip"].includes(status)) return false;
+        if (queueFilter === "failed" && status !== "fail") return false;
+        if (queueFilter === "passed" && status !== "pass") return false;
+        if (queueFilter === "blocked" && status !== "blocked") return false;
+        if (queueFilter === "skip" && status !== "skip") return false;
+        if (!normalized) return true;
+        const key = String(item.testCase?.caseKey || "").toLowerCase();
+        const title = String(item.testCase?.title || "").toLowerCase();
+        return key.includes(normalized) || title.includes(normalized);
+      }),
+    );
   }, [myItems, queueFilter, queueSearch]);
 
   const recentActivity = useMemo(() => {
