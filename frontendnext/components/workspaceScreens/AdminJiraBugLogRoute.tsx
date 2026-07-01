@@ -2,7 +2,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useCallback, useEffect, useLayoutEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getRunDocumentId } from "@/components/jira/jiraBugUtils";
 import AdminJiraBugLogScreen from "@/components/workspaceScreens/AdminJiraBugLogScreen";
@@ -18,7 +18,11 @@ function getIssueTypeOptionValue(issueType: RecordAny) {
 
 export default function AdminJiraBugLogRoute() {
   const router = useRouter();
-  const { currentUser, selectedProjectId, setTopbar, showNotice } = useAdminWorkspace();
+  const { currentUser, selectedProjectId, projects, setTopbar, showNotice } = useAdminWorkspace();
+  const scopedProjectName = useMemo(() => {
+    const project = projects.find((item) => getId(item) === selectedProjectId);
+    return project?.name || "";
+  }, [projects, selectedProjectId]);
   const [logBugs, setLogBugs] = useState<RecordAny[]>([]);
   const [issueTypes, setIssueTypes] = useState<RecordAny[]>([]);
   const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, pages: 1 });
@@ -181,6 +185,7 @@ export default function AdminJiraBugLogRoute() {
       logBugs={logBugs}
       pagination={pagination}
       onPageChange={setPage}
+      scopedProjectName={scopedProjectName}
       onOpenExecution={(entry) => {
         const runId = getRunDocumentId(entry?.testRun);
         if (!runId) {

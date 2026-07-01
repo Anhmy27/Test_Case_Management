@@ -88,14 +88,12 @@ const logBugService = async ({
     assignee,
     labels,
     versions,
-    jiraLocation: created.location,
     loggedByUserId: user?.id || user?._id || null,
   });
 
   return {
     message: 'Jira bug created',
     issueKey: created.issueKey,
-    location: created.location,
     logBugId: String(logBug._id),
   };
 };

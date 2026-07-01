@@ -80,7 +80,6 @@ const createLogBugRecord = async ({
   assignee,
   labels,
   versions,
-  jiraLocation,
   loggedByUserId,
 }) => {
   const issueKey = String(issueKeyJira || '').trim();
@@ -108,7 +107,6 @@ const createLogBugRecord = async ({
     versions: normalizeVersions(versions),
     caseKey: runContext.caseKey || String(caseKey || '').trim(),
     caseTitle: runContext.caseTitle || String(caseTitle || '').trim(),
-    jiraLocation: String(jiraLocation || '').trim(),
     loggedBy: loggedByUserId,
   });
 };
@@ -181,7 +179,6 @@ const listLogBugsByProject = async ({
       versions: Array.isArray(entry.versions) ? entry.versions : [],
       caseKey: entry.caseKey,
       caseTitle: entry.caseTitle,
-      jiraLocation: entry.jiraLocation,
       loggedBy: entry.loggedBy
         ? {
             _id: String(entry.loggedBy._id),

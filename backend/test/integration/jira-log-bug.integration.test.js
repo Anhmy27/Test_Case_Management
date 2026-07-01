@@ -94,7 +94,6 @@ test('createLogBugRecord stores run context and case metadata', async () => {
       assignee: 'qa.user',
       labels: 'regression',
       versions: ['v1'],
-      jiraLocation: 'https://jira.example/browse/CED-1777',
       loggedByUserId: entityId(fixture.admin),
     });
 

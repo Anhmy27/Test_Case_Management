@@ -20,6 +20,7 @@ type Props = {
   pagination: Pagination;
   onPageChange: (page: number) => void;
   onOpenExecution: (entry: RecordAny) => void;
+  scopedProjectName?: string;
 };
 
 function formatWhen(value: unknown) {
@@ -39,6 +40,26 @@ function extractCaseFromSummary(summary: unknown) {
     caseKey: String(match[1] || "").trim(),
     caseTitle: String(match[2] || "").trim(),
   };
+}
+
+function resolveProjectLabel(project: unknown, fallbackName?: string) {
+  if (project && typeof project === "object") {
+    const name = String((project as RecordAny).name || "").trim();
+    if (name) {
+      return name;
+    }
+    const code = String((project as RecordAny).code || "").trim();
+    if (code) {
+      return code;
+    }
+  }
+  if (fallbackName?.trim()) {
+    return fallbackName.trim();
+  }
+  if (typeof project === "string" && project.trim()) {
+    return project.trim();
+  }
+  return "-";
 }
 
 function resolveCaseLabel(entry: RecordAny) {
@@ -74,6 +95,7 @@ export default function AdminJiraBugLogScreen({
   pagination,
   onPageChange,
   onOpenExecution,
+  scopedProjectName,
 }: Props) {
   const [detailLog, setDetailLog] = useState<RecordAny | null>(null);
   const detailCase = useMemo(() => (detailLog ? resolveCaseLabel(detailLog) : null), [detailLog]);
@@ -93,20 +115,9 @@ export default function AdminJiraBugLogScreen({
                 {formatWhen(entry.createdAt)}
               </div>
               <div>
-                {entry.jiraLocation ? (
-                  <a
-                    href={entry.jiraLocation}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="font-medium text-sky-700 hover:underline dark:text-sky-400"
-                  >
-                    {entry.issueKeyJira || "-"}
-                  </a>
-                ) : (
-                  <div className="font-medium text-slate-900 dark:text-zinc-100">
-                    {entry.issueKeyJira || "-"}
-                  </div>
-                )}
+                <div className="font-medium text-slate-900 dark:text-zinc-100">
+                  {entry.issueKeyJira || "-"}
+                </div>
                 {entry.priority ? (
                   <div className="text-xs text-slate-500 dark:text-zinc-500">Priority {entry.priority}</div>
                 ) : null}
@@ -209,8 +220,10 @@ export default function AdminJiraBugLogScreen({
             <div className="max-h-[70vh] space-y-3 overflow-auto px-5 py-4">
               <DetailRow label="When" value={formatWhen(detailLog.createdAt)} />
               <DetailRow label="Issue Key Jira" value={String(detailLog.issueKeyJira || "")} />
-              <DetailRow label="Jira URL" value={String(detailLog.jiraLocation || "")} />
-              <DetailRow label="Project" value={String(detailLog.project || "")} />
+              <DetailRow
+                label="Project"
+                value={resolveProjectLabel(detailLog.project, scopedProjectName)}
+              />
               <DetailRow label="Test Run" value={getRunDocumentId(detailLog.testRun)} />
               <DetailRow label="Test Run Name" value={String(detailLog.testRun?.name || "")} />
               <DetailRow label="Run Result _id" value={String(detailLog.runResult || "")} />
