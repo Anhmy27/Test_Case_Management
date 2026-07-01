@@ -92,6 +92,21 @@ test('import with strict mode rejects invalid priority', async () => {
   });
 });
 
+test('import with strict mode rejects legacy critical priority', async () => {
+  await withHarness(async (harness) => {
+    const fixture = await seedManualExecutionFixture(harness);
+    const buffer = buildDefaultImportBuffer({
+      'Case Key': `IMPORT-CRIT-PRI-${Date.now()}`,
+      Priority: 'critical',
+    });
+
+    const response = await importFile(fixture.adminClient, fixture.ids.projectId, buffer);
+    assert.equal(response.body.created.length, 0);
+    assert.equal(response.body.errors.length, 1);
+    assert.match(response.body.errors[0].error, /invalid priority/i);
+  });
+});
+
 test('import rejects duplicate case key in group', async () => {
   await withHarness(async (harness) => {
     const fixture = await seedManualExecutionFixture(harness);

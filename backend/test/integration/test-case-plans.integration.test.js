@@ -39,6 +39,20 @@ test('test case update accepts null step expected (legacy client payload)', asyn
   });
 });
 
+test('test case update rejects legacy critical priority value', async () => {
+  await withIntegrationHarness(async (harness) => {
+    const fixture = await seedManualExecutionFixture(harness);
+
+    const res = await fixture.adminClient.put(
+      `/api/test-cases/${fixture.ids.testCaseId}`,
+      { priority: 'critical' },
+      400,
+    );
+    assert.equal(res.body.message, 'Validation failed');
+    assert.ok(Array.isArray(res.body.details));
+  });
+});
+
 test('test case update creates version history', async () => {
   await withIntegrationHarness(async (harness) => {
     const fixture = await seedManualExecutionFixture(harness);
