@@ -123,16 +123,31 @@ export default function ManualRunExecutionPanel({
   };
 
   const currentIndex = myItems.findIndex((item: RecordAny) => getId(item) === panelSelectedId);
-  const hasFailedCase = myItems.some((item: RecordAny) => String(item.status || "") === "fail");
+  const isFailedResult = (item: RecordAny) => String(item.status || "") === "fail";
+  const failedItems = useMemo(
+    () => myItems.filter(isFailedResult),
+    [myItems],
+  );
   const nextFailedItem = useMemo(() => {
-    if (!hasFailedCase) return undefined;
-    if (currentIndex >= 0) {
-      const after = myItems.slice(currentIndex + 1).find((item: RecordAny) => String(item.status || "") === "fail");
-      if (after) return after;
-      return myItems.slice(0, currentIndex).find((item: RecordAny) => String(item.status || "") === "fail");
+    if (!failedItems.length) return undefined;
+
+    const currentFailIndex = failedItems.findIndex(
+      (item: RecordAny) => getId(item) === panelSelectedId,
+    );
+    if (currentFailIndex >= 0) {
+      if (failedItems.length === 1) return undefined;
+      return failedItems[(currentFailIndex + 1) % failedItems.length];
     }
-    return myItems.find((item: RecordAny) => String(item.status || "") === "fail");
-  }, [currentIndex, hasFailedCase, myItems]);
+
+    if (currentIndex >= 0) {
+      const after = myItems
+        .slice(currentIndex + 1)
+        .find(isFailedResult);
+      if (after) return after;
+    }
+
+    return failedItems[0];
+  }, [currentIndex, failedItems, myItems, panelSelectedId]);
   const nextItem = currentIndex >= 0
     ? myItems.slice(currentIndex + 1).find((item: RecordAny) => item.status !== "pass") || myItems[currentIndex + 1]
     : undefined;

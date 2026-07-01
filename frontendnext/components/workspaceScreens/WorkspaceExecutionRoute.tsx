@@ -2,7 +2,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ExecutionScreen from "@/components/workspaceScreens/ExecutionScreen";
 import { useAdminWorkspace, useEmployeeWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
@@ -203,18 +203,25 @@ function AdminWorkspaceExecutionRoute() {
     setStartRunError("");
   }, [runForm.name, runForm.testPlanId]);
 
+  const appliedResultIdFromUrlRef = useRef("");
+
   useEffect(() => {
     if (!activeMyItems.length) {
+      appliedResultIdFromUrlRef.current = "";
       setSelectedItemId("");
       return;
     }
 
     if (resultIdFromUrl && activeMyItems.some((item) => getId(item) === resultIdFromUrl)) {
-      if (selectedItemId !== resultIdFromUrl) {
+      // Apply deep-link resultId once; do not pin selection on every manual navigation.
+      if (appliedResultIdFromUrlRef.current !== resultIdFromUrl) {
+        appliedResultIdFromUrlRef.current = resultIdFromUrl;
         setSelectedItemId(resultIdFromUrl);
       }
       return;
     }
+
+    appliedResultIdFromUrlRef.current = "";
 
     if (!selectedItemId || !activeMyItems.some((item) => getId(item) === selectedItemId)) {
       const { manualItems, automationItems } = partitionRunItemsByAutomation(activeMyItems);
@@ -777,18 +784,24 @@ function EmployeeWorkspaceExecutionRoute() {
     setStartRunError("");
   }, [runForm.name, runForm.testPlanId]);
 
+  const appliedResultIdFromUrlRef = useRef("");
+
   useEffect(() => {
     if (!activeMyItems.length) {
+      appliedResultIdFromUrlRef.current = "";
       setSelectedItemId("");
       return;
     }
 
     if (resultIdFromUrl && activeMyItems.some((item) => getId(item) === resultIdFromUrl)) {
-      if (selectedItemId !== resultIdFromUrl) {
+      if (appliedResultIdFromUrlRef.current !== resultIdFromUrl) {
+        appliedResultIdFromUrlRef.current = resultIdFromUrl;
         setSelectedItemId(resultIdFromUrl);
       }
       return;
     }
+
+    appliedResultIdFromUrlRef.current = "";
 
     if (!selectedItemId || !activeMyItems.some((item) => getId(item) === selectedItemId)) {
       const { manualItems, automationItems } = partitionRunItemsByAutomation(activeMyItems);

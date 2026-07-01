@@ -125,16 +125,31 @@ export default function AutomationRunExecutionPanel({
   const canStopAutomation = automationWorkerActive && !cancelInProgress;
 
   const currentIndex = myItems.findIndex((item: RecordAny) => getId(item) === selectedItemId);
-  const hasFailedCase = myItems.some((item: RecordAny) => String(item.status || "") === "fail");
+  const isFailedResult = (item: RecordAny) => String(item.status || "") === "fail";
+  const failedItems = useMemo(
+    () => myItems.filter(isFailedResult),
+    [myItems],
+  );
   const nextFailedItem = useMemo(() => {
-    if (!hasFailedCase) return undefined;
-    if (currentIndex >= 0) {
-      const after = myItems.slice(currentIndex + 1).find((item: RecordAny) => String(item.status || "") === "fail");
-      if (after) return after;
-      return myItems.slice(0, currentIndex).find((item: RecordAny) => String(item.status || "") === "fail");
+    if (!failedItems.length) return undefined;
+
+    const currentFailIndex = failedItems.findIndex(
+      (item: RecordAny) => getId(item) === selectedItemId,
+    );
+    if (currentFailIndex >= 0) {
+      if (failedItems.length === 1) return undefined;
+      return failedItems[(currentFailIndex + 1) % failedItems.length];
     }
-    return myItems.find((item: RecordAny) => String(item.status || "") === "fail");
-  }, [currentIndex, hasFailedCase, myItems]);
+
+    if (currentIndex >= 0) {
+      const after = myItems
+        .slice(currentIndex + 1)
+        .find(isFailedResult);
+      if (after) return after;
+    }
+
+    return failedItems[0];
+  }, [currentIndex, failedItems, myItems, selectedItemId]);
 
   return (
     <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)_320px]">
