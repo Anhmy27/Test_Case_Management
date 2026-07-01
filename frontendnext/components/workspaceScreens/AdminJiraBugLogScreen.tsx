@@ -77,17 +77,53 @@ type DetailRowProps = {
   label: string;
   value: string;
   multiline?: boolean;
+  href?: string;
 };
 
-function DetailRow({ label, value, multiline = false }: DetailRowProps) {
+function DetailRow({ label, value, multiline = false, href }: DetailRowProps) {
+  const displayValue = value || "-";
+  const content =
+    href && value ? (
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className="font-medium text-sky-700 hover:underline dark:text-sky-400"
+      >
+        {displayValue}
+      </a>
+    ) : (
+      displayValue
+    );
+
   return (
     <div className="grid gap-1 sm:grid-cols-[150px_minmax(0,1fr)] sm:gap-3">
       <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-500">{label}</div>
       <div className={`text-sm text-slate-700 dark:text-zinc-200 ${multiline ? "whitespace-pre-wrap" : ""}`}>
-        {value || "-"}
+        {content}
       </div>
     </div>
   );
+}
+
+function IssueKeyJiraLabel({ issueKey, jiraBrowseUrl }: { issueKey?: string; jiraBrowseUrl?: string }) {
+  const label = String(issueKey || "").trim() || "-";
+  const href = String(jiraBrowseUrl || "").trim();
+
+  if (href && label !== "-") {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className="font-medium text-sky-700 hover:underline dark:text-sky-400"
+      >
+        {label}
+      </a>
+    );
+  }
+
+  return <div className="font-medium text-slate-900 dark:text-zinc-100">{label}</div>;
 }
 
 export default function AdminJiraBugLogScreen({
@@ -115,9 +151,7 @@ export default function AdminJiraBugLogScreen({
                 {formatWhen(entry.createdAt)}
               </div>
               <div>
-                <div className="font-medium text-slate-900 dark:text-zinc-100">
-                  {entry.issueKeyJira || "-"}
-                </div>
+                <IssueKeyJiraLabel issueKey={entry.issueKeyJira} jiraBrowseUrl={entry.jiraBrowseUrl} />
                 {entry.priority ? (
                   <div className="text-xs text-slate-500 dark:text-zinc-500">Priority {entry.priority}</div>
                 ) : null}
@@ -219,7 +253,11 @@ export default function AdminJiraBugLogScreen({
             </div>
             <div className="max-h-[70vh] space-y-3 overflow-auto px-5 py-4">
               <DetailRow label="When" value={formatWhen(detailLog.createdAt)} />
-              <DetailRow label="Issue Key Jira" value={String(detailLog.issueKeyJira || "")} />
+              <DetailRow
+                label="Issue Key Jira"
+                value={String(detailLog.issueKeyJira || "")}
+                href={String(detailLog.jiraBrowseUrl || "")}
+              />
               <DetailRow
                 label="Project"
                 value={resolveProjectLabel(detailLog.project, scopedProjectName)}

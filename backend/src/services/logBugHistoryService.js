@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const LogBug = require('../models/LogBug');
 const TestRun = require('../models/TestRun');
+const { buildJiraBrowseUrl } = require('./jiraService');
 const { httpError } = require('../utils/httpError');
 
 const normalizeLabels = (labels) => {
@@ -170,6 +171,7 @@ const listLogBugsByProject = async ({
         : null,
       runResult: entry.runResult ? String(entry.runResult) : '',
       issueKeyJira: entry.issueKeyJira,
+      jiraBrowseUrl: buildJiraBrowseUrl(entry.issueKeyJira),
       summary: entry.summary,
       description: entry.description,
       issueType: entry.issueType,

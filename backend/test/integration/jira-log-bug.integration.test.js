@@ -215,6 +215,7 @@ test('GET /api/jira/log-bugs returns project bug history for authenticated user'
     assert.equal(res.body.pagination.total, 1);
     assert.equal(res.body.logBugs.length, 1);
     assert.equal(res.body.logBugs[0].issueKeyJira, 'CED-3001');
+    assert.match(res.body.logBugs[0].jiraBrowseUrl, /\/browse\/CED-3001$/);
     assert.equal(res.body.logBugs[0].testRun._id, runId);
     assert.equal(res.body.logBugs[0].runResult, runResultObjectId);
     assert.equal(res.body.logBugs[0].caseKey, 'TC-EXEC-001');
