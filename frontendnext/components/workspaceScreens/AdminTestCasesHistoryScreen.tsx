@@ -7,6 +7,7 @@ import ExecutionHistoryEntryActions from "@/components/execution/ExecutionHistor
 import ExecutionHistoryScreenshotModal from "@/components/execution/ExecutionHistoryScreenshotModal";
 import { DataTable, ClientPaginationBar, EmptyState, Field, INPUT_CLS, ScrollableListBody, SectionCard, StatusBadge, useClientPagination } from "./shared";
 import { getId } from "@/lib/api";
+import { formatVietnamDateTime } from "@/lib/vietnamDateTime";
 import { priorityBadgeClass } from "@/lib/testCaseBadges";
 import { formatPriorityLabel } from "@/lib/testCasePriority";
 import { sortByTestCaseKey } from "@/lib/testCaseSort";
@@ -249,7 +250,7 @@ export default function AdminTestCasesHistoryScreen({
                       </div>
                       <div>{entry.status ? <StatusBadge status={entry.status} /> : <span className="text-slate-400">-</span>}</div>
                       <div className="text-slate-700">{entry.startedBy?.name || entry.startedBy?.email || "-"}</div>
-                      <div className="text-slate-600">{entry.executedAt ? new Date(entry.executedAt).toLocaleString() : (entry.startedAt ? new Date(entry.startedAt).toLocaleString() : "-")}</div>
+                      <div className="text-slate-600">{formatVietnamDateTime(entry.executedAt || entry.startedAt)}</div>
                       <div className="break-words text-slate-600">{entry.note || "-"}</div>
                       <div>
                         <ExecutionHistoryEntryActions

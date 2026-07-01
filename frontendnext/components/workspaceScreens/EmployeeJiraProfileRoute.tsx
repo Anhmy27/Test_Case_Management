@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useState } from "react";
 import { WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
 import { useEmployeeWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
 import { apiRequest } from "@/lib/api";
+import { formatVietnamDateTime } from "@/lib/vietnamDateTime";
 
 type JiraProfile = {
   jiraUsername?: string;
@@ -93,12 +94,7 @@ export default function EmployeeJiraProfileRoute() {
     }
   };
 
-  const formatDate = (value?: string | null) => {
-    if (!value) return "-";
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return "-";
-    return parsed.toLocaleString();
-  };
+  const formatDate = (value?: string | null) => formatVietnamDateTime(value);
 
   return (
     <div className="space-y-4">

@@ -4,6 +4,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { apiRequest } from "@/lib/api";
+import { formatVietnamDateTime } from "@/lib/vietnamDateTime";
 import { ACTION_META } from "@/lib/automationStepMeta";
 import { StatusBadge } from "@/components/workspaceScreens/shared";
 
@@ -201,7 +202,7 @@ export default function TestCaseVersionsPanel({ testCaseId }: Props) {
                   </div>
                   <div className="mt-1 text-xs text-slate-500">
                     {version.updatedAt || version.createdAt
-                      ? new Date(version.updatedAt || version.createdAt).toLocaleString()
+                      ? formatVietnamDateTime(version.updatedAt || version.createdAt)
                       : "-"}
                   </div>
                 </div>

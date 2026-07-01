@@ -7,6 +7,7 @@ import FailureScreenshot from "./FailureScreenshot";
 import CaseHistoryButton from "./CaseHistoryButton";
 import { formatAutomationLiveProgress, getAutomationRunProgress, getId, isAutomationWorkerActive, summarizeRunResults } from "@/lib/api";
 import { sortByTestCaseKey } from "@/lib/testCaseSort";
+import { formatVietnamDateTime } from "@/lib/vietnamDateTime";
 import { SCROLLABLE_LIST_EXECUTION_QUEUE_MAX_HEIGHT, ScrollableListBody } from "@/components/workspaceScreens/shared";
 import type { ExecutionQueueFilter } from "./ManualRunExecutionPanel";
 
@@ -478,7 +479,7 @@ export default function AutomationRunExecutionPanel({
                     <div className="text-xs text-slate-500">
                       {item.status}
                       {item.executedAt || item.updatedAt
-                        ? ` · ${new Date(item.executedAt || item.updatedAt).toLocaleString()}`
+                        ? ` · ${formatVietnamDateTime(item.executedAt || item.updatedAt)}`
                         : ""}
                     </div>
                   </button>

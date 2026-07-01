@@ -21,6 +21,7 @@ import {
   userName as formatUserName,
   validateStartRunForm,
 } from "@/lib/api";
+import { formatVietnamDateTime } from "@/lib/vietnamDateTime";
 
 type RecordAny = Record<string, any>;
 
@@ -457,9 +458,7 @@ export default function ExecutionScreen(props: Props) {
 
   const showRunList =
     Array.isArray(adminRuns) && typeof onOpenRun === "function";
-  const startedAtLabel = selectedRun?.startedAt
-    ? new Date(selectedRun.startedAt).toLocaleString()
-    : "-";
+  const startedAtLabel = formatVietnamDateTime(selectedRun?.startedAt);
 
   return (
     <div className="space-y-6">

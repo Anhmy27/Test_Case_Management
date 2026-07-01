@@ -6,6 +6,7 @@ import { getEndRunPolicy, isAutomationEnabledTestCase, setEndRunPolicy, summariz
 import { priorityBadgeClass } from "@/lib/testCaseBadges";
 import { formatPriorityLabel } from "@/lib/testCasePriority";
 import { sortByTestCaseKey } from "@/lib/testCaseSort";
+import { formatVietnamDateTime } from "@/lib/vietnamDateTime";
 import { SCROLLABLE_LIST_EXECUTION_QUEUE_MAX_HEIGHT, ScrollableListBody } from "@/components/workspaceScreens/shared";
 import type { Dispatch, SetStateAction } from "react";
 import { ConfirmDialog, StatusBadge } from "../workspaceScreens/shared";
@@ -494,7 +495,7 @@ export default function ManualRunExecutionPanel({
                       {item.testCase?.caseKey || "TC"}
                     </div>
                     <div className="text-xs text-slate-500">
-                      <StatusBadge status={String(item.status || "untested")} /> · {new Date(item.executedAt || item.updatedAt || 0).toLocaleString()}
+                      <StatusBadge status={String(item.status || "untested")} /> · {formatVietnamDateTime(item.executedAt || item.updatedAt || 0)}
                     </div>
                   </button>
                 ))

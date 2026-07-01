@@ -3,6 +3,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { useMemo, useState } from "react";
+import { formatVietnamDateTime } from "@/lib/vietnamDateTime";
 import { getRunDocumentId } from "@/components/jira/jiraBugUtils";
 import { getId, matchesSelectedEntity } from "@/lib/api";
 import { Button, DataTable, SectionCard, StatusBadge } from "./shared";
@@ -77,7 +78,7 @@ export default function EmployeeHistoryScreen({ myScopedRuns, matchesSearch, loa
                 <div><strong>Run:</strong> {focusedRun.name || "-"}</div>
                 <div><strong>Plan:</strong> {focusedRun.testPlan?.name || "-"}</div>
                 <div><strong>Executor:</strong> {userName(focusedRun.startedBy)}</div>
-                <div><strong>Completed:</strong> {focusedRun.completedAt || focusedRun.endedAt || focusedRun.updatedAt || "-"}</div>
+                <div><strong>Completed:</strong> {formatVietnamDateTime(focusedRun.completedAt || focusedRun.endedAt || focusedRun.updatedAt)}</div>
                 <div className="rounded-lg border border-slate-200 bg-white p-2 text-xs text-slate-600">
                   Trace: Plan → Run → Execution details
                 </div>
@@ -126,9 +127,7 @@ export default function EmployeeHistoryScreen({ myScopedRuns, matchesSearch, loa
               <div><StatusBadge status={run.status || "completed"} /></div>
               <div className="text-slate-600">{userName(run.startedBy)}</div>
               <div className="text-sm text-slate-600">
-                {(run.completedAt || run.endedAt || run.updatedAt || run.createdAt)
-                  ? new Date(run.completedAt || run.endedAt || run.updatedAt || run.createdAt).toLocaleString()
-                  : "-"}
+                {formatVietnamDateTime(run.completedAt || run.endedAt || run.updatedAt || run.createdAt)}
               </div>
               <div>
                 <Button

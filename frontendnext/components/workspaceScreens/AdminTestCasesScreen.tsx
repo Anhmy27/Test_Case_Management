@@ -9,6 +9,7 @@ import type {
   SetStateAction,
 } from "react";
 import { collectEntityIds, getId } from "@/lib/api";
+import { formatVietnamDateLabel, formatVietnamDateTime } from "@/lib/vietnamDateTime";
 import { priorityBadgeClass } from "@/lib/testCaseBadges";
 import {
   formatPriorityLabel,
@@ -626,9 +627,7 @@ export default function AdminTestCasesScreen(props: Props) {
                 </span>
               </span>
               <span className="text-xs text-slate-400">
-                {new Date(
-                  item.updatedAt || item.createdAt || 0,
-                ).toLocaleDateString()}
+                {formatVietnamDateLabel(item.updatedAt || item.createdAt || 0)}
               </span>
             </button>
           ))}
@@ -1049,9 +1048,7 @@ export default function AdminTestCasesScreen(props: Props) {
                         <div className="rounded-lg bg-slate-50 p-2">
                           <div className="text-slate-500">Updated</div>
                           <div className="font-semibold text-slate-800">
-                            {new Date(
-                              item.updatedAt || item.createdAt || 0,
-                            ).toLocaleString()}
+                            {formatVietnamDateTime(item.updatedAt || item.createdAt || 0)}
                           </div>
                         </div>
                       </div>

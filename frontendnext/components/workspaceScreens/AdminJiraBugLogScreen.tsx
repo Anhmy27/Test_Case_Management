@@ -4,6 +4,7 @@
 
 import { useMemo, useState } from "react";
 import { getRunDocumentId } from "@/components/jira/jiraBugUtils";
+import { formatVietnamDateTime } from "@/lib/vietnamDateTime";
 import { Button, DataTable, SectionCard } from "./shared";
 
 type RecordAny = Record<string, any>;
@@ -22,13 +23,6 @@ type Props = {
   onOpenExecution: (entry: RecordAny) => void;
   scopedProjectName?: string;
 };
-
-function formatWhen(value: unknown) {
-  if (!value) return "-";
-  const date = new Date(String(value));
-  if (Number.isNaN(date.getTime())) return String(value);
-  return date.toLocaleString();
-}
 
 function extractCaseFromSummary(summary: unknown) {
   const text = String(summary || "").trim();
@@ -148,7 +142,7 @@ export default function AdminJiraBugLogScreen({
           rows={logBugs.map((entry) => (
             <>
               <div className="whitespace-nowrap text-sm text-slate-600 dark:text-zinc-400">
-                {formatWhen(entry.createdAt)}
+                {formatVietnamDateTime(entry.createdAt)}
               </div>
               <div>
                 <IssueKeyJiraLabel issueKey={entry.issueKeyJira} jiraBrowseUrl={entry.jiraBrowseUrl} />
@@ -252,7 +246,7 @@ export default function AdminJiraBugLogScreen({
               <Button size="sm" label="Close" onClick={() => setDetailLog(null)} />
             </div>
             <div className="max-h-[70vh] space-y-3 overflow-auto px-5 py-4">
-              <DetailRow label="When" value={formatWhen(detailLog.createdAt)} />
+              <DetailRow label="When" value={formatVietnamDateTime(detailLog.createdAt)} />
               <DetailRow
                 label="Issue Key Jira"
                 value={String(detailLog.issueKeyJira || "")}

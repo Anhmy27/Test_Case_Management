@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction, FormEvent } from "react";
 import { ActionButton, Button, ClientPaginationBar, Field, INPUT_CLS, SCROLLABLE_LIST_COMPACT_MAX_HEIGHT, ScopedProjectField, ScrollableListBody, ScrollableTable, StatusBadge, useClientPagination } from "./shared";
 import { apiRequest, countPlanAutomationCases, findEntityByReference, isEntityReferenceSelected, matchesEntityId, matchesSelectedEntity, normalizeEntityReferences, summarizeRunResults } from "@/lib/api";
+import { formatVietnamDateLabel, formatVietnamDateTime } from "@/lib/vietnamDateTime";
 import type { TestPlanDetail } from "@/lib/tcmTypes";
 
 type RecordAny = Record<string, any>;
@@ -17,9 +18,7 @@ type PlanRunSnapshot = {
 
 function formatPlanLastRun(dateValue: string | null | undefined) {
   if (!dateValue) return "Never";
-  const date = new Date(dateValue);
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
+  return formatVietnamDateLabel(dateValue, "—");
 }
 
 function LatestRunResultBadge({ run }: { run: RecordAny | null | undefined }) {
@@ -834,7 +833,7 @@ export default function AdminTestPlansScreen(props: Props) {
           <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="text-sm font-semibold text-slate-900">Recent activity</div>
             <div className="mt-3 space-y-2">
-              {recentActivity.map((item: RecordAny) => <button key={getId(item)} type="button" onClick={() => selectActivePlan(getId(item))} className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left hover:border-slate-300 ${activePlanId === getId(item) ? "border-indigo-200 bg-indigo-50/60" : "border-slate-200"}`}><span><span className="block text-xs text-slate-500">{item.project?.name || "-"}</span><span className="block text-sm font-semibold text-slate-900">{item.name}</span></span><span className="text-xs text-slate-400">{new Date(item.updatedAt || item.createdAt || 0).toLocaleDateString()}</span></button>)}
+              {recentActivity.map((item: RecordAny) => <button key={getId(item)} type="button" onClick={() => selectActivePlan(getId(item))} className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left hover:border-slate-300 ${activePlanId === getId(item) ? "border-indigo-200 bg-indigo-50/60" : "border-slate-200"}`}><span><span className="block text-xs text-slate-500">{item.project?.name || "-"}</span><span className="block text-sm font-semibold text-slate-900">{item.name}</span></span><span className="text-xs text-slate-400">{formatVietnamDateLabel(item.updatedAt || item.createdAt || 0)}</span></button>)}
             </div>
           </section>
 
@@ -895,7 +894,7 @@ export default function AdminTestPlansScreen(props: Props) {
                     </div>
                     <div className="mt-1 flex items-center justify-between gap-2">
                       <span className="text-xs text-slate-500">
-                        {new Date(run.createdAt || 0).toLocaleString()}
+                        {formatVietnamDateTime(run.createdAt || 0)}
                       </span>
                       {runPlan ? (
                         <button
