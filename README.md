@@ -9,6 +9,15 @@ Test Case Management System is a full-stack test management app with:
 
 **Hướng dẫn sử dụng (tiếng Việt):** [docs/HUONG_DAN_SU_DUNG.md](docs/HUONG_DAN_SU_DUNG.md)
 
+## Recent improvements (2026-06-30)
+
+- **Jira Bug Log (admin)**: list/filter bug history per project; **Issue Key** links to Jira (`{JIRA_BASE_URL}/browse/{issueKey}`) — URL is computed at query time, not stored in MongoDB.
+- **Jira Bug Log detail**: shows project **name** (from selected project scope), issue metadata, run/case context; removed unused `jiraLocation` field.
+- **Scrollable admin lists**: large tables (test cases, plans, groups, execution panels, Jira bug log) scroll inside the list body with sticky headers; pagination stays fixed.
+- **Execution UX**: **Open/View** on test runs scrolls to the workbench; **Next failed** cycles through failed cases; deep-link `resultId` applies once per navigation.
+- **Test case priority**: enum `lowest | low | medium | high | highest` (legacy `critical` removed from priority only; severity still has `critical`).
+- **Test case save validation**: empty optional step `expected` values are omitted instead of sending `null`.
+
 ## Recent improvements (2026-06-29)
 
 - **Excel import**: download 2-tab template (`TestCases` + `Hướng dẫn`), import manual steps only; automation configured on web. Strict validation + error Excel export.
@@ -88,6 +97,8 @@ JIRA_PASSWORD=your-jira-password
 ```
 
 Jira logging is proxied through the backend. It signs in with the credentials above, reuses the Jira session, and posts bugs through Jira's create-issue flow.
+
+`JIRA_BASE_URL` is also used to build browse links for logged issues (`{JIRA_BASE_URL}/browse/{issueKey}`) shown in the admin **Jira Bug Log** screen. Links are computed when listing logs — not persisted as a separate URL field in the database.
 
 Then start the backend:
 
@@ -368,6 +379,25 @@ Failed run items can be logged to Jira from the execution screen.
 - Jira credentials are resolved per authenticated user from the `JiraAccount` collection (`userId` reference) and fall back to the service account stored in `backend/.env`
 - the current flow uses Jira's create-issue page instead of a custom REST-only integration
 - Jira cookies/session state are cached in the database and refreshed when expired
+- each successful log stores `issueKeyJira` and run/case metadata in the `LogBug` collection
+
+**Admin Jira Bug Log** (`GET /api/jira/log-bugs`, UI: `/workspace/admin/jira-bug-log`):
+
+- scoped to the selected project; supports search (issue key, summary, case), priority, and issue-type filters
+- each list item includes `issueKeyJira` and a computed `jiraBrowseUrl` when `JIRA_BASE_URL` is configured
+- detail modal shows project name, issue fields, test run/case context, and a clickable issue key (opens Jira in a new tab)
+- browse URLs are **not** stored in MongoDB — they are derived from `JIRA_BASE_URL` + `/browse/` + `issueKeyJira` on every list response so env changes stay in sync
+
+Example list item fields:
+
+```json
+{
+  "issueKeyJira": "CED-1607",
+  "jiraBrowseUrl": "https://rd.cytech.ai/browse/CED-1607",
+  "summary": "[EG_008] ...",
+  "testRun": { "_id": "...", "name": "..." }
+}
+```
 
 ### Jira profiles
 
@@ -514,8 +544,8 @@ Security middleware enabled on the API:
 - `GET /api/jira/assignable-users`
 - `GET /api/jira/label-suggestions`
 - `GET /api/jira/version-suggestions`
-- `GET /api/jira/log-bugs` - admin bug log history
-- `POST /api/jira/log-bug`
+- `GET /api/jira/log-bugs` - admin bug log history (`issueKeyJira`, computed `jiraBrowseUrl`, filters: `search`, `priority`, `issueType`, pagination)
+- `POST /api/jira/log-bug` - returns `issueKey`, `jiraBrowseUrl`, `logBugId`
 
 ### Audit logs
 
