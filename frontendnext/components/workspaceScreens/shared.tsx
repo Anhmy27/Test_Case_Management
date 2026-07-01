@@ -469,6 +469,15 @@ export const DEFAULT_SCROLLABLE_LIST_MAX_HEIGHT = "max-h-[min(62vh,620px)]";
 export const SCROLLABLE_LIST_COMPACT_MAX_HEIGHT = "max-h-60";
 export const SCROLLABLE_LIST_EXECUTION_QUEUE_MAX_HEIGHT = "max-h-[520px]";
 
+export function scrollToExecutionWorkbench() {
+  window.requestAnimationFrame(() => {
+    document.getElementById("execution-workbench-panel")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  });
+}
+
 export const TABLE_HEAD_ROW_CLASS =
   "bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:bg-zinc-900/80 dark:text-zinc-400";
 

@@ -6,7 +6,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ExecutionScreen from "@/components/workspaceScreens/ExecutionScreen";
 import { useAdminWorkspace, useEmployeeWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
-import { WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
+import { WorkspaceContentSkeleton, scrollToExecutionWorkbench } from "@/components/workspaceScreens/shared";
 import { apiRequest, buildDefaultRunName, downloadTestRunExport, formatAutomationRunMessage, getId, partitionRunItemsByAutomation, resolveStartRunPayload, runHasAutomationItems, runHasManualItems, summarizeAutomationResults, userName } from "@/lib/api";
 import { sortByTestCaseKey } from "@/lib/testCaseSort";
 import AdminTestPlanInsightsModal from "@/components/workspaceScreens/AdminTestPlanInsightsModal";
@@ -625,6 +625,7 @@ function AdminWorkspaceExecutionRoute() {
           onOpenExecution={(runId) => {
             setInsightsPlan(null);
             openRun(runId);
+            scrollToExecutionWorkbench();
           }}
           onStartNewRun={() => {
             const plan = scopedPlans.find((item) => getId(item) === insightsPlan.planId);
