@@ -77,6 +77,10 @@ button.recording {
   background: #dc2626;
 }
 
+button.paused {
+  background: #d97706;
+}
+
 .status {
   margin: 0 0 8px;
   font-size: 12px;

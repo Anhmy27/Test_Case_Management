@@ -3,6 +3,24 @@ import { toTrimmed } from './textUtils.js';
 
 export const DEFAULT_TEST_BASE_URL = 'http://localhost:3000';
 export const MAX_LOCAL_EVENT_LOG = 500;
+export const LIVE_SESSION_STATUSES = ['recording', 'paused'];
+
+export const isLiveSessionStatus = (status) => LIVE_SESSION_STATUSES.includes(status);
+
+export const sessionIdLabel = (session) => session?.id || session?.sessionId || '';
+
+export const mergeRuntimeSession = (runtimeSession, apiSession) => {
+  if (!apiSession) {
+    return runtimeSession;
+  }
+
+  return {
+    ...runtimeSession,
+    sessionId: apiSession.id || runtimeSession.sessionId,
+    status: apiSession.status || runtimeSession.status,
+    eventCount: apiSession.eventCount ?? runtimeSession.eventCount,
+  };
+};
 
 export const getDefaultRecordingConfig = () => ({
   apiBaseUrl: DEFAULT_API_BASE_URL,

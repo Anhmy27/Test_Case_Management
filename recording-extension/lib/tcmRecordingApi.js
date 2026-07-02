@@ -10,6 +10,35 @@ import {
 import { chunkEvents } from './eventBatcher.js';
 import { toTrimmed } from './textUtils.js';
 
+export const formatRecordingApiError = (status, data, { testBaseUrl = DEFAULT_TEST_BASE_URL } = {}) => {
+  const message = String(data?.message || data?.error || '').trim();
+
+  if (status === 401) {
+    return `Phiên đăng nhập hết hạn. Mở ${testBaseUrl}, đăng nhập lại admin.`;
+  }
+
+  if (status === 403) {
+    if (/csrf/i.test(message)) {
+      return `CSRF không hợp lệ. Mở ${testBaseUrl}, đăng xuất rồi đăng nhập lại admin.`;
+    }
+    return 'Không đủ quyền. Cần tài khoản admin để ghi recording.';
+  }
+
+  if (status === 404) {
+    return message || 'Không tìm thấy project hoặc phiên ghi.';
+  }
+
+  if (status === 400) {
+    return message || 'Dữ liệu gửi lên không hợp lệ.';
+  }
+
+  if (message) {
+    return message;
+  }
+
+  return `HTTP ${status}`;
+};
+
 const readApiCookies = async (apiBaseUrl) => {
   const base = normalizeApiBaseUrl(apiBaseUrl);
   const cookieUrl = `${base}/`;
@@ -51,7 +80,11 @@ const apiRequest = async (apiBaseUrl, path, { method = 'GET', body } = {}) => {
   const cookieHeader = buildCookieHeader(cookies);
 
   if (!cookies.accessTokenCookie?.value) {
-    throw new Error(`Chưa đăng nhập TCM. Mở ${DEFAULT_TEST_BASE_URL} và đăng nhập admin trước.`);
+    throw new Error(formatRecordingApiError(401, {}));
+  }
+
+  if (method !== 'GET' && method !== 'HEAD' && !cookies.csrfCookie?.value) {
+    throw new Error(formatRecordingApiError(403, { message: 'Invalid CSRF token' }));
   }
 
   const headers = {
@@ -78,12 +111,16 @@ const apiRequest = async (apiBaseUrl, path, { method = 'GET', body } = {}) => {
 
   const data = await parseResponseBody(response);
   if (!response.ok) {
-    const message = data?.message || data?.error || `HTTP ${response.status}`;
-    throw new Error(String(message));
+    throw new Error(formatRecordingApiError(response.status, data));
   }
 
   return data;
 };
+
+const postSessionMutation = (apiBaseUrl, sessionId, action) =>
+  apiRequest(apiBaseUrl, `/api/recording/sessions/${sessionId}/${action}`, {
+    method: 'POST',
+  });
 
 export const startRecordingSession = async ({
   apiBaseUrl,
@@ -113,7 +150,11 @@ export const appendRecordingEvents = async ({ apiBaseUrl, sessionId, events }) =
   return lastResponse;
 };
 
-export const stopRecordingSession = async ({ apiBaseUrl, sessionId }) =>
-  apiRequest(apiBaseUrl, `/api/recording/sessions/${sessionId}/stop`, {
-    method: 'POST',
-  });
+export const stopRecordingSession = ({ apiBaseUrl, sessionId }) =>
+  postSessionMutation(apiBaseUrl, sessionId, 'stop');
+
+export const pauseRecordingSession = ({ apiBaseUrl, sessionId }) =>
+  postSessionMutation(apiBaseUrl, sessionId, 'pause');
+
+export const resumeRecordingSession = ({ apiBaseUrl, sessionId }) =>
+  postSessionMutation(apiBaseUrl, sessionId, 'resume');

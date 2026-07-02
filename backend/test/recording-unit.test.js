@@ -462,3 +462,43 @@ test('extension normalizeRecordingConfig trims and applies defaults', async () =
   const { normalizeApiBaseUrl } = await importExtensionModule('extensionConfig.js');
   assert.equal(normalizeApiBaseUrl('http://localhost:5000/'), 'http://localhost:5000');
 });
+
+test('extension formatRecordingApiError maps auth and CSRF failures', async () => {
+  const { formatRecordingApiError } = await importExtensionModule('tcmRecordingApi.js');
+
+  assert.match(
+    formatRecordingApiError(401, { message: 'Not authenticated' }),
+    /Phiên đăng nhập hết hạn/,
+  );
+  assert.match(
+    formatRecordingApiError(403, { message: 'Invalid CSRF token' }),
+    /CSRF không hợp lệ/,
+  );
+  assert.match(
+    formatRecordingApiError(403, { message: 'You do not have permission' }),
+    /Không đủ quyền/,
+  );
+});
+
+test('extension session helpers identify live statuses and merge API session', async () => {
+  const {
+    isLiveSessionStatus,
+    mergeRuntimeSession,
+    sessionIdLabel,
+  } = await importExtensionModule('extensionConfig.js');
+
+  assert.equal(isLiveSessionStatus('recording'), true);
+  assert.equal(isLiveSessionStatus('paused'), true);
+  assert.equal(isLiveSessionStatus('ready_for_review'), false);
+
+  assert.equal(sessionIdLabel({ id: 'abc' }), 'abc');
+  assert.equal(sessionIdLabel({ sessionId: 'xyz' }), 'xyz');
+
+  const merged = mergeRuntimeSession(
+    { sessionId: 'local', eventCount: 1, status: 'recording', lastError: '' },
+    { id: 'server', eventCount: 3, status: 'paused' },
+  );
+  assert.equal(merged.sessionId, 'server');
+  assert.equal(merged.eventCount, 3);
+  assert.equal(merged.status, 'paused');
+});

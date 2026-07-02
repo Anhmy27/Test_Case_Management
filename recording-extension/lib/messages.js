@@ -7,5 +7,7 @@ export const MESSAGE = {
   GET_CONFIG: 'tcm-recording:get-config',
   SAVE_CONFIG: 'tcm-recording:save-config',
   START_RECORDING: 'tcm-recording:start-recording',
+  PAUSE_RECORDING: 'tcm-recording:pause-recording',
+  RESUME_RECORDING: 'tcm-recording:resume-recording',
   STOP_RECORDING: 'tcm-recording:stop-recording',
 };

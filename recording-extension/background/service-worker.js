@@ -1,4 +1,5 @@
 import {
+  isLiveSessionStatus,
   MAX_LOCAL_EVENT_LOG,
   normalizeRecordingConfig,
 } from '../lib/extensionConfig.js';
@@ -6,6 +7,8 @@ import { MESSAGE } from '../lib/messages.js';
 import { EVENT_FLUSH_DEBOUNCE_MS } from '../lib/tcmApiConstants.js';
 import {
   appendRecordingEvents,
+  pauseRecordingSession,
+  resumeRecordingSession,
   startRecordingSession,
   stopRecordingSession,
 } from '../lib/tcmRecordingApi.js';
@@ -70,6 +73,35 @@ const restoreRuntimeSession = async () => {
   };
 };
 
+const isSessionLive = () =>
+  Boolean(runtimeSession.sessionId && isLiveSessionStatus(runtimeSession.status));
+
+const buildStateSnapshot = () => ({
+  isRecording,
+  isPaused: runtimeSession.status === 'paused',
+  sessionActive: isSessionLive(),
+  session: runtimeSession,
+  pendingEventCount: pendingEvents.length,
+});
+
+const respondSessionOk = (sendResponse, flags) => {
+  sendResponse({
+    ok: true,
+    ...flags,
+    session: runtimeSession,
+  });
+};
+
+const applyApiSession = (apiSession, fallbackStatus) => {
+  runtimeSession = {
+    sessionId: String(apiSession?.id || runtimeSession.sessionId || ''),
+    eventCount: Number(apiSession?.eventCount ?? runtimeSession.eventCount),
+    status: String(apiSession?.status || fallbackStatus),
+    lastError: '',
+  };
+  return apiSession || null;
+};
+
 const broadcastRecordingState = async (nextState) => {
   isRecording = Boolean(nextState);
   const tabs = await chrome.tabs.query({});
@@ -120,8 +152,7 @@ const flushPendingEvents = async ({ force = false } = {}) => {
         sessionId: runtimeSession.sessionId,
         events: batch,
       });
-      runtimeSession.eventCount = response?.session?.eventCount ?? runtimeSession.eventCount;
-      runtimeSession.lastError = '';
+      applyApiSession(response?.session, runtimeSession.status);
       await persistRuntimeSession();
     } catch (error) {
       pendingEvents.unshift(...batch);
@@ -146,6 +177,34 @@ const scheduleFlush = () => {
   }, EVENT_FLUSH_DEBOUNCE_MS);
 };
 
+const requireSessionStatus = (expectedStatus, actionLabel) => {
+  if (!runtimeSession.sessionId) {
+    throw new Error('Không có phiên ghi đang mở');
+  }
+  if (runtimeSession.status !== expectedStatus) {
+    throw new Error(`Không thể ${actionLabel} khi trạng thái là ${runtimeSession.status || 'unknown'}`);
+  }
+};
+
+const mutateSession = async ({ expectedStatus, actionLabel, apiCall, fallbackStatus, captureEnabled }) => {
+  requireSessionStatus(expectedStatus, actionLabel);
+
+  const config = await readConfig();
+  if (expectedStatus === 'recording') {
+    await flushPendingEvents({ force: true });
+  }
+
+  const response = await apiCall({
+    apiBaseUrl: config.apiBaseUrl,
+    sessionId: runtimeSession.sessionId,
+  });
+
+  applyApiSession(response?.session, fallbackStatus);
+  await persistRuntimeSession();
+  await broadcastRecordingState(captureEnabled);
+  return response?.session || null;
+};
+
 const startApiRecording = async (configOverride = {}) => {
   const config = await saveConfig({
     ...(await readConfig()),
@@ -166,12 +225,7 @@ const startApiRecording = async (configOverride = {}) => {
     testCaseEntityId: config.testCaseEntityId,
   });
 
-  runtimeSession = {
-    sessionId: String(response?.session?.id || ''),
-    eventCount: Number(response?.session?.eventCount || 0),
-    status: String(response?.session?.status || 'recording'),
-    lastError: '',
-  };
+  applyApiSession(response?.session, 'recording');
 
   if (!runtimeSession.sessionId) {
     throw new Error('API start không trả về session id');
@@ -182,6 +236,22 @@ const startApiRecording = async (configOverride = {}) => {
   await persistRuntimeSession();
   await broadcastRecordingState(true);
 };
+
+const pauseApiRecording = () => mutateSession({
+  expectedStatus: 'recording',
+  actionLabel: 'tạm dừng',
+  fallbackStatus: 'paused',
+  captureEnabled: false,
+  apiCall: pauseRecordingSession,
+});
+
+const resumeApiRecording = () => mutateSession({
+  expectedStatus: 'paused',
+  actionLabel: 'tiếp tục',
+  fallbackStatus: 'recording',
+  captureEnabled: true,
+  apiCall: resumeRecordingSession,
+});
 
 const stopApiRecording = async () => {
   clearFlushTimer();
@@ -199,13 +269,7 @@ const stopApiRecording = async () => {
     sessionId: runtimeSession.sessionId,
   });
 
-  runtimeSession = {
-    sessionId: runtimeSession.sessionId,
-    eventCount: Number(response?.session?.eventCount || runtimeSession.eventCount),
-    status: String(response?.session?.status || 'ready_for_review'),
-    lastError: '',
-  };
-
+  applyApiSession(response?.session, 'ready_for_review');
   await persistRuntimeSession();
   await broadcastRecordingState(false);
   return response?.session || null;
@@ -215,11 +279,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   (async () => {
     switch (message?.type) {
       case MESSAGE.GET_RECORDING_STATE:
-        sendResponse({
-          isRecording,
-          session: runtimeSession,
-          pendingEventCount: pendingEvents.length,
-        });
+        sendResponse(buildStateSnapshot());
         return;
       case MESSAGE.GET_CONFIG:
         sendResponse({ config: await readConfig() });
@@ -229,28 +289,36 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         return;
       case MESSAGE.START_RECORDING:
         await startApiRecording(message.config || {});
-        sendResponse({
-          ok: true,
+        respondSessionOk(sendResponse, {
           isRecording: true,
-          session: runtimeSession,
+          isPaused: false,
+          sessionActive: true,
         });
         return;
-      case MESSAGE.STOP_RECORDING: {
-        const apiSession = await stopApiRecording();
-        sendResponse({
-          ok: true,
+      case MESSAGE.STOP_RECORDING:
+        await stopApiRecording();
+        respondSessionOk(sendResponse, {
           isRecording: false,
-          session: apiSession
-            ? {
-              ...runtimeSession,
-              sessionId: apiSession.id || runtimeSession.sessionId,
-              status: apiSession.status || runtimeSession.status,
-              eventCount: apiSession.eventCount ?? runtimeSession.eventCount,
-            }
-            : runtimeSession,
+          isPaused: false,
+          sessionActive: false,
         });
         return;
-      }
+      case MESSAGE.PAUSE_RECORDING:
+        await pauseApiRecording();
+        respondSessionOk(sendResponse, {
+          isRecording: false,
+          isPaused: true,
+          sessionActive: true,
+        });
+        return;
+      case MESSAGE.RESUME_RECORDING:
+        await resumeApiRecording();
+        respondSessionOk(sendResponse, {
+          isRecording: true,
+          isPaused: false,
+          sessionActive: true,
+        });
+        return;
       case MESSAGE.RECORDED_EVENT:
         if (isRecording && message.event) {
           await appendLocalEvent(message.event);
@@ -275,11 +343,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     clearFlushTimer();
     runtimeSession.lastError = error?.message || 'Recording failed';
     await persistRuntimeSession();
-    await broadcastRecordingState(false);
     sendResponse({
       ok: false,
       error: runtimeSession.lastError,
-      session: runtimeSession,
+      ...buildStateSnapshot(),
     });
   });
 
@@ -287,5 +354,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 });
 
 restoreRuntimeSession().then(async () => {
-  isRecording = Boolean(runtimeSession.sessionId && runtimeSession.status === 'recording');
+  isRecording = runtimeSession.status === 'recording';
+  if (isSessionLive()) {
+    await broadcastRecordingState(isRecording);
+  }
 });

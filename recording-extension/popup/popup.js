@@ -1,7 +1,5 @@
-import { getDefaultRecordingConfig, normalizeRecordingConfig } from '../lib/extensionConfig.js';
+import { getDefaultRecordingConfig, normalizeRecordingConfig, sessionIdLabel } from '../lib/extensionConfig.js';
 import { MESSAGE } from '../lib/messages.js';
-
-const sessionIdLabel = (session) => session?.id || session?.sessionId || '';
 
 const configForm = document.getElementById('configForm');
 const apiBaseUrlInput = document.getElementById('apiBaseUrl');
@@ -9,6 +7,8 @@ const projectIdInput = document.getElementById('projectId');
 const testCaseEntityIdInput = document.getElementById('testCaseEntityId');
 const baseUrlInput = document.getElementById('baseUrl');
 const startButton = document.getElementById('startRecording');
+const pauseButton = document.getElementById('pauseRecording');
+const resumeButton = document.getElementById('resumeRecording');
 const stopButton = document.getElementById('stopRecording');
 const clearButton = document.getElementById('clearEvents');
 const statusEl = document.getElementById('status');
@@ -31,18 +31,33 @@ const fillFormConfig = (config = {}) => {
   baseUrlInput.value = config.baseUrl || defaults.baseUrl;
 };
 
-const setRecordingUi = (isRecording) => {
-  startButton.disabled = isRecording;
-  stopButton.disabled = !isRecording;
-  apiBaseUrlInput.disabled = isRecording;
-  projectIdInput.disabled = isRecording;
-  testCaseEntityIdInput.disabled = isRecording;
-  baseUrlInput.disabled = isRecording;
+const setRecordingUi = ({ isRecording, isPaused, sessionActive }) => {
+  const liveSession = Boolean(sessionActive || isRecording || isPaused);
+
+  startButton.disabled = liveSession;
+  pauseButton.disabled = !isRecording;
+  resumeButton.disabled = !isPaused;
+  stopButton.disabled = !liveSession;
+
+  apiBaseUrlInput.disabled = liveSession;
+  projectIdInput.disabled = liveSession;
+  testCaseEntityIdInput.disabled = liveSession;
+  baseUrlInput.disabled = liveSession;
+
   stopButton.classList.toggle('recording', isRecording);
+  pauseButton.classList.toggle('paused', isPaused);
 };
 
-const renderStatus = ({ isRecording, session, pendingEventCount, error }) => {
-  setRecordingUi(isRecording);
+const renderStatus = ({
+  isRecording,
+  isPaused,
+  session,
+  pendingEventCount,
+  error,
+}) => {
+  const sessionActive = Boolean(isRecording || isPaused);
+  setRecordingUi({ isRecording, isPaused, sessionActive });
+
   statusEl.classList.toggle('error', Boolean(error || session?.lastError));
 
   if (error || session?.lastError) {
@@ -50,21 +65,32 @@ const renderStatus = ({ isRecording, session, pendingEventCount, error }) => {
     return;
   }
 
-  if (!isRecording) {
-    const stoppedSessionId = sessionIdLabel(session);
-    statusEl.textContent = stoppedSessionId
-      ? `Đã dừng. Session ${stoppedSessionId} — ${session.status || 'ready_for_review'} (${session.eventCount || 0} event).`
-      : 'Sẵn sàng. Nhập cấu hình rồi bấm Bắt đầu ghi.';
+  if (isRecording || isPaused) {
+    const label = isPaused ? 'Tạm dừng' : 'Đang ghi';
+    statusEl.textContent = `${label} session ${sessionIdLabel(session) || '...'} — ${session?.eventCount || 0} event trên server, ${pendingEventCount || 0} chờ gửi.`;
     return;
   }
 
-  statusEl.textContent = `Đang ghi session ${sessionIdLabel(session) || '...'} — ${session?.eventCount || 0} event trên server, ${pendingEventCount || 0} chờ gửi.`;
+  const stoppedSessionId = sessionIdLabel(session);
+  statusEl.textContent = stoppedSessionId
+    ? `Đã dừng. Session ${stoppedSessionId} — ${session.status || 'ready_for_review'} (${session.eventCount || 0} event).`
+    : 'Sẵn sàng. Nhập cấu hình rồi bấm Bắt đầu ghi.';
 };
 
 const renderEvents = async () => {
   const response = await sendMessage({ type: MESSAGE.GET_LOCAL_EVENTS });
   const events = Array.isArray(response?.events) ? response.events : [];
   eventLogEl.textContent = JSON.stringify(events.slice(-20), null, 2);
+};
+
+const applyStateResponse = (stateResponse, error) => {
+  renderStatus({
+    isRecording: Boolean(stateResponse?.isRecording),
+    isPaused: Boolean(stateResponse?.isPaused),
+    session: stateResponse?.session,
+    pendingEventCount: stateResponse?.pendingEventCount,
+    error,
+  });
 };
 
 const refresh = async () => {
@@ -74,12 +100,17 @@ const refresh = async () => {
   ]);
 
   fillFormConfig(configResponse?.config);
-  renderStatus({
-    isRecording: Boolean(stateResponse?.isRecording),
-    session: stateResponse?.session,
-    pendingEventCount: stateResponse?.pendingEventCount,
-  });
+  applyStateResponse(stateResponse);
   await renderEvents();
+};
+
+const runSessionAction = async (type, fallbackError) => {
+  const response = await sendMessage({ type });
+  if (!response?.ok) {
+    applyStateResponse(response, response?.error || fallbackError);
+    return;
+  }
+  await refresh();
 };
 
 configForm.addEventListener('change', async () => {
@@ -102,29 +133,16 @@ startButton.addEventListener('click', async () => {
   });
 
   if (!response?.ok) {
-    renderStatus({
-      isRecording: false,
-      session: response?.session,
-      error: response?.error || 'Không bắt đầu được phiên ghi',
-    });
+    applyStateResponse(response, response?.error || 'Không bắt đầu được phiên ghi');
     return;
   }
 
   await refresh();
 });
 
-stopButton.addEventListener('click', async () => {
-  const response = await sendMessage({ type: MESSAGE.STOP_RECORDING });
-  if (!response?.ok) {
-    renderStatus({
-      isRecording: false,
-      session: response?.session,
-      error: response?.error || 'Không dừng được phiên ghi',
-    });
-    return;
-  }
-  await refresh();
-});
+pauseButton.addEventListener('click', () => runSessionAction(MESSAGE.PAUSE_RECORDING, 'Không tạm dừng được phiên ghi'));
+resumeButton.addEventListener('click', () => runSessionAction(MESSAGE.RESUME_RECORDING, 'Không tiếp tục được phiên ghi'));
+stopButton.addEventListener('click', () => runSessionAction(MESSAGE.STOP_RECORDING, 'Không dừng được phiên ghi'));
 
 clearButton.addEventListener('click', async () => {
   await sendMessage({ type: MESSAGE.CLEAR_LOCAL_EVENTS });

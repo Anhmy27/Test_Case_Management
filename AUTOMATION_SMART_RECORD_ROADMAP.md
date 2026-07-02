@@ -277,17 +277,33 @@ Quyền: giống dry-run (admin trước; mở employee khi pilot ổn).
 ## 7. Thứ tự làm (schema trước, code sau)
 
 ```text
-1. [ ] Bạn duyệt schema trong file này
-2. [ ] Tạo model RecordingSession (+ event, draft, semantic, intentBlock)
-3. [ ] Đường lưu ảnh recording/*
-4. [ ] API phiên ghi (start / events / stop)
-5. [ ] Lọc rác + gom gõ + semantic (SR-1) — có test unit
-6. [ ] Spike extension hoặc browser server (SR-1.0)
-7. [ ] Locator + bảng điểm (SR-2) + role trong engine
+1. [x] Bạn duyệt schema trong file này
+2. [x] Tạo model RecordingSession (+ event, draft, semantic, intentBlock)
+3. [x] Đường lưu ảnh recording/*
+4. [x] API phiên ghi (start / events / stop / pause / resume / discard / get)
+5. [x] Lọc rác + gom gõ + semantic cơ bản (SR-1) — có test unit + integration
+6. [x] Spike extension Chrome (SR-1.0 pilot 6.1–6.8) — chưa screenshot/DOM từ extension
+7. [ ] Locator + bảng điểm (SR-2) + role trong engine          ← TIẾP THEO
 8. [ ] Gom cụm + gợi ý chờ (SR-3)
 9. [ ] UI review + xem thử + lưu (SR-4)
 10. [ ] SR-5, SR-6 sau
 ```
+
+### Tiến độ chi tiết (cập nhật 2026-07-02)
+
+| Lô | Nội dung | Trạng thái |
+|----|----------|------------|
+| Backend 2.8 | Externalize events (>300 / >4MB / >15 phút) | ✅ |
+| Backend 2.9 | Pause / resume API | ✅ |
+| Backend 2.10 | Screenshot/DOM artifact khi append | ✅ |
+| Ext 6.1–6.3 | Scaffold MV3, capture DOM, payload schema | ✅ |
+| Ext 6.4–6.6 | Popup config, start/stop, batch events + CSRF | ✅ (commit `c379448`) |
+| Ext 6.7–6.8 | Pause/resume extension, auth errors, smoke test README | ✅ code xong, **chưa commit** |
+| SR-2 | Locator scoring + `role` trong Playwright engine | ❌ chưa làm |
+| SR-3 | Intent blocks | ❌ chưa làm |
+| SR-4 | Merge/preview API + UI review/Lưu | ❌ chưa làm |
+
+**Đích pilot hiện tại:** SR-1.0 extension ghi → nháp trên server (`ready_for_review`) — chưa có UI TCM review/Lưu.
 
 Mỗi bước: `cd backend && npm test` — case cũ vẫn import/chạy được.
 
@@ -374,3 +390,4 @@ intentBlocks: [{ blockId, label, draftStepIds }]         // SR-3+
 |------|---------|
 | 2026-06-29 | Khởi tạo SR-0→SR-6; schema; P7–P10 stability tạm hoãn |
 | 2026-06-29 | Viết lại dễ hiểu + ví dụ; thêm semantic layer, điểm locator, ngưỡng tách DB, replay preview, intent block; **không** thêm self-healing lúc chạy |
+| 2026-07-02 | Đánh dấu tiến độ mục 7: backend recording + extension pilot 6.1–6.8 xong; SR-2 là bước tiếp theo |
