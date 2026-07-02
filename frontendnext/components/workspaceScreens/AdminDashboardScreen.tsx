@@ -69,14 +69,14 @@ function buildDashboardKpis({
       label: "Pass rate",
       value: `${passRate}%`,
       helper: "Across executed results in scope",
-      hint: "pass / (pass + fail + blocked)",
+      hint: "pass / (pass + fail + blocked + skip)",
     },
     {
       id: "completion",
       label: "Completion",
       value: `${completionRate}%`,
       helper: "Share of planned results executed",
-      hint: "(pass + fail + blocked) / total results in runs",
+      hint: "(pass + fail + blocked + skip) / total results in runs",
     },
     {
       id: "running-runs",
@@ -154,6 +154,7 @@ export default function AdminDashboardScreen({
   const passCount = Number(dashboardSummary.pass || 0);
   const failCount = Number(dashboardSummary.fail || 0);
   const blockedCount = Number(dashboardSummary.blocked || 0);
+  const skipCount = Number(dashboardSummary.skip || 0);
   const untestedCount = Number(dashboardSummary.untested || 0);
   const atRiskCount = delayedPlans.length + mostFailedCases.length;
 
@@ -175,6 +176,7 @@ export default function AdminDashboardScreen({
     { key: "pass", label: "Pass", value: passCount },
     { key: "fail", label: "Fail", value: failCount },
     { key: "blocked", label: "Blocked", value: blockedCount },
+    { key: "skip", label: "Skip", value: skipCount },
     { key: "untested", label: "Not run", value: untestedCount },
   ];
 

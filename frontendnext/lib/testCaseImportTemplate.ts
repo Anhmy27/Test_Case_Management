@@ -4,7 +4,7 @@ export const MANUAL_STEP_COLUMNS = 5;
 export const TEST_CASE_IMPORT_SHEET_NAME = "TestCases";
 export const TEST_CASE_GUIDE_SHEET_NAME = "Hướng dẫn";
 
-export const PRIORITY_VALUES = ["low", "medium", "high", "critical"] as const;
+export const PRIORITY_VALUES = ["lowest", "low", "medium", "high", "highest"] as const;
 export const SEVERITY_VALUES = ["minor", "major", "critical"] as const;
 export const TYPE_VALUES = ["functional", "api", "ui", "regression", "security", "other"] as const;
 
@@ -177,10 +177,11 @@ function buildGuideSheetRows(): string[][] {
     ],
     [""],
     ["GIÁ TRỊ CỐ ĐỊNH — PRIORITY"],
+    ["lowest", "Độ ưu tiên thấp nhất"],
     ["low", "Độ ưu tiên thấp"],
     ["medium", "Độ ưu tiên trung bình (mặc định)"],
     ["high", "Độ ưu tiên cao"],
-    ["critical", "Độ ưu tiên rất cao"],
+    ["highest", "Độ ưu tiên rất cao"],
     [""],
     ["GIÁ TRỊ CỐ ĐỊNH — SEVERITY"],
     ["minor", "Lỗi nhẹ"],

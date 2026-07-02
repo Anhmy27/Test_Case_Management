@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useOptionalWorkspaceNotice } from "@/components/workspaceScreens/WorkspaceNotice";
 import { apiRequest, userName } from "@/lib/api";
+import { formatVietnamDateTime } from "@/lib/vietnamDateTime";
+import { formatPriorityLabel } from "@/lib/testCasePriority";
 import { StatusBadge } from "./shared";
 import type { RunExecutionEntry } from "@/lib/tcmTypes";
 
@@ -189,7 +191,9 @@ export default function TestCaseExecutionHistoryPopup({
               </h3>
               {testCase?.group?.name || testCase?.priority ? (
                 <div className="mt-0.5 text-sm text-slate-500">
-                  {[testCase.group?.name, testCase.priority].filter(Boolean).join(" · ")}
+                  {[testCase.group?.name, formatPriorityLabel(testCase.priority)]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </div>
               ) : null}
             </div>
@@ -253,11 +257,7 @@ export default function TestCaseExecutionHistoryPopup({
                         <div>{entry.status ? <StatusBadge status={entry.status} /> : <span className="text-slate-400">-</span>}</div>
                         <div className="truncate text-slate-700 dark:text-zinc-300">{userName(entry.startedBy || entry.tester)}</div>
                         <div className="text-xs text-slate-600">
-                          {entry.executedAt
-                            ? new Date(entry.executedAt).toLocaleString()
-                            : entry.startedAt
-                              ? new Date(entry.startedAt).toLocaleString()
-                              : "-"}
+                          {formatVietnamDateTime(entry.executedAt || entry.startedAt)}
                         </div>
                         <div className="truncate text-slate-600 dark:text-zinc-400">{entry.note || "-"}</div>
                       </div>

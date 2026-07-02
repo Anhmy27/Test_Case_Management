@@ -10,6 +10,7 @@ import { TOPBAR_INPUT_CLS, WorkspaceContentSkeleton } from "@/components/workspa
 import { apiRequest, createTextMatcher, getId, matchesSelectedEntity } from "@/lib/api";
 import { DEFAULT_AUTOMATION_FORM, DEFAULT_AUTOMATION_STEP, normalizeAutomationStepsForApi } from "@/lib/automationStepMeta";
 import { downloadImportErrorsExcel, downloadTestCaseImportTemplate } from "@/lib/testCaseImportTemplate";
+import { normalizePriorityForForm } from "@/lib/testCasePriority";
 
 type RecordAny = Record<string, any>;
 const MAX_EXCEL_IMPORT_BYTES = 50 * 1024 * 1024;
@@ -96,7 +97,7 @@ export default function AdminTestCasesRoute() {
         return {
           order: index + 1,
           action: String(step.action || "").trim(),
-          expected: stepExpected || null,
+          ...(stepExpected ? { expected: stepExpected } : {}),
         };
       });
 
@@ -146,7 +147,7 @@ export default function AdminTestCasesRoute() {
       groupId: getId(testCase.group),
       caseKey: testCase.caseKey || "",
       title: testCase.title || "",
-      priority: testCase.priority || "medium",
+      priority: normalizePriorityForForm(testCase.priority),
       severity: testCase.severity || "major",
       type: testCase.type || "functional",
       description: testCase.description || "",
@@ -213,7 +214,7 @@ export default function AdminTestCasesRoute() {
       title: `${testCase.title || testCase.name || "Test case"} copy`,
       description: testCase.description || "",
       expected: testCase.expected || "",
-      priority: testCase.priority || "medium",
+      priority: normalizePriorityForForm(testCase.priority),
       severity: testCase.severity || "major",
       type: testCase.type || "functional",
       steps: Array.isArray(testCase.steps) ? testCase.steps : [],

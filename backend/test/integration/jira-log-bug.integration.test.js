@@ -94,7 +94,6 @@ test('createLogBugRecord stores run context and case metadata', async () => {
       assignee: 'qa.user',
       labels: 'regression',
       versions: ['v1'],
-      jiraLocation: 'https://jira.example/browse/CED-1777',
       loggedByUserId: entityId(fixture.admin),
     });
 
@@ -186,6 +185,11 @@ test('listLogBugsByProject filters by search, priority, and issueType', async ()
     });
     assert.equal(byIssueType.pagination.total, 1);
     assert.equal(byIssueType.logBugs[0].issueType, '10002');
+
+    assert.match(all.logBugs[0].jiraBrowseUrl, /\/browse\/CED-200/);
+    assert.match(all.logBugs[1].jiraBrowseUrl, /\/browse\/CED-200/);
+    assert.equal(all.logBugs[0].jiraLocation, undefined);
+    assert.equal(all.logBugs[1].jiraLocation, undefined);
   });
 });
 
@@ -216,6 +220,8 @@ test('GET /api/jira/log-bugs returns project bug history for authenticated user'
     assert.equal(res.body.pagination.total, 1);
     assert.equal(res.body.logBugs.length, 1);
     assert.equal(res.body.logBugs[0].issueKeyJira, 'CED-3001');
+    assert.match(res.body.logBugs[0].jiraBrowseUrl, /\/browse\/CED-3001$/);
+    assert.equal(res.body.logBugs[0].jiraLocation, undefined);
     assert.equal(res.body.logBugs[0].testRun._id, runId);
     assert.equal(res.body.logBugs[0].runResult, runResultObjectId);
     assert.equal(res.body.logBugs[0].caseKey, 'TC-EXEC-001');

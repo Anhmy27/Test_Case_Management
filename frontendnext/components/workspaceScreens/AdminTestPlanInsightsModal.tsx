@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { useOptionalWorkspaceNotice } from "@/components/workspaceScreens/WorkspaceNotice";
 import { apiRequest } from "@/lib/api";
+import { formatVietnamDateTime } from "@/lib/vietnamDateTime";
 import { DataTable, SectionCard, StatusBadge } from "./shared";
 import TestCaseExecutionHistoryPopup from "./TestCaseExecutionHistoryPopup";
 import type { RunExecutionEntry, RunHistory, TestCaseInsight, TestPlanDetail } from "@/lib/tcmTypes";
@@ -275,7 +276,7 @@ export default function AdminTestPlanInsightsModal({
                       <div>{run.blockedCount}</div>
                       <div>{run.notRunCount}</div>
                       <div className="text-xs text-slate-500">
-                        {run.executedAt ? new Date(run.executedAt).toLocaleString() : "-"}
+                        {formatVietnamDateTime(run.executedAt)}
                       </div>
                       <div>
                         {onOpenExecution && run.runId ? (

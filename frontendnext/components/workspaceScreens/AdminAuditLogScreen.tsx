@@ -2,6 +2,7 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import { formatVietnamDateTime } from "@/lib/vietnamDateTime";
 import { Button, DataTable, SectionCard } from "./shared";
 
 type RecordAny = Record<string, any>;
@@ -23,13 +24,6 @@ function formatAction(action: unknown) {
   return String(action || "-").replace(/\./g, " · ");
 }
 
-function formatWhen(value: unknown) {
-  if (!value) return "-";
-  const date = new Date(String(value));
-  if (Number.isNaN(date.getTime())) return String(value);
-  return date.toLocaleString();
-}
-
 export default function AdminAuditLogScreen({ logs, pagination, onPageChange }: Props) {
   return (
     <div className="space-y-5">
@@ -43,7 +37,7 @@ export default function AdminAuditLogScreen({ logs, pagination, onPageChange }: 
           rows={logs.map((entry) => (
             <>
               <div className="whitespace-nowrap text-sm text-slate-600 dark:text-zinc-400">
-                {formatWhen(entry.createdAt)}
+                {formatVietnamDateTime(entry.createdAt)}
               </div>
               <div>
                 <div className="font-medium text-slate-900 dark:text-zinc-100">{formatAction(entry.action)}</div>

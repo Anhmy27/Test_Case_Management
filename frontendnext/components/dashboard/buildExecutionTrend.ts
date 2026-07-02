@@ -1,3 +1,10 @@
+import {
+  formatVietnamDate,
+  formatVietnamDateLabel,
+  shiftVietnamDateKey,
+  toVietnamDateKey,
+} from "@/lib/vietnamDateTime";
+
 export type ExecutionTrendPoint = {
   date: string;
   label: string;
@@ -13,22 +20,9 @@ type TrendRun = {
   results?: Array<{ status?: string | null }> | null;
 };
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-function toDateKey(value: string | Date | null | undefined): string | null {
-  if (!value) {
-    return null;
-  }
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
-  return date.toISOString().slice(0, 10);
-}
-
 function formatDayLabel(dateKey: string) {
-  const date = new Date(`${dateKey}T12:00:00`);
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const [year, month, day] = dateKey.split("-").map((part) => Number(part));
+  return formatVietnamDateLabel(new Date(Date.UTC(year, month - 1, day, 12, 0, 0)));
 }
 
 function countResultStatuses(results: TrendRun["results"]) {
@@ -55,13 +49,11 @@ export function buildExecutionTrendPoints(
   dayCount = 14,
 ): ExecutionTrendPoint[] {
   const safeDayCount = Math.max(1, dayCount);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const todayKey = toVietnamDateKey(new Date()) || formatVietnamDate(new Date());
 
   const buckets = new Map<string, ExecutionTrendPoint>();
   for (let offset = safeDayCount - 1; offset >= 0; offset -= 1) {
-    const day = new Date(today.getTime() - offset * DAY_MS);
-    const date = day.toISOString().slice(0, 10);
+    const date = shiftVietnamDateKey(todayKey, -offset);
     buckets.set(date, {
       date,
       label: formatDayLabel(date),
@@ -72,17 +64,17 @@ export function buildExecutionTrendPoints(
     });
   }
 
-  const windowStart = today.getTime() - (safeDayCount - 1) * DAY_MS;
-  const windowEnd = today.getTime() + DAY_MS - 1;
+  const bucketKeys = Array.from(buckets.keys()).sort();
+  const windowStart = bucketKeys[0];
+  const windowEnd = bucketKeys[bucketKeys.length - 1];
 
   for (const run of testRuns) {
-    const dateKey = toDateKey(run.startedAt) || toDateKey(run.createdAt);
+    const dateKey = toVietnamDateKey(run.startedAt) || toVietnamDateKey(run.createdAt);
     if (!dateKey) {
       continue;
     }
 
-    const runTime = new Date(`${dateKey}T12:00:00`).getTime();
-    if (runTime < windowStart || runTime > windowEnd) {
+    if (dateKey < windowStart || dateKey > windowEnd) {
       continue;
     }
 

@@ -99,7 +99,7 @@ Project → Version → Group → Test Case → Test Plan → Chạy test → Xe
 |-----|---------|
 | Group Key **hoặc** Group Name | Chỉ cần một trong hai |
 | Case Key, Title | Bắt buộc |
-| Priority | `low` \| `medium` \| `high` \| `critical` |
+| Priority | `lowest` \| `low` \| `medium` \| `high` \| `highest` |
 | Severity | `minor` \| `major` \| `critical` |
 | Type | `functional`, `api`, `ui`, ... |
 | Step N Action / Step N Expected | Bước thủ công |
@@ -180,7 +180,28 @@ Vào **Users** → tạo/sửa/xoá tài khoản, đổi role (admin/employee), 
 | Màn | Mục đích |
 |-----|----------|
 | **Audit Log** | Ai làm gì (tạo project, đăng nhập, start run...) |
-| **Jira Bug Log** | Danh sách bug đã gửi lên Jira từ hệ thống |
+| **Jira Bug Log** | Danh sách bug đã gửi lên Jira từ hệ thống (theo project đang chọn) |
+
+#### Jira Bug Log — cách dùng
+
+1. Chọn **project** ở topbar (bắt buộc)
+2. Vào **Jira Bug Log**
+3. Lọc / tìm (thanh trên):
+   - **Search**: issue key, summary, case key/title...
+   - **Priority**: lọc theo mức ưu tiên Jira (1–5)
+   - **Issue type**: lọc theo loại issue
+4. Bấm **View detail** trên một dòng để xem đầy đủ thông tin bug log
+
+**Trong bảng và modal chi tiết**
+
+- **Issue Key** (vd: `CED-1607`): hiển thị dạng chữ, **bấm được** — mở trang issue trên Jira (tab mới) nếu server đã cấu hình `JIRA_BASE_URL`
+- **Project**: hiển thị **tên project** (theo project scope đang chọn)
+- Các mục khác: thời gian log, summary, test case, test run, người log bug...
+
+**Lưu ý kỹ thuật (cho admin vận hành)**
+
+- Hệ thống **không lưu URL Jira** trong database; link được ghép lúc xem danh sách: `{JIRA_BASE_URL}/browse/{issueKey}`
+- Nếu issue key hiện nhưng **không bấm được** (không có link): kiểm tra `JIRA_BASE_URL` trong `backend/.env` và restart backend
 
 ---
 
@@ -243,6 +264,7 @@ Employee chỉ thấy run liên quan đến plan được giao và do chính mì
 | Chạy ngay | Test Runs + Execution hoặc Run Test |
 | Xem case fail lần trước | Execution History → View all |
 | Gửi Jira | Log Bug trên case fail |
+| Xem bug đã gửi Jira | Jira Bug Log (admin) → bấm Issue Key để mở Jira |
 | Xem ai sửa gì | Audit Log (admin) |
 
 ---
@@ -261,6 +283,9 @@ Employee chỉ thấy run liên quan đến plan được giao và do chính mì
 **Log Bug không tạo được issue?**  
 → Kiểm tra Jira Profile, project đã gắn Jira key, và tài khoản Jira còn quyền tạo bug.
 
+**Jira Bug Log có issue key nhưng không mở được link Jira?**  
+→ Liên hệ người vận hành server: cần cấu hình `JIRA_BASE_URL` đúng instance Jira (vd: `https://rd.cytech.ai`) trong `backend/.env`, rồi restart backend.
+
 **Tên run có giờ lạ?**  
 → Run mới dùng **giờ Việt Nam**. Run cũ tạo trước khi cập nhật có thể vẫn hiện giờ UTC.
 
@@ -277,4 +302,4 @@ Employee chỉ thấy run liên quan đến plan được giao và do chính mì
 
 ---
 
-*Tài liệu cập nhật: 2026-06-29 — khớp với phiên bản hiện tại của ứng dụng.*
+*Tài liệu cập nhật: 2026-06-30 — khớp với phiên bản hiện tại của ứng dụng.*

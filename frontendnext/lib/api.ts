@@ -3,6 +3,7 @@ import {
   clearAuthCsrfToken,
   getCsrfTokenForRequest,
 } from './csrfToken';
+import { formatRunNameTimestamp } from './vietnamDateTime';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:5000';
 const CSRF_HEADER = 'X-CSRF-Token';
@@ -424,9 +425,9 @@ export function summarizeRunResults(items: Array<{ status?: string }>): RunResul
     ? Number(((summary.done / summary.total) * 100).toFixed(2))
     : 0;
 
-  const verdictCount = summary.pass + summary.fail + summary.blocked;
-  summary.passRate = verdictCount > 0
-    ? Number(((summary.pass / verdictCount) * 100).toFixed(2))
+  const passRateDenominator = summary.pass + summary.fail + summary.blocked + summary.skip;
+  summary.passRate = passRateDenominator > 0
+    ? Number(((summary.pass / passRateDenominator) * 100).toFixed(2))
     : 0;
 
   return summary;
@@ -446,20 +447,14 @@ export function isValidHttpUrl(value: string): boolean {
   }
 }
 
-export const RUN_NAME_TIME_ZONE = 'Asia/Ho_Chi_Minh';
-
-/** `YYYY-MM-DD HH:mm` in Vietnam time — used in default test run names. */
-export function formatRunNameTimestamp(date: Date = new Date()): string {
-  return new Intl.DateTimeFormat('sv-SE', {
-    timeZone: RUN_NAME_TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).format(date);
-}
+export {
+  VIETNAM_TIME_ZONE as RUN_NAME_TIME_ZONE,
+  formatRunNameTimestamp,
+  formatVietnamDate,
+  formatVietnamDateLabel,
+  formatVietnamDateTime,
+  toVietnamDateKey,
+} from './vietnamDateTime';
 
 export function buildDefaultRunName(planName: string, versionName?: string): string {
   const safePlan = String(planName || 'Test plan').trim() || 'Test plan';

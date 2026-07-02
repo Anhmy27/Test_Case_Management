@@ -59,7 +59,7 @@ const isValidHttpUrl = (value) => {
 };
 
 // NOTE: Formula must stay in sync with summarizeRunResults() in frontendnext/lib/api.ts.
-// Both compute { pass, fail, blocked, skip, untested, done, progress, passRate } from the same algorithm.
+// passRate = pass / (pass + fail + blocked + skip). untested is excluded.
 const computeRunProgress = (results) => {
   const items = Array.isArray(results) ? results : [];
   const summary = {
@@ -88,9 +88,9 @@ const computeRunProgress = (results) => {
     ? Number(((summary.done / summary.total) * 100).toFixed(2))
     : 0;
 
-  const verdictCount = summary.pass + summary.fail + summary.blocked;
-  summary.passRate = verdictCount > 0
-    ? Number(((summary.pass / verdictCount) * 100).toFixed(2))
+  const passRateDenominator = summary.pass + summary.fail + summary.blocked + summary.skip;
+  summary.passRate = passRateDenominator > 0
+    ? Number(((summary.pass / passRateDenominator) * 100).toFixed(2))
     : 0;
 
   return summary;

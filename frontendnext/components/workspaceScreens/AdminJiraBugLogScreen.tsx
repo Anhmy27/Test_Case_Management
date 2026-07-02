@@ -4,6 +4,7 @@
 
 import { useMemo, useState } from "react";
 import { getRunDocumentId } from "@/components/jira/jiraBugUtils";
+import { formatVietnamDateTime } from "@/lib/vietnamDateTime";
 import { Button, DataTable, SectionCard } from "./shared";
 
 type RecordAny = Record<string, any>;
@@ -20,14 +21,8 @@ type Props = {
   pagination: Pagination;
   onPageChange: (page: number) => void;
   onOpenExecution: (entry: RecordAny) => void;
+  scopedProjectName?: string;
 };
-
-function formatWhen(value: unknown) {
-  if (!value) return "-";
-  const date = new Date(String(value));
-  if (Number.isNaN(date.getTime())) return String(value);
-  return date.toLocaleString();
-}
 
 function extractCaseFromSummary(summary: unknown) {
   const text = String(summary || "").trim();
@@ -39,6 +34,26 @@ function extractCaseFromSummary(summary: unknown) {
     caseKey: String(match[1] || "").trim(),
     caseTitle: String(match[2] || "").trim(),
   };
+}
+
+function resolveProjectLabel(project: unknown, fallbackName?: string) {
+  if (project && typeof project === "object") {
+    const name = String((project as RecordAny).name || "").trim();
+    if (name) {
+      return name;
+    }
+    const code = String((project as RecordAny).code || "").trim();
+    if (code) {
+      return code;
+    }
+  }
+  if (fallbackName?.trim()) {
+    return fallbackName.trim();
+  }
+  if (typeof project === "string" && project.trim()) {
+    return project.trim();
+  }
+  return "-";
 }
 
 function resolveCaseLabel(entry: RecordAny) {
@@ -56,17 +71,53 @@ type DetailRowProps = {
   label: string;
   value: string;
   multiline?: boolean;
+  href?: string;
 };
 
-function DetailRow({ label, value, multiline = false }: DetailRowProps) {
+function DetailRow({ label, value, multiline = false, href }: DetailRowProps) {
+  const displayValue = value || "-";
+  const content =
+    href && value ? (
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className="font-medium text-sky-700 hover:underline dark:text-sky-400"
+      >
+        {displayValue}
+      </a>
+    ) : (
+      displayValue
+    );
+
   return (
     <div className="grid gap-1 sm:grid-cols-[150px_minmax(0,1fr)] sm:gap-3">
       <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-500">{label}</div>
       <div className={`text-sm text-slate-700 dark:text-zinc-200 ${multiline ? "whitespace-pre-wrap" : ""}`}>
-        {value || "-"}
+        {content}
       </div>
     </div>
   );
+}
+
+function IssueKeyJiraLabel({ issueKey, jiraBrowseUrl }: { issueKey?: string; jiraBrowseUrl?: string }) {
+  const label = String(issueKey || "").trim() || "-";
+  const href = String(jiraBrowseUrl || "").trim();
+
+  if (href && label !== "-") {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        className="font-medium text-sky-700 hover:underline dark:text-sky-400"
+      >
+        {label}
+      </a>
+    );
+  }
+
+  return <div className="font-medium text-slate-900 dark:text-zinc-100">{label}</div>;
 }
 
 export default function AdminJiraBugLogScreen({
@@ -74,6 +125,7 @@ export default function AdminJiraBugLogScreen({
   pagination,
   onPageChange,
   onOpenExecution,
+  scopedProjectName,
 }: Props) {
   const [detailLog, setDetailLog] = useState<RecordAny | null>(null);
   const detailCase = useMemo(() => (detailLog ? resolveCaseLabel(detailLog) : null), [detailLog]);
@@ -90,23 +142,10 @@ export default function AdminJiraBugLogScreen({
           rows={logBugs.map((entry) => (
             <>
               <div className="whitespace-nowrap text-sm text-slate-600 dark:text-zinc-400">
-                {formatWhen(entry.createdAt)}
+                {formatVietnamDateTime(entry.createdAt)}
               </div>
               <div>
-                {entry.jiraLocation ? (
-                  <a
-                    href={entry.jiraLocation}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="font-medium text-sky-700 hover:underline dark:text-sky-400"
-                  >
-                    {entry.issueKeyJira || "-"}
-                  </a>
-                ) : (
-                  <div className="font-medium text-slate-900 dark:text-zinc-100">
-                    {entry.issueKeyJira || "-"}
-                  </div>
-                )}
+                <IssueKeyJiraLabel issueKey={entry.issueKeyJira} jiraBrowseUrl={entry.jiraBrowseUrl} />
                 {entry.priority ? (
                   <div className="text-xs text-slate-500 dark:text-zinc-500">Priority {entry.priority}</div>
                 ) : null}
@@ -207,10 +246,16 @@ export default function AdminJiraBugLogScreen({
               <Button size="sm" label="Close" onClick={() => setDetailLog(null)} />
             </div>
             <div className="max-h-[70vh] space-y-3 overflow-auto px-5 py-4">
-              <DetailRow label="When" value={formatWhen(detailLog.createdAt)} />
-              <DetailRow label="Issue Key Jira" value={String(detailLog.issueKeyJira || "")} />
-              <DetailRow label="Jira URL" value={String(detailLog.jiraLocation || "")} />
-              <DetailRow label="Project" value={String(detailLog.project || "")} />
+              <DetailRow label="When" value={formatVietnamDateTime(detailLog.createdAt)} />
+              <DetailRow
+                label="Issue Key Jira"
+                value={String(detailLog.issueKeyJira || "")}
+                href={String(detailLog.jiraBrowseUrl || "")}
+              />
+              <DetailRow
+                label="Project"
+                value={resolveProjectLabel(detailLog.project, scopedProjectName)}
+              />
               <DetailRow label="Test Run" value={getRunDocumentId(detailLog.testRun)} />
               <DetailRow label="Test Run Name" value={String(detailLog.testRun?.name || "")} />
               <DetailRow label="Run Result _id" value={String(detailLog.runResult || "")} />

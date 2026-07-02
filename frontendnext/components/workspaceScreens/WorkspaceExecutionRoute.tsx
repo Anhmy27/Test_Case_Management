@@ -2,12 +2,13 @@
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import ExecutionScreen from "@/components/workspaceScreens/ExecutionScreen";
 import { useAdminWorkspace, useEmployeeWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
-import { WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
+import { WorkspaceContentSkeleton, scrollToExecutionWorkbench } from "@/components/workspaceScreens/shared";
 import { apiRequest, buildDefaultRunName, downloadTestRunExport, formatAutomationRunMessage, getId, partitionRunItemsByAutomation, resolveStartRunPayload, runHasAutomationItems, runHasManualItems, summarizeAutomationResults, userName } from "@/lib/api";
+import { sortByTestCaseKey } from "@/lib/testCaseSort";
 import AdminTestPlanInsightsModal from "@/components/workspaceScreens/AdminTestPlanInsightsModal";
 import {
   buildEmployeeTopbar,
@@ -164,7 +165,7 @@ function AdminWorkspaceExecutionRoute() {
           showNotice("Test run not found", "error");
         }
 
-        setMyItems(Array.isArray(response.results) ? response.results : []);
+        setMyItems(sortByTestCaseKey(Array.isArray(response.results) ? response.results : []));
       } catch (error) {
         if (!cancelled) {
           showNotice(error instanceof Error ? error.message : "Unable to load test run", "error");
@@ -202,18 +203,25 @@ function AdminWorkspaceExecutionRoute() {
     setStartRunError("");
   }, [runForm.name, runForm.testPlanId]);
 
+  const appliedResultIdFromUrlRef = useRef("");
+
   useEffect(() => {
     if (!activeMyItems.length) {
+      appliedResultIdFromUrlRef.current = "";
       setSelectedItemId("");
       return;
     }
 
     if (resultIdFromUrl && activeMyItems.some((item) => getId(item) === resultIdFromUrl)) {
-      if (selectedItemId !== resultIdFromUrl) {
+      // Apply deep-link resultId once; do not pin selection on every manual navigation.
+      if (appliedResultIdFromUrlRef.current !== resultIdFromUrl) {
+        appliedResultIdFromUrlRef.current = resultIdFromUrl;
         setSelectedItemId(resultIdFromUrl);
       }
       return;
     }
+
+    appliedResultIdFromUrlRef.current = "";
 
     if (!selectedItemId || !activeMyItems.some((item) => getId(item) === selectedItemId)) {
       const { manualItems, automationItems } = partitionRunItemsByAutomation(activeMyItems);
@@ -291,8 +299,9 @@ function AdminWorkspaceExecutionRoute() {
           }
         }
         setMyItems((prev) => {
-          if (JSON.stringify(prev) !== JSON.stringify(response.results)) {
-            return Array.isArray(response.results) ? response.results : [];
+          const nextItems = sortByTestCaseKey(Array.isArray(response.results) ? response.results : []);
+          if (JSON.stringify(prev) !== JSON.stringify(nextItems)) {
+            return nextItems;
           }
           return prev;
         });
@@ -405,7 +414,7 @@ function AdminWorkspaceExecutionRoute() {
         return [response.testRun as RecordAny, ...filtered];
       });
     }
-    setMyItems(Array.isArray(response.results) ? response.results : []);
+    setMyItems(sortByTestCaseKey(Array.isArray(response.results) ? response.results : []));
   };
 
   const updateResult = async (resultId: string, status: "pass" | "fail" | "blocked" | "skip", note: string, resultNotes: string) => {
@@ -459,11 +468,27 @@ function AdminWorkspaceExecutionRoute() {
           baseUrl: runForm.baseUrl || activeRun.automationBaseUrl || "",
         }),
       });
-      if (response.testRun) {
-        setSelectedRun(response.testRun);
+      const retryRun = response.testRun;
+      const retryRunId = retryRun ? getId(retryRun) : "";
+      if (!retryRun || !retryRunId) {
+        showNotice("Unable to retry failed cases", "error");
+        return;
       }
-      showNotice(`Đang retry ${response.retryCount ?? 0} case fail...`);
-      await loadMyItems(getId(activeRun));
+
+      setRuns((prev) => [
+        retryRun,
+        ...prev.filter((run) => getId(run) !== retryRunId),
+      ]);
+
+      if (response.automationQueued) {
+        showNotice(`Đang chạy lại ${response.retryCount ?? 0} case fail (automation)...`);
+      } else {
+        showNotice(
+          `Đã tạo run retry với ${response.retryCount ?? 0} case fail. Bắt đầu test lại.`,
+        );
+      }
+
+      router.push(`${adminExecutionPath}?runId=${encodeURIComponent(retryRunId)}`);
       await refreshRuns();
     } catch (error) {
       showNotice(error instanceof Error ? error.message : "Unable to retry failed cases", "error");
@@ -600,6 +625,7 @@ function AdminWorkspaceExecutionRoute() {
           onOpenExecution={(runId) => {
             setInsightsPlan(null);
             openRun(runId);
+            scrollToExecutionWorkbench();
           }}
           onStartNewRun={() => {
             const plan = scopedPlans.find((item) => getId(item) === insightsPlan.planId);
@@ -718,7 +744,7 @@ function EmployeeWorkspaceExecutionRoute() {
           showNotice("Test run not found", "error");
         }
 
-        setMyItems(Array.isArray(response.results) ? response.results : []);
+        setMyItems(sortByTestCaseKey(Array.isArray(response.results) ? response.results : []));
       } catch (error) {
         if (!cancelled) {
           showNotice(error instanceof Error ? error.message : "Unable to load test run", "error");
@@ -759,18 +785,24 @@ function EmployeeWorkspaceExecutionRoute() {
     setStartRunError("");
   }, [runForm.name, runForm.testPlanId]);
 
+  const appliedResultIdFromUrlRef = useRef("");
+
   useEffect(() => {
     if (!activeMyItems.length) {
+      appliedResultIdFromUrlRef.current = "";
       setSelectedItemId("");
       return;
     }
 
     if (resultIdFromUrl && activeMyItems.some((item) => getId(item) === resultIdFromUrl)) {
-      if (selectedItemId !== resultIdFromUrl) {
+      if (appliedResultIdFromUrlRef.current !== resultIdFromUrl) {
+        appliedResultIdFromUrlRef.current = resultIdFromUrl;
         setSelectedItemId(resultIdFromUrl);
       }
       return;
     }
+
+    appliedResultIdFromUrlRef.current = "";
 
     if (!selectedItemId || !activeMyItems.some((item) => getId(item) === selectedItemId)) {
       const { manualItems, automationItems } = partitionRunItemsByAutomation(activeMyItems);
@@ -844,8 +876,9 @@ function EmployeeWorkspaceExecutionRoute() {
           }
         }
         setMyItems((prev) => {
-          if (JSON.stringify(prev) !== JSON.stringify(response.results)) {
-            return Array.isArray(response.results) ? response.results : [];
+          const nextItems = sortByTestCaseKey(Array.isArray(response.results) ? response.results : []);
+          if (JSON.stringify(prev) !== JSON.stringify(nextItems)) {
+            return nextItems;
           }
           return prev;
         });
@@ -924,7 +957,7 @@ function EmployeeWorkspaceExecutionRoute() {
   const loadMyItems = async (runId: string) => {
     const response = await apiRequest<{ testRun?: RecordAny | null; results: RecordAny[] }>(`/api/test-runs/${runId}/my-items`, undefined);
     if (response.testRun) setSelectedRun(response.testRun);
-    setMyItems(Array.isArray(response.results) ? response.results : []);
+    setMyItems(sortByTestCaseKey(Array.isArray(response.results) ? response.results : []));
   };
 
   const updateResult = async (resultId: string, status: "pass" | "fail" | "blocked" | "skip", note: string, resultNotes: string) => {
@@ -975,11 +1008,27 @@ function EmployeeWorkspaceExecutionRoute() {
           baseUrl: runForm.baseUrl || activeRun.automationBaseUrl || "",
         }),
       });
-      if (response.testRun) {
-        setSelectedRun(response.testRun);
+      const retryRun = response.testRun;
+      const retryRunId = retryRun ? getId(retryRun) : "";
+      if (!retryRun || !retryRunId) {
+        showNotice("Unable to retry failed cases", "error");
+        return;
       }
-      showNotice(`Đang retry ${response.retryCount ?? 0} case fail...`);
-      await loadMyItems(getId(activeRun));
+
+      setRuns((prev) => [
+        retryRun,
+        ...prev.filter((run) => getId(run) !== retryRunId),
+      ]);
+
+      if (response.automationQueued) {
+        showNotice(`Đang chạy lại ${response.retryCount ?? 0} case fail (automation)...`);
+      } else {
+        showNotice(
+          `Đã tạo run retry với ${response.retryCount ?? 0} case fail. Bắt đầu test lại.`,
+        );
+      }
+
+      router.push(`/workspace/employee/execution?runId=${encodeURIComponent(retryRunId)}`);
     } catch (error) {
       showNotice(error instanceof Error ? error.message : "Unable to retry failed cases", "error");
     } finally {

@@ -6,6 +6,7 @@ const {
   suggestLabels,
   suggestVersions,
   searchAssignableUsers,
+  buildJiraBrowseUrl,
 } = require('./jiraService');
 const { listLogBugsByProject, createLogBugRecord } = require('./logBugHistoryService');
 const {
@@ -88,14 +89,13 @@ const logBugService = async ({
     assignee,
     labels,
     versions,
-    jiraLocation: created.location,
     loggedByUserId: user?.id || user?._id || null,
   });
 
   return {
     message: 'Jira bug created',
     issueKey: created.issueKey,
-    location: created.location,
+    jiraBrowseUrl: buildJiraBrowseUrl(created.issueKey),
     logBugId: String(logBug._id),
   };
 };

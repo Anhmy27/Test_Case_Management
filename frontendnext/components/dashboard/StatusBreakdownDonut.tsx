@@ -30,7 +30,8 @@ const SEGMENT_STYLE: Record<
 > = {
   pass: { top: "#4ade80", mid: "#22c55e", side: "#166534", glow: "#86efac" },
   fail: { top: "#fb7185", mid: "#ef4444", side: "#991b1b", glow: "#fecdd3" },
-  blocked: { top: "#d4d4d8", mid: "#a1a1aa", side: "#52525b", glow: "#e4e4e7" },
+  blocked: { top: "#fcd34d", mid: "#f59e0b", side: "#b45309", glow: "#fde68a" },
+  skip: { top: "#cbd5e1", mid: "#94a3b8", side: "#475569", glow: "#e2e8f0" },
   untested: { top: "#e4e4e7", mid: "#d4d4d8", side: "#71717a", glow: "#f4f4f5" },
 };
 

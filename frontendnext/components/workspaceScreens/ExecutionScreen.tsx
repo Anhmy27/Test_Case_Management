@@ -9,7 +9,7 @@ import ManualRunExecutionPanel, {
 } from "../execution/ManualRunExecutionPanel";
 import AutomationRunExecutionPanel from "../execution/AutomationRunExecutionPanel";
 import TestRunListSection from "./TestRunListSection";
-import { Button, Field, INPUT_CLS, SectionCard, StatusBadge } from "./shared";
+import { Button, Field, INPUT_CLS, scrollToExecutionWorkbench, SectionCard, StatusBadge } from "./shared";
 import {
   buildDefaultRunName,
   countPlanAutomationCases,
@@ -21,6 +21,7 @@ import {
   userName as formatUserName,
   validateStartRunForm,
 } from "@/lib/api";
+import { formatVietnamDateTime } from "@/lib/vietnamDateTime";
 
 type RecordAny = Record<string, any>;
 
@@ -230,6 +231,16 @@ export default function ExecutionScreen(props: Props) {
     setQueueFilter("all");
   }, [selectedRun]);
 
+  const selectedRunId = selectedRun ? getId(selectedRun) : "";
+
+  useEffect(() => {
+    if (!selectedRunId) {
+      return;
+    }
+
+    scrollToExecutionWorkbench();
+  }, [selectedRunId]);
+
   useEffect(() => {
     if (!runEditMode || !selectedRun) {
       return;
@@ -237,13 +248,24 @@ export default function ExecutionScreen(props: Props) {
     setStartFormExpanded(false);
     setRunListExpanded(true);
     persistRunListExpanded(true);
-    window.requestAnimationFrame(() => {
-      document.getElementById("execution-workbench-panel")?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    });
+    scrollToExecutionWorkbench();
   }, [runEditMode, selectedRun]);
+
+  const handleOpenRun = useCallback(
+    (runId: string) => {
+      onOpenRun?.(runId);
+      scrollToExecutionWorkbench();
+    },
+    [onOpenRun],
+  );
+
+  const handleOpenRunForEdit = useCallback(
+    (runId: string) => {
+      onOpenRunForEdit?.(runId);
+      scrollToExecutionWorkbench();
+    },
+    [onOpenRunForEdit],
+  );
 
   const toggleRunListExpanded = useCallback(() => {
     setRunListExpanded((prev) => {
@@ -436,9 +458,7 @@ export default function ExecutionScreen(props: Props) {
 
   const showRunList =
     Array.isArray(adminRuns) && typeof onOpenRun === "function";
-  const startedAtLabel = selectedRun?.startedAt
-    ? new Date(selectedRun.startedAt).toLocaleString()
-    : "-";
+  const startedAtLabel = formatVietnamDateTime(selectedRun?.startedAt);
 
   return (
     <div className="space-y-6">
@@ -913,8 +933,8 @@ export default function ExecutionScreen(props: Props) {
               runs={adminRuns}
               scopedPlans={scopedPlans}
               userName={userName}
-              onOpenRun={onOpenRun}
-              onOpenRunForEdit={onOpenRunForEdit}
+              onOpenRun={handleOpenRun}
+              onOpenRunForEdit={onOpenRunForEdit ? handleOpenRunForEdit : undefined}
               onExportRun={onExportRun}
               activeRunId={selectedRun ? getId(selectedRun) : ""}
               initialPlanFilter={initialPlanFilter}

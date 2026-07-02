@@ -4,7 +4,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
-import { ActionButton, Field, INPUT_CLS, ScopedProjectField, SectionCard } from "./shared";
+import { ActionButton, Field, INPUT_CLS, SCROLLABLE_LIST_COMPACT_MAX_HEIGHT, ScrollableListBody, ScopedProjectField, SectionCard } from "./shared";
 import { getId } from "@/lib/api";
 
 type RecordAny = Record<string, any>;
@@ -49,6 +49,13 @@ export default function AdminGroupsScreen({
   matchesSearch,
 }: AdminGroupsScreenProps) {
   const isEditing = Boolean(editingGroupId);
+  const editingGroupKey = useMemo(() => {
+    if (!editingGroupId) {
+      return "";
+    }
+    const editingGroup = groups.find((group: RecordAny) => getId(group) === editingGroupId);
+    return String(editingGroup?.key || "").trim();
+  }, [editingGroupId, groups]);
   const [hierarchyPage, setHierarchyPage] = useState(1);
   const hierarchyPageSize = 4;
 
@@ -58,7 +65,7 @@ export default function AdminGroupsScreen({
 
   const filteredGroups = useMemo(() => {
     return groups.filter((group: RecordAny) =>
-      matchesSearch(group.name, group.project?.name, group.description),
+      matchesSearch(group.name, group.key, group.project?.name, group.description),
     );
   }, [groups, matchesSearch]);
 
@@ -92,6 +99,55 @@ export default function AdminGroupsScreen({
     (safeHierarchyPage - 1) * hierarchyPageSize + hierarchyPageSize,
   );
 
+  const copyGroupKey = async (key: string) => {
+    const value = String(key || "").trim();
+    if (!value) {
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = value;
+      textarea.style.position = "fixed";
+      textarea.style.left = "-9999px";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+    }
+  };
+
+  const renderGroupKeyRow = (key: string, compact = false) => {
+    const normalizedKey = String(key || "").trim();
+    if (!normalizedKey) {
+      return null;
+    }
+
+    return (
+      <div
+        className={`flex flex-wrap items-center gap-2 ${compact ? "" : "mt-1"}`}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <span className="text-[11px] font-medium uppercase tracking-wide text-slate-500 dark:text-zinc-400">
+          Group Key
+        </span>
+        <code className="rounded-md border border-slate-200 bg-white px-2 py-0.5 font-mono text-xs font-semibold text-slate-800 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100">
+          {normalizedKey}
+        </code>
+        <button
+          type="button"
+          className="rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+          onClick={() => void copyGroupKey(normalizedKey)}
+          title="Copy Group Key for Excel import"
+        >
+          Copy
+        </button>
+      </div>
+    );
+  };
+
   const renderProjectGroup = (group: RecordAny) => {
     const groupId = getId(group);
     const groupCases = testCases.filter(
@@ -107,6 +163,7 @@ export default function AdminGroupsScreen({
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
           <div className="min-w-0">
             <div className="font-semibold text-slate-900 dark:text-zinc-50">{group.name}</div>
+            {renderGroupKeyRow(group.key, true)}
             <div className="truncate text-xs text-slate-500 dark:text-zinc-400">
               {group.description || "No description"}
             </div>
@@ -138,10 +195,29 @@ export default function AdminGroupsScreen({
             <div className="py-4 text-center text-sm text-slate-400 dark:text-zinc-500">
               No test cases in this group
             </div>
+          ) : shouldScrollCases ? (
+            <ScrollableListBody maxHeightClass={SCROLLABLE_LIST_COMPACT_MAX_HEIGHT} className="space-y-2 pr-1">
+              {groupCases.map((testCase: RecordAny) => (
+                <button
+                  key={getId(testCase)}
+                  type="button"
+                  className="w-full rounded-lg border border-white bg-white px-3 py-2 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-zinc-600 dark:hover:bg-zinc-800"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    startTestCaseEdit(testCase);
+                  }}
+                >
+                  <div className="font-semibold text-slate-900 dark:text-zinc-50">
+                    {testCase.caseKey} - {testCase.title}
+                  </div>
+                  <div className="text-xs text-slate-500 dark:text-zinc-400">
+                    {testCase.description || "No description"}
+                  </div>
+                </button>
+              ))}
+            </ScrollableListBody>
           ) : (
-            <div
-              className={`space-y-2 ${shouldScrollCases ? "max-h-[240px] overflow-y-auto pr-1" : ""}`}
-            >
+            <div className="space-y-2">
               {groupCases.map((testCase: RecordAny) => (
                 <button
                   key={getId(testCase)}
@@ -194,6 +270,27 @@ export default function AdminGroupsScreen({
               />
             </Field>
           </div>
+          {isEditing && editingGroupKey ? (
+            <Field label="Group Key">
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  className={`${INPUT_CLS} font-mono uppercase`}
+                  value={editingGroupKey}
+                  readOnly
+                />
+                <ActionButton
+                  type="button"
+                  label="Copy"
+                  icon="⧉"
+                  onClick={() => void copyGroupKey(editingGroupKey)}
+                  tooltip="Copy for Excel Group Key column"
+                />
+              </div>
+              <p className="mt-1 text-xs text-slate-500 dark:text-zinc-400">
+                Dùng giá trị này trong cột <strong>Group Key</strong> khi import test case Excel.
+              </p>
+            </Field>
+          ) : null}
           <Field label="Description">
             <textarea
               rows={3}
@@ -230,13 +327,11 @@ export default function AdminGroupsScreen({
             </span>
           ) : null}
         </div>
-        <div className="space-y-3">
-          <div className="max-h-[620px] overflow-y-auto pr-1">
-            {visibleHierarchyProjects.length === 0 ? (
-              <div className="py-8 text-center text-sm text-slate-400 dark:text-zinc-500">No groups</div>
-            ) : (
-              <div className="space-y-3">
-                {visibleHierarchyProjects.map(
+        <ScrollableListBody className="space-y-3 pr-1">
+          {visibleHierarchyProjects.length === 0 ? (
+            <div className="py-8 text-center text-sm text-slate-400 dark:text-zinc-500">No groups</div>
+          ) : (
+            visibleHierarchyProjects.map(
                   ({ project, groups: projectGroups }) => (
                     <details
                       key={`list-${getId(project)}`}
@@ -275,10 +370,9 @@ export default function AdminGroupsScreen({
                       </div>
                     </details>
                   ),
-                )}
-              </div>
-            )}
-          </div>
+                )
+          )}
+        </ScrollableListBody>
           {totalHierarchyPages > 1 ? (
             <div className="flex items-center justify-end gap-2">
               <ActionButton
@@ -295,7 +389,6 @@ export default function AdminGroupsScreen({
               />
             </div>
           ) : null}
-        </div>
       </SectionCard>
     </div>
   );

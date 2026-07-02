@@ -59,7 +59,7 @@ const createTestCaseBodySchema = z.object({
   expected: optionalTrimmedString(),
   steps: z.array(manualStepSchema).optional(),
   automation: automationConfigSchema.optional(),
-  priority: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+  priority: z.enum(['lowest', 'low', 'medium', 'high', 'highest']).optional(),
   severity: z.enum(['minor', 'major', 'critical']).optional(),
   type: z.enum(['functional', 'api', 'ui', 'regression', 'security', 'other']).optional(),
 }).passthrough();
@@ -75,7 +75,7 @@ const updateTestCaseBodySchema = z.object({
   expected: optionalTrimmedString(),
   steps: z.array(manualStepSchema).optional(),
   automation: automationConfigSchema.optional(),
-  priority: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+  priority: z.enum(['lowest', 'low', 'medium', 'high', 'highest']).optional(),
   severity: z.enum(['minor', 'major', 'critical']).optional(),
   type: z.enum(['functional', 'api', 'ui', 'regression', 'security', 'other']).optional(),
   status: z.enum(['active', 'deprecated']).optional(),

@@ -5,8 +5,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import ExecutionHistoryEntryActions from "@/components/execution/ExecutionHistoryEntryActions";
 import ExecutionHistoryScreenshotModal from "@/components/execution/ExecutionHistoryScreenshotModal";
-import { DataTable, ClientPaginationBar, EmptyState, Field, INPUT_CLS, SectionCard, StatusBadge, useClientPagination } from "./shared";
+import { DataTable, ClientPaginationBar, EmptyState, Field, INPUT_CLS, ScrollableListBody, SectionCard, StatusBadge, useClientPagination } from "./shared";
 import { getId } from "@/lib/api";
+import { formatVietnamDateTime } from "@/lib/vietnamDateTime";
+import { priorityBadgeClass } from "@/lib/testCaseBadges";
+import { formatPriorityLabel } from "@/lib/testCasePriority";
+import { sortByTestCaseKey } from "@/lib/testCaseSort";
 
 type RecordAny = Record<string, any>;
 
@@ -97,6 +101,14 @@ export default function AdminTestCasesHistoryScreen({
     return status ? <StatusBadge status={status} /> : <span className="text-slate-400">-</span>;
   }
 
+  const visibleRows = useMemo(() => {
+    return sortByTestCaseKey(
+      safeDetailRows.filter((testCase: RecordAny) =>
+        matchesSearch(testCase.caseKey, testCase.key, testCase.title, testCase.name),
+      ),
+    );
+  }, [matchesSearch, safeDetailRows]);
+
   return (
     <div className="space-y-5">
       {!selectedProjectId ? (
@@ -141,18 +153,18 @@ export default function AdminTestCasesHistoryScreen({
             ) : (
               <DataTable
                 columns={["Key", "Title", "Group", "Priority", "Recent 1", "Recent 2", "Recent 3", "Action"]}
-                rows={safeDetailRows
-                  .filter((testCase: RecordAny) =>
-                    matchesSearch(testCase.caseKey, testCase.key, testCase.title, testCase.name),
-                  )
-                  .map((testCase: RecordAny) => {
+                rows={visibleRows.map((testCase: RecordAny) => {
                     const statuses = Array.isArray(testCase.recentStatuses) ? testCase.recentStatuses : [];
                     return (
                       <>
                         <div className="font-semibold text-slate-900">{testCase.caseKey || testCase.key || "-"}</div>
                         <div>{testCase.title || testCase.name || "-"}</div>
                         <div>{testCase.group?.name || "-"}</div>
-                        <div>{testCase.priority || "-"}</div>
+                        <div>
+                          <span className={priorityBadgeClass(testCase.priority)}>
+                            {formatPriorityLabel(testCase.priority) || "-"}
+                          </span>
+                        </div>
                         <div>{statusCell(statuses[0])}</div>
                         <div>{statusCell(statuses[1])}</div>
                         <div>{statusCell(statuses[2])}</div>
@@ -194,7 +206,7 @@ export default function AdminTestCasesHistoryScreen({
                 <span>{focusedCase.title || focusedCase.name || "-"}</span>
               </h3>
               <div className="text-sm text-slate-600">
-                {focusedCase.group?.name || "-"} · {focusedCase.priority || "-"}
+                {focusedCase.group?.name || "-"} · {formatPriorityLabel(focusedCase.priority) || "-"}
               </div>
             </div>
 
@@ -226,7 +238,7 @@ export default function AdminTestCasesHistoryScreen({
                 <div>Note</div>
                 <div>Actions</div>
               </div>
-              <div className="max-h-[55vh] divide-y divide-slate-200 overflow-auto">
+              <ScrollableListBody maxHeightClass="max-h-[55vh]" className="divide-y divide-slate-200">
                 {focusedHistory.length === 0 ? (
                   <div className="px-4 py-6 text-sm text-slate-500">No execution history found for this case.</div>
                 ) : (
@@ -238,7 +250,7 @@ export default function AdminTestCasesHistoryScreen({
                       </div>
                       <div>{entry.status ? <StatusBadge status={entry.status} /> : <span className="text-slate-400">-</span>}</div>
                       <div className="text-slate-700">{entry.startedBy?.name || entry.startedBy?.email || "-"}</div>
-                      <div className="text-slate-600">{entry.executedAt ? new Date(entry.executedAt).toLocaleString() : (entry.startedAt ? new Date(entry.startedAt).toLocaleString() : "-")}</div>
+                      <div className="text-slate-600">{formatVietnamDateTime(entry.executedAt || entry.startedAt)}</div>
                       <div className="break-words text-slate-600">{entry.note || "-"}</div>
                       <div>
                         <ExecutionHistoryEntryActions
@@ -251,7 +263,7 @@ export default function AdminTestCasesHistoryScreen({
                     </div>
                   ))
                 )}
-              </div>
+              </ScrollableListBody>
               {historyPagination.hasPagination ? (
                 <ClientPaginationBar
                   currentPage={historyPagination.currentPage}

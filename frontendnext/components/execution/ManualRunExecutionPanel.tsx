@@ -3,6 +3,11 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getEndRunPolicy, isAutomationEnabledTestCase, setEndRunPolicy, summarizeRunResults, getId, type EndRunPolicy } from "@/lib/api";
+import { priorityBadgeClass } from "@/lib/testCaseBadges";
+import { formatPriorityLabel } from "@/lib/testCasePriority";
+import { sortByTestCaseKey } from "@/lib/testCaseSort";
+import { formatVietnamDateTime } from "@/lib/vietnamDateTime";
+import { SCROLLABLE_LIST_EXECUTION_QUEUE_MAX_HEIGHT, ScrollableListBody } from "@/components/workspaceScreens/shared";
 import type { Dispatch, SetStateAction } from "react";
 import { ConfirmDialog, StatusBadge } from "../workspaceScreens/shared";
 import CaseHistoryButton from "./CaseHistoryButton";
@@ -119,16 +124,31 @@ export default function ManualRunExecutionPanel({
   };
 
   const currentIndex = myItems.findIndex((item: RecordAny) => getId(item) === panelSelectedId);
-  const hasFailedCase = myItems.some((item: RecordAny) => String(item.status || "") === "fail");
+  const isFailedResult = (item: RecordAny) => String(item.status || "") === "fail";
+  const failedItems = useMemo(
+    () => myItems.filter(isFailedResult),
+    [myItems],
+  );
   const nextFailedItem = useMemo(() => {
-    if (!hasFailedCase) return undefined;
-    if (currentIndex >= 0) {
-      const after = myItems.slice(currentIndex + 1).find((item: RecordAny) => String(item.status || "") === "fail");
-      if (after) return after;
-      return myItems.slice(0, currentIndex).find((item: RecordAny) => String(item.status || "") === "fail");
+    if (!failedItems.length) return undefined;
+
+    const currentFailIndex = failedItems.findIndex(
+      (item: RecordAny) => getId(item) === panelSelectedId,
+    );
+    if (currentFailIndex >= 0) {
+      if (failedItems.length === 1) return undefined;
+      return failedItems[(currentFailIndex + 1) % failedItems.length];
     }
-    return myItems.find((item: RecordAny) => String(item.status || "") === "fail");
-  }, [currentIndex, hasFailedCase, myItems]);
+
+    if (currentIndex >= 0) {
+      const after = myItems
+        .slice(currentIndex + 1)
+        .find(isFailedResult);
+      if (after) return after;
+    }
+
+    return failedItems[0];
+  }, [currentIndex, failedItems, myItems, panelSelectedId]);
   const nextItem = currentIndex >= 0
     ? myItems.slice(currentIndex + 1).find((item: RecordAny) => item.status !== "pass") || myItems[currentIndex + 1]
     : undefined;
@@ -170,18 +190,20 @@ export default function ManualRunExecutionPanel({
 
   const queueItems = useMemo(() => {
     const normalized = queueSearch.trim().toLowerCase();
-    return myItems.filter((item: RecordAny) => {
-      const status = String(item.status || "untested");
-      if (queueFilter === "pending" && status !== "untested") return false;
-      if (queueFilter === "failed" && status !== "fail") return false;
-      if (queueFilter === "passed" && status !== "pass") return false;
-      if (queueFilter === "blocked" && status !== "blocked") return false;
-      if (queueFilter === "skip" && status !== "skip") return false;
-      if (!normalized) return true;
-      const key = String(item.testCase?.caseKey || "").toLowerCase();
-      const title = String(item.testCase?.title || "").toLowerCase();
-      return key.includes(normalized) || title.includes(normalized);
-    });
+    return sortByTestCaseKey(
+      myItems.filter((item: RecordAny) => {
+        const status = String(item.status || "untested");
+        if (queueFilter === "pending" && status !== "untested") return false;
+        if (queueFilter === "failed" && status !== "fail") return false;
+        if (queueFilter === "passed" && status !== "pass") return false;
+        if (queueFilter === "blocked" && status !== "blocked") return false;
+        if (queueFilter === "skip" && status !== "skip") return false;
+        if (!normalized) return true;
+        const key = String(item.testCase?.caseKey || "").toLowerCase();
+        const title = String(item.testCase?.title || "").toLowerCase();
+        return key.includes(normalized) || title.includes(normalized);
+      }),
+    );
   }, [myItems, queueFilter, queueSearch]);
 
   const recentActivity = useMemo(() => {
@@ -283,7 +305,7 @@ export default function ManualRunExecutionPanel({
             Next failed
           </button>
         </div>
-        <div className="max-h-[520px] overflow-auto">
+        <ScrollableListBody maxHeightClass={SCROLLABLE_LIST_EXECUTION_QUEUE_MAX_HEIGHT}>
           {queueItems.length === 0 ? (
             <div className="p-4 text-sm text-slate-500">No cases found</div>
           ) : (
@@ -311,7 +333,7 @@ export default function ManualRunExecutionPanel({
               );
             })
           )}
-        </div>
+        </ScrollableListBody>
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -339,8 +361,8 @@ export default function ManualRunExecutionPanel({
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-semibold text-rose-700">
-                {selectedItem.testCase?.priority || "n/a"}
+              <span className={priorityBadgeClass(selectedItem.testCase?.priority)}>
+                {formatPriorityLabel(selectedItem.testCase?.priority) || "n/a"}
               </span>
               <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
                 {selectedItem.testCase?.severity || "n/a"}
@@ -473,7 +495,7 @@ export default function ManualRunExecutionPanel({
                       {item.testCase?.caseKey || "TC"}
                     </div>
                     <div className="text-xs text-slate-500">
-                      <StatusBadge status={String(item.status || "untested")} /> · {new Date(item.executedAt || item.updatedAt || 0).toLocaleString()}
+                      <StatusBadge status={String(item.status || "untested")} /> · {formatVietnamDateTime(item.executedAt || item.updatedAt || 0)}
                     </div>
                   </button>
                 ))

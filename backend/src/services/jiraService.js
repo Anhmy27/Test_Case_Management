@@ -40,6 +40,16 @@ const getJiraConfig = () => {
   return { baseURL, username, password, cookie };
 };
 
+const buildJiraBrowseUrl = (issueKey) => {
+  const key = String(issueKey || '').trim();
+  if (!key) {
+    return '';
+  }
+
+  const { baseURL } = getJiraConfig();
+  return `${baseURL}/browse/${encodeURIComponent(key)}`;
+};
+
 const extractToken = (html, tokenName) => {
   const escapedTokenName = String(tokenName || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const patterns = [
@@ -579,6 +589,7 @@ module.exports = {
   suggestLabels,
   suggestVersions,
   searchAssignableUsers,
+  buildJiraBrowseUrl,
   extractAtlToken,
   extractFormToken,
   extractMetaContent,

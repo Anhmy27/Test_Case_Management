@@ -70,11 +70,6 @@ const logBugSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
-    jiraLocation: {
-      type: String,
-      default: '',
-      trim: true,
-    },
     loggedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',

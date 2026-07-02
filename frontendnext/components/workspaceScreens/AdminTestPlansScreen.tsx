@@ -4,8 +4,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Dispatch, SetStateAction, FormEvent } from "react";
-import { ActionButton, Button, ClientPaginationBar, Field, INPUT_CLS, ScopedProjectField, StatusBadge, useClientPagination } from "./shared";
+import { ActionButton, Button, ClientPaginationBar, Field, INPUT_CLS, SCROLLABLE_LIST_COMPACT_MAX_HEIGHT, ScopedProjectField, ScrollableListBody, ScrollableTable, StatusBadge, useClientPagination } from "./shared";
 import { apiRequest, countPlanAutomationCases, findEntityByReference, isEntityReferenceSelected, matchesEntityId, matchesSelectedEntity, normalizeEntityReferences, summarizeRunResults } from "@/lib/api";
+import { formatVietnamDateLabel, formatVietnamDateTime } from "@/lib/vietnamDateTime";
 import type { TestPlanDetail } from "@/lib/tcmTypes";
 
 type RecordAny = Record<string, any>;
@@ -17,9 +18,7 @@ type PlanRunSnapshot = {
 
 function formatPlanLastRun(dateValue: string | null | undefined) {
   if (!dateValue) return "Never";
-  const date = new Date(dateValue);
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
+  return formatVietnamDateLabel(dateValue, "—");
 }
 
 function LatestRunResultBadge({ run }: { run: RecordAny | null | undefined }) {
@@ -672,16 +671,28 @@ export default function AdminTestPlansScreen(props: Props) {
               <div className="text-[11px] text-slate-500">Click row to focus</div>
             </div>
           </div>
-          <div className="max-h-[620px] overflow-x-auto overflow-y-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="sticky top-0 z-10 bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                <tr>
-                  <th className="px-4 py-3"><input type="checkbox" checked={allVisibleSelected} onChange={() => setSelectedIds(allVisibleSelected ? [] : filteredPlans.map((item: RecordAny) => getId(item)))} /></th>
-                  <th className="px-4 py-3">Plan</th><th className="px-4 py-3">Scope</th><th className="px-4 py-3">Runs</th><th className="px-4 py-3">Last run</th><th className="px-4 py-3">Latest</th><th className="px-4 py-3">Owner</th><th className="px-4 py-3">Auto cases</th><th className="px-4 py-3 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {filteredPlans.length === 0 ? <tr><td colSpan={9} className="px-4 py-8 text-center text-slate-500">No plans</td></tr> : paginatedPlans.map((plan: RecordAny) => {
+          <ScrollableTable
+            colWidths={["3rem", "16%", "14%", "8%", "12%", "10%", "10%", "10%", "12%"]}
+            isEmpty={filteredPlans.length === 0}
+            emptyContent={<div className="px-4 py-8 text-center text-slate-500">No plans</div>}
+            footer={
+              planListPagination.hasPagination ? (
+                <ClientPaginationBar
+                  currentPage={planListPagination.currentPage}
+                  totalPages={planListPagination.totalPages}
+                  totalItems={planListPagination.totalItems}
+                  onPageChange={planListPagination.setCurrentPage}
+                />
+              ) : null
+            }
+            headRow={
+              <tr>
+                <th className="px-4 py-3"><input type="checkbox" checked={allVisibleSelected} onChange={() => setSelectedIds(allVisibleSelected ? [] : filteredPlans.map((item: RecordAny) => getId(item)))} /></th>
+                <th className="px-4 py-3">Plan</th><th className="px-4 py-3">Scope</th><th className="px-4 py-3">Runs</th><th className="px-4 py-3">Last run</th><th className="px-4 py-3">Latest</th><th className="px-4 py-3">Owner</th><th className="px-4 py-3">Auto cases</th><th className="px-4 py-3 text-right">Actions</th>
+              </tr>
+            }
+          >
+            {paginatedPlans.map((plan: RecordAny) => {
                   const planId = getId(plan);
                   const bulkSelected = selectedSet.has(planId);
                   const focused = activePlanId === planId;
@@ -706,17 +717,7 @@ export default function AdminTestPlansScreen(props: Props) {
                     </div></td>
                   </tr>;
                 })}
-              </tbody>
-            </table>
-          </div>
-          {planListPagination.hasPagination ? (
-            <ClientPaginationBar
-              currentPage={planListPagination.currentPage}
-              totalPages={planListPagination.totalPages}
-              totalItems={planListPagination.totalItems}
-              onPageChange={planListPagination.setCurrentPage}
-            />
-          ) : null}
+          </ScrollableTable>
         </section>
 
         <aside className="space-y-4 xl:sticky xl:top-24">
@@ -796,7 +797,7 @@ export default function AdminTestPlansScreen(props: Props) {
                 <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-slate-700">
                   Cases in plan ({focusedPlanCaseRows.length})
                 </summary>
-                <div className="max-h-48 space-y-1 overflow-y-auto border-t border-slate-100 px-3 py-2">
+                <ScrollableListBody maxHeightClass={SCROLLABLE_LIST_COMPACT_MAX_HEIGHT} className="space-y-1 border-t border-slate-100 px-3 py-2">
                   {focusedPlanCaseRows.length === 0 ? (
                     <div className="py-2 text-xs text-slate-400">No cases in this plan</div>
                   ) : (
@@ -810,7 +811,7 @@ export default function AdminTestPlansScreen(props: Props) {
                       </div>
                     ))
                   )}
-                </div>
+                </ScrollableListBody>
                 {focusedCaseRowsPagination.hasPagination ? (
                   <ClientPaginationBar
                     currentPage={focusedCaseRowsPagination.currentPage}
@@ -832,7 +833,7 @@ export default function AdminTestPlansScreen(props: Props) {
           <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="text-sm font-semibold text-slate-900">Recent activity</div>
             <div className="mt-3 space-y-2">
-              {recentActivity.map((item: RecordAny) => <button key={getId(item)} type="button" onClick={() => selectActivePlan(getId(item))} className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left hover:border-slate-300 ${activePlanId === getId(item) ? "border-indigo-200 bg-indigo-50/60" : "border-slate-200"}`}><span><span className="block text-xs text-slate-500">{item.project?.name || "-"}</span><span className="block text-sm font-semibold text-slate-900">{item.name}</span></span><span className="text-xs text-slate-400">{new Date(item.updatedAt || item.createdAt || 0).toLocaleDateString()}</span></button>)}
+              {recentActivity.map((item: RecordAny) => <button key={getId(item)} type="button" onClick={() => selectActivePlan(getId(item))} className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-left hover:border-slate-300 ${activePlanId === getId(item) ? "border-indigo-200 bg-indigo-50/60" : "border-slate-200"}`}><span><span className="block text-xs text-slate-500">{item.project?.name || "-"}</span><span className="block text-sm font-semibold text-slate-900">{item.name}</span></span><span className="text-xs text-slate-400">{formatVietnamDateLabel(item.updatedAt || item.createdAt || 0)}</span></button>)}
             </div>
           </section>
 
@@ -893,7 +894,7 @@ export default function AdminTestPlansScreen(props: Props) {
                     </div>
                     <div className="mt-1 flex items-center justify-between gap-2">
                       <span className="text-xs text-slate-500">
-                        {new Date(run.createdAt || 0).toLocaleString()}
+                        {formatVietnamDateTime(run.createdAt || 0)}
                       </span>
                       {runPlan ? (
                         <button
@@ -1148,7 +1149,7 @@ export default function AdminTestPlansScreen(props: Props) {
                     placeholder="Search users..."
                   />
                 </Field>
-                <div className="mt-2 max-h-[280px] space-y-1 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-2" role="group" aria-label="Assignees">
+                <ScrollableListBody maxHeightClass="max-h-[280px]" className="mt-2 space-y-1 rounded-xl border border-slate-200 bg-slate-50 p-2" role="group" aria-label="Assignees">
                   {filteredUsers.length === 0 ? (
                     <div className="py-4 text-center text-xs text-slate-400">No users found.</div>
                   ) : (
@@ -1178,7 +1179,7 @@ export default function AdminTestPlansScreen(props: Props) {
                       );
                     })
                   )}
-                </div>
+                </ScrollableListBody>
               </div>
 
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">

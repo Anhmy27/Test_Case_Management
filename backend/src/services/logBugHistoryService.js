@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const LogBug = require('../models/LogBug');
 const TestRun = require('../models/TestRun');
+const { buildJiraBrowseUrl } = require('./jiraService');
 const { httpError } = require('../utils/httpError');
 
 const normalizeLabels = (labels) => {
@@ -80,7 +81,6 @@ const createLogBugRecord = async ({
   assignee,
   labels,
   versions,
-  jiraLocation,
   loggedByUserId,
 }) => {
   const issueKey = String(issueKeyJira || '').trim();
@@ -108,7 +108,6 @@ const createLogBugRecord = async ({
     versions: normalizeVersions(versions),
     caseKey: runContext.caseKey || String(caseKey || '').trim(),
     caseTitle: runContext.caseTitle || String(caseTitle || '').trim(),
-    jiraLocation: String(jiraLocation || '').trim(),
     loggedBy: loggedByUserId,
   });
 };
@@ -172,6 +171,7 @@ const listLogBugsByProject = async ({
         : null,
       runResult: entry.runResult ? String(entry.runResult) : '',
       issueKeyJira: entry.issueKeyJira,
+      jiraBrowseUrl: buildJiraBrowseUrl(entry.issueKeyJira),
       summary: entry.summary,
       description: entry.description,
       issueType: entry.issueType,
@@ -181,7 +181,6 @@ const listLogBugsByProject = async ({
       versions: Array.isArray(entry.versions) ? entry.versions : [],
       caseKey: entry.caseKey,
       caseTitle: entry.caseTitle,
-      jiraLocation: entry.jiraLocation,
       loggedBy: entry.loggedBy
         ? {
             _id: String(entry.loggedBy._id),

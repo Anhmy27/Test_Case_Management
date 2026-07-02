@@ -6,6 +6,9 @@ import type { Dispatch, SetStateAction } from "react";
 import FailureScreenshot from "./FailureScreenshot";
 import CaseHistoryButton from "./CaseHistoryButton";
 import { formatAutomationLiveProgress, getAutomationRunProgress, getId, isAutomationWorkerActive, summarizeRunResults } from "@/lib/api";
+import { sortByTestCaseKey } from "@/lib/testCaseSort";
+import { formatVietnamDateTime } from "@/lib/vietnamDateTime";
+import { SCROLLABLE_LIST_EXECUTION_QUEUE_MAX_HEIGHT, ScrollableListBody } from "@/components/workspaceScreens/shared";
 import type { ExecutionQueueFilter } from "./ManualRunExecutionPanel";
 
 type RecordAny = Record<string, any>;
@@ -83,18 +86,20 @@ export default function AutomationRunExecutionPanel({
 
   const queueItems = useMemo(() => {
     const normalized = queueSearch.trim().toLowerCase();
-    return myItems.filter((item: RecordAny) => {
-      const status = String(item.status || "untested");
-      if (queueFilter === "pending" && !["untested", "skip"].includes(status)) return false;
-      if (queueFilter === "failed" && status !== "fail") return false;
-      if (queueFilter === "passed" && status !== "pass") return false;
-      if (queueFilter === "blocked" && status !== "blocked") return false;
-      if (queueFilter === "skip" && status !== "skip") return false;
-      if (!normalized) return true;
-      const key = String(item.testCase?.caseKey || "").toLowerCase();
-      const title = String(item.testCase?.title || "").toLowerCase();
-      return key.includes(normalized) || title.includes(normalized);
-    });
+    return sortByTestCaseKey(
+      myItems.filter((item: RecordAny) => {
+        const status = String(item.status || "untested");
+        if (queueFilter === "pending" && !["untested", "skip"].includes(status)) return false;
+        if (queueFilter === "failed" && status !== "fail") return false;
+        if (queueFilter === "passed" && status !== "pass") return false;
+        if (queueFilter === "blocked" && status !== "blocked") return false;
+        if (queueFilter === "skip" && status !== "skip") return false;
+        if (!normalized) return true;
+        const key = String(item.testCase?.caseKey || "").toLowerCase();
+        const title = String(item.testCase?.title || "").toLowerCase();
+        return key.includes(normalized) || title.includes(normalized);
+      }),
+    );
   }, [myItems, queueFilter, queueSearch]);
 
   const recentActivity = useMemo(() => {
@@ -121,16 +126,31 @@ export default function AutomationRunExecutionPanel({
   const canStopAutomation = automationWorkerActive && !cancelInProgress;
 
   const currentIndex = myItems.findIndex((item: RecordAny) => getId(item) === selectedItemId);
-  const hasFailedCase = myItems.some((item: RecordAny) => String(item.status || "") === "fail");
+  const isFailedResult = (item: RecordAny) => String(item.status || "") === "fail";
+  const failedItems = useMemo(
+    () => myItems.filter(isFailedResult),
+    [myItems],
+  );
   const nextFailedItem = useMemo(() => {
-    if (!hasFailedCase) return undefined;
-    if (currentIndex >= 0) {
-      const after = myItems.slice(currentIndex + 1).find((item: RecordAny) => String(item.status || "") === "fail");
-      if (after) return after;
-      return myItems.slice(0, currentIndex).find((item: RecordAny) => String(item.status || "") === "fail");
+    if (!failedItems.length) return undefined;
+
+    const currentFailIndex = failedItems.findIndex(
+      (item: RecordAny) => getId(item) === selectedItemId,
+    );
+    if (currentFailIndex >= 0) {
+      if (failedItems.length === 1) return undefined;
+      return failedItems[(currentFailIndex + 1) % failedItems.length];
     }
-    return myItems.find((item: RecordAny) => String(item.status || "") === "fail");
-  }, [currentIndex, hasFailedCase, myItems]);
+
+    if (currentIndex >= 0) {
+      const after = myItems
+        .slice(currentIndex + 1)
+        .find(isFailedResult);
+      if (after) return after;
+    }
+
+    return failedItems[0];
+  }, [currentIndex, failedItems, myItems, selectedItemId]);
 
   return (
     <div className="grid gap-6 xl:grid-cols-[280px_minmax(0,1fr)_320px]">
@@ -175,7 +195,7 @@ export default function AutomationRunExecutionPanel({
             Next failed
           </button>
         </div>
-        <div className="max-h-[520px] overflow-auto">
+        <ScrollableListBody maxHeightClass={SCROLLABLE_LIST_EXECUTION_QUEUE_MAX_HEIGHT}>
           {queueItems.length === 0 ? (
             <div className="p-4 text-sm text-slate-500">Không tìm thấy case nào</div>
           ) : (
@@ -205,7 +225,7 @@ export default function AutomationRunExecutionPanel({
               );
             })
           )}
-        </div>
+        </ScrollableListBody>
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
@@ -459,7 +479,7 @@ export default function AutomationRunExecutionPanel({
                     <div className="text-xs text-slate-500">
                       {item.status}
                       {item.executedAt || item.updatedAt
-                        ? ` · ${new Date(item.executedAt || item.updatedAt).toLocaleString()}`
+                        ? ` · ${formatVietnamDateTime(item.executedAt || item.updatedAt)}`
                         : ""}
                     </div>
                   </button>
