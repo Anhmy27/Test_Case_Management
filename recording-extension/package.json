@@ -1,0 +1,6 @@
+{
+  "name": "tcm-recording-extension",
+  "private": true,
+  "type": "module",
+  "description": "Chrome extension pilot for TCM Smart Recording (SR-1.0)"
+}

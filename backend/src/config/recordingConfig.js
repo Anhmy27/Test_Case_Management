@@ -42,6 +42,12 @@ const RECORDING_EVENT_EXTERNALIZE_THRESHOLDS = {
   maxContinuousRecordingMs: 15 * 60 * 1000,
 };
 
+/** Per-event artifact limits when appending recording events (roadmap §4.5). */
+const RECORDING_EVENT_ARTIFACT_LIMITS = {
+  maxScreenshotBytes: 2 * 1024 * 1024,
+  maxDomBytes: 1 * 1024 * 1024,
+};
+
 /** Auto-delete sessions that were not merged into a test case. */
 const RECORDING_SESSION_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
@@ -59,6 +65,7 @@ module.exports = {
   LOCATOR_STRATEGIES,
   DRAFT_REVIEW_STATUSES,
   RECORDING_EVENT_EXTERNALIZE_THRESHOLDS,
+  RECORDING_EVENT_ARTIFACT_LIMITS,
   RECORDING_SESSION_RETENTION_MS,
   RECORDING_ARTIFACT_PREFIX,
   RECORDING_STEP_SCREENSHOT_SUBDIR,

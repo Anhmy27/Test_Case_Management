@@ -257,6 +257,182 @@ test('stop runs SR-1 pipeline: merge typing, semantic, draft steps', async () =>
   });
 });
 
+test('append can persist screenshot and dom artifacts for an event', async () => {
+  await withIntegrationHarness(async (harness) => {
+    const admin = await harness.createUser({
+      name: 'Recording Artifact Admin',
+      email: 'recording-artifacts@integration.test',
+      password: 'pass1234',
+      role: 'admin',
+    });
+    const adminClient = harness.createClient();
+    await adminClient.post('/api/auth/login', { email: admin.email, password: 'pass1234' }, 200);
+
+    const projectRes = await adminClient.post(
+      '/api/projects',
+      { name: 'Recording Artifact Project', code: 'RAT' },
+      201,
+    );
+    const projectId = entityId(projectRes.body.project);
+
+    const startRes = await adminClient.post(
+      '/api/recording/sessions',
+      { projectId, baseUrl: 'http://localhost:3000' },
+      201,
+    );
+    const sessionId = startRes.body.session.id;
+    const pngBase64 = Buffer.from('integration-png').toString('base64');
+
+    const appendRes = await adminClient.post(
+      `/api/recording/sessions/${sessionId}/events`,
+      {
+        events: [
+          {
+            eventId: 'evt-artifact-1',
+            rawType: 'click',
+            pageUrl: 'http://localhost:3000/login',
+            payload: { testid: 'login-btn' },
+            screenshotBase64: `data:image/png;base64,${pngBase64}`,
+            domHtml: '<html><body>artifact</body></html>',
+          },
+        ],
+      },
+      200,
+    );
+
+    assert.equal(appendRes.body.session.eventCount, 1);
+    assert.ok(appendRes.body.session.events[0].payload.screenshotKey.includes('/steps/evt-artifact-1.png'));
+    assert.ok(appendRes.body.session.events[0].payload.domSnapshotKey.includes('/dom/evt-artifact-1.html'));
+
+    const stopRes = await adminClient.post(
+      `/api/recording/sessions/${sessionId}/stop`,
+      {},
+      200,
+    );
+    assert.equal(stopRes.body.session.draftSteps[1].screenshotKey.includes('evt-artifact-1.png'), true);
+  });
+});
+
+test('admin can pause and resume a recording session while appending events', async () => {
+  await withIntegrationHarness(async (harness) => {
+    const admin = await harness.createUser({
+      name: 'Recording Pause Admin',
+      email: 'recording-pause@integration.test',
+      password: 'pass1234',
+      role: 'admin',
+    });
+    const adminClient = harness.createClient();
+    await adminClient.post('/api/auth/login', { email: admin.email, password: 'pass1234' }, 200);
+
+    const projectRes = await adminClient.post(
+      '/api/projects',
+      { name: 'Recording Pause Project', code: 'RPS' },
+      201,
+    );
+    const projectId = entityId(projectRes.body.project);
+
+    const startRes = await adminClient.post(
+      '/api/recording/sessions',
+      { projectId, baseUrl: 'http://localhost:3000' },
+      201,
+    );
+    const sessionId = startRes.body.session.id;
+
+    const pauseRes = await adminClient.post(
+      `/api/recording/sessions/${sessionId}/pause`,
+      {},
+      200,
+    );
+    assert.equal(pauseRes.body.session.status, 'paused');
+
+    const appendRes = await adminClient.post(
+      `/api/recording/sessions/${sessionId}/events`,
+      {
+        events: [{ rawType: 'click', payload: { testid: 'btn' } }],
+      },
+      200,
+    );
+    assert.equal(appendRes.body.session.status, 'paused');
+    assert.equal(appendRes.body.session.eventCount, 1);
+
+    const resumeRes = await adminClient.post(
+      `/api/recording/sessions/${sessionId}/resume`,
+      {},
+      200,
+    );
+    assert.equal(resumeRes.body.session.status, 'recording');
+  });
+});
+
+test('recording session externalizes embedded events instead of rejecting append', async () => {
+  await withIntegrationHarness(async (harness) => {
+    const admin = await harness.createUser({
+      name: 'Recording Externalize Admin',
+      email: 'recording-externalize@integration.test',
+      password: 'pass1234',
+      role: 'admin',
+    });
+    const adminClient = harness.createClient();
+    await adminClient.post('/api/auth/login', { email: admin.email, password: 'pass1234' }, 200);
+
+    const projectRes = await adminClient.post(
+      '/api/projects',
+      { name: 'Recording Externalize Project', code: 'REX' },
+      201,
+    );
+    const projectId = entityId(projectRes.body.project);
+
+    const startRes = await adminClient.post(
+      '/api/recording/sessions',
+      { projectId, baseUrl: 'http://localhost:3000' },
+      201,
+    );
+    const sessionId = startRes.body.session.id;
+
+    const batch = Array.from({ length: 100 }, (_, index) => ({
+      eventId: `evt-batch-${index}`,
+      rawType: 'click',
+      payload: { testid: `btn-${index}` },
+    }));
+
+    for (let offset = 0; offset < 300; offset += 100) {
+      const events = batch.map((event, index) => ({
+        ...event,
+        eventId: `evt-batch-${offset + index}`,
+        payload: { testid: `btn-${offset + index}` },
+      }));
+      const appendRes = await adminClient.post(
+        `/api/recording/sessions/${sessionId}/events`,
+        { events },
+        200,
+      );
+      assert.equal(appendRes.body.session.eventCount, offset + 100);
+    }
+
+    const overflowRes = await adminClient.post(
+      `/api/recording/sessions/${sessionId}/events`,
+      {
+        events: [{ eventId: 'evt-overflow', rawType: 'click', payload: { testid: 'btn-overflow' } }],
+      },
+      200,
+    );
+    assert.equal(overflowRes.body.session.eventCount, 301);
+    assert.equal(overflowRes.body.session.eventsExternalized, true);
+    assert.equal(overflowRes.body.session.events.length, 0);
+
+    const getRes = await adminClient.get(`/api/recording/sessions/${sessionId}`, 200);
+    assert.equal(getRes.body.session.eventsExternalized, true);
+    assert.equal(getRes.body.session.eventCount, 301);
+    assert.equal(getRes.body.session.events.length, 0);
+
+    const stopRes = await adminClient.post(`/api/recording/sessions/${sessionId}/stop`, {}, 200);
+    assert.equal(stopRes.body.session.status, 'ready_for_review');
+    assert.equal(stopRes.body.session.eventCount, 301);
+    assert.equal(stopRes.body.session.eventsExternalized, false);
+    assert.equal(stopRes.body.session.events.length, 301);
+  });
+});
+
 test('recording session flow does not change saved test case automation steps', async () => {
   await withIntegrationHarness(async (harness) => {
     const { seedAutomationExecutionFixture } = require('../helpers/executionFixtures');

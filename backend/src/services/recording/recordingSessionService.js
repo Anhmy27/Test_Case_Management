@@ -3,35 +3,49 @@ const RecordingSession = require('../../models/RecordingSession');
 const { httpError } = require('../../utils/httpError');
 const { assertAllowedBaseUrl } = require('../../utils/automationUrlPolicy');
 const { findProjectByReference } = require('../../utils/entityResolvers');
-const {
-  RECORDING_EVENT_EXTERNALIZE_THRESHOLDS,
-} = require('../../config/recordingConfig');
 const { getRecordingArtifactService } = require('./recordingArtifactService');
+const { persistIncomingEventArtifacts } = require('./recordingEventArtifacts');
+const {
+  appendEventsToSession,
+  deleteSessionEvents,
+  loadSessionEvents,
+  replaceSessionEvents,
+  toPlainEvent,
+} = require('./recordingEventStore');
 const { processRecordingEvents } = require('./recordingPipeline');
 
-const APPEND_EVENT_STATUSES = new Set(['recording', 'paused']);
+const LIVE_RECORDING_STATUSES = new Set(['recording', 'paused']);
 const STOPPABLE_STATUSES = new Set(['starting', 'recording', 'paused']);
+const PAUSABLE_STATUSES = new Set(['recording']);
+const RESUMABLE_STATUSES = new Set(['paused']);
 
 const resolveUserId = (user) => String(user?._id || user?.id || '');
 
-const serializeRecordingSession = (session) => ({
-  id: String(session._id),
-  projectId: String(session.project),
-  testCaseEntityId: session.testCaseEntityId || '',
-  baseUrl: session.baseUrl,
-  status: session.status,
-  eventCount: session.eventCount,
-  eventsExternalized: session.eventsExternalized,
-  startedAt: session.startedAt,
-  stoppedAt: session.stoppedAt,
-  expiresAt: session.expiresAt,
-  createdAt: session.createdAt,
-  updatedAt: session.updatedAt,
-  events: session.events || [],
-  semanticActions: session.semanticActions || [],
-  draftSteps: session.draftSteps || [],
-  intentBlocks: session.intentBlocks || [],
-});
+const serializeRecordingSession = (session) => {
+  const includeEmbeddedEvents = !session.eventsExternalized
+    || !LIVE_RECORDING_STATUSES.has(session.status);
+
+  return {
+    id: String(session._id),
+    projectId: String(session.project),
+    testCaseEntityId: session.testCaseEntityId || '',
+    baseUrl: session.baseUrl,
+    status: session.status,
+    eventCount: session.eventCount,
+    eventsExternalized: session.eventsExternalized,
+    startedAt: session.startedAt,
+    stoppedAt: session.stoppedAt,
+    expiresAt: session.expiresAt,
+    createdAt: session.createdAt,
+    updatedAt: session.updatedAt,
+    events: includeEmbeddedEvents
+      ? (session.events || []).map(toPlainEvent).filter(Boolean)
+      : [],
+    semanticActions: session.semanticActions || [],
+    draftSteps: session.draftSteps || [],
+    intentBlocks: session.intentBlocks || [],
+  };
+};
 
 const getRecordingSessionForUser = async (sessionId, user) => {
   const session = await RecordingSession.findById(sessionId);
@@ -55,6 +69,27 @@ const normalizeIncomingEvent = (event, sequence) => ({
   pageUrl: String(event.pageUrl || '').trim(),
   payload: event.payload ?? null,
 });
+
+const prepareIncomingEvents = ({ sessionId, events, startSequence }) => {
+  const artifactService = getRecordingArtifactService();
+  const prepared = [];
+  let nextSequence = startSequence;
+
+  for (const event of events) {
+    prepared.push(persistIncomingEventArtifacts({
+      sessionId,
+      event: {
+        ...normalizeIncomingEvent(event, nextSequence),
+        screenshotBase64: event.screenshotBase64,
+        domHtml: event.domHtml,
+      },
+      artifactService,
+    }));
+    nextSequence += 1;
+  }
+
+  return prepared;
+};
 
 const startRecordingSessionService = async ({ projectId, baseUrl, testCaseEntityId, user }) => {
   const project = await findProjectByReference(projectId);
@@ -83,29 +118,47 @@ const startRecordingSessionService = async ({ projectId, baseUrl, testCaseEntity
 const appendRecordingEventsService = async ({ sessionId, events, user }) => {
   const session = await getRecordingSessionForUser(sessionId, user);
 
-  if (!APPEND_EVENT_STATUSES.has(session.status)) {
+  if (!LIVE_RECORDING_STATUSES.has(session.status)) {
     throw httpError(400, `Cannot append events while session status is ${session.status}`);
   }
 
-  const normalizedEvents = [];
-  let nextSequence = session.eventCount;
+  const preparedEvents = prepareIncomingEvents({
+    sessionId,
+    events,
+    startSequence: session.eventCount,
+  });
 
-  for (const event of events) {
-    normalizedEvents.push(normalizeIncomingEvent(event, nextSequence));
-    nextSequence += 1;
+  await appendEventsToSession(session, preparedEvents);
+  if (session.status === 'paused') {
+    session.markModified('events');
+  } else {
+    session.status = 'recording';
+  }
+  await session.save();
+
+  return serializeRecordingSession(session);
+};
+
+const pauseRecordingSessionService = async ({ sessionId, user }) => {
+  const session = await getRecordingSessionForUser(sessionId, user);
+
+  if (!PAUSABLE_STATUSES.has(session.status)) {
+    throw httpError(400, `Cannot pause session with status ${session.status}`);
   }
 
-  if (
-    !session.eventsExternalized
-    && nextSequence > RECORDING_EVENT_EXTERNALIZE_THRESHOLDS.maxEmbeddedEvents
-  ) {
-    throw httpError(
-      413,
-      `Recording session cannot hold more than ${RECORDING_EVENT_EXTERNALIZE_THRESHOLDS.maxEmbeddedEvents} embedded events`,
-    );
+  session.status = 'paused';
+  await session.save();
+
+  return serializeRecordingSession(session);
+};
+
+const resumeRecordingSessionService = async ({ sessionId, user }) => {
+  const session = await getRecordingSessionForUser(sessionId, user);
+
+  if (!RESUMABLE_STATUSES.has(session.status)) {
+    throw httpError(400, `Cannot resume session with status ${session.status}`);
   }
 
-  session.events.push(...normalizedEvents);
   session.status = 'recording';
   await session.save();
 
@@ -123,14 +176,13 @@ const stopRecordingSessionService = async ({ sessionId, user }) => {
   session.stoppedAt = new Date();
   await session.save();
 
+  const rawEvents = await loadSessionEvents(session);
   const processed = processRecordingEvents({
-    events: session.events.map((event) => (
-      typeof event.toObject === 'function' ? event.toObject() : event
-    )),
+    events: rawEvents,
     baseUrl: session.baseUrl,
   });
 
-  session.events = processed.events;
+  await replaceSessionEvents(session, processed.events);
   session.semanticActions = processed.semanticActions;
   session.draftSteps = processed.draftSteps;
   session.status = 'ready_for_review';
@@ -156,6 +208,7 @@ const discardRecordingSessionService = async ({ sessionId, user, reason }) => {
   session.stoppedAt = session.stoppedAt || new Date();
   await session.save();
 
+  await deleteSessionEvents(sessionId);
   getRecordingArtifactService().deleteSessionArtifacts(sessionId);
 
   return serializeRecordingSession(session);
@@ -164,6 +217,8 @@ const discardRecordingSessionService = async ({ sessionId, user, reason }) => {
 module.exports = {
   startRecordingSessionService,
   appendRecordingEventsService,
+  pauseRecordingSessionService,
+  resumeRecordingSessionService,
   stopRecordingSessionService,
   getRecordingSessionService,
   discardRecordingSessionService,

@@ -49,6 +49,8 @@ const readPayloadValue = (payload = {}) => {
   return '';
 };
 
+const readScreenshotKey = (payload = {}) => toString(payload.screenshotKey);
+
 const slugToken = (value, fallback = 'TARGET') => {
   const slug = toString(value)
     .toUpperCase()
@@ -220,7 +222,7 @@ const buildDraftStepFromEvent = (event, order, semanticAction) => ({
   locatorCandidates: [],
   chosenLocatorIndex: 0,
   reviewStatus: 'pending',
-  screenshotKey: '',
+  screenshotKey: readScreenshotKey(event.payload),
   autoWaitSuggestion: '',
   sourceSemanticId: semanticAction.semanticId,
 });

@@ -3,6 +3,8 @@ const { auditFromRequest } = require('../utils/auditFromRequest');
 const {
   startRecordingSessionService,
   appendRecordingEventsService,
+  pauseRecordingSessionService,
+  resumeRecordingSessionService,
   stopRecordingSessionService,
   getRecordingSessionService,
   discardRecordingSessionService,
@@ -32,6 +34,38 @@ const appendRecordingEvents = asyncHandler(async (req, res) => {
     sessionId: req.params.sessionId,
     events: req.body.events,
     user: req.user,
+  });
+
+  res.json({ session });
+});
+
+const pauseRecordingSession = asyncHandler(async (req, res) => {
+  const session = await pauseRecordingSessionService({
+    sessionId: req.params.sessionId,
+    user: req.user,
+  });
+
+  await auditFromRequest(req, {
+    action: 'recording.pause',
+    resourceType: 'recording_session',
+    resourceId: session.id,
+    projectId: session.projectId,
+  });
+
+  res.json({ session });
+});
+
+const resumeRecordingSession = asyncHandler(async (req, res) => {
+  const session = await resumeRecordingSessionService({
+    sessionId: req.params.sessionId,
+    user: req.user,
+  });
+
+  await auditFromRequest(req, {
+    action: 'recording.resume',
+    resourceType: 'recording_session',
+    resourceId: session.id,
+    projectId: session.projectId,
   });
 
   res.json({ session });
@@ -82,6 +116,8 @@ const discardRecordingSession = asyncHandler(async (req, res) => {
 module.exports = {
   startRecordingSession,
   appendRecordingEvents,
+  pauseRecordingSession,
+  resumeRecordingSession,
   stopRecordingSession,
   getRecordingSession,
   discardRecordingSession,

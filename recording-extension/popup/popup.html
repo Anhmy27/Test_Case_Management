@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <title>TCM Smart Recording</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <h1>TCM Ghi bước</h1>
+      <p class="hint">Đăng nhập admin trên TCM web trước. Extension gọi API recording TCM.</p>
+
+      <form id="configForm" class="form-grid">
+        <label>
+          API TCM
+          <input id="apiBaseUrl" name="apiBaseUrl" type="url" placeholder="http://localhost:5000" required />
+        </label>
+        <label>
+          Project ID
+          <input id="projectId" name="projectId" type="text" placeholder="Mongo ObjectId" required />
+        </label>
+        <label>
+          Test case entity ID (tùy chọn)
+          <input id="testCaseEntityId" name="testCaseEntityId" type="text" placeholder="TC_..." />
+        </label>
+        <label>
+          Base URL trang test
+          <input id="baseUrl" name="baseUrl" type="url" placeholder="http://localhost:3000" required />
+        </label>
+      </form>
+
+      <div class="actions">
+        <button id="startRecording" type="button">Bắt đầu ghi</button>
+        <button id="stopRecording" type="button" class="secondary" disabled>Dừng ghi</button>
+        <button id="clearEvents" type="button" class="secondary">Xóa log local</button>
+      </div>
+
+      <p id="status" class="status">Đang tải...</p>
+      <pre id="eventLog" class="event-log">[]</pre>
+    </main>
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

@@ -22,6 +22,8 @@ const recordedEventInputSchema = z.object({
   occurredAt: z.union([z.string(), z.date()]).optional(),
   pageUrl: optionalTrimmedString(),
   payload: z.unknown().optional(),
+  screenshotBase64: optionalTrimmedString(),
+  domHtml: optionalTrimmedString(),
 });
 
 const appendRecordingEventsBodySchema = z.object({

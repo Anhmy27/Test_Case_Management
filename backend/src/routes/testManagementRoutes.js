@@ -77,6 +77,8 @@ const {
 const {
   startRecordingSession,
   appendRecordingEvents,
+  pauseRecordingSession,
+  resumeRecordingSession,
   stopRecordingSession,
   getRecordingSession,
   discardRecordingSession,
@@ -260,6 +262,8 @@ router.get('/automation/dry-runs/:dryRunId/failure-trace', authorize('admin'), v
 router.post('/recording/sessions', authorize('admin'), validateRequest({ bodySchema: startRecordingSessionBodySchema }), startRecordingSession);
 router.get('/recording/sessions/:sessionId', authorize('admin'), validateRequest({ paramsSchema: recordingSessionIdParamsSchema }), getRecordingSession);
 router.post('/recording/sessions/:sessionId/events', authorize('admin'), validateRequest({ paramsSchema: recordingSessionIdParamsSchema, bodySchema: appendRecordingEventsBodySchema }), appendRecordingEvents);
+router.post('/recording/sessions/:sessionId/pause', authorize('admin'), validateRequest({ paramsSchema: recordingSessionIdParamsSchema }), pauseRecordingSession);
+router.post('/recording/sessions/:sessionId/resume', authorize('admin'), validateRequest({ paramsSchema: recordingSessionIdParamsSchema }), resumeRecordingSession);
 router.post('/recording/sessions/:sessionId/stop', authorize('admin'), validateRequest({ paramsSchema: recordingSessionIdParamsSchema }), stopRecordingSession);
 router.post('/recording/sessions/:sessionId/discard', authorize('admin'), validateRequest({ paramsSchema: recordingSessionIdParamsSchema, bodySchema: discardRecordingSessionBodySchema }), discardRecordingSession);
 
