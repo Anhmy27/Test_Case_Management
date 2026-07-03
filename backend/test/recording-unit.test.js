@@ -34,6 +34,11 @@ const {
   decodeBase64Payload,
   persistIncomingEventArtifacts,
 } = require('../src/services/recording/recordingEventArtifacts');
+const {
+  LOCATOR_SCORES,
+  buildLocatorCandidates,
+  chooseBestLocator,
+} = require('../src/services/recording/locatorScoring');
 const { appendRecordingEventsBodySchema } = require('../src/validators/recordingSchemas');
 
 const extensionRoot = path.resolve(__dirname, '../../recording-extension/lib');
@@ -269,6 +274,49 @@ test('processRecordingEvents builds semantic labels and draft steps', () => {
   assert.equal(result.semanticActions[0].semanticId, 'FILL_USERNAME');
   assert.equal(result.draftSteps[1].value, 'admin');
   assert.equal(result.draftSteps[2].target, 'login-btn');
+  assert.equal(result.draftSteps[2].targetType, 'testid');
+  assert.equal(result.draftSteps[2].locatorCandidates[0].strategy, 'testid');
+  assert.equal(result.draftSteps[2].chosenLocatorIndex, 0);
+});
+
+test('buildLocatorCandidates scores and ranks candidates per roadmap table (SR-2)', () => {
+  const candidates = buildLocatorCandidates({
+    testid: 'login-btn',
+    role: 'button',
+    roleName: 'Đăng nhập',
+    id: 'loginBtn',
+    label: 'Đăng nhập',
+    placeholder: 'Email',
+    text: 'Đăng nhập',
+    selector: '#app > button',
+  });
+
+  assert.deepEqual(
+    candidates.map((candidate) => candidate.strategy),
+    ['testid', 'role', 'id', 'label', 'placeholder', 'text', 'css'],
+  );
+  assert.equal(candidates[0].score, LOCATOR_SCORES.testid);
+  assert.equal(candidates[1].roleName, 'Đăng nhập');
+  assert.equal(candidates.find((c) => c.strategy === 'text').uniqueOnPage, false);
+});
+
+test('buildLocatorCandidates skips role when roleName is missing and falls back lower', () => {
+  const candidates = buildLocatorCandidates({ role: 'button', id: 'loginBtn' });
+  assert.equal(candidates.some((c) => c.strategy === 'role'), false);
+  assert.equal(chooseBestLocator(candidates).targetType, 'id');
+});
+
+test('chooseBestLocator falls back to empty css target when no candidate matches', () => {
+  assert.deepEqual(chooseBestLocator([]), { targetType: 'css', target: '' });
+});
+
+test('chooseBestLocator prefers role over id per score table', () => {
+  const candidates = buildLocatorCandidates({
+    role: 'button',
+    roleName: 'Lưu',
+    id: 'save-btn',
+  });
+  assert.deepEqual(chooseBestLocator(candidates), { targetType: 'role', target: 'button' });
 });
 
 test('shouldExternalizeSession triggers when embedded event count exceeds threshold', () => {

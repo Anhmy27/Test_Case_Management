@@ -33,7 +33,7 @@ const automationStepSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
-      enum: ['css', 'id', 'placeholder', 'text', 'label', 'testid', 'url'],
+      enum: ['css', 'id', 'placeholder', 'text', 'label', 'testid', 'role', 'url'],
       default: 'css',
     },
     target: {

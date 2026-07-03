@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const { buildLocatorCandidates, chooseBestLocator } = require('./locatorScoring');
 
 const DOUBLE_CLICK_WINDOW_MS = 500;
 const TYPING_MERGE_TYPES = new Set(['input', 'keypress', 'change']);
@@ -190,42 +191,26 @@ const buildSemanticAction = (event) => {
   }
 };
 
-const inferTargetFromPayload = (payload = {}) => {
-  if (toString(payload.testid)) {
-    return { targetType: 'testid', target: toString(payload.testid) };
-  }
-  if (toString(payload.id)) {
-    return { targetType: 'id', target: toString(payload.id) };
-  }
-  if (toString(payload.placeholder)) {
-    return { targetType: 'placeholder', target: toString(payload.placeholder) };
-  }
-  if (toString(payload.label)) {
-    return { targetType: 'label', target: toString(payload.label) };
-  }
-  if (toString(payload.text)) {
-    return { targetType: 'text', target: toString(payload.text) };
-  }
-  if (toString(payload.selector)) {
-    return { targetType: 'css', target: toString(payload.selector) };
-  }
-  return { targetType: 'css', target: '' };
-};
+const buildDraftStepFromEvent = (event, order, semanticAction) => {
+  const locatorCandidates = buildLocatorCandidates(event.payload);
+  const { targetType, target } = chooseBestLocator(locatorCandidates);
 
-const buildDraftStepFromEvent = (event, order, semanticAction) => ({
-  draftStepId: crypto.randomUUID(),
-  order,
-  inferredAction: mapEventToAction(event.rawType),
-  ...inferTargetFromPayload(event.payload),
-  value: readStepValue(event),
-  expected: '',
-  locatorCandidates: [],
-  chosenLocatorIndex: 0,
-  reviewStatus: 'pending',
-  screenshotKey: readScreenshotKey(event.payload),
-  autoWaitSuggestion: '',
-  sourceSemanticId: semanticAction.semanticId,
-});
+  return {
+    draftStepId: crypto.randomUUID(),
+    order,
+    inferredAction: mapEventToAction(event.rawType),
+    targetType,
+    target,
+    value: readStepValue(event),
+    expected: '',
+    locatorCandidates,
+    chosenLocatorIndex: 0,
+    reviewStatus: 'pending',
+    screenshotKey: readScreenshotKey(event.payload),
+    autoWaitSuggestion: '',
+    sourceSemanticId: semanticAction.semanticId,
+  };
+};
 
 const mapEventToAction = (rawType) => {
   switch (rawType) {

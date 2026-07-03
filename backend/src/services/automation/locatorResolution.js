@@ -6,7 +6,7 @@ const toString = (value) => String(value || '').trim();
 
 const escapeAttributeValue = (value) => String(value || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 
-const buildLocator = (page, targetType, target) => {
+const buildLocator = (page, targetType, target, options = {}) => {
   switch (targetType) {
     case 'id':
       return page.locator(`[id="${escapeAttributeValue(target)}"]`);
@@ -18,6 +18,13 @@ const buildLocator = (page, targetType, target) => {
       return page.getByLabel(target);
     case 'testid':
       return page.getByTestId(target);
+    case 'role': {
+      const roleOptions = { exact: false };
+      if (options.name) {
+        roleOptions.name = options.name;
+      }
+      return page.getByRole(target, roleOptions);
+    }
     case 'url':
     case 'css':
     default:
@@ -25,10 +32,14 @@ const buildLocator = (page, targetType, target) => {
   }
 };
 
+/**
+ * targetType='role': target = ARIA role (vd. 'button'), step.value = tên hiển thị
+ * (AUTOMATION_SMART_RECORD_ROADMAP.md §SR-2 "Cách map role vào engine").
+ */
 const resolveLocator = (page, step) => {
   const targetType = toString(step.targetType || 'css').toLowerCase();
   const target = toString(step.target);
-  return buildLocator(page, targetType, target);
+  return buildLocator(page, targetType, target, { name: toString(step.value) });
 };
 
 /** click + Text: button, link, and elements with button role — not button-only */

@@ -283,13 +283,13 @@ Quyền: giống dry-run (admin trước; mở employee khi pilot ổn).
 4. [x] API phiên ghi (start / events / stop / pause / resume / discard / get)
 5. [x] Lọc rác + gom gõ + semantic cơ bản (SR-1) — có test unit + integration
 6. [x] Spike extension Chrome (SR-1.0 pilot 6.1–6.8) — chưa screenshot/DOM từ extension
-7. [ ] Locator + bảng điểm (SR-2) + role trong engine          ← TIẾP THEO
-8. [ ] Gom cụm + gợi ý chờ (SR-3)
+7. [x] Locator + bảng điểm (SR-2) + role trong engine
+8. [ ] Gom cụm + gợi ý chờ (SR-3)                              ← TIẾP THEO
 9. [ ] UI review + xem thử + lưu (SR-4)
 10. [ ] SR-5, SR-6 sau
 ```
 
-### Tiến độ chi tiết (cập nhật 2026-07-02)
+### Tiến độ chi tiết (cập nhật 2026-07-03)
 
 | Lô | Nội dung | Trạng thái |
 |----|----------|------------|
@@ -298,10 +298,12 @@ Quyền: giống dry-run (admin trước; mở employee khi pilot ổn).
 | Backend 2.10 | Screenshot/DOM artifact khi append | ✅ |
 | Ext 6.1–6.3 | Scaffold MV3, capture DOM, payload schema | ✅ |
 | Ext 6.4–6.6 | Popup config, start/stop, batch events + CSRF | ✅ (commit `c379448`) |
-| Ext 6.7–6.8 | Pause/resume extension, auth errors, smoke test README | ✅ code xong, **chưa commit** |
-| SR-2 | Locator scoring + `role` trong Playwright engine | ❌ chưa làm |
+| Ext 6.7–6.8 | Pause/resume extension, auth errors, smoke test README | ✅ (commit `ce360a9`) |
+| SR-2 | Locator scoring (`locatorScoring.js`) + `role` trong Playwright engine | ✅ code xong, **chưa commit** |
 | SR-3 | Intent blocks | ❌ chưa làm |
 | SR-4 | Merge/preview API + UI review/Lưu | ❌ chưa làm |
+
+**SR-2 ghi chú:** `chosenLocatorIndex` luôn chọn điểm cao nhất lúc build draft — tester đổi lại ở SR-4 (chưa có UI). Form nhập tay (`AutomationConfigPanel.tsx`) **chưa** thêm option `role` vào dropdown targetType (chỉ engine + recording backend đã hỗ trợ) — cần quyết định UX riêng vì action `click` hiện không hiển thị ô `value` (role cần `value` = tên hiển thị).
 
 **Đích pilot hiện tại:** SR-1.0 extension ghi → nháp trên server (`ready_for_review`) — chưa có UI TCM review/Lưu.
 

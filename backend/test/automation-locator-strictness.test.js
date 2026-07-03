@@ -5,6 +5,7 @@ const {
   appendLocatorWarnings,
   buildAmbiguousLocatorMessage,
   requireUniqueLocator,
+  resolveLocator,
 } = require('../src/services/automation/locatorResolution');
 
 const mockLocator = (count) => ({
@@ -97,4 +98,34 @@ test('appendLocatorWarnings adds WARNING lines', () => {
   const message = appendLocatorWarnings('click #ok', ['Locator matched 2 elements']);
   assert.match(message, /^click #ok/);
   assert.match(message, /WARNING: Locator matched 2 elements/);
+});
+
+test('resolveLocator maps role targetType to page.getByRole(target, { name: value })', () => {
+  const calls = [];
+  const page = {
+    getByRole: (role, options) => {
+      calls.push({ role, options });
+      return { role, options };
+    },
+  };
+
+  resolveLocator(page, { targetType: 'role', target: 'button', value: 'Đăng nhập' });
+
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].role, 'button');
+  assert.deepEqual(calls[0].options, { exact: false, name: 'Đăng nhập' });
+});
+
+test('resolveLocator omits name option for role targetType without a display name', () => {
+  const calls = [];
+  const page = {
+    getByRole: (role, options) => {
+      calls.push({ role, options });
+      return { role, options };
+    },
+  };
+
+  resolveLocator(page, { targetType: 'role', target: 'button', value: '' });
+
+  assert.deepEqual(calls[0].options, { exact: false });
 });
