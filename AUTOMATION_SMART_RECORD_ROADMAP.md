@@ -3,8 +3,8 @@
 > **Mục tiêu đời thường:** Tester **làm trên web như bình thường** (click, gõ, chọn…) → hệ thống **tự ghi lại** → tester **xem lại, sửa chút** → **Lưu** thành test case auto.  
 > **Vẫn giữ** cách nhập tay hiện tại. **Chưa dùng AI** cho đến SR-5.
 
-**Cập nhật:** 2026-06-29  
-**Liên quan:** `AUTOMATION_STABILITY_ROADMAP.md` (P0–P6 xong; P7–P10 ⏸ tạm hoãn)
+**Cập nhật:** 2026-07-06  
+**Liên quan:** `AUTOMATION_STABILITY_ROADMAP.md` (P0–P6 xong; P7–P10 ⏸ tạm hoãn — ưu tiên Smart Record)
 
 ---
 
@@ -88,8 +88,8 @@
 | `id` | 80 | Hay đổi trên SPA |
 | `label` / placeholder | 75 | Form |
 | Text hiển thị | 70 | Dễ trùng |
-| CSS | 50 | Dễ vỡ khi đổi giao diện |
-| XPath | 30 | Chỉ khi bí |
+| CSS | 50 | Dễ vỡ khi đổi giao diện — **đang là fallback cuối** khi không có cách trên |
+| XPath | 30 | ⏸ **Chưa code** — chỉ có trên roadmap + enum schema; xem [Backlog sau SR-2](#backlog-sau-sr-2-không-block-sr-3) |
 
 **Khi chạy thật (sau khi Lưu):** Mỗi bước chỉ dùng **một** locator tester đã chấp nhận (mặc định điểm cao nhất). Các lựa chọn khác **lưu kèm để đổi lúc review**, không tự đổi lúc chạy (tránh self-healing sớm).
 
@@ -102,7 +102,7 @@ value        = 'Đăng nhập'   // tên hiển thị
 → playwright: page.getByRole(target, { name: value })
 ```
 
-**Bonus:** Chụp ảnh màn hình trước mỗi bước (lưu file như screenshot dry-run).
+**Bonus (ảnh từng bước):** ⏸ **Nửa xong** — backend lưu `screenshotBase64` / `domHtml` khi append; extension **chưa gửi**. Chi tiết: [Backlog sau SR-2](#backlog-sau-sr-2-không-block-sr-3). UI xem ảnh nháp dự kiến SR-4.
 
 ---
 
@@ -289,25 +289,36 @@ Quyền: giống dry-run (admin trước; mở employee khi pilot ổn).
 10. [ ] SR-5, SR-6 sau
 ```
 
-### Tiến độ chi tiết (cập nhật 2026-07-03)
+### Tiến độ chi tiết (cập nhật 2026-07-06)
 
 | Lô | Nội dung | Trạng thái |
 |----|----------|------------|
 | Backend 2.8 | Externalize events (>300 / >4MB / >15 phút) | ✅ |
 | Backend 2.9 | Pause / resume API | ✅ |
-| Backend 2.10 | Screenshot/DOM artifact khi append | ✅ |
+| Backend 2.10 | Screenshot/DOM artifact khi append | ✅ backend — ⏸ extension: [BL-2](#backlog-sau-sr-2-không-block-sr-3) |
 | Ext 6.1–6.3 | Scaffold MV3, capture DOM, payload schema | ✅ |
 | Ext 6.4–6.6 | Popup config, start/stop, batch events + CSRF | ✅ (commit `c379448`) |
 | Ext 6.7–6.8 | Pause/resume extension, auth errors, smoke test README | ✅ (commit `ce360a9`) |
-| SR-2 | Locator scoring (`locatorScoring.js`) + `role` trong Playwright engine | ✅ code xong, **chưa commit** |
-| SR-3 | Intent blocks | ❌ chưa làm |
+| SR-2 | Locator scoring + `role` trong engine + draft `value` + form nhập tay | ✅ (commit `a39aded` + hoàn thiện 2026-07-06) |
+| SR-3 | Intent blocks | ❌ chưa làm — **TIẾP THEO** |
 | SR-4 | Merge/preview API + UI review/Lưu | ❌ chưa làm |
 
-**SR-2 ghi chú:** `chosenLocatorIndex` luôn chọn điểm cao nhất lúc build draft — tester đổi lại ở SR-4 (chưa có UI). Form nhập tay (`AutomationConfigPanel.tsx`) **chưa** thêm option `role` vào dropdown targetType (chỉ engine + recording backend đã hỗ trợ) — cần quyết định UX riêng vì action `click` hiện không hiển thị ô `value` (role cần `value` = tên hiển thị).
+**SR-2 đã xong:** Bảng điểm locator; Playwright `getByRole(role, { name: value })`; pipeline ghi gán `value` = tên hiển thị khi chọn role (click/hover/assert…); bước `type` **không** dùng role (tránh trùng ô value với nội dung gõ); form nhập tay có loại **Role (ARIA)** + ô tên hiển thị; helper `applyChosenLocatorToStepFields` cho merge SR-4.
 
-**Đích pilot hiện tại:** SR-1.0 extension ghi → nháp trên server (`ready_for_review`) — chưa có UI TCM review/Lưu.
+**Đích pilot hiện tại:** SR-1.0 extension ghi → nháp trên server (`ready_for_review`) — chưa có UI TCM review/Lưu (SR-4).
 
 Mỗi bước: `cd backend && npm test` — case cũ vẫn import/chạy được.
+
+### Backlog sau SR-2 (không block SR-3)
+
+> Hai hạng mục dưới **không** thuộc phạm vi SR-2 đã đóng. Có thể làm song song SR-3 hoặc trước SR-4 tùy ưu tiên.
+
+| ID | Hạng mục | Trạng thái | Ghi chú kỹ thuật | Làm khi nào gợi ý |
+|----|----------|------------|------------------|-------------------|
+| **BL-1** | **XPath locator (điểm 30)** | ⏸ Chưa implement | Enum `xpath` có trong `recordingConfig` / `LocatorCandidate`; **chưa** sinh candidate (`locatorScoring.js`), **chưa** có `targetType` trên `AutomationStep` / engine. Hiện fallback = **CSS** (`selector` từ extension). | Pilot thấy CSS/role vẫn hay vỡ và cần “phương án cuối” |
+| **BL-2** | **Screenshot + DOM từ extension** | ⏸ Nửa xong (backend ✅) | API `append` nhận `screenshotBase64`, `domHtml` → `uploads/recording/{sessionId}/steps|dom/`; `draftSteps[].screenshotKey` đã có. Extension **chưa** gửi (`buildRecordedEvent` không attach). `recording-extension/README.md` mục *Not yet*. | Trước / song song **SR-4** (UI review ảnh nháp); SR-3 so DOM **tùy chọn**, dễ hơn nếu BL-2 xong |
+
+**Không ảnh hưởng:** SR-3 intent blocks; merge `automation.steps` (SR-4) không bắt buộc ảnh hay xpath.
 
 ---
 
@@ -393,3 +404,5 @@ intentBlocks: [{ blockId, label, draftStepIds }]         // SR-3+
 | 2026-06-29 | Khởi tạo SR-0→SR-6; schema; P7–P10 stability tạm hoãn |
 | 2026-06-29 | Viết lại dễ hiểu + ví dụ; thêm semantic layer, điểm locator, ngưỡng tách DB, replay preview, intent block; **không** thêm self-healing lúc chạy |
 | 2026-07-02 | Đánh dấu tiến độ mục 7: backend recording + extension pilot 6.1–6.8 xong; SR-2 là bước tiếp theo |
+| 2026-07-06 | Hoàn thiện SR-2: role display name trong draft + form nhập tay; sẵn sàng SR-3 |
+| 2026-07-06 | Thêm backlog BL-1 (XPath) + BL-2 (screenshot extension) — tạm hoãn, không block SR-3 |

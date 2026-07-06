@@ -1,5 +1,5 @@
 const crypto = require('crypto');
-const { buildLocatorCandidates, chooseBestLocator } = require('./locatorScoring');
+const { buildLocatorCandidates, applyChosenLocatorToStepFields } = require('./locatorScoring');
 
 const DOUBLE_CLICK_WINDOW_MS = 500;
 const TYPING_MERGE_TYPES = new Set(['input', 'keypress', 'change']);
@@ -192,19 +192,30 @@ const buildSemanticAction = (event) => {
 };
 
 const buildDraftStepFromEvent = (event, order, semanticAction) => {
+  const inferredAction = mapEventToAction(event.rawType);
   const locatorCandidates = buildLocatorCandidates(event.payload);
-  const { targetType, target } = chooseBestLocator(locatorCandidates);
+  const {
+    targetType,
+    target,
+    value,
+    chosenLocatorIndex,
+  } = applyChosenLocatorToStepFields({
+    inferredAction,
+    value: readStepValue(event),
+    locatorCandidates,
+    chosenLocatorIndex: 0,
+  });
 
   return {
     draftStepId: crypto.randomUUID(),
     order,
-    inferredAction: mapEventToAction(event.rawType),
+    inferredAction,
     targetType,
     target,
-    value: readStepValue(event),
+    value,
     expected: '',
     locatorCandidates,
-    chosenLocatorIndex: 0,
+    chosenLocatorIndex,
     reviewStatus: 'pending',
     screenshotKey: readScreenshotKey(event.payload),
     autoWaitSuggestion: '',

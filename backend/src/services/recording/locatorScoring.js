@@ -55,20 +55,92 @@ const buildLocatorCandidates = (payload = {}) => {
 };
 
 /**
+ * Actions where step.value carries step content (typed text, file path, key…)
+ * and cannot also hold the ARIA accessible name for targetType=role.
+ */
+const ACTIONS_ROLE_CONFLICTS_VALUE = new Set(['type', 'select', 'upload', 'press', 'dragto']);
+
+const filterCandidatesForAction = (candidates, action) => {
+  const normalizedAction = toString(action).toLowerCase();
+  if (!ACTIONS_ROLE_CONFLICTS_VALUE.has(normalizedAction)) {
+    return candidates;
+  }
+  return candidates.filter((candidate) => candidate.strategy !== 'role');
+};
+
+/**
  * Default locator = highest-scoring candidate. Tester can pick another
  * candidate at review time (SR-4) — this never changes automatically at runtime.
  * @param {ReturnType<typeof buildLocatorCandidates>} candidates
+ * @param {{ chosenLocatorIndex?: number, action?: string }} [options]
  */
-const chooseBestLocator = (candidates = []) => {
-  const best = candidates[0];
-  if (!best) {
-    return { targetType: 'css', target: '' };
+const resolveChosenLocator = (candidates = [], { chosenLocatorIndex = 0, action = '' } = {}) => {
+  const filtered = filterCandidatesForAction(candidates, action);
+  if (!filtered.length) {
+    return {
+      targetType: 'css',
+      target: '',
+      locatorDisplayName: '',
+      chosenLocatorIndex: 0,
+    };
   }
-  return { targetType: best.strategy, target: best.value };
+
+  const requested = Number.isInteger(chosenLocatorIndex) ? chosenLocatorIndex : 0;
+  const requestedCandidate = candidates[requested];
+  const chosen = requestedCandidate && filtered.includes(requestedCandidate)
+    ? requestedCandidate
+    : filtered[0];
+  const resolvedIndex = Math.max(0, candidates.indexOf(chosen));
+
+  if (chosen.strategy === 'role') {
+    return {
+      targetType: 'role',
+      target: chosen.value,
+      locatorDisplayName: toString(chosen.roleName),
+      chosenLocatorIndex: resolvedIndex,
+    };
+  }
+
+  return {
+    targetType: chosen.strategy,
+    target: chosen.value,
+    locatorDisplayName: '',
+    chosenLocatorIndex: resolvedIndex,
+  };
+};
+
+/**
+ * Build targetType/target/value for an automation step from a draft step + chosen locator.
+ * @param {{ inferredAction?: string, value?: string, locatorCandidates?: object[], chosenLocatorIndex?: number }} draftStep
+ */
+const applyChosenLocatorToStepFields = (draftStep = {}) => {
+  const action = toString(draftStep.inferredAction);
+  const contentValue = toString(draftStep.value);
+  const resolved = resolveChosenLocator(draftStep.locatorCandidates || [], {
+    chosenLocatorIndex: draftStep.chosenLocatorIndex,
+    action,
+  });
+
+  if (resolved.targetType === 'role') {
+    return {
+      targetType: resolved.targetType,
+      target: resolved.target,
+      value: resolved.locatorDisplayName,
+      chosenLocatorIndex: resolved.chosenLocatorIndex,
+    };
+  }
+
+  return {
+    targetType: resolved.targetType,
+    target: resolved.target,
+    value: contentValue,
+    chosenLocatorIndex: resolved.chosenLocatorIndex,
+  };
 };
 
 module.exports = {
   LOCATOR_SCORES,
+  applyChosenLocatorToStepFields,
   buildLocatorCandidates,
-  chooseBestLocator,
+  resolveChosenLocator,
 };

@@ -48,10 +48,39 @@ export const TARGET_TYPE_LABELS: Record<string, string> = {
   text: "Text",
   label: "Label",
   testid: "data-testid",
+  role: "Role (ARIA)",
   url: "URL",
 };
 
-export function getValueFieldLabel(action: string): string {
+/** Bước type/select/upload… dùng value cho nội dung — không dùng targetType=role */
+export const ROLE_INCOMPATIBLE_ACTIONS = new Set([
+  "type",
+  "select",
+  "upload",
+  "press",
+  "dragTo",
+]);
+
+export function roleTargetTypeNeedsDisplayName(action: string, targetType: string): boolean {
+  const normalizedAction = String(action || "").trim();
+  return (
+    String(targetType || "").trim().toLowerCase() === "role"
+    && !ROLE_INCOMPATIBLE_ACTIONS.has(normalizedAction)
+  );
+}
+
+export function getTargetFieldLabel(action: string, targetType: string): string {
+  if (String(targetType || "").trim().toLowerCase() === "role") {
+    return "ARIA role";
+  }
+  if (action === "dragTo") return "Phần tử nguồn";
+  return "Selector / text";
+}
+
+export function getValueFieldLabel(action: string, targetType = ""): string {
+  if (roleTargetTypeNeedsDisplayName(action, targetType)) {
+    return "Tên hiển thị (accessible name)";
+  }
   const meta = ACTION_META[action];
   if (meta?.valueLabel) return meta.valueLabel;
   switch (action) {
@@ -173,8 +202,8 @@ export const ACTION_META: Record<string, ActionMeta> = {
     label: "Nhấn phần tử",
     description: "Click nút, link, ...",
     needsTarget: true, needsValue: false, needsExpected: false,
-    targetTypes: ["css", "id", "text", "label", "testid"],
-    targetPlaceholder: "#submit · Đăng nhập (text)",
+    targetTypes: ["css", "id", "text", "label", "testid", "role"],
+    targetPlaceholder: "#submit · Đăng nhập (text) · button (role)",
     valuePlaceholder: "",
     expectedPlaceholder: "",
   },
@@ -209,8 +238,8 @@ export const ACTION_META: Record<string, ActionMeta> = {
     label: "Chờ phần tử",
     description: "Chờ phần tử hiện ra trước bước tiếp theo",
     needsTarget: true, needsValue: false, needsExpected: false,
-    targetTypes: ["css", "id", "text", "testid"],
-    targetPlaceholder: "#loading · Đang tải (text)",
+    targetTypes: ["css", "id", "text", "testid", "role"],
+    targetPlaceholder: "#loading · Đang tải (text) · textbox (role)",
     valuePlaceholder: "",
     expectedPlaceholder: "",
   },
@@ -218,7 +247,7 @@ export const ACTION_META: Record<string, ActionMeta> = {
     label: "Kiểm tra text",
     description: "Phần tử (hoặc cả trang) chứa chuỗi mong đợi",
     needsTarget: false, optionalTarget: true, needsValue: false, needsExpected: true,
-    targetTypes: ["css", "id", "text", "testid", "label"],
+    targetTypes: ["css", "id", "text", "testid", "label", "role"],
     targetPlaceholder: "#toast · .message (trống = cả trang)",
     valuePlaceholder: "",
     expectedPlaceholder: "Đăng nhập thành công",
@@ -227,7 +256,7 @@ export const ACTION_META: Record<string, ActionMeta> = {
     label: "Kiểm tra hiển thị",
     description: "Phần tử đang visible",
     needsTarget: true, needsValue: false, needsExpected: false,
-    targetTypes: ["css", "id", "text", "testid"],
+    targetTypes: ["css", "id", "text", "testid", "role"],
     targetPlaceholder: "#dashboard · Chào mừng (text)",
     valuePlaceholder: "",
     expectedPlaceholder: "",
@@ -254,7 +283,7 @@ export const ACTION_META: Record<string, ActionMeta> = {
     label: "Kiểm tra ẩn",
     description: "Phần tử không hiển thị",
     needsTarget: true, needsValue: false, needsExpected: false,
-    targetTypes: ["css", "id", "testid"],
+    targetTypes: ["css", "id", "testid", "role"],
     targetPlaceholder: "#error-message",
     valuePlaceholder: "",
     expectedPlaceholder: "",
@@ -263,7 +292,7 @@ export const ACTION_META: Record<string, ActionMeta> = {
     label: "Kiểm tra enabled",
     description: "Nút/input không bị disabled",
     needsTarget: true, needsValue: false, needsExpected: false,
-    targetTypes: ["css", "id", "testid"],
+    targetTypes: ["css", "id", "testid", "role"],
     targetPlaceholder: "#submit-btn",
     valuePlaceholder: "",
     expectedPlaceholder: "",
@@ -272,7 +301,7 @@ export const ACTION_META: Record<string, ActionMeta> = {
     label: "Kiểm tra checked",
     description: "Checkbox/radio đang được chọn",
     needsTarget: true, needsValue: false, needsExpected: false,
-    targetTypes: ["css", "id", "testid", "label"],
+    targetTypes: ["css", "id", "testid", "label", "role"],
     targetPlaceholder: "#agree · Đồng ý (label)",
     valuePlaceholder: "",
     expectedPlaceholder: "",
@@ -281,7 +310,7 @@ export const ACTION_META: Record<string, ActionMeta> = {
     label: "Hover",
     description: "Di chuột để mở menu/tooltip",
     needsTarget: true, needsValue: false, needsExpected: false,
-    targetTypes: ["css", "id", "text", "testid"],
+    targetTypes: ["css", "id", "text", "testid", "role"],
     targetPlaceholder: "#avatar · Tài khoản (text)",
     valuePlaceholder: "",
     expectedPlaceholder: "",
@@ -317,7 +346,7 @@ export const ACTION_META: Record<string, ActionMeta> = {
   },
 };
 
-export const ALL_TARGET_TYPES = ["css", "id", "placeholder", "text", "label", "testid", "url"] as const;
+export const ALL_TARGET_TYPES = ["css", "id", "placeholder", "text", "label", "testid", "role", "url"] as const;
 
 export const DEFAULT_AUTOMATION_STEP = (): AutomationStep => ({
   stepId: String(Date.now()),

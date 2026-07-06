@@ -7,7 +7,9 @@ import {
   ALL_TARGET_TYPES,
   GOTO_WAIT_UNTIL_OPTIONS,
   TARGET_TYPE_LABELS,
+  getTargetFieldLabel,
   getValueFieldLabel,
+  roleTargetTypeNeedsDisplayName,
 } from "@/lib/automationStepMeta";
 import type { AutomationForm, AutomationStep } from "@/lib/automationStepMeta";
 import { WORKBENCH_HINT_CLS, WORKBENCH_INPUT_CLS, WORKBENCH_LABEL_CLS, WORKBENCH_META_CLS, WORKBENCH_SELECT_CLS, WorkbenchField, WorkbenchSection } from "@/components/workspaceScreens/shared";
@@ -347,11 +349,17 @@ function AutomationStepRow({
   const showSelectorGroup =
     !isWaitStep && (meta.needsTarget || Boolean(meta.optionalTarget));
   const selectorRequired = meta.needsTarget;
-  const showValue = !isWaitStep && meta.needsValue;
+  const usesRoleDisplayName = roleTargetTypeNeedsDisplayName(step.action, step.targetType);
+  const showValue = !isWaitStep && (meta.needsValue || usesRoleDisplayName);
   const showExpected = !isWaitStep && meta.needsExpected;
-  const valueLabel = getValueFieldLabel(step.action);
-  const selectorLabel =
-    step.action === "dragTo" ? "Phần tử nguồn" : "Selector / text";
+  const valueLabel = getValueFieldLabel(step.action, step.targetType);
+  const selectorLabel = getTargetFieldLabel(step.action, step.targetType);
+  const targetPlaceholder = usesRoleDisplayName
+    ? "button · link · textbox"
+    : meta.targetPlaceholder;
+  const valuePlaceholder = usesRoleDisplayName
+    ? "Đăng nhập · Lưu · Email"
+    : meta.valuePlaceholder;
 
   const timeoutOnSelector = showSelectorGroup;
   const timeoutOnValue = !showSelectorGroup && showValue;
@@ -447,7 +455,7 @@ function AutomationStepRow({
                 <input
                   value={step.target}
                   onChange={(e) => onUpdate(index, "target", e.target.value)}
-                  placeholder={meta.targetPlaceholder}
+                  placeholder={targetPlaceholder}
                   className={FIELD_FULL}
                 />
               </div>
@@ -463,11 +471,11 @@ function AutomationStepRow({
             <>
               <div aria-hidden />
               <div className="min-w-0">
-                <StepFieldLabel>{valueLabel} *</StepFieldLabel>
+                <StepFieldLabel>{valueLabel}{usesRoleDisplayName || meta.needsValue ? " *" : ""}</StepFieldLabel>
                 <input
                   value={step.value}
                   onChange={(e) => onUpdate(index, "value", e.target.value)}
-                  placeholder={meta.valuePlaceholder}
+                  placeholder={valuePlaceholder}
                   className={FIELD_FULL}
                 />
               </div>

@@ -21,13 +21,20 @@ export type GuideErrorRow = {
 };
 
 export const SELECTOR_PRIORITY_COPY = `1. data-testid (nếu dev đã gắn)
-2. ID hoặc CSS #id
-3. Label (ô input có nhãn)
-4. Placeholder (chỉ bước type)
-5. Text (click — button hoặc link, một nút trên trang)
-6. CSS (mẫu bên dưới hoặc F12 Copy selector)`;
+2. Role + tên hiển thị (nút "Đăng nhập" → role=button, tên=Đăng nhập)
+3. ID hoặc CSS #id
+4. Label (ô input có nhãn)
+5. Placeholder (chỉ bước type)
+6. Text (click — button hoặc link, một nút trên trang)
+7. CSS (mẫu bên dưới hoặc F12 Copy selector)`;
 
 export const SELECTOR_CHOICE_ROWS: GuideCopyRow[] = [
+  {
+    situation: "Bấm nút có nhãn hiển thị (Playwright getByRole)",
+    type: "Role (ARIA)",
+    fill: "role=button, tên=Đăng nhập",
+    copy: "button",
+  },
   {
     situation: "Gõ vào ô có nhãn Email",
     type: "Label",

@@ -36,8 +36,9 @@ const {
 } = require('../src/services/recording/recordingEventArtifacts');
 const {
   LOCATOR_SCORES,
+  applyChosenLocatorToStepFields,
   buildLocatorCandidates,
-  chooseBestLocator,
+  resolveChosenLocator,
 } = require('../src/services/recording/locatorScoring');
 const { appendRecordingEventsBodySchema } = require('../src/validators/recordingSchemas');
 
@@ -303,20 +304,127 @@ test('buildLocatorCandidates scores and ranks candidates per roadmap table (SR-2
 test('buildLocatorCandidates skips role when roleName is missing and falls back lower', () => {
   const candidates = buildLocatorCandidates({ role: 'button', id: 'loginBtn' });
   assert.equal(candidates.some((c) => c.strategy === 'role'), false);
-  assert.equal(chooseBestLocator(candidates).targetType, 'id');
+  assert.equal(resolveChosenLocator(candidates).targetType, 'id');
 });
 
-test('chooseBestLocator falls back to empty css target when no candidate matches', () => {
-  assert.deepEqual(chooseBestLocator([]), { targetType: 'css', target: '' });
+test('resolveChosenLocator falls back to empty css target when no candidate matches', () => {
+  assert.deepEqual(resolveChosenLocator([]), {
+    targetType: 'css',
+    target: '',
+    locatorDisplayName: '',
+    chosenLocatorIndex: 0,
+  });
 });
 
-test('chooseBestLocator prefers role over id per score table', () => {
+test('resolveChosenLocator prefers role over id per score table', () => {
   const candidates = buildLocatorCandidates({
     role: 'button',
     roleName: 'Lưu',
     id: 'save-btn',
   });
-  assert.deepEqual(chooseBestLocator(candidates), { targetType: 'role', target: 'button' });
+  assert.deepEqual(resolveChosenLocator(candidates, { action: 'click' }), {
+    targetType: 'role',
+    target: 'button',
+    locatorDisplayName: 'Lưu',
+    chosenLocatorIndex: 0,
+  });
+});
+
+test('resolveChosenLocator maps role display name for click actions', () => {
+  const candidates = buildLocatorCandidates({
+    role: 'button',
+    roleName: 'Đăng nhập',
+    id: 'loginBtn',
+  });
+
+  assert.deepEqual(resolveChosenLocator(candidates, { action: 'click' }), {
+    targetType: 'role',
+    target: 'button',
+    locatorDisplayName: 'Đăng nhập',
+    chosenLocatorIndex: 0,
+  });
+});
+
+test('resolveChosenLocator drops role for type steps because value carries typed text', () => {
+  const candidates = buildLocatorCandidates({
+    role: 'textbox',
+    roleName: 'Email',
+    label: 'Email',
+    id: 'email',
+  });
+
+  assert.equal(
+    resolveChosenLocator(candidates, { action: 'type' }).targetType,
+    'id',
+  );
+});
+
+test('processRecordingEvents sets role display name on value for click draft steps', () => {
+  const result = processRecordingEvents({
+    baseUrl: 'https://demo.example.com',
+    events: [
+      baseEvent({
+        sequence: 0,
+        rawType: 'click',
+        payload: {
+          role: 'button',
+          roleName: 'Đăng nhập',
+          id: 'loginBtn',
+        },
+      }),
+    ],
+  });
+
+  const clickStep = result.draftSteps.find((step) => step.inferredAction === 'click');
+  assert.equal(clickStep.targetType, 'role');
+  assert.equal(clickStep.target, 'button');
+  assert.equal(clickStep.value, 'Đăng nhập');
+});
+
+test('processRecordingEvents keeps typed text as value when action is type', () => {
+  const result = processRecordingEvents({
+    baseUrl: 'https://demo.example.com',
+    events: [
+      baseEvent({
+        sequence: 0,
+        rawType: 'input',
+        payload: {
+          role: 'textbox',
+          roleName: 'Email',
+          label: 'Email',
+          value: 'admin@test.com',
+        },
+      }),
+    ],
+  });
+
+  const typeStep = result.draftSteps.find((step) => step.inferredAction === 'type');
+  assert.equal(typeStep.targetType, 'label');
+  assert.equal(typeStep.value, 'admin@test.com');
+});
+
+test('applyChosenLocatorToStepFields maps role candidate for future merge API', () => {
+  const candidates = buildLocatorCandidates({
+    testid: 'save-btn',
+    role: 'button',
+    roleName: 'Lưu',
+    id: 'save',
+  });
+
+  assert.deepEqual(
+    applyChosenLocatorToStepFields({
+      inferredAction: 'click',
+      value: '',
+      locatorCandidates: candidates,
+      chosenLocatorIndex: 1,
+    }),
+    {
+      targetType: 'role',
+      target: 'button',
+      value: 'Lưu',
+      chosenLocatorIndex: 1,
+    },
+  );
 });
 
 test('shouldExternalizeSession triggers when embedded event count exceeds threshold', () => {
