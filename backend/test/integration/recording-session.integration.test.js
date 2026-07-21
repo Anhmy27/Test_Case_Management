@@ -473,3 +473,223 @@ test('recording session flow does not change saved test case automation steps', 
     assert.equal(caseAfter.body.testCase.automation.steps[0].action, firstAction);
   });
 });
+
+test('SR-4.1 merge writes draft steps into a new test case version', async () => {
+  await withIntegrationHarness(async (harness) => {
+    const { seedAutomationExecutionFixture } = require('../helpers/executionFixtures');
+    const fixture = await seedAutomationExecutionFixture(harness);
+
+    const caseBefore = await fixture.adminClient.get(
+      `/api/test-cases/${fixture.ids.testCaseId}`,
+      200,
+    );
+    const versionBefore = caseBefore.body.testCase.versionNumber;
+    const stepsBefore = caseBefore.body.testCase.automation.steps.length;
+
+    const startRes = await fixture.adminClient.post(
+      '/api/recording/sessions',
+      {
+        projectId: fixture.ids.projectId,
+        baseUrl: 'http://localhost:3000/login',
+        testCaseEntityId: fixture.ids.testCaseId,
+      },
+      201,
+    );
+    const sessionId = startRes.body.session.id;
+
+    await fixture.adminClient.post(
+      `/api/recording/sessions/${sessionId}/events`,
+      {
+        events: [
+          {
+            rawType: 'input',
+            pageUrl: 'http://localhost:3000/login',
+            payload: { name: 'username', value: 'admin' },
+          },
+          {
+            rawType: 'click',
+            pageUrl: 'http://localhost:3000/login',
+            payload: { testid: 'login-btn', role: 'button', roleName: 'Đăng nhập' },
+          },
+        ],
+      },
+      200,
+    );
+    await fixture.adminClient.post(`/api/recording/sessions/${sessionId}/stop`, {}, 200);
+
+    const mergeRes = await fixture.adminClient.post(
+      `/api/recording/sessions/${sessionId}/merge`,
+      {},
+      200,
+    );
+
+    assert.equal(mergeRes.body.session.status, 'merged');
+    assert.equal(mergeRes.body.mergedStepsCount, 3);
+    assert.equal(mergeRes.body.testCase.entityId, fixture.ids.testCaseId);
+    assert.ok(mergeRes.body.testCase.versionNumber > versionBefore);
+    assert.equal(mergeRes.body.testCase.automation.enabled, true);
+    assert.equal(mergeRes.body.testCase.automation.steps.length, 3);
+    assert.equal(mergeRes.body.testCase.automation.steps[0].action, 'goto');
+    assert.equal(mergeRes.body.testCase.automation.steps[1].action, 'type');
+    assert.equal(mergeRes.body.testCase.automation.steps[1].value, 'admin');
+    assert.equal(mergeRes.body.testCase.automation.steps[2].targetType, 'testid');
+    assert.equal(mergeRes.body.testCase.automation.steps[2].target, 'login-btn');
+
+    const caseAfter = await fixture.adminClient.get(
+      `/api/test-cases/${fixture.ids.testCaseId}`,
+      200,
+    );
+    assert.equal(caseAfter.body.testCase.versionNumber, mergeRes.body.testCase.versionNumber);
+    assert.equal(caseAfter.body.testCase.automation.steps.length, 3);
+    assert.notEqual(caseAfter.body.testCase.automation.steps.length, stepsBefore);
+  });
+});
+
+test('SR-4.1 merge rejects session that is not ready_for_review', async () => {
+  await withIntegrationHarness(async (harness) => {
+    const admin = await harness.createUser({
+      name: 'Recording Merge Guard Admin',
+      email: 'recording-merge-guard@integration.test',
+      password: 'pass1234',
+      role: 'admin',
+    });
+    const adminClient = harness.createClient();
+    await adminClient.post('/api/auth/login', { email: admin.email, password: 'pass1234' }, 200);
+
+    const projectRes = await adminClient.post(
+      '/api/projects',
+      { name: 'Recording Merge Guard Project', code: 'RMG' },
+      201,
+    );
+    const projectId = projectRes.body.project.entityId || projectRes.body.project.id;
+
+    const startRes = await adminClient.post(
+      '/api/recording/sessions',
+      { projectId, baseUrl: 'http://localhost:3000/login' },
+      201,
+    );
+
+    await adminClient.post(
+      `/api/recording/sessions/${startRes.body.session.id}/merge`,
+      { testCaseId: '507f1f77bcf86cd799439011' },
+      400,
+    );
+  });
+});
+
+test('SR-4.2 patch draft updates value, locator, and reviewStatus before merge', async () => {
+  await withIntegrationHarness(async (harness) => {
+    const { seedAutomationExecutionFixture } = require('../helpers/executionFixtures');
+    const fixture = await seedAutomationExecutionFixture(harness);
+
+    const startRes = await fixture.adminClient.post(
+      '/api/recording/sessions',
+      {
+        projectId: fixture.ids.projectId,
+        baseUrl: 'http://localhost:3000/login',
+        testCaseEntityId: fixture.ids.testCaseId,
+      },
+      201,
+    );
+    const sessionId = startRes.body.session.id;
+
+    await fixture.adminClient.post(
+      `/api/recording/sessions/${sessionId}/events`,
+      {
+        events: [
+          {
+            rawType: 'input',
+            pageUrl: 'http://localhost:3000/login',
+            payload: { name: 'username', value: 'admin' },
+          },
+          {
+            rawType: 'click',
+            pageUrl: 'http://localhost:3000/login',
+            payload: { testid: 'login-btn', role: 'button', roleName: 'Đăng nhập' },
+          },
+        ],
+      },
+      200,
+    );
+    await fixture.adminClient.post(`/api/recording/sessions/${sessionId}/stop`, {}, 200);
+
+    const stopped = await fixture.adminClient.get(`/api/recording/sessions/${sessionId}`, 200);
+    const typeStep = stopped.body.session.draftSteps.find((step) => step.inferredAction === 'type');
+    const clickStep = stopped.body.session.draftSteps.find((step) => step.inferredAction === 'click');
+    assert.ok(typeStep);
+    assert.ok(clickStep);
+    assert.ok(clickStep.locatorCandidates.length >= 2);
+
+    const patchRes = await fixture.adminClient.patch(
+      `/api/recording/sessions/${sessionId}/draft`,
+      {
+        draftSteps: [
+          {
+            draftStepId: typeStep.draftStepId,
+            value: 'patched-admin@example.com',
+          },
+          {
+            draftStepId: clickStep.draftStepId,
+            chosenLocatorIndex: 1,
+          },
+        ],
+      },
+      200,
+    );
+
+    const patchedType = patchRes.body.session.draftSteps.find(
+      (step) => step.draftStepId === typeStep.draftStepId,
+    );
+    const patchedClick = patchRes.body.session.draftSteps.find(
+      (step) => step.draftStepId === clickStep.draftStepId,
+    );
+    assert.equal(patchedType.value, 'patched-admin@example.com');
+    assert.equal(patchedType.reviewStatus, 'edited');
+    assert.equal(patchedClick.chosenLocatorIndex, 1);
+    assert.equal(patchedClick.reviewStatus, 'edited');
+
+    const mergeRes = await fixture.adminClient.post(
+      `/api/recording/sessions/${sessionId}/merge`,
+      {},
+      200,
+    );
+
+    assert.equal(mergeRes.body.mergedStepsCount, 3);
+    assert.equal(mergeRes.body.testCase.automation.steps[1].value, 'patched-admin@example.com');
+    assert.equal(mergeRes.body.testCase.automation.steps[2].targetType, 'role');
+    assert.equal(mergeRes.body.testCase.automation.steps[2].target, 'button');
+    assert.equal(mergeRes.body.testCase.automation.steps[2].value, 'Đăng nhập');
+  });
+});
+
+test('SR-4.2 patch draft rejects session that is not ready_for_review', async () => {
+  await withIntegrationHarness(async (harness) => {
+    const admin = await harness.createUser({
+      name: 'Recording Patch Guard Admin',
+      email: 'recording-patch-guard@integration.test',
+      password: 'pass1234',
+      role: 'admin',
+    });
+    const adminClient = harness.createClient();
+    await adminClient.post('/api/auth/login', { email: admin.email, password: 'pass1234' }, 200);
+
+    const projectRes = await adminClient.post(
+      '/api/projects',
+      { name: 'Recording Patch Guard Project', code: 'RPG' },
+      201,
+    );
+    const projectId = projectRes.body.project.entityId || projectRes.body.project.id;
+
+    const startRes = await adminClient.post(
+      '/api/recording/sessions',
+      { projectId, baseUrl: 'http://localhost:3000/login' },
+      201,
+    );
+
+    await adminClient.patch(
+      `/api/recording/sessions/${startRes.body.session.id}/draft`,
+      { draftSteps: [{ draftStepId: 'missing', value: 'x' }] },
+      400,
+    );
+  });
+});

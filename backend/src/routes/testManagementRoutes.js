@@ -82,6 +82,8 @@ const {
   stopRecordingSession,
   getRecordingSession,
   discardRecordingSession,
+  patchRecordingDraft,
+  mergeRecordingSession,
 } = require('../controllers/recordingController');
 const { authenticate, authenticateAutomationIngest, authorize } = require('../middlewares/authMiddleware');
 const { httpError } = require('../utils/httpError');
@@ -142,6 +144,8 @@ const {
   startRecordingSessionBodySchema,
   appendRecordingEventsBodySchema,
   discardRecordingSessionBodySchema,
+  mergeRecordingSessionBodySchema,
+  patchRecordingDraftBodySchema,
 } = require('../validators/recordingSchemas');
 
 const router = express.Router();
@@ -266,6 +270,8 @@ router.post('/recording/sessions/:sessionId/pause', authorize('admin'), validate
 router.post('/recording/sessions/:sessionId/resume', authorize('admin'), validateRequest({ paramsSchema: recordingSessionIdParamsSchema }), resumeRecordingSession);
 router.post('/recording/sessions/:sessionId/stop', authorize('admin'), validateRequest({ paramsSchema: recordingSessionIdParamsSchema }), stopRecordingSession);
 router.post('/recording/sessions/:sessionId/discard', authorize('admin'), validateRequest({ paramsSchema: recordingSessionIdParamsSchema, bodySchema: discardRecordingSessionBodySchema }), discardRecordingSession);
+router.patch('/recording/sessions/:sessionId/draft', authorize('admin'), validateRequest({ paramsSchema: recordingSessionIdParamsSchema, bodySchema: patchRecordingDraftBodySchema }), patchRecordingDraft);
+router.post('/recording/sessions/:sessionId/merge', authorize('admin'), validateRequest({ paramsSchema: recordingSessionIdParamsSchema, bodySchema: mergeRecordingSessionBodySchema }), mergeRecordingSession);
 
 router.get('/dashboard', authorize('admin'), validateRequest({ querySchema: dashboardQuerySchema }), getDashboard);
 

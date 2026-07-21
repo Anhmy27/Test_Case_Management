@@ -9,6 +9,8 @@ const {
   getRecordingSessionService,
   discardRecordingSessionService,
 } = require('../services/recording/recordingSessionService');
+const { mergeRecordingSessionService } = require('../services/recording/recordingMergeService');
+const { patchRecordingDraftService } = require('../services/recording/recordingDraftPatchService');
 
 const startRecordingSession = asyncHandler(async (req, res) => {
   const session = await startRecordingSessionService({
@@ -113,6 +115,63 @@ const discardRecordingSession = asyncHandler(async (req, res) => {
   res.json({ session });
 });
 
+const patchRecordingDraft = asyncHandler(async (req, res) => {
+  const session = await patchRecordingDraftService({
+    sessionId: req.params.sessionId,
+    draftSteps: req.body.draftSteps,
+    user: req.user,
+  });
+
+  await auditFromRequest(req, {
+    action: 'recording.patch_draft',
+    resourceType: 'recording_session',
+    resourceId: session.id,
+    projectId: session.projectId,
+    metadata: { patchedStepCount: req.body.draftSteps.length },
+  });
+
+  res.json({ session });
+});
+
+const mergeRecordingSession = asyncHandler(async (req, res) => {
+  const result = await mergeRecordingSessionService({
+    sessionId: req.params.sessionId,
+    testCaseId: req.body?.testCaseId,
+    user: req.user,
+  });
+
+  await auditFromRequest(req, {
+    action: 'recording.merge',
+    resourceType: 'recording_session',
+    resourceId: String(result.session._id),
+    projectId: String(result.session.project),
+    metadata: {
+      testCaseEntityId: result.session.mergedTestCaseEntityId,
+      testCaseVersionId: String(result.session.mergedTestCaseVersionId),
+      mergedStepsCount: result.mergedStepsCount,
+    },
+  });
+
+  res.json({
+    session: {
+      id: String(result.session._id),
+      status: result.session.status,
+      mergedAt: result.session.mergedAt,
+      mergedTestCaseEntityId: result.session.mergedTestCaseEntityId,
+      mergedTestCaseVersionId: String(result.session.mergedTestCaseVersionId),
+      draftSteps: result.session.draftSteps || [],
+      intentBlocks: result.session.intentBlocks || [],
+    },
+    testCase: {
+      id: String(result.testCase._id),
+      entityId: String(result.testCase.entityId || result.testCase._id),
+      versionNumber: result.testCase.versionNumber,
+      automation: result.testCase.automation,
+    },
+    mergedStepsCount: result.mergedStepsCount,
+  });
+});
+
 module.exports = {
   startRecordingSession,
   appendRecordingEvents,
@@ -121,4 +180,6 @@ module.exports = {
   stopRecordingSession,
   getRecordingSession,
   discardRecordingSession,
+  patchRecordingDraft,
+  mergeRecordingSession,
 };

@@ -185,6 +185,7 @@ const stopRecordingSessionService = async ({ sessionId, user }) => {
   await replaceSessionEvents(session, processed.events);
   session.semanticActions = processed.semanticActions;
   session.draftSteps = processed.draftSteps;
+  session.intentBlocks = processed.intentBlocks;
   session.status = 'ready_for_review';
   await session.save();
 
@@ -222,4 +223,6 @@ module.exports = {
   stopRecordingSessionService,
   getRecordingSessionService,
   discardRecordingSessionService,
+  getRecordingSessionForUser,
+  serializeRecordingSession,
 };
