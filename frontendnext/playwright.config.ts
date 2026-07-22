@@ -36,18 +36,20 @@ export default defineConfig({
       env: {
         E2E_PORT: String(backendPort),
         PORT: String(backendPort),
+        CORS_ORIGIN: frontendBase,
         AUTH_LOGIN_ATTEMPT_LIMIT_MAX_PER_EMAIL: "10000",
         AUTH_LOGIN_ATTEMPT_LIMIT_MAX_PER_IP: "10000",
       },
     },
     {
-      command: "npm run dev",
+      command: `NEXT_DIST_DIR=.next-e2e next dev -p ${frontendPort}`,
       url: frontendBase,
       reuseExistingServer: !process.env.CI,
       timeout: 180_000,
       env: {
         NEXT_PUBLIC_API_BASE: backendBase,
         PORT: String(frontendPort),
+        NEXT_DIST_DIR: ".next-e2e",
       },
     },
   ],

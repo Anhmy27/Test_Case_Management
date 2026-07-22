@@ -110,7 +110,16 @@ const dryRunAutomationService = async ({
   let browser;
 
   try {
-    browser = await chromium.launch({ headless: true });
+    try {
+      browser = await chromium.launch({ headless: true });
+    } catch (error) {
+      throw httpError(
+        503,
+        error?.message?.includes('Executable doesn\'t exist')
+          ? 'Playwright browser is not installed. Run npx playwright install in backend before executing automation.'
+          : (error?.message || 'Playwright browser failed to launch'),
+      );
+    }
 
     const authContext = await authManager.createContext({
       browser,

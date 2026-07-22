@@ -3,7 +3,7 @@
 > **Mục đích:** Mỗi lần AI làm một phần việc, đọc file này để **làm xong thật** — không bỏ dở, không lệch số, không để rác.  
 > **Đọc kèm:** `.ai/MASTER-PROFILE.md` (bản đầy đủ thói quen & domain).
 
-**Cập nhật:** 2026-06-29
+**Cập nhật:** 2026-07-22
 
 ---
 
@@ -139,8 +139,18 @@ AI **tự chạy**, không chỉ hướng dẫn user — trừ khi cần xác nh
 | SR schema | Model lưu/đọc được | `recording-unit.test.js` |
 | Artifact path | File đúng `uploads/recording/{sessionId}/...` | `recording-unit.test.js` |
 | API phiên ghi | start → events → stop → get | `recording-session.integration.test.js` |
-| SR-1 pipeline | Lọc rác, gom gõ, semantic | Unit test pipeline (sắp tới) |
-| SR-4 merge | Nháp → `automation.steps` version mới | Integration + không đổi run cũ |
+| SR-1 pipeline | Lọc rác, gom gõ, semantic, draft | `recording-unit.test.js` + integration stop |
+| SR-2 locator | Scoring + role + merge mapping | `recording-unit.test.js` |
+| SR-3.1 intent blocks | `intentBlocks[]` sau stop | `recording-sr3.test.js` |
+| SR-3.2 auto-wait | `autoWaitSuggestion` trên draft | `recording-sr3.test.js` |
+| SR-4.1 merge | Nháp → `automation.steps` version mới | `recording-sr4.test.js` + integration |
+| SR-4.2 patch draft | PATCH draft trên `ready_for_review` | `recording-sr4-patch.test.js` + integration |
+| SR-4.3 preview | Dry-run từ session (chưa merge) | `recording-sr4-preview.test.js` + integration |
+| SR-4.4 UI review | Read-only draft + intent blocks trên admin | `e2e/admin-recording-review.spec.ts` |
+
+**Chạy gói recording:** `cd backend && node --test test/recording-unit.test.js test/recording-sr3.test.js test/recording-sr4.test.js test/recording-sr4-patch.test.js test/recording-sr4-preview.test.js test/integration/recording-session.integration.test.js --test-concurrency=1`
+
+**Thứ tự pilot (user):** SR-4.3→4.6 → BL-2 → SR-3.3 → BL-1 — xem `AUTOMATION_SMART_RECORD_ROADMAP.md`.
 
 ---
 

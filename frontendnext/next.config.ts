@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Allow a second `next dev` for Playwright (see playwright.config.ts).
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   experimental: {
     externalDir: true,
   },

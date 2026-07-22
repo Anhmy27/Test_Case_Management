@@ -2,6 +2,16 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { withIntegrationHarness } = require('../helpers/integrationHarness');
 
+function withStubbedDryRunAutomation(stubFn, runTest) {
+  const dryRunService = require('../../src/services/automation/dryRunService');
+  const originalDryRun = dryRunService.dryRunAutomationService;
+  dryRunService.dryRunAutomationService = stubFn;
+
+  return runTest().finally(() => {
+    dryRunService.dryRunAutomationService = originalDryRun;
+  });
+}
+
 function entityId(entity) {
   return String(entity?.id || entity?._id || '');
 }
@@ -689,6 +699,122 @@ test('SR-4.2 patch draft rejects session that is not ready_for_review', async ()
     await adminClient.patch(
       `/api/recording/sessions/${startRes.body.session.id}/draft`,
       { draftSteps: [{ draftStepId: 'missing', value: 'x' }] },
+      400,
+    );
+  });
+});
+
+test('SR-4.3 preview dry-runs draft steps without merging test case', async () => {
+  await withStubbedDryRunAutomation(
+    async ({ testCaseId, user }) => ({
+      dryRunId: 'integration-preview-dry-run',
+      status: 'fail',
+      note: 'Mock preview dry run',
+      logs: ['goto ok', 'type failed: element not found'],
+      failureScreenshot: '',
+      failureTrace: '',
+      durationMs: 15,
+      testCase: {
+        id: testCaseId ? String(testCaseId) : '',
+        caseKey: 'TC-AUTO-001',
+        title: 'Automation smoke check',
+      },
+      executedBy: {
+        id: user?.id || '',
+        name: user?.name || '',
+        email: user?.email || '',
+      },
+    }),
+    () => withIntegrationHarness(async (harness) => {
+      const { seedAutomationExecutionFixture } = require('../helpers/executionFixtures');
+      const fixture = await seedAutomationExecutionFixture(harness);
+
+      const caseBefore = await fixture.adminClient.get(
+        `/api/test-cases/${fixture.ids.testCaseId}`,
+        200,
+      );
+      const versionBefore = caseBefore.body.testCase.versionNumber;
+
+      const startRes = await fixture.adminClient.post(
+        '/api/recording/sessions',
+        {
+          projectId: fixture.ids.projectId,
+          baseUrl: 'http://localhost:3000/login',
+          testCaseEntityId: fixture.ids.testCaseId,
+        },
+        201,
+      );
+      const sessionId = startRes.body.session.id;
+
+      await fixture.adminClient.post(
+        `/api/recording/sessions/${sessionId}/events`,
+        {
+          events: [
+            {
+              rawType: 'input',
+              pageUrl: 'http://localhost:3000/login',
+              payload: { name: 'username', value: 'admin' },
+            },
+          ],
+        },
+        200,
+      );
+      await fixture.adminClient.post(`/api/recording/sessions/${sessionId}/stop`, {}, 200);
+
+      const previewRes = await fixture.adminClient.post(
+        `/api/recording/sessions/${sessionId}/preview`,
+        {},
+        200,
+      );
+
+      assert.equal(previewRes.body.preview.sessionId, sessionId);
+      assert.equal(previewRes.body.preview.previewStepsCount, 2);
+      assert.ok(previewRes.body.preview.dryRunId);
+      assert.ok(['pass', 'fail', 'blocked', 'skip'].includes(previewRes.body.preview.status));
+      assert.ok(Array.isArray(previewRes.body.preview.logs));
+
+      const sessionAfter = await fixture.adminClient.get(
+        `/api/recording/sessions/${sessionId}`,
+        200,
+      );
+      assert.equal(sessionAfter.body.session.status, 'ready_for_review');
+
+      const caseAfter = await fixture.adminClient.get(
+        `/api/test-cases/${fixture.ids.testCaseId}`,
+        200,
+      );
+      assert.equal(caseAfter.body.testCase.versionNumber, versionBefore);
+    }),
+  );
+});
+
+test('SR-4.3 preview rejects session that is not ready_for_review', async () => {
+  await withIntegrationHarness(async (harness) => {
+    const admin = await harness.createUser({
+      name: 'Recording Preview Guard Admin',
+      email: 'recording-preview-guard@integration.test',
+      password: 'pass1234',
+      role: 'admin',
+    });
+    const adminClient = harness.createClient();
+    await adminClient.post('/api/auth/login', { email: admin.email, password: 'pass1234' }, 200);
+
+    const projectRes = await adminClient.post(
+      '/api/projects',
+      { name: 'Recording Preview Guard Project', code: 'RPG2' },
+      201,
+    );
+    const projectId = projectRes.body.project.entityId || projectRes.body.project.id;
+
+    const startRes = await adminClient.post(
+      '/api/recording/sessions',
+      { projectId, baseUrl: 'http://localhost:3000/login' },
+      201,
+    );
+
+    await adminClient.post(
+      `/api/recording/sessions/${startRes.body.session.id}/preview`,
+      {},
       400,
     );
   });

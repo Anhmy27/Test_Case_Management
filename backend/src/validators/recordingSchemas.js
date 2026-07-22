@@ -38,6 +38,13 @@ const mergeRecordingSessionBodySchema = z.object({
   testCaseId: objectIdString.optional(),
 }).optional();
 
+const previewRecordingSessionBodySchema = z.object({
+  baseUrl: optionalTrimmedString(),
+  webId: optionalTrimmedString(),
+  userKey: optionalTrimmedString(),
+  timeoutMs: z.number().int().min(1000).max(600000).optional(),
+}).optional();
+
 const draftStepPatchSchema = z.object({
   draftStepId: nonEmptyString(),
   value: z.string().optional(),
@@ -72,5 +79,6 @@ module.exports = {
   appendRecordingEventsBodySchema,
   discardRecordingSessionBodySchema,
   mergeRecordingSessionBodySchema,
+  previewRecordingSessionBodySchema,
   patchRecordingDraftBodySchema,
 };

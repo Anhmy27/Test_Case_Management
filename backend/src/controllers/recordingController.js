@@ -11,6 +11,7 @@ const {
 } = require('../services/recording/recordingSessionService');
 const { mergeRecordingSessionService } = require('../services/recording/recordingMergeService');
 const { patchRecordingDraftService } = require('../services/recording/recordingDraftPatchService');
+const { previewRecordingSessionService } = require('../services/recording/recordingPreviewService');
 
 const startRecordingSession = asyncHandler(async (req, res) => {
   const session = await startRecordingSessionService({
@@ -133,6 +134,31 @@ const patchRecordingDraft = asyncHandler(async (req, res) => {
   res.json({ session });
 });
 
+const previewRecordingSession = asyncHandler(async (req, res) => {
+  const result = await previewRecordingSessionService({
+    sessionId: req.params.sessionId,
+    user: req.user,
+    baseUrl: req.body?.baseUrl,
+    webId: req.body?.webId,
+    userKey: req.body?.userKey,
+    timeoutMs: req.body?.timeoutMs,
+  });
+
+  await auditFromRequest(req, {
+    action: 'recording.preview',
+    resourceType: 'recording_session',
+    resourceId: result.sessionId,
+    projectId: result.projectId,
+    metadata: {
+      dryRunId: result.dryRunId,
+      previewStepsCount: result.previewStepsCount,
+      status: result.status,
+    },
+  });
+
+  res.json({ preview: result });
+});
+
 const mergeRecordingSession = asyncHandler(async (req, res) => {
   const result = await mergeRecordingSessionService({
     sessionId: req.params.sessionId,
@@ -181,5 +207,6 @@ module.exports = {
   getRecordingSession,
   discardRecordingSession,
   patchRecordingDraft,
+  previewRecordingSession,
   mergeRecordingSession,
 };

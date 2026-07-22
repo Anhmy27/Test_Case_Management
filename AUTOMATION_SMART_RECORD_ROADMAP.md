@@ -3,7 +3,7 @@
 > **Mục tiêu đời thường:** Tester **làm trên web như bình thường** (click, gõ, chọn…) → hệ thống **tự ghi lại** → tester **xem lại, sửa chút** → **Lưu** thành test case auto.  
 > **Vẫn giữ** cách nhập tay hiện tại. **Chưa dùng AI** cho đến SR-5.
 
-**Cập nhật:** 2026-07-21  
+**Cập nhật:** 2026-07-22  
 **Liên quan:** `AUTOMATION_STABILITY_ROADMAP.md` (P0–P6 xong; P7–P10 ⏸ tạm hoãn — ưu tiên Smart Record)
 
 ---
@@ -154,7 +154,7 @@ value        = 'Đăng nhập'   // tên hiển thị
 | **SR-4.1** | **Merge API** — nháp → `automation.steps` (version mới test case qua `updateVersionedDocument`), session `merged`, dùng `applyChosenLocatorToStepFields` | ✅ Core | POST merge; run cũ không đổi | Integration merge |
 | **SR-4.2** | **Patch draft API** — sửa `value`, `chosenLocatorIndex`, bỏ/giữ bước (`reviewStatus`) trên session `ready_for_review` | ✅ | PATCH draft; merge phản ánh sửa | Integration patch |
 | **SR-4.3** | **Preview API** — dry-run từ draft session (chưa ghi test case), tái dùng engine dry-run | ✅ | POST preview trả kết quả như dry run | Integration preview |
-| **SR-4.4** | **UI review (read-only)** — xem `draftSteps` + `intentBlocks` + `autoWaitSuggestion` trên TCM admin | ✅ pilot | Màn xem nháp từ session | Manual / e2e sau |
+| **SR-4.4** | **UI review (read-only)** — xem `draftSteps` + `intentBlocks` + `autoWaitSuggestion` trên TCM admin | ✅ | Màn xem nháp từ session | `e2e/admin-recording-review.spec.ts` |
 | **SR-4.5** | **UI edit** — sửa value, đổi locator candidate, bỏ bước (gọi patch API) | ✅ | Sửa trên UI → merge đúng | Manual |
 | **SR-4.6** | **UI preview + Lưu** — nút xem thử + merge; metadata `authoringSource` / `lastRecordedAt` (optional) | ✅ đóng SR-4 | Luồng extension → review → Lưu trên web | Integration + manual |
 
@@ -315,17 +315,42 @@ Quyền: giống dry-run (admin trước; mở employee khi pilot ổn).
    8.1 [x] SR-3.1 Intent blocks (`intentBlocks[]`)
    8.2 [x] SR-3.2 Gợi ý chờ (`autoWaitSuggestion`)
    8.3 [ ] SR-3.3 So DOM trước/sau (tùy chọn — có thể hoãn)
-9. [ ] SR-4 — review + xem thử + Lưu (chia 4.1 → 4.6)              ← TIẾP THEO
+9. [ ] SR-4 — review + xem thử + Lưu (chia 4.1 → 4.6)              ← đang làm (4.1–4.2 ✅)
    9.1 [x] SR-4.1 Merge API (nháp → test case)
    9.2 [x] SR-4.2 Patch draft API
-   9.3 [ ] SR-4.3 Preview API (dry-run từ session)
-   9.4 [ ] SR-4.4 UI review read-only
-   9.5 [ ] SR-4.5 UI edit draft
+   9.3 [x] SR-4.3 Preview API (dry-run từ session)
+   9.4 [x] SR-4.4 UI review read-only
+   9.5 [ ] SR-4.5 UI edit draft                          ← TIẾP THEO
    9.6 [ ] SR-4.6 UI preview + Lưu (+ metadata optional)
-10. [ ] SR-5, SR-6 sau
+10. [ ] SR-5, SR-6 sau (AI / prompt-to-test — không thuộc pilot SR-1–4)
 ```
 
-### Tiến độ chi tiết (cập nhật 2026-07-21)
+### Còn lại để đóng pilot Smart Record (SR-1–4)
+
+| Nhóm | Còn | Ghi chú |
+|------|-----|---------|
+| **SR-4** | **2 mục** — 4.5 → 4.6 | UI edit/Lưu trên TCM |
+| **SR-3.3** | 1 mục (tùy chọn) | So DOM — hoãn được; dễ hơn sau BL-2 |
+| **BL-2** | Extension gửi screenshot/DOM | Không block SR-4; nên trước SR-3.3 |
+| **BL-1** | XPath locator | Thấp nhất — chỉ khi pilot thấy CSS/role vẫn vỡ |
+| **SR-5 / SR-6** | Sau pilot | AI gợi ý / mô tả bằng lời — **không** tính vào đóng SR-4 |
+
+**Đã xong (không cần làm lại):** SR-0, SR-1, SR-2, SR-3.1, SR-3.2, SR-4.1, SR-4.2, SR-4.3, SR-4.4 + extension pilot 6.1–6.8.
+
+### Thứ tự pilot đã chọn (2026-07-22)
+
+```text
+SR-4.4 → 4.5 → 4.6   (UI review/Lưu trên web — đóng SR-4)
+    → BL-2                   (extension gửi ảnh/DOM; có thể bổ sung UI ảnh nháp)
+    → SR-3.3                 (so DOM — cần domHtml từ BL-2)
+    → BL-1                   (xpath — chỉ khi pilot cần)
+```
+
+**Đánh giá:** Hợp lý. Ưu tiên **đóng vòng sản phẩm** (ghi → review → xem thử → Lưu) trước; BL-2/SR-3.3/BL-1 là **nâng cấp chất lượng nháp**, không chặn merge. Lưu ý: SR-4.4–4.6 **không có ảnh từng bước** cho đến BL-2 — chấp nhận được nếu pilot chưa cần xem screenshot trên UI.
+
+**Lựa chọn khác (nếu muốn ảnh ngay trên màn review):** BL-2 **trước** SR-4.4 — không bắt buộc.
+
+### Tiến độ chi tiết (cập nhật 2026-07-22)
 
 | Lô | Nội dung | Trạng thái |
 |----|----------|------------|
@@ -341,20 +366,20 @@ Quyền: giống dry-run (admin trước; mở employee khi pilot ổn).
 | SR-3.3 | So DOM trước/sau click | ⏸ tùy chọn — hoãn được (xem BL-2) |
 | SR-4.1 | Merge API — draft → `automation.steps` version mới | ✅ |
 | SR-4.2 | Patch draft API | ✅ |
-| SR-4.3 | Preview API (dry-run từ session) | ❌ **TIẾP THEO** |
-| SR-4.4 | UI review read-only | ❌ chưa làm |
-| SR-4.5 | UI edit draft | ❌ chưa làm |
+| SR-4.3 | Preview API (dry-run từ session) | ✅ |
+| SR-4.4 | UI review read-only | ✅ |
+| SR-4.5 | UI edit draft | ❌ **TIẾP THEO** |
 | SR-4.6 | UI preview + Lưu | ❌ chưa làm |
 
 **SR-2 đã xong:** Bảng điểm locator; Playwright `getByRole(role, { name: value })`; pipeline ghi gán `value` = tên hiển thị khi chọn role (click/hover/assert…); bước `type` **không** dùng role (tránh trùng ô value với nội dung gõ); form nhập tay có loại **Role (ARIA)** + ô tên hiển thị; helper `applyChosenLocatorToStepFields` cho merge SR-4.
 
-**Đích pilot hiện tại:** SR-1.0 extension ghi → nháp trên server (`ready_for_review`) — chưa có UI TCM review/Lưu (SR-4).
+**Đích pilot hiện tại:** Extension ghi → nháp `ready_for_review` → preview API (4.3 ✅) → **SR-4.4–4.6** UI review/Lưu.
 
-**SR-3 đã đóng (3.1 + 3.2):** Intent blocks + gợi ý waitFor trên draft step (chỉ gợi ý review, không tự chèn bước).
+**SR-3 đã đóng (3.1 + 3.2):** Intent blocks + gợi ý waitFor trên draft step (chỉ gợi ý review, không tự chèn bước). SR-3.3 hoãn sau BL-2 (xem [Thứ tự pilot](#thứ-tự-pilot-đã-chọn-2026-07-22)).
 
-**Code tiếp theo:** **SR-4.3** (Preview API — dry-run từ session). SR-3.3 / BL-1 tùy pilot.
+**Code tiếp theo:** **SR-4.5** (UI edit draft). Sau đó 4.6 theo thứ tự pilot.
 
-**BL-2 (ảnh/DOM extension):** **Không** cần đợi hết SR-4. Không block 4.1–4.6. Chỉ cần khi muốn **hiện ảnh nháp trên UI** — làm trước hoặc song song **SR-4.4+**; nếu pilot chưa cần ảnh thì hoãn sau **SR-4.6** cũng được.
+**BL-2 (ảnh/DOM extension):** Sau SR-4 đầy đủ (thứ tự pilot). Không block 4.1–4.6. Cần cho ảnh nháp trên UI và là tiền đề SR-3.3.
 
 Mỗi bước: `cd backend && npm test` — case cũ vẫn import/chạy được.
 
@@ -460,3 +485,6 @@ intentBlocks: [{ blockId, label, draftStepIds }]         // SR-3+
 | 2026-07-21 | SR-3.2 autoWaitSuggestion — gợi ý waitFor rule-based; test `recording-sr3.test.js`; đóng SR-3 |
 | 2026-07-21 | SR-3.1 intent blocks — pipeline gom `draftSteps` → `intentBlocks[]` khi stop |
 | 2026-07-21 | Chuẩn hóa doc: BL-1 (chỉ thiếu xpath, `role` đã có); lọc nhiễu SR-1 khớp code; chia SR-3 → 3.1 / 3.2 / 3.3 |
+| 2026-07-22 | SR-4.3 preview API — dry-run từ draft session; test `recording-sr4-preview.test.js` |
+| 2026-07-22 | SR-4.2 patch draft API — `recordingDraftPatchService.js`, `recording-sr4-patch.test.js` |
+| 2026-07-22 | Đối chiếu code ↔ roadmap; thêm mục “Còn lại”, “Thứ tự pilot”; cập nhật trạng thái SR-4 |
