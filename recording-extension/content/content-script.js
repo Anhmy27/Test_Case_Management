@@ -4,6 +4,12 @@ import { elementPayloadFromDescriptor } from '../lib/elementPayloadFromDescripto
 import { MESSAGE } from '../lib/messages.js';
 import { MAX_DOM_HTML_LENGTH, VISUAL_CAPTURE_RAW_TYPES } from '../lib/recordedEventConstants.js';
 
+// Prevent duplicate listeners when background re-injects the loader.
+if (globalThis.__tcmRecordingContentLoaded) {
+  // Already armed — SET_RECORDING_STATE from background will update flags.
+} else {
+globalThis.__tcmRecordingContentLoaded = true;
+
 const IGNORED_TAGS = new Set(['html', 'body', 'head', 'script', 'style', 'meta', 'link']);
 
 let isRecording = false;
@@ -254,3 +260,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 registerCaptureListeners();
 registerNavigationListeners();
 requestRecordingState();
+console.info('[TCM Recording] content script sẵn sàng trên', window.location.href);
+
+} // end __tcmRecordingContentLoaded guard
+

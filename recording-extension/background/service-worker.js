@@ -117,8 +117,17 @@ const broadcastRecordingState = async (nextState) => {
   const tabs = await chrome.tabs.query({});
   await Promise.all(
     tabs.map(async (tab) => {
-      if (!tab.id) {
+      if (!tab.id || !tab.url || !/^https?:/i.test(tab.url)) {
         return;
+      }
+      try {
+        // Ensure listener is present (tab opened before extension reload, etc.).
+        await chrome.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: ['content/content-bridge.js'],
+        });
+      } catch {
+        // Restricted page or already injecting — ignore.
       }
       try {
         await chrome.tabs.sendMessage(tab.id, {
