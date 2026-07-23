@@ -1,6 +1,6 @@
 /**
  * SR-2 — locator scoring for recorded draft steps.
- * Score table + role mapping: AUTOMATION_SMART_RECORD_ROADMAP.md §SR-2.
+ * Score table + role/xpath mapping: AUTOMATION_SMART_RECORD_ROADMAP.md §SR-2 / BL-1.
  */
 
 const toString = (value) => String(value ?? '').trim();
@@ -13,6 +13,48 @@ const LOCATOR_SCORES = {
   placeholder: 75,
   text: 70,
   css: 50,
+  xpath: 30,
+};
+
+/** Escape a string for use inside an XPath literal (prefers single quotes). */
+const escapeXPathLiteral = (value) => {
+  const text = toString(value);
+  if (!text.includes("'")) {
+    return `'${text}'`;
+  }
+  if (!text.includes('"')) {
+    return `"${text}"`;
+  }
+  return `concat(${text.split("'").map((part) => `'${part}'`).join(`, "'", `)})`;
+};
+
+/**
+ * Build a simple attribute XPath from recorded payload (BL-1).
+ * Prefer explicit `payload.xpath` when extension sends one; otherwise derive from testid/id/name.
+ */
+const buildXPathFromPayload = (payload = {}) => {
+  const explicit = toString(payload.xpath);
+  if (explicit) {
+    return explicit;
+  }
+
+  const testid = toString(payload.testid);
+  if (testid) {
+    return `//*[@data-testid=${escapeXPathLiteral(testid)}]`;
+  }
+
+  const id = toString(payload.id);
+  if (id) {
+    return `//*[@id=${escapeXPathLiteral(id)}]`;
+  }
+
+  const name = toString(payload.name);
+  if (name) {
+    const tag = toString(payload.tagName).toLowerCase() || '*';
+    return `//${tag}[@name=${escapeXPathLiteral(name)}]`;
+  }
+
+  return '';
 };
 
 const pushCandidate = (candidates, strategy, value, { roleName = '', uniqueOnPage = true } = {}) => {
@@ -50,6 +92,8 @@ const buildLocatorCandidates = (payload = {}) => {
   pushCandidate(candidates, 'placeholder', toString(payload.placeholder));
   pushCandidate(candidates, 'text', toString(payload.text), { uniqueOnPage: false });
   pushCandidate(candidates, 'css', toString(payload.selector), { uniqueOnPage: false });
+  // BL-1 — lowest score; review fallback when CSS/role still break.
+  pushCandidate(candidates, 'xpath', buildXPathFromPayload(payload), { uniqueOnPage: false });
 
   return candidates.sort((left, right) => right.score - left.score);
 };
@@ -142,5 +186,6 @@ module.exports = {
   LOCATOR_SCORES,
   applyChosenLocatorToStepFields,
   buildLocatorCandidates,
+  filterCandidatesForAction,
   resolveChosenLocator,
 };

@@ -38,6 +38,7 @@ export type RecordingSession = {
   testCaseEntityId: string;
   baseUrl: string;
   status: string;
+  errorMessage?: string;
   eventCount: number;
   eventsExternalized: boolean;
   startedAt?: string;

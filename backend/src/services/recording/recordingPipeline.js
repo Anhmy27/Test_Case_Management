@@ -1,5 +1,10 @@
 const crypto = require('crypto');
 const { buildLocatorCandidates, applyChosenLocatorToStepFields } = require('./locatorScoring');
+const {
+  buildDomFingerprint,
+  compareDomFingerprints,
+  stripTransientArtifactFields,
+} = require('./recordingEventArtifacts');
 
 const DOUBLE_CLICK_WINDOW_MS = 500;
 const TYPING_MERGE_TYPES = new Set(['input', 'keypress', 'change']);
@@ -52,6 +57,29 @@ const readPayloadValue = (payload = {}) => {
 
 const readScreenshotKey = (payload = {}) => toString(payload.screenshotKey);
 
+const readDomFingerprint = (payload = {}) => {
+  const existing = toString(payload.domFingerprint);
+  if (existing) {
+    return existing;
+  }
+  // Unit fixtures may pass `domHtml` without going through append/persist.
+  return buildDomFingerprint(payload.domHtml);
+};
+
+const normalizeEventPayload = (payload) => {
+  if (payload == null || typeof payload !== 'object') {
+    return payload ?? null;
+  }
+
+  // Derive fingerprint before stripping transient BL-2 HTML (unit fixtures pass domHtml).
+  const fingerprint = readDomFingerprint(payload);
+  const next = stripTransientArtifactFields(payload);
+  if (fingerprint) {
+    next.domFingerprint = fingerprint;
+  }
+  return next;
+};
+
 const slugToken = (value, fallback = 'TARGET') => {
   const slug = toString(value)
     .toUpperCase()
@@ -91,7 +119,12 @@ const flushTypingBuffer = (buffer, output) => {
   if (!buffer.length) return;
 
   const first = buffer[0];
-  const mergedValue = buffer.map((item) => readPayloadValue(item.payload)).join('');
+  // Prefer final `change` value (blur) over joining keystroke chunks — change
+  // carries the full field value and must not concatenate onto prior inputs.
+  const lastChange = [...buffer].reverse().find((item) => item.rawType === 'change');
+  const mergedValue = lastChange
+    ? readPayloadValue(lastChange.payload)
+    : buffer.map((item) => readPayloadValue(item.payload)).join('');
   output.push({
     ...first,
     rawType: 'input',
@@ -121,14 +154,9 @@ const mergeTypingEvents = (events) => {
     }
 
     const fieldKey = getFieldKey(event);
-    const chunk = readPayloadValue(event.payload);
 
-    if (event.rawType === 'change' && chunk.length > 1) {
-      flush();
-      merged.push(event);
-      continue;
-    }
-
+    // Absorb `change` into the typing buffer (same field) so blur-after-type
+    // does not become a second draft step. mapEventToAction maps leftover change → type.
     if (!typingBuffer.length || fieldKey === typingFieldKey) {
       typingBuffer.push(event);
       typingFieldKey = fieldKey;
@@ -158,6 +186,8 @@ const buildSemanticAction = (event) => {
         sourceEventIds: [event.eventId],
       };
     case 'input':
+    case 'keypress':
+    case 'change':
       return {
         semanticId: `FILL_${slugToken(elementLabel, 'FIELD')}`,
         label: `Điền ${elementLabel || 'ô nhập'} = ${readPayloadValue(payload)}`,
@@ -229,6 +259,7 @@ const mapEventToAction = (rawType) => {
       return 'goto';
     case 'input':
     case 'keypress':
+    case 'change':
       return 'type';
     case 'select_change':
       return 'select';
@@ -349,6 +380,9 @@ const describeStepTarget = (step) => {
   if (step.targetType === 'role' && step.target) {
     return `phần tử role=${step.target}${step.value ? ` tên "${step.value}"` : ''}`;
   }
+  if (step.targetType === 'xpath' && step.target) {
+    return `phần tử xpath ${step.target}`;
+  }
   if (step.targetType === 'id' && step.target) {
     return `phần tử #${step.target}`;
   }
@@ -386,7 +420,57 @@ const isAsyncTriggerClick = (step) => {
   );
 };
 
-const buildAutoWaitSuggestion = (currentItem, nextItem) => {
+const buildDomChangeSuggestion = (aligned, index) => {
+  const currentItem = aligned[index];
+  const step = currentItem?.step;
+  if (!step || step.inferredAction !== 'click') {
+    return '';
+  }
+
+  const beforeFingerprint = readDomFingerprint(currentItem.event?.payload || {});
+  if (!beforeFingerprint) {
+    return '';
+  }
+
+  // Skip events without DOM (e.g. input/keypress when BL-2 visuals are on for clicks only).
+  let afterItem = null;
+  let afterFingerprint = '';
+  for (let cursor = index + 1; cursor < aligned.length; cursor += 1) {
+    const fingerprint = readDomFingerprint(aligned[cursor].event?.payload || {});
+    if (fingerprint) {
+      afterItem = aligned[cursor];
+      afterFingerprint = fingerprint;
+      break;
+    }
+  }
+
+  const { status } = compareDomFingerprints(beforeFingerprint, afterFingerprint);
+
+  if (status === 'unchanged') {
+    return 'Gợi ý: DOM gần như không đổi sau click — kiểm tra click có trúng không (có thể click hụt).';
+  }
+
+  if (status === 'major_change') {
+    const samePage = Boolean(currentItem.pageUrl)
+      && currentItem.pageUrl === afterItem?.pageUrl;
+    if (samePage) {
+      if (afterItem?.step) {
+        return `Gợi ý: DOM đổi mạnh trên cùng URL (SPA) — thêm bước waitFor cho ${describeStepTarget(afterItem.step)}.`;
+      }
+      return 'Gợi ý: DOM đổi mạnh trên cùng URL (SPA) — thêm bước waitFor phần tử sau thao tác.';
+    }
+    if (afterItem?.step) {
+      return `Gợi ý: trang/DOM đã đổi sau click — thêm bước waitFor cho ${describeStepTarget(afterItem.step)}.`;
+    }
+    return 'Gợi ý: trang/DOM đã đổi sau click — thêm bước waitFor sau chuyển trang.';
+  }
+
+  return '';
+};
+
+const buildAutoWaitSuggestion = (aligned, index) => {
+  const currentItem = aligned[index];
+  const nextItem = aligned[index + 1];
   const step = currentItem?.step;
   const nextStep = nextItem?.step;
   if (!step) return '';
@@ -423,6 +507,9 @@ const buildAutoWaitSuggestion = (currentItem, nextItem) => {
     if (nextStep && isAsyncTriggerClick(step)) {
       return `Gợi ý: thêm bước waitFor cho ${describeStepTarget(nextStep)} sau thao tác này.`;
     }
+
+    // SR-3.3 — only when SR-3.2 heuristics did not already suggest a wait.
+    return buildDomChangeSuggestion(aligned, index);
   }
 
   return '';
@@ -431,7 +518,7 @@ const buildAutoWaitSuggestion = (currentItem, nextItem) => {
 const applyAutoWaitSuggestionsFromAligned = (aligned) =>
   aligned.map((currentItem, index) => ({
     ...currentItem.step,
-    autoWaitSuggestion: buildAutoWaitSuggestion(currentItem, aligned[index + 1]),
+    autoWaitSuggestion: buildAutoWaitSuggestion(aligned, index),
   }));
 
 /**
@@ -547,7 +634,7 @@ const processRecordingEvents = ({ events = [], baseUrl = '' } = {}) => {
     rawType: event.rawType,
     occurredAt: toDate(event.occurredAt),
     pageUrl: toString(event.pageUrl),
-    payload: event.payload ?? null,
+    payload: normalizeEventPayload(event.payload),
   }));
 
   const cleanedEvents = mergeTypingEvents(filterNoise(normalizedEvents));

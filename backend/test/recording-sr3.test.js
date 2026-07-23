@@ -207,3 +207,114 @@ test('SR-3 exported helpers buildIntentBlocks and applyAutoWaitSuggestions stay 
   assert.equal(blocks[0].label, `Chuyển trang ${baseUrl}`);
   assert.equal(draftSteps.at(-1).autoWaitSuggestion, '');
 });
+
+test('SR-3.3 flags likely missed click when DOM fingerprint is unchanged after click', () => {
+  const sameDom = '<html><body><button id="noop">Details</button></body></html>';
+  const result = processRecordingEvents({
+    baseUrl: 'http://localhost:3000/settings',
+    events: [
+      baseEvent({
+        sequence: 0,
+        rawType: 'click',
+        pageUrl: 'http://localhost:3000/settings',
+        payload: { testid: 'row-details', text: 'Details', domHtml: sameDom },
+      }),
+      baseEvent({
+        sequence: 1,
+        rawType: 'click',
+        pageUrl: 'http://localhost:3000/settings',
+        payload: { testid: 'menu-settings', domHtml: sameDom },
+      }),
+    ],
+  });
+
+  const detailsClick = result.draftSteps.find((step) => step.target === 'row-details');
+  assert.ok(detailsClick);
+  assert.match(detailsClick.autoWaitSuggestion, /click hụt|không đổi/i);
+  assert.ok(result.events[0].payload.domFingerprint);
+  assert.equal(result.events[0].payload.domHtml, undefined);
+});
+
+test('SR-3.3 suggests waitFor when DOM changes a lot on the same URL (SPA)', () => {
+  const beforeDom = '<html><body><div id="list"><span>a</span></div></body></html>';
+  const afterDom = `<html><body><div id="detail">${'x'.repeat(400)}<button id="edit">Edit</button></div></body></html>`;
+  const result = processRecordingEvents({
+    baseUrl: 'http://localhost:3000/items',
+    events: [
+      baseEvent({
+        sequence: 0,
+        rawType: 'click',
+        pageUrl: 'http://localhost:3000/items',
+        payload: { testid: 'row-1', text: 'Open row', domHtml: beforeDom },
+      }),
+      baseEvent({
+        sequence: 1,
+        rawType: 'click',
+        pageUrl: 'http://localhost:3000/items',
+        payload: { testid: 'edit-btn', text: 'Edit', domHtml: afterDom },
+      }),
+    ],
+  });
+
+  const openRow = result.draftSteps.find((step) => step.target === 'row-1');
+  assert.ok(openRow);
+  assert.match(openRow.autoWaitSuggestion, /SPA|DOM đổi mạnh|waitFor/i);
+  assert.match(openRow.autoWaitSuggestion, /edit-btn|phần tử/i);
+});
+
+test('SR-3.3 skips input without fingerprint and compares next DOM-bearing event', () => {
+  const beforeDom = '<html><body><button id="open">Open</button></body></html>';
+  const afterDom = `<html><body><div id="panel">${'z'.repeat(400)}<input name="title"/></div></body></html>`;
+  const result = processRecordingEvents({
+    baseUrl: 'http://localhost:3000/items',
+    events: [
+      baseEvent({
+        sequence: 0,
+        rawType: 'click',
+        pageUrl: 'http://localhost:3000/items',
+        payload: { testid: 'open-panel', text: 'Open', domHtml: beforeDom },
+      }),
+      baseEvent({
+        sequence: 1,
+        rawType: 'input',
+        pageUrl: 'http://localhost:3000/items',
+        payload: { name: 'title', value: 'x' }, // no DOM — BL-2 skips visuals on input
+      }),
+      baseEvent({
+        sequence: 2,
+        rawType: 'click',
+        pageUrl: 'http://localhost:3000/items',
+        payload: { testid: 'save-btn', text: 'Save', domHtml: afterDom },
+      }),
+    ],
+  });
+
+  const openPanel = result.draftSteps.find((step) => step.target === 'open-panel');
+  assert.ok(openPanel);
+  assert.match(openPanel.autoWaitSuggestion, /SPA|DOM đổi mạnh|waitFor/i);
+});
+
+test('SR-3.3 does not override stronger SR-3.2 modal wait suggestion', () => {
+  const beforeDom = '<html><body><button>Open</button></body></html>';
+  const afterDom = `<html><body><div role="dialog">${'y'.repeat(400)}<input name="displayName"/></div></body></html>`;
+  const result = processRecordingEvents({
+    baseUrl: 'http://localhost:3000/dashboard',
+    events: [
+      baseEvent({
+        sequence: 0,
+        rawType: 'click',
+        pageUrl: 'http://localhost:3000/dashboard',
+        payload: { testid: 'open-user-modal', text: 'Open dialog', domHtml: beforeDom },
+      }),
+      baseEvent({
+        sequence: 1,
+        rawType: 'input',
+        pageUrl: 'http://localhost:3000/dashboard',
+        payload: { name: 'displayName', value: 'Tester', domHtml: afterDom },
+      }),
+    ],
+  });
+
+  assert.match(result.draftSteps[0].autoWaitSuggestion, /popup|dialog|waitFor/i);
+  assert.doesNotMatch(result.draftSteps[0].autoWaitSuggestion, /click hụt|SPA/i);
+});

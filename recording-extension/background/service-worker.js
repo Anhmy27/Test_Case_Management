@@ -23,6 +23,8 @@ let captureVisualsEnabled = false;
 let pendingEvents = [];
 let flushTimer = null;
 let flushPromise = null;
+/** Serialize RECORDED_EVENT handling so screenshots cannot reorder the queue. */
+let recordedEventChain = Promise.resolve();
 
 let runtimeSession = {
   sessionId: '',
@@ -176,6 +178,7 @@ const flushPendingEvents = async ({ force = false } = {}) => {
 
   const config = await readConfig();
   const batch = pendingEvents.splice(0, pendingEvents.length);
+  let shouldReflush = false;
 
   flushPromise = (async () => {
     try {
@@ -186,6 +189,8 @@ const flushPendingEvents = async ({ force = false } = {}) => {
       });
       applyApiSession(response?.session, runtimeSession.status);
       await persistRuntimeSession();
+      // Events may have arrived while this flush was in flight — drain them.
+      shouldReflush = pendingEvents.length > 0;
     } catch (error) {
       pendingEvents.unshift(...batch);
       runtimeSession.lastError = error?.message || 'Không gửi được event lên TCM';
@@ -193,6 +198,14 @@ const flushPendingEvents = async ({ force = false } = {}) => {
       throw error;
     } finally {
       flushPromise = null;
+    }
+
+    if (shouldReflush && runtimeSession.sessionId && (force || isRecording)) {
+      if (force) {
+        await flushPendingEvents({ force: true });
+      } else {
+        scheduleFlush();
+      }
     }
   })();
 
@@ -307,6 +320,12 @@ const stopApiRecording = async () => {
   return response?.session || null;
 };
 
+const enqueueRecordedEvent = (work) => {
+  const run = recordedEventChain.then(work, work);
+  recordedEventChain = run.catch(() => {});
+  return run;
+};
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
     switch (message?.type) {
@@ -353,12 +372,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       case MESSAGE.RECORDED_EVENT:
         if (isRecording && message.event) {
-          const enrichedEvent = await attachScreenshotIfNeeded(message.event, sender);
-          await appendLocalEvent(enrichedEvent);
-          if (runtimeSession.sessionId) {
-            pendingEvents.push(enrichedEvent);
-            scheduleFlush();
-          }
+          await enqueueRecordedEvent(async () => {
+            const enrichedEvent = await attachScreenshotIfNeeded(message.event, sender);
+            await appendLocalEvent(enrichedEvent);
+            if (runtimeSession.sessionId) {
+              pendingEvents.push(enrichedEvent);
+              scheduleFlush();
+            }
+          });
         }
         sendResponse({ ok: true, pendingEventCount: pendingEvents.length });
         return;

@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const { httpError } = require('../../utils/httpError');
 const {
   RECORDING_EVENT_ARTIFACT_LIMITS,
@@ -8,6 +9,70 @@ const {
 } = require('./recordingArtifactService');
 
 const DATA_URL_BASE64_RE = /^data:image\/(png|jpe?g|webp);base64,(.+)$/i;
+
+/**
+ * Compact DOM signal for SR-3.3 (survives strip of `domHtml` on append).
+ * Format: `{tagCount}:{charLength}:{sha256-16}` over normalized markup.
+ */
+const buildDomFingerprint = (domHtml) => {
+  const html = String(domHtml || '').trim();
+  if (!html) {
+    return '';
+  }
+
+  const normalized = html
+    .replace(/<script\b[\s\S]*?<\/script>/gi, '')
+    .replace(/<style\b[\s\S]*?<\/style>/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+  if (!normalized) {
+    return '';
+  }
+
+  const tagCount = (normalized.match(/<[a-z][\w-]*/g) || []).length;
+  const hash = crypto.createHash('sha256').update(normalized).digest('hex').slice(0, 16);
+  return `${tagCount}:${normalized.length}:${hash}`;
+};
+
+const parseDomFingerprint = (fingerprint) => {
+  const raw = String(fingerprint || '').trim();
+  const match = raw.match(/^(\d+):(\d+):([a-f0-9]{16})$/i);
+  if (!match) {
+    return null;
+  }
+  return {
+    tagCount: Number(match[1]),
+    charLength: Number(match[2]),
+    hash: match[3].toLowerCase(),
+  };
+};
+
+/**
+ * Compare two fingerprints from consecutive recorded events (SR-3.3).
+ * @returns {{ status: 'unknown' | 'unchanged' | 'minor_change' | 'major_change' }}
+ */
+const compareDomFingerprints = (beforeFingerprint, afterFingerprint) => {
+  const before = parseDomFingerprint(beforeFingerprint);
+  const after = parseDomFingerprint(afterFingerprint);
+  if (!before || !after) {
+    return { status: 'unknown' };
+  }
+  if (before.hash === after.hash && before.tagCount === after.tagCount && before.charLength === after.charLength) {
+    return { status: 'unchanged' };
+  }
+
+  const lengthDelta = Math.abs(before.charLength - after.charLength)
+    / Math.max(before.charLength, after.charLength, 1);
+  const tagDelta = Math.abs(before.tagCount - after.tagCount)
+    / Math.max(before.tagCount, after.tagCount, 1);
+
+  if (lengthDelta >= 0.15 || tagDelta >= 0.15) {
+    return { status: 'major_change' };
+  }
+  return { status: 'minor_change' };
+};
 
 const decodeBase64Payload = (value) => {
   const raw = String(value || '').trim();
@@ -83,6 +148,8 @@ const persistIncomingEventArtifacts = ({ sessionId, event, artifactService }) =>
     const domSnapshotKey = buildRecordingDomSnapshotKey(sessionId, eventId);
     artifactService.saveText(domSnapshotKey, domHtml);
     payload.domSnapshotKey = domSnapshotKey;
+    // Keep a compact compare key for SR-3.3 pipeline (full HTML stays on disk only).
+    payload.domFingerprint = buildDomFingerprint(domHtml);
   }
 
   return {
@@ -97,5 +164,8 @@ const persistIncomingEventArtifacts = ({ sessionId, event, artifactService }) =>
 
 module.exports = {
   decodeBase64Payload,
+  buildDomFingerprint,
+  compareDomFingerprints,
+  stripTransientArtifactFields,
   persistIncomingEventArtifacts,
 };

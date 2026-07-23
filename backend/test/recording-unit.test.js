@@ -254,6 +254,53 @@ test('mergeTypingEvents merges per-character input into one fill', () => {
   assert.equal(merged[0].payload.value, 'admin');
 });
 
+test('mergeTypingEvents absorbs blur change into typing (no fake click draft)', () => {
+  const events = [
+    baseEvent({ sequence: 0, rawType: 'input', payload: { name: 'email', value: 'a' } }),
+    baseEvent({ sequence: 1, rawType: 'input', payload: { name: 'email', value: '@' } }),
+    baseEvent({
+      sequence: 2,
+      rawType: 'change',
+      payload: { name: 'email', value: 'admin@test.com' },
+    }),
+    baseEvent({ sequence: 3, rawType: 'click', payload: { testid: 'login-btn' } }),
+  ];
+
+  const merged = mergeTypingEvents(events);
+  assert.equal(merged.length, 2);
+  assert.equal(merged[0].rawType, 'input');
+  assert.equal(merged[0].payload.value, 'admin@test.com');
+  assert.equal(merged[1].rawType, 'click');
+
+  const processed = processRecordingEvents({
+    baseUrl: 'http://localhost:3000/login',
+    events,
+  });
+  const typeSteps = processed.draftSteps.filter((step) => step.inferredAction === 'type');
+  const clickSteps = processed.draftSteps.filter((step) => step.inferredAction === 'click');
+  assert.equal(typeSteps.length, 1);
+  assert.equal(typeSteps[0].value, 'admin@test.com');
+  assert.equal(clickSteps.length, 1);
+  assert.equal(clickSteps[0].target, 'login-btn');
+});
+
+test('standalone change maps to type (not click)', () => {
+  const result = processRecordingEvents({
+    baseUrl: 'http://localhost:3000/login',
+    events: [
+      baseEvent({
+        sequence: 0,
+        rawType: 'change',
+        payload: { name: 'notes', value: 'hello world' },
+      }),
+    ],
+  });
+
+  assert.equal(result.draftSteps.length, 2); // base goto + type
+  assert.equal(result.draftSteps[1].inferredAction, 'type');
+  assert.equal(result.draftSteps[1].value, 'hello world');
+});
+
 test('processRecordingEvents builds semantic labels and draft steps', () => {
   const result = processRecordingEvents({
     baseUrl: 'http://localhost:3000/login',
@@ -280,7 +327,7 @@ test('processRecordingEvents builds semantic labels and draft steps', () => {
   assert.equal(result.draftSteps[2].chosenLocatorIndex, 0);
 });
 
-test('buildLocatorCandidates scores and ranks candidates per roadmap table (SR-2)', () => {
+test('buildLocatorCandidates scores and ranks candidates per roadmap table (SR-2 + BL-1 xpath)', () => {
   const candidates = buildLocatorCandidates({
     testid: 'login-btn',
     role: 'button',
@@ -294,11 +341,42 @@ test('buildLocatorCandidates scores and ranks candidates per roadmap table (SR-2
 
   assert.deepEqual(
     candidates.map((candidate) => candidate.strategy),
-    ['testid', 'role', 'id', 'label', 'placeholder', 'text', 'css'],
+    ['testid', 'role', 'id', 'label', 'placeholder', 'text', 'css', 'xpath'],
   );
   assert.equal(candidates[0].score, LOCATOR_SCORES.testid);
   assert.equal(candidates[1].roleName, 'Đăng nhập');
   assert.equal(candidates.find((c) => c.strategy === 'text').uniqueOnPage, false);
+  const xpathCandidate = candidates.find((c) => c.strategy === 'xpath');
+  assert.equal(xpathCandidate.score, LOCATOR_SCORES.xpath);
+  assert.equal(xpathCandidate.value, '//*[@data-testid=\'login-btn\']');
+});
+
+test('buildLocatorCandidates derives xpath from id/name when testid missing (BL-1)', () => {
+  const byId = buildLocatorCandidates({ id: 'saveBtn', selector: '#saveBtn' });
+  assert.equal(byId.find((c) => c.strategy === 'xpath').value, '//*[@id=\'saveBtn\']');
+
+  const byName = buildLocatorCandidates({ tagName: 'input', name: 'email' });
+  assert.equal(byName.find((c) => c.strategy === 'xpath').value, '//input[@name=\'email\']');
+
+  const explicit = buildLocatorCandidates({ xpath: '//div[@data-qa="ok"]', id: 'ignored-for-xpath' });
+  assert.equal(explicit.find((c) => c.strategy === 'xpath').value, '//div[@data-qa="ok"]');
+});
+
+test('applyChosenLocatorToStepFields can select xpath candidate (BL-1)', () => {
+  const candidates = buildLocatorCandidates({
+    testid: 'login-btn',
+    selector: '#login',
+  });
+  const xpathIndex = candidates.findIndex((c) => c.strategy === 'xpath');
+  assert.ok(xpathIndex >= 0);
+  const resolved = applyChosenLocatorToStepFields({
+    inferredAction: 'click',
+    value: '',
+    locatorCandidates: candidates,
+    chosenLocatorIndex: xpathIndex,
+  });
+  assert.equal(resolved.targetType, 'xpath');
+  assert.equal(resolved.target, '//*[@data-testid=\'login-btn\']');
 });
 
 test('buildLocatorCandidates skips role when roleName is missing and falls back lower', () => {
@@ -515,6 +593,8 @@ test('persistIncomingEventArtifacts stores screenshot and dom keys without inlin
 
   assert.ok(stored.payload.screenshotKey.includes('/steps/evt-shot-1.png'));
   assert.ok(stored.payload.domSnapshotKey.includes('/dom/evt-shot-1.html'));
+  assert.ok(stored.payload.domFingerprint);
+  assert.match(stored.payload.domFingerprint, /^\d+:\d+:[a-f0-9]{16}$/i);
   assert.equal(stored.payload.screenshotBase64, undefined);
   assert.equal(stored.payload.domHtml, undefined);
   assert.equal(artifactService.exists(stored.payload.screenshotKey), true);

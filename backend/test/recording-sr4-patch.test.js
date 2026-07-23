@@ -81,6 +81,8 @@ test('SR-4.2 applyDraftStepPatch switches chosen locator candidate', () => {
     draftStepId: 'draft-click',
     inferredAction: 'click',
     value: '',
+    targetType: 'testid',
+    target: 'login-btn',
     locatorCandidates: buildLocatorCandidates({
       testid: 'login-btn',
       role: 'button',
@@ -93,7 +95,35 @@ test('SR-4.2 applyDraftStepPatch switches chosen locator candidate', () => {
   applyDraftStepPatch(draftStep, { chosenLocatorIndex: 1 });
 
   assert.equal(draftStep.chosenLocatorIndex, 1);
+  assert.equal(draftStep.targetType, 'role');
+  assert.equal(draftStep.target, 'button');
+  assert.equal(draftStep.value, 'Đăng nhập');
   assert.equal(draftStep.reviewStatus, 'edited');
+});
+
+test('SR-4.2 applyDraftStepPatch rejects role locator for type action', () => {
+  const draftStep = {
+    draftStepId: 'draft-type',
+    inferredAction: 'type',
+    value: 'admin@test.com',
+    targetType: 'label',
+    target: 'Email',
+    locatorCandidates: buildLocatorCandidates({
+      label: 'Email',
+      role: 'textbox',
+      roleName: 'Email',
+    }),
+    chosenLocatorIndex: 0,
+    reviewStatus: 'pending',
+  };
+
+  const roleIndex = draftStep.locatorCandidates.findIndex((c) => c.strategy === 'role');
+  assert.ok(roleIndex >= 0);
+
+  assert.throws(
+    () => applyDraftStepPatch(draftStep, { chosenLocatorIndex: roleIndex }),
+    (error) => error.statusCode === 400 && /incompatible with action type/.test(error.message),
+  );
 });
 
 test('SR-4.2 applyDraftStepPatches rejects unknown draftStepId', () => {

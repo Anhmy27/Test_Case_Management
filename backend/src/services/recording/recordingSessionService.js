@@ -31,6 +31,7 @@ const serializeRecordingSession = (session) => {
     testCaseEntityId: session.testCaseEntityId || '',
     baseUrl: session.baseUrl,
     status: session.status,
+    errorMessage: session.errorMessage || '',
     eventCount: session.eventCount,
     eventsExternalized: session.eventsExternalized,
     startedAt: session.startedAt,
@@ -174,22 +175,31 @@ const stopRecordingSessionService = async ({ sessionId, user }) => {
 
   session.status = 'processing';
   session.stoppedAt = new Date();
+  session.errorMessage = '';
   await session.save();
 
-  const rawEvents = await loadSessionEvents(session);
-  const processed = processRecordingEvents({
-    events: rawEvents,
-    baseUrl: session.baseUrl,
-  });
+  try {
+    const rawEvents = await loadSessionEvents(session);
+    const processed = processRecordingEvents({
+      events: rawEvents,
+      baseUrl: session.baseUrl,
+    });
 
-  await replaceSessionEvents(session, processed.events);
-  session.semanticActions = processed.semanticActions;
-  session.draftSteps = processed.draftSteps;
-  session.intentBlocks = processed.intentBlocks;
-  session.status = 'ready_for_review';
-  await session.save();
+    await replaceSessionEvents(session, processed.events);
+    session.semanticActions = processed.semanticActions;
+    session.draftSteps = processed.draftSteps;
+    session.intentBlocks = processed.intentBlocks;
+    session.status = 'ready_for_review';
+    session.errorMessage = '';
+    await session.save();
 
-  return serializeRecordingSession(session);
+    return serializeRecordingSession(session);
+  } catch (error) {
+    session.status = 'failed';
+    session.errorMessage = String(error?.message || 'Recording pipeline failed').slice(0, 2000);
+    await session.save();
+    throw httpError(500, session.errorMessage || 'Recording pipeline failed');
+  }
 };
 
 const getRecordingSessionService = async ({ sessionId, user }) => {

@@ -1,6 +1,10 @@
 const { DRAFT_REVIEW_STATUSES } = require('../../config/recordingConfig');
 const { httpError } = require('../../utils/httpError');
 const {
+  applyChosenLocatorToStepFields,
+  filterCandidatesForAction,
+} = require('./locatorScoring');
+const {
   getRecordingSessionForUser,
   serializeRecordingSession,
 } = require('./recordingSessionService');
@@ -28,21 +32,30 @@ const assertValidChosenLocatorIndex = (draftStep, chosenLocatorIndex) => {
     throw httpError(400, `Invalid chosenLocatorIndex for draft step ${draftStep.draftStepId}`);
   }
 
-  const candidateCount = Array.isArray(draftStep.locatorCandidates)
-    ? draftStep.locatorCandidates.length
-    : 0;
+  const candidates = Array.isArray(draftStep.locatorCandidates)
+    ? draftStep.locatorCandidates
+    : [];
 
-  if (candidateCount === 0) {
+  if (candidates.length === 0) {
     throw httpError(
       400,
       `Draft step ${draftStep.draftStepId} has no locator candidates to choose from`,
     );
   }
 
-  if (chosenLocatorIndex >= candidateCount) {
+  if (chosenLocatorIndex >= candidates.length) {
     throw httpError(
       400,
       `chosenLocatorIndex out of range for draft step ${draftStep.draftStepId}`,
+    );
+  }
+
+  const compatible = filterCandidatesForAction(candidates, draftStep.inferredAction);
+  const chosen = candidates[chosenLocatorIndex];
+  if (!compatible.includes(chosen)) {
+    throw httpError(
+      400,
+      `chosenLocatorIndex is incompatible with action ${draftStep.inferredAction || '(empty)'} for draft step ${draftStep.draftStepId}`,
     );
   }
 };
@@ -67,6 +80,11 @@ const applyDraftStepPatch = (draftStep, patch) => {
   if (patch.chosenLocatorIndex !== undefined) {
     assertValidChosenLocatorIndex(draftStep, patch.chosenLocatorIndex);
     draftStep.chosenLocatorIndex = patch.chosenLocatorIndex;
+    const resolved = applyChosenLocatorToStepFields(draftStep);
+    draftStep.targetType = resolved.targetType;
+    draftStep.target = resolved.target;
+    draftStep.value = resolved.value;
+    draftStep.chosenLocatorIndex = resolved.chosenLocatorIndex;
     contentChanged = true;
   }
 

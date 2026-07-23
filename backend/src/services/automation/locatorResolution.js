@@ -25,6 +25,11 @@ const buildLocator = (page, targetType, target, options = {}) => {
       }
       return page.getByRole(target, roleOptions);
     }
+    case 'xpath': {
+      // Playwright: explicit xpath= prefix avoids CSS mis-parse when expression is unusual.
+      const expression = target.startsWith('xpath=') ? target : `xpath=${target}`;
+      return page.locator(expression);
+    }
     case 'url':
     case 'css':
     default:

@@ -241,6 +241,7 @@ function IntentBlocksPanel({
 function PreviewMergeSection({
   session,
   pendingEditsCount,
+  projectMismatch,
   onPreview,
   previewing,
   onMerge,
@@ -248,6 +249,7 @@ function PreviewMergeSection({
 }: {
   session: RecordingSession;
   pendingEditsCount: number;
+  projectMismatch: boolean;
   onPreview: (options: { baseUrl?: string; webId?: string; userKey?: string }) => Promise<RecordingPreviewResult | null>;
   previewing: boolean;
   onMerge: (testCaseId: string) => Promise<boolean>;
@@ -274,16 +276,21 @@ function PreviewMergeSection({
     );
   }
 
-  const canAct = session.status === "ready_for_review" && pendingEditsCount === 0;
+  const canAct =
+    !projectMismatch
+    && session.status === "ready_for_review"
+    && pendingEditsCount === 0;
   const hasTestCaseTarget = Boolean(testCaseIdInput.trim());
 
   return (
     <SectionCard
       title="Xem thử & Lưu"
       subtitle={
-        pendingEditsCount > 0
-          ? "Lưu nháp trước khi xem thử hoặc lưu vào test case"
-          : "Chạy thử các bước nháp (Playwright) rồi lưu vào test case khi ổn"
+        projectMismatch
+          ? "Session lệch project scope — chỉ xem, không chạy thử / lưu"
+          : pendingEditsCount > 0
+            ? "Lưu nháp trước khi xem thử hoặc lưu vào test case"
+            : "Chạy thử các bước nháp (Playwright) rồi lưu vào test case khi ổn"
       }
     >
       <div className="grid gap-3 sm:grid-cols-3">
@@ -389,7 +396,7 @@ export default function AdminRecordingReviewScreen({
 
   const draftSteps = sortRecordingDraftSteps(session.draftSteps || []);
   const intentBlocks = session.intentBlocks || [];
-  const editable = session.status === "ready_for_review";
+  const editable = session.status === "ready_for_review" && !projectMismatch;
   const pendingCount = Object.keys(drafts).length;
 
   const handleFieldChange = (step: RecordingDraftStep, field: PatchableField, value: string | number) => {
@@ -444,7 +451,9 @@ export default function AdminRecordingReviewScreen({
         subtitle={
           editable
             ? `${draftSteps.length} bước nháp · sửa value, locator, hoặc bỏ bước rồi bấm Lưu nháp`
-            : `${draftSteps.length} bước nháp · chỉ xem (session đang ${formatRecordingSessionStatus(session.status)})`
+            : projectMismatch
+              ? `${draftSteps.length} bước nháp · chỉ xem (lệch project scope)`
+              : `${draftSteps.length} bước nháp · chỉ xem (session đang ${formatRecordingSessionStatus(session.status)})`
         }
         actions={
           editable ? (
@@ -507,6 +516,7 @@ export default function AdminRecordingReviewScreen({
       <PreviewMergeSection
         session={session}
         pendingEditsCount={pendingCount}
+        projectMismatch={projectMismatch}
         onPreview={onPreview}
         previewing={previewing}
         onMerge={onMerge}

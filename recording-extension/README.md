@@ -17,7 +17,7 @@ Chrome extension pilot for Smart Recording **SR-1.0**.
   - Chỉ áp dụng cho event "có ý nghĩa": `click`, `change`, `submit`, `navigation`, `file_upload`, `select_change` — **bỏ qua** `input`/`keypress` (gõ từng chữ) để tránh spam `chrome.tabs.captureVisibleTab` (giới hạn số lần gọi/giây của Chrome) và vì các event gõ chữ đã được backend gộp thành 1 bước (`mergeTypingEvents`).
   - Screenshot: `background/service-worker.js` gọi `chrome.tabs.captureVisibleTab()` (chỉ background mới gọi được) khi nhận `RECORDED_EVENT`, JPEG quality 50, gắn vào `event.screenshotBase64`. Lỗi capture (rate limit, trang bị chặn...) không làm hỏng phiên ghi — bỏ qua ảnh, event vẫn được gửi.
   - DOM: `content/content-script.js` tự lấy `document.documentElement.outerHTML` (có DOM trực tiếp), cắt về tối đa `MAX_DOM_HTML_LENGTH` (300KB) để nằm dưới giới hạn backend `maxDomBytes` (1MB), gắn vào `event.domHtml`.
-  - Backend đã có sẵn (`recordingEventArtifacts.js`) — lưu screenshot vào `uploads/recording/{sessionId}/steps/`, DOM vào `uploads/recording/{sessionId}/dom/`, gắn `screenshotKey`/`domSnapshotKey` vào draft step. Xem ảnh trên UI review (SR-4.4+) **chưa làm** — ngoài phạm vi BL-2 này.
+  - Backend đã có sẵn (`recordingEventArtifacts.js`) — lưu screenshot vào `uploads/recording/{sessionId}/steps/`, DOM vào `uploads/recording/{sessionId}/dom/`. Gắn `screenshotKey` vào **draft step**; `domSnapshotKey` + `domFingerprint` nằm trên **event.payload** (không phải field của draft). Xem ảnh trên UI review **chưa làm** — ngoài phạm vi BL-2 này.
 
 ## Prerequisites
 
@@ -45,7 +45,7 @@ Chrome extension pilot for Smart Recording **SR-1.0**.
 | 6 | **Tiếp tục** → thao tác thêm | Event mới được ghi lại |
 | 7 | **Dừng ghi** | Status `ready_for_review`, eventCount khớp |
 | 8 | (Tùy chọn) `GET /api/recording/sessions/:id` với cookie admin | `draftSteps` có bước từ pipeline |
-| 9 | (BL-2, tùy chọn) Tick **"Chụp ảnh + DOM..."** trước khi bắt đầu ghi, rồi click/submit/chuyển trang | `draftSteps[].screenshotKey` + `domSnapshotKey` xuất hiện trong response ở bước 8 (không có ở event `input`/`keypress`) |
+| 9 | (BL-2, tùy chọn) Tick **"Chụp ảnh + DOM..."** trước khi bắt đầu ghi, rồi click/submit/chuyển trang | `draftSteps[].screenshotKey` có trên bước click/submit; `events[].payload.domSnapshotKey` + `domFingerprint` có trên event tương ứng (không có ở `input`/`keypress`) |
 
 ### Pause / resume
 
@@ -67,7 +67,7 @@ Chrome extension pilot for Smart Recording **SR-1.0**.
 
 ## Not yet
 
-- Hiển thị screenshot/DOM (đã gửi từ BL-2) trên UI review (`AdminRecordingReviewScreen`) — cần endpoint tải artifact theo `screenshotKey`/`domSnapshotKey`, chưa làm
+- Hiển thị screenshot/DOM (đã gửi từ BL-2) trên UI review (`AdminRecordingReviewScreen`) — cần endpoint tải artifact theo `screenshotKey` (draft) / `domSnapshotKey` (event.payload), chưa làm
 
 ## Folder layout
 

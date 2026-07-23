@@ -129,3 +129,19 @@ test('resolveLocator omits name option for role targetType without a display nam
 
   assert.deepEqual(calls[0].options, { exact: false });
 });
+
+test('resolveLocator maps xpath targetType to page.locator with xpath= prefix (BL-1)', () => {
+  const calls = [];
+  const page = {
+    locator: (selector) => {
+      calls.push(selector);
+      return { selector };
+    },
+  };
+
+  resolveLocator(page, { targetType: 'xpath', target: '//*[@data-testid=\'login-btn\']' });
+  assert.equal(calls[0], "xpath=//*[@data-testid='login-btn']");
+
+  resolveLocator(page, { targetType: 'xpath', target: 'xpath=//button[@id="ok"]' });
+  assert.equal(calls[1], 'xpath=//button[@id="ok"]');
+});

@@ -88,8 +88,8 @@
 | `id` | 80 | Hay đổi trên SPA |
 | `label` / placeholder | 75 | Form |
 | Text hiển thị | 70 | Dễ trùng |
-| CSS | 50 | Dễ vỡ khi đổi giao diện — **đang là fallback cuối** khi không có cách trên |
-| XPath | 30 | ⏸ **Chưa code** — chỉ có trên roadmap + enum schema; xem [Backlog sau SR-2](#backlog-sau-sr-2-không-block-sr-3) |
+| CSS | 50 | Dễ vỡ khi đổi giao diện |
+| XPath | 30 | ✅ BL-1 — fallback thấp nhất; sinh từ testid/id/name (hoặc `payload.xpath`); engine `targetType: 'xpath'` |
 
 **Khi chạy thật (sau khi Lưu):** Mỗi bước chỉ dùng **một** locator tester đã chấp nhận (mặc định điểm cao nhất). Các lựa chọn khác **lưu kèm để đổi lúc review**, không tự đổi lúc chạy (tránh self-healing sớm).
 
@@ -102,7 +102,7 @@ value        = 'Đăng nhập'   // tên hiển thị
 → playwright: page.getByRole(target, { name: value })
 ```
 
-**Bonus (ảnh từng bước):** ⏸ **Nửa xong** — backend lưu `screenshotBase64` / `domHtml` khi append; extension **chưa gửi**. Chi tiết: [Backlog sau SR-2](#backlog-sau-sr-2-không-block-sr-3). UI xem ảnh nháp dự kiến SR-4.
+**Bonus (ảnh từng bước):** ✅ Backend lưu `screenshotBase64`/`domHtml` → `screenshotKey`/`domSnapshotKey`/`domFingerprint`; extension gửi khi bật checkbox BL-2. UI xem ảnh nháp trên review **chưa làm**.
 
 ---
 
@@ -124,11 +124,11 @@ value        = 'Đăng nhập'   // tên hiển thị
 |-------|----------|-----------|----------|------|
 | **SR-3.1** | **Intent blocks** — gom `draftSteps[]` → `intentBlocks[]` (login, search, upload, navigation…) theo URL + loại control + semantic | ✅ Core | `stop` trả session có `intentBlocks` gắn `draftStepIds` | Unit pipeline + integration stop |
 | **SR-3.2** | **Gợi ý chờ** — điền `draftSteps[].autoWaitSuggestion` (rule-based: sau click mở dialog/popup → gợi ý chờ phần tử) | ✅ | Draft step có gợi ý chờ khi heuristic khớp | Unit pipeline |
-| **SR-3.3** | **So DOM trước/sau** — phân biệt chuyển trang vs click hụt | ⏸ Tùy chọn | Có thể **hoãn** sau BL-2 (extension gửi `domHtml`); không block đóng SR-3 | Unit khi có fixture DOM |
+| **SR-3.3** | **So DOM trước/sau** — phân biệt chuyển trang vs click hụt | ✅ | Append lưu `domFingerprint`; pipeline so fingerprint quanh click → gợi ý trên `autoWaitSuggestion` (không ghi đè SR-3.2) | Unit fixture DOM (`recording-sr3.test.js`) |
 
 **Đóng SR-3 (checkbox mục 7):** SR-3.1 + SR-3.2 xong. SR-3.3 làm sau nếu cần (dễ hơn khi BL-2 xong).
 
-**Hook code:** sau `buildDraftSteps` trong `recordingPipeline.js` — `applyAutoWaitSuggestions` (SR-3.2) rồi `buildIntentBlocks` (SR-3.1).
+**Hook code:** sau `buildDraftSteps` trong `recordingPipeline.js` — `applyAutoWaitSuggestions` (SR-3.2 + SR-3.3 DOM fingerprint) rồi `buildIntentBlocks` (SR-3.1).
 
 ---
 
@@ -311,10 +311,10 @@ Quyền: giống dry-run (admin trước; mở employee khi pilot ổn).
 5. [x] Lọc rác + gom gõ + semantic cơ bản (SR-1) — có test unit + integration
 6. [x] Spike extension Chrome (SR-1.0 pilot 6.1–6.8) — chưa screenshot/DOM từ extension
 7. [x] Locator + bảng điểm (SR-2) + role trong engine
-8. [x] SR-3 — gom cụm + gợi ý chờ (3.1 + 3.2 ✅; 3.3 tùy chọn)
+8. [x] SR-3 — gom cụm + gợi ý chờ + so DOM (3.1 + 3.2 + 3.3 ✅)
    8.1 [x] SR-3.1 Intent blocks (`intentBlocks[]`)
    8.2 [x] SR-3.2 Gợi ý chờ (`autoWaitSuggestion`)
-   8.3 [ ] SR-3.3 So DOM trước/sau (tùy chọn — có thể hoãn)
+   8.3 [x] SR-3.3 So DOM trước/sau (fingerprint lúc append + gợi ý review trên draft)
 9. [x] SR-4 — review + xem thử + Lưu (chia 4.1 → 4.6)              ← đóng SR-4
    9.1 [x] SR-4.1 Merge API (nháp → test case)
    9.2 [x] SR-4.2 Patch draft API
@@ -331,19 +331,19 @@ Quyền: giống dry-run (admin trước; mở employee khi pilot ổn).
 |------|-----|---------|
 | **SR-4** | ✅ Đã đóng | 4.1–4.6 xong — UI xem thử + Lưu trên TCM |
 | **BL-2** | ✅ Đã xong (extension) | Checkbox tùy chọn; ảnh/DOM cho event có ý nghĩa; xem trên UI review — chưa làm, không block |
-| **SR-3.3** | 1 mục (tùy chọn) | So DOM — có `domHtml` từ BL-2 rồi, có thể làm bất cứ lúc nào; hoãn được |
-| **BL-1** | XPath locator | Thấp nhất — chỉ khi pilot thấy CSS/role vẫn vỡ |
+| **SR-3.3** | ✅ Đã xong | So fingerprint DOM quanh click → gợi ý `autoWaitSuggestion` (click hụt / SPA); không chặn merge |
+| **BL-1** | ✅ Đã xong | XPath điểm 30 + engine `targetType: xpath` — fallback khi CSS/role vẫn vỡ |
 | **SR-5 / SR-6** | Sau pilot | AI gợi ý / mô tả bằng lời — **không** tính vào đóng SR-4 |
 
-**Đã xong (không cần làm lại):** SR-0, SR-1, SR-2, SR-3.1, SR-3.2, SR-4.1, SR-4.2, SR-4.3, SR-4.4, SR-4.5, SR-4.6, BL-2 + extension pilot 6.1–6.8.
+**Đã xong (không cần làm lại):** SR-0, SR-1, SR-2, SR-3.1, SR-3.2, SR-3.3, SR-4.1–4.6, BL-1, BL-2 + extension pilot 6.1–6.8.
 
 ### Thứ tự pilot đã chọn (2026-07-22)
 
 ```text
 SR-4.4 → 4.5 → 4.6 ✅ (UI review/Lưu trên web — đóng SR-4)
     → BL-2 ✅                (extension gửi ảnh/DOM — đã xong)
-    → SR-3.3                 (so DOM — có domHtml từ BL-2, chưa làm)
-    → BL-1                   (xpath — chỉ khi pilot cần)
+    → SR-3.3 ✅              (so DOM fingerprint — đã xong)
+    → BL-1 ✅                (xpath — đã xong)
 ```
 
 **Đánh giá:** Hợp lý. Ưu tiên **đóng vòng sản phẩm** (ghi → review → xem thử → Lưu) trước; BL-2/SR-3.3/BL-1 là **nâng cấp chất lượng nháp**, không chặn merge. Lưu ý: sau BL-2, extension **gửi được** screenshot/DOM nhưng UI review (`AdminRecordingReviewScreen`) **chưa hiển thị** ảnh — cần thêm endpoint tải artifact theo `screenshotKey`/`domSnapshotKey` nếu muốn xem trên web; hiện chưa cần vì pilot chưa yêu cầu.
@@ -361,7 +361,7 @@ SR-4.4 → 4.5 → 4.6 ✅ (UI review/Lưu trên web — đóng SR-4)
 | SR-2 | Locator scoring + `role` trong engine + draft `value` + form nhập tay | ✅ (commit `a39aded` + hoàn thiện 2026-07-06) |
 | SR-3.1 | Intent blocks — gom draft → `intentBlocks[]` | ✅ |
 | SR-3.2 | Gợi ý chờ — `autoWaitSuggestion` trên draft step | ✅ |
-| SR-3.3 | So DOM trước/sau click | ⏸ tùy chọn — hoãn được (xem BL-2) |
+| SR-3.3 | So DOM trước/sau click | ✅ fingerprint + gợi ý review (2026-07-23) |
 | SR-4.1 | Merge API — draft → `automation.steps` version mới | ✅ |
 | SR-4.2 | Patch draft API | ✅ |
 | SR-4.3 | Preview API (dry-run từ session) | ✅ |
@@ -371,11 +371,11 @@ SR-4.4 → 4.5 → 4.6 ✅ (UI review/Lưu trên web — đóng SR-4)
 
 **SR-2 đã xong:** Bảng điểm locator; Playwright `getByRole(role, { name: value })`; pipeline ghi gán `value` = tên hiển thị khi chọn role (click/hover/assert…); bước `type` **không** dùng role (tránh trùng ô value với nội dung gõ); form nhập tay có loại **Role (ARIA)** + ô tên hiển thị; helper `applyChosenLocatorToStepFields` cho merge SR-4.
 
-**Đích pilot hiện tại:** Extension ghi → nháp `ready_for_review` → preview API (4.3 ✅) → UI review (4.4 ✅) + edit (4.5 ✅) → UI xem thử + Lưu (4.6 ✅) — **SR-4 đã đóng**. BL-2 (ảnh/DOM extension) ✅ đã xong. Tiếp theo: SR-3.3 hoặc BL-1 (đều tùy chọn, không bắt buộc).
+**Đích pilot hiện tại:** Extension ghi → nháp → review/preview/merge + BL-2/SR-3.3/BL-1 ✅. Còn **SR-5/SR-6** (AI) sau khi pilot thật ổn.
 
-**SR-3 đã đóng (3.1 + 3.2):** Intent blocks + gợi ý waitFor trên draft step (chỉ gợi ý review, không tự chèn bước). SR-3.3 (so DOM) giờ có `domHtml` sẵn từ BL-2, có thể làm bất cứ lúc nào — vẫn hoãn được nếu pilot chưa cần.
+**SR-3 đã đóng (3.1 + 3.2 + 3.3):** Intent blocks + gợi ý waitFor + so DOM fingerprint quanh click (chỉ gợi ý review, không tự chèn bước).
 
-**Code tiếp theo:** Không còn mục bắt buộc nào trong pilot SR-1–4 + BL-2. Còn lại: **SR-3.3** (so DOM) hoặc **BL-1** (xpath, chỉ khi pilot thấy CSS/role vỡ) hoặc **SR-5/SR-6** (AI, sau khi pilot dùng thật SR-1–4 + BL-2 thấy ổn).
+**Code tiếp theo:** Pilot / kiểm thử thủ công — hoặc **SR-5/SR-6** (AI) khi sẵn sàng.
 
 Mỗi bước: `cd backend && npm test` — case cũ vẫn import/chạy được.
 
@@ -385,7 +385,7 @@ Mỗi bước: `cd backend && npm test` — case cũ vẫn import/chạy đượ
 
 | ID | Hạng mục | Trạng thái | Ghi chú kỹ thuật | Làm khi nào gợi ý |
 |----|----------|------------|------------------|-------------------|
-| **BL-1** | **XPath locator (điểm 30)** | ⏸ Chưa implement | Enum `xpath` có trong `recordingConfig` / `LocatorCandidate`; **chưa** sinh candidate (`locatorScoring.js`); **chưa** có `targetType: 'xpath'` trên `AutomationStep` / engine. **`role` đã có** sau SR-2. Fallback cuối = **CSS**. | Pilot thấy CSS/role vẫn hay vỡ |
+| **BL-1** | **XPath locator (điểm 30)** | ✅ Xong (2026-07-23) | `LOCATOR_SCORES.xpath=30`; `buildLocatorCandidates` sinh từ `payload.xpath` / testid / id / name; `AutomationStep.targetType` + engine `page.locator('xpath=…')`; FE form có loại XPath. | Fallback review khi CSS/role vỡ |
 | **BL-2** | **Screenshot + DOM từ extension** | ✅ Xong (2026-07-23) | Backend nhận/lưu `screenshotBase64` / `domHtml` (sẵn từ trước). Extension: checkbox tùy chọn trong popup (mặc định TẮT); chỉ chụp cho `click`/`change`/`submit`/`navigation`/`file_upload`/`select_change` (bỏ qua `input`/`keypress` — tránh spam `captureVisibleTab` + rate limit); screenshot chụp ở `background/service-worker.js` (JPEG q=50), DOM lấy ở `content/content-script.js` (cắt 300KB). | Xem ảnh trên **UI review** (`AdminRecordingReviewScreen`) vẫn **chưa làm** — cần thêm endpoint tải theo `screenshotKey`/`domSnapshotKey`; làm riêng khi cần |
 
 **Không ảnh hưởng:** SR-4.1 merge, SR-4.2 patch, SR-4.3 preview, SR-4.6 Lưu — đều chạy được không đổi hành vi khi tắt checkbox BL-2 (mặc định).
@@ -488,3 +488,5 @@ intentBlocks: [{ blockId, label, draftStepIds }]         // SR-3+
 | 2026-07-23 | SR-4.5 UI edit draft — sửa value/expected, chọn locator, Giữ/Bỏ bước, PATCH draft; e2e edit flow |
 | 2026-07-23 | SR-4.6 UI xem thử + Lưu — nút "Chạy thử" (preview API) + "Lưu vào test case" (merge API); tách `DryRunResultView` dùng chung với `AutomationDryRunPanel` (tránh trùng code hiển thị log/screenshot/trace); e2e preview/merge gating + merge flow; **đóng SR-4** |
 | 2026-07-23 | BL-2 (extension gửi ảnh/DOM) — checkbox tùy chọn trong popup (mặc định TẮT); chỉ chụp cho event có ý nghĩa (`click`/`change`/`submit`/`navigation`/`file_upload`/`select_change`, **bỏ qua** `input`/`keypress` để tránh spam `captureVisibleTab` + rate limit Chrome); screenshot chụp ở background service worker (JPEG q=50), DOM lấy ở content script (cắt 300KB, dưới ngưỡng backend 1MB); backend lưu/serve đã có từ trước, không đổi. Hiển thị ảnh trên UI review (SR-4.4+) **chưa làm** — để riêng, không block. Test: thủ công (extension không có test tự động, xem README bước 9); backend 249/249 không đổi vì không sửa backend |
+| 2026-07-23 | SR-3.3 so DOM — lúc append lưu `payload.domFingerprint` (HTML chỉ trên disk); pipeline so fingerprint quanh click → gợi ý `autoWaitSuggestion` khi SR-3.2 chưa gợi ý (click hụt nếu DOM không đổi; SPA nếu DOM đổi mạnh cùng URL); test `recording-sr3.test.js` |
+| 2026-07-23 | BL-1 XPath — điểm 30; sinh candidate từ testid/id/name (hoặc `payload.xpath`); `AutomationStep` + Playwright `targetType: xpath`; mirror FE form; test scoring + resolveLocator |
