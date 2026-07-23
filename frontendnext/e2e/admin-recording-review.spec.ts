@@ -3,6 +3,7 @@ import {
   createReadyRecordingSession,
   fetchRecordingSessionViaBrowser,
   getFirstProject,
+  getFirstTestCase,
 } from "./helpers/recording";
 import { loginAsAdmin, mainContent, e2eProjectName } from "./helpers/auth";
 
@@ -55,8 +56,10 @@ test.describe("SR-4.4 Admin recording review (read-only)", () => {
       await expect(main.getByText(autoWaitStep.autoWaitSuggestion, { exact: true })).toBeVisible();
     }
 
-    await expect(main.getByRole("button", { name: "Lưu" })).toHaveCount(0);
-    await expect(main.getByRole("button", { name: "Chạy thử" })).toHaveCount(0);
+    // SR-4.5 adds "Lưu nháp" edit/save; SR-4.6 adds "Chạy thử" preview + "Lưu vào test case" merge.
+    await expect(main.getByRole("button", { name: /^Lưu nháp/ })).toBeVisible();
+    await expect(main.getByRole("button", { name: "Chạy thử" })).toBeVisible();
+    await expect(main.getByRole("button", { name: "Lưu vào test case" })).toBeVisible();
   });
 
   test("loads session from topbar input without query param", async ({ page }) => {
@@ -75,6 +78,150 @@ test.describe("SR-4.4 Admin recording review (read-only)", () => {
       timeout: 15_000,
     });
     await expect(page).toHaveURL(new RegExp(`sessionId=${sessionId}`));
+  });
+});
+
+test.describe("SR-4.5 Admin recording review (edit draft)", () => {
+  test.beforeEach(async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.getByLabel("Project scope").selectOption({ label: e2eProjectName });
+  });
+
+  test("edits a draft step value and saves the patch", async ({ page }) => {
+    await page.goto("/workspace/admin/dashboard");
+
+    const project = await getFirstProject(page);
+    const sessionId = await createReadyRecordingSession(page, { projectId: project.id });
+
+    await page.goto(`/workspace/admin/recording-review?sessionId=${encodeURIComponent(sessionId)}`);
+    const main = mainContent(page);
+    await expect(main.getByText("Draft steps", { exact: true })).toBeVisible({ timeout: 15_000 });
+
+    const typeRow = main.locator("tbody tr").filter({ has: page.getByRole("cell", { name: "type", exact: true }) });
+    const valueInput = typeRow.locator("input").first();
+    await expect(valueInput).toHaveValue("admin");
+
+    const saveButton = main.getByRole("button", { name: /^Lưu nháp/ });
+    await expect(saveButton).toBeDisabled();
+
+    await valueInput.fill("admin-edited");
+    await expect(saveButton).toBeEnabled();
+    await saveButton.click();
+
+    await expect(page.getByText("Đã lưu thay đổi nháp", { exact: true })).toBeVisible({ timeout: 10_000 });
+    await expect(valueInput).toHaveValue("admin-edited");
+    await expect(saveButton).toBeDisabled();
+
+    const persisted = await fetchRecordingSessionViaBrowser(page, sessionId) as {
+      session: { draftSteps: Array<{ inferredAction: string; value: string; reviewStatus: string }> };
+    };
+    const patchedTypeStep = persisted.session.draftSteps.find((step) => step.inferredAction === "type");
+    expect(patchedTypeStep?.value).toBe("admin-edited");
+    expect(patchedTypeStep?.reviewStatus).toBe("edited");
+  });
+
+  test("marks a draft step as rejected and saves", async ({ page }) => {
+    await page.goto("/workspace/admin/dashboard");
+
+    const project = await getFirstProject(page);
+    const sessionId = await createReadyRecordingSession(page, { projectId: project.id });
+
+    await page.goto(`/workspace/admin/recording-review?sessionId=${encodeURIComponent(sessionId)}`);
+    const main = mainContent(page);
+    await expect(main.getByText("Draft steps", { exact: true })).toBeVisible({ timeout: 15_000 });
+
+    const clickRow = main.locator("tbody tr").filter({ has: page.getByRole("cell", { name: "click", exact: true }) });
+    await clickRow.getByRole("button", { name: "Bỏ", exact: true }).click();
+
+    await main.getByRole("button", { name: /^Lưu nháp/ }).click();
+    await expect(page.getByText("Đã lưu thay đổi nháp", { exact: true })).toBeVisible({ timeout: 10_000 });
+
+    const persisted = await fetchRecordingSessionViaBrowser(page, sessionId) as {
+      session: { draftSteps: Array<{ inferredAction: string; reviewStatus: string }> };
+    };
+    const patchedClickStep = persisted.session.draftSteps.find((step) => step.inferredAction === "click");
+    expect(patchedClickStep?.reviewStatus).toBe("rejected");
+  });
+
+  test("discards unsaved edits when clicking Hủy sửa", async ({ page }) => {
+    await page.goto("/workspace/admin/dashboard");
+
+    const project = await getFirstProject(page);
+    const sessionId = await createReadyRecordingSession(page, { projectId: project.id });
+
+    await page.goto(`/workspace/admin/recording-review?sessionId=${encodeURIComponent(sessionId)}`);
+    const main = mainContent(page);
+    await expect(main.getByText("Draft steps", { exact: true })).toBeVisible({ timeout: 15_000 });
+
+    const typeRow = main.locator("tbody tr").filter({ has: page.getByRole("cell", { name: "type", exact: true }) });
+    const valueInput = typeRow.locator("input").first();
+    await valueInput.fill("temp-value-should-not-persist");
+
+    await main.getByRole("button", { name: "Hủy sửa", exact: true }).click();
+    await expect(valueInput).toHaveValue("admin");
+    await expect(main.getByRole("button", { name: /^Lưu nháp/ })).toBeDisabled();
+  });
+});
+
+test.describe("SR-4.6 Admin recording review (preview + merge)", () => {
+  test.beforeEach(async ({ page }) => {
+    await loginAsAdmin(page);
+    await page.getByLabel("Project scope").selectOption({ label: e2eProjectName });
+  });
+
+  test("disables preview/merge while a draft edit is unsaved", async ({ page }) => {
+    await page.goto("/workspace/admin/dashboard");
+
+    const project = await getFirstProject(page);
+    const testCase = await getFirstTestCase(page, { projectId: project.id });
+    const sessionId = await createReadyRecordingSession(page, { projectId: project.id });
+
+    await page.goto(`/workspace/admin/recording-review?sessionId=${encodeURIComponent(sessionId)}`);
+    const main = mainContent(page);
+    await expect(main.getByText("Xem thử & Lưu", { exact: true })).toBeVisible({ timeout: 15_000 });
+
+    // Merge also needs a target test case entity ID — fill it so gating below only reflects pending edits.
+    await main.getByLabel("Test case entity ID").fill(testCase.id);
+
+    const previewButton = main.getByRole("button", { name: "Chạy thử" });
+    const mergeButton = main.getByRole("button", { name: "Lưu vào test case" });
+    await expect(previewButton).toBeEnabled();
+    await expect(mergeButton).toBeEnabled();
+
+    const typeRow = main.locator("tbody tr").filter({ has: page.getByRole("cell", { name: "type", exact: true }) });
+    await typeRow.locator("input").first().fill("admin-pending-edit");
+
+    await expect(previewButton).toBeDisabled();
+    await expect(mergeButton).toBeDisabled();
+
+    await main.getByRole("button", { name: "Hủy sửa", exact: true }).click();
+    await expect(previewButton).toBeEnabled();
+    await expect(mergeButton).toBeEnabled();
+  });
+
+  test("merges draft steps into the target test case and closes the session", async ({ page }) => {
+    await page.goto("/workspace/admin/dashboard");
+
+    const project = await getFirstProject(page);
+    const testCase = await getFirstTestCase(page, { projectId: project.id });
+    const sessionId = await createReadyRecordingSession(page, { projectId: project.id });
+
+    await page.goto(`/workspace/admin/recording-review?sessionId=${encodeURIComponent(sessionId)}`);
+    const main = mainContent(page);
+    await expect(main.getByText("Xem thử & Lưu", { exact: true })).toBeVisible({ timeout: 15_000 });
+
+    await main.getByLabel("Test case entity ID").fill(testCase.id);
+    await main.getByRole("button", { name: "Lưu vào test case" }).click();
+
+    await expect(page.getByText(/Đã lưu \d+ bước vào test case/)).toBeVisible({ timeout: 10_000 });
+    await expect(main.getByText("Đã lưu vào test case", { exact: true })).toBeVisible();
+    await expect(main.getByRole("button", { name: /^Lưu nháp/ })).toHaveCount(0);
+
+    const persisted = await fetchRecordingSessionViaBrowser(page, sessionId) as {
+      session: { status: string; testCaseEntityId: string };
+    };
+    expect(persisted.session.status).toBe("merged");
+    expect(persisted.session.testCaseEntityId).toBe(testCase.id);
   });
 });
 

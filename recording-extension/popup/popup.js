@@ -6,6 +6,7 @@ const apiBaseUrlInput = document.getElementById('apiBaseUrl');
 const projectIdInput = document.getElementById('projectId');
 const testCaseEntityIdInput = document.getElementById('testCaseEntityId');
 const baseUrlInput = document.getElementById('baseUrl');
+const captureVisualsInput = document.getElementById('captureVisuals');
 const startButton = document.getElementById('startRecording');
 const pauseButton = document.getElementById('pauseRecording');
 const resumeButton = document.getElementById('resumeRecording');
@@ -21,6 +22,7 @@ const readFormConfig = () => normalizeRecordingConfig({
   projectId: projectIdInput.value,
   testCaseEntityId: testCaseEntityIdInput.value,
   baseUrl: baseUrlInput.value,
+  captureVisuals: captureVisualsInput.checked,
 });
 
 const fillFormConfig = (config = {}) => {
@@ -29,6 +31,7 @@ const fillFormConfig = (config = {}) => {
   projectIdInput.value = config.projectId || '';
   testCaseEntityIdInput.value = config.testCaseEntityId || '';
   baseUrlInput.value = config.baseUrl || defaults.baseUrl;
+  captureVisualsInput.checked = Boolean(config.captureVisuals);
 };
 
 const setRecordingUi = ({ isRecording, isPaused, sessionActive }) => {
@@ -43,6 +46,7 @@ const setRecordingUi = ({ isRecording, isPaused, sessionActive }) => {
   projectIdInput.disabled = liveSession;
   testCaseEntityIdInput.disabled = liveSession;
   baseUrlInput.disabled = liveSession;
+  captureVisualsInput.disabled = liveSession;
 
   stopButton.classList.toggle('recording', isRecording);
   pauseButton.classList.toggle('paused', isPaused);

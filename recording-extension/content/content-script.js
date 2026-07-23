@@ -2,11 +2,25 @@ import { buildRecordedEvent } from '../lib/buildRecordedEvent.js';
 import { domDescriptorFromElement } from '../lib/domDescriptorFromElement.js';
 import { elementPayloadFromDescriptor } from '../lib/elementPayloadFromDescriptor.js';
 import { MESSAGE } from '../lib/messages.js';
+import { MAX_DOM_HTML_LENGTH, VISUAL_CAPTURE_RAW_TYPES } from '../lib/recordedEventConstants.js';
 
 const IGNORED_TAGS = new Set(['html', 'body', 'head', 'script', 'style', 'meta', 'link']);
 
 let isRecording = false;
+let captureVisuals = false;
 let lastNavigationUrl = window.location.href;
+
+/** BL-2 — DOM snapshot for "significant" events only (see VISUAL_CAPTURE_RAW_TYPES); screenshot is captured by background. */
+const captureDomHtmlIfNeeded = (rawType) => {
+  if (!captureVisuals || !VISUAL_CAPTURE_RAW_TYPES.includes(rawType)) {
+    return '';
+  }
+  try {
+    return document.documentElement.outerHTML.slice(0, MAX_DOM_HTML_LENGTH);
+  } catch {
+    return '';
+  }
+};
 
 const sendRuntimeMessage = (message) => {
   try {
@@ -20,8 +34,10 @@ const requestRecordingState = async () => {
   try {
     const response = await chrome.runtime.sendMessage({ type: MESSAGE.GET_RECORDING_STATE });
     isRecording = Boolean(response?.isRecording);
+    captureVisuals = Boolean(response?.captureVisuals);
   } catch {
     isRecording = false;
+    captureVisuals = false;
   }
 };
 
@@ -36,6 +52,7 @@ const buildEventFromElement = (rawType, element, extraPayload = {}) => {
     rawType,
     pageUrl: window.location.href,
     payload,
+    domHtml: captureDomHtmlIfNeeded(rawType),
   });
 };
 
@@ -165,6 +182,7 @@ const onDocumentSubmit = (event) => {
       name: element.getAttribute('name') || '',
       selector: element.id ? `#${element.id}` : 'form',
     },
+    domHtml: captureDomHtmlIfNeeded('submit'),
   }));
 };
 
@@ -182,6 +200,7 @@ const emitNavigationIfChanged = (reason = 'navigation') => {
       reason,
       value: nextUrl,
     },
+    domHtml: captureDomHtmlIfNeeded('navigation'),
   }));
 };
 
@@ -221,6 +240,7 @@ const registerCaptureListeners = () => {
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message?.type === MESSAGE.SET_RECORDING_STATE) {
     isRecording = Boolean(message.isRecording);
+    captureVisuals = Boolean(message.captureVisuals);
     if (isRecording) {
       lastNavigationUrl = window.location.href;
     }

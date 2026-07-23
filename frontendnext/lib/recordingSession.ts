@@ -1,4 +1,5 @@
 import { apiRequest } from "@/lib/api";
+import type { DryRunResult } from "@/lib/automationDryRun";
 import { TARGET_TYPE_LABELS } from "@/lib/automationStepMeta";
 
 export type RecordingLocatorCandidate = {
@@ -72,6 +73,114 @@ export async function fetchRecordingSession(sessionId: string) {
   return response.session;
 }
 
+/** One draft step edit — only include fields the user actually changed (see recordingDraftPatchService). */
+export type RecordingDraftStepPatch = {
+  draftStepId: string;
+  value?: string;
+  expected?: string;
+  chosenLocatorIndex?: number;
+  reviewStatus?: string;
+};
+
+/** PATCH nháp — chỉ cho phép khi session còn `ready_for_review` (SR-4.5). */
+export async function patchRecordingDraft(sessionId: string, patches: RecordingDraftStepPatch[]) {
+  const normalizedId = String(sessionId || "").trim();
+  if (!normalizedId) {
+    throw new Error("Session ID là bắt buộc");
+  }
+  if (!patches.length) {
+    throw new Error("Chưa có thay đổi nào để lưu");
+  }
+
+  const response = await apiRequest<{ session: RecordingSession }>(
+    `/api/recording/sessions/${encodeURIComponent(normalizedId)}/draft`,
+    undefined,
+    { method: "PATCH", body: JSON.stringify({ draftSteps: patches }) },
+  );
+
+  if (!response.session?.id) {
+    throw new Error("Không lưu được thay đổi nháp");
+  }
+
+  return response.session;
+}
+
+/** Preview result — dry-run fields + session context (SR-4.6). */
+export type RecordingPreviewResult = DryRunResult & {
+  sessionId: string;
+  projectId: string;
+  previewStepsCount: number;
+  baseUrl: string;
+};
+
+/** Merge API response — FE chỉ dùng `mergedStepsCount` rồi reload session (SR-4.6). */
+export type RecordingMergeResult = {
+  session: {
+    id: string;
+    status: string;
+    mergedAt: string | null;
+    mergedTestCaseEntityId: string;
+    mergedTestCaseVersionId: string;
+  };
+  testCase: {
+    id: string;
+    entityId: string;
+    versionNumber: number;
+  };
+  mergedStepsCount: number;
+};
+
+/** Xem thử (dry run) từ draft session — chưa ghi vào test case (SR-4.6). */
+export async function previewRecordingSession(
+  sessionId: string,
+  { baseUrl = "", webId = "", userKey = "" }: { baseUrl?: string; webId?: string; userKey?: string } = {},
+) {
+  const normalizedId = String(sessionId || "").trim();
+  if (!normalizedId) {
+    throw new Error("Session ID là bắt buộc");
+  }
+
+  const payload: Record<string, string> = {};
+  if (baseUrl.trim()) payload.baseUrl = baseUrl.trim();
+  if (webId.trim()) payload.webId = webId.trim();
+  if (userKey.trim()) payload.userKey = userKey.trim();
+
+  const response = await apiRequest<{ preview: RecordingPreviewResult }>(
+    `/api/recording/sessions/${encodeURIComponent(normalizedId)}/preview`,
+    undefined,
+    { method: "POST", body: JSON.stringify(payload) },
+  );
+
+  if (!response.preview?.dryRunId) {
+    throw new Error("Không xem thử được recording session");
+  }
+
+  return response.preview;
+}
+
+/** Lưu nháp vào test case (merge) — tạo version mới, đóng SR-4 (SR-4.6). */
+export async function mergeRecordingSession(sessionId: string, testCaseId: string = "") {
+  const normalizedId = String(sessionId || "").trim();
+  if (!normalizedId) {
+    throw new Error("Session ID là bắt buộc");
+  }
+
+  const trimmedTestCaseId = String(testCaseId || "").trim();
+  const payload = trimmedTestCaseId ? { testCaseId: trimmedTestCaseId } : {};
+
+  const response = await apiRequest<RecordingMergeResult>(
+    `/api/recording/sessions/${encodeURIComponent(normalizedId)}/merge`,
+    undefined,
+    { method: "POST", body: JSON.stringify(payload) },
+  );
+
+  if (!response.session?.id) {
+    throw new Error("Không lưu được vào test case");
+  }
+
+  return response;
+}
+
 export function formatRecordingReviewStatus(status: string) {
   const normalized = String(status || "").trim();
   return REVIEW_STATUS_LABELS[normalized] || normalized || "—";
@@ -105,16 +214,6 @@ export function formatLocatorCandidate(candidate: RecordingLocatorCandidate) {
   }
 
   return value ? `${strategyLabel}: ${value}` : strategyLabel;
-}
-
-export function getChosenLocatorCandidate(step: RecordingDraftStep) {
-  const candidates = Array.isArray(step.locatorCandidates) ? step.locatorCandidates : [];
-  if (candidates.length === 0) {
-    return null;
-  }
-
-  const index = Number.isInteger(step.chosenLocatorIndex) ? step.chosenLocatorIndex : 0;
-  return candidates[index] || candidates[0] || null;
 }
 
 export function sortRecordingDraftSteps(steps: RecordingDraftStep[] = []) {

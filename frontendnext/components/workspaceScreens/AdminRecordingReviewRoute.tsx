@@ -5,7 +5,15 @@ import { useRouter, useSearchParams } from "next/navigation";
 import AdminRecordingReviewScreen from "@/components/workspaceScreens/AdminRecordingReviewScreen";
 import { useAdminWorkspace } from "@/components/workspaceScreens/WorkspaceShell";
 import { TOPBAR_INPUT_CLS, WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
-import { fetchRecordingSession, type RecordingSession } from "@/lib/recordingSession";
+import {
+  fetchRecordingSession,
+  mergeRecordingSession,
+  patchRecordingDraft,
+  previewRecordingSession,
+  type RecordingDraftStepPatch,
+  type RecordingPreviewResult,
+  type RecordingSession,
+} from "@/lib/recordingSession";
 
 export default function AdminRecordingReviewRoute() {
   const router = useRouter();
@@ -15,6 +23,9 @@ export default function AdminRecordingReviewRoute() {
   const sessionIdInputRef = useRef<HTMLInputElement>(null);
   const [session, setSession] = useState<RecordingSession | null>(null);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
+  const [merging, setMerging] = useState(false);
 
   const loadSession = useCallback(async (sessionId: string) => {
     const normalizedId = String(sessionId || "").trim();
@@ -38,6 +49,62 @@ export default function AdminRecordingReviewRoute() {
       setLoading(false);
     }
   }, [router, showNotice]);
+
+  const handleSaveDraft = useCallback(async (patches: RecordingDraftStepPatch[]) => {
+    if (!session) {
+      return false;
+    }
+
+    setSaving(true);
+    try {
+      const updatedSession = await patchRecordingDraft(session.id, patches);
+      setSession(updatedSession);
+      showNotice("Đã lưu thay đổi nháp", "success");
+      return true;
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : "Không lưu được thay đổi nháp", "error");
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }, [session, showNotice]);
+
+  const handlePreview = useCallback(async (
+    options: { baseUrl?: string; webId?: string; userKey?: string },
+  ): Promise<RecordingPreviewResult | null> => {
+    if (!session) {
+      return null;
+    }
+
+    setPreviewing(true);
+    try {
+      return await previewRecordingSession(session.id, options);
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : "Không xem thử được recording session", "error");
+      return null;
+    } finally {
+      setPreviewing(false);
+    }
+  }, [session, showNotice]);
+
+  const handleMerge = useCallback(async (testCaseId: string) => {
+    if (!session) {
+      return false;
+    }
+
+    setMerging(true);
+    try {
+      const result = await mergeRecordingSession(session.id, testCaseId);
+      showNotice(`Đã lưu ${result.mergedStepsCount} bước vào test case`, "success");
+      await loadSession(session.id);
+      return true;
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : "Không lưu được vào test case", "error");
+      return false;
+    } finally {
+      setMerging(false);
+    }
+  }, [session, showNotice, loadSession]);
 
   useEffect(() => {
     if (!currentUser || !sessionIdFromUrl) {
@@ -85,5 +152,16 @@ export default function AdminRecordingReviewRoute() {
     return <WorkspaceContentSkeleton />;
   }
 
-  return <AdminRecordingReviewScreen session={session} projectMismatch={projectMismatch} />;
+  return (
+    <AdminRecordingReviewScreen
+      session={session}
+      projectMismatch={projectMismatch}
+      onSaveDraft={handleSaveDraft}
+      saving={saving}
+      onPreview={handlePreview}
+      previewing={previewing}
+      onMerge={handleMerge}
+      merging={merging}
+    />
+  );
 }

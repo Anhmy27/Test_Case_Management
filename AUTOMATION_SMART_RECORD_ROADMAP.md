@@ -3,7 +3,7 @@
 > **Mục tiêu đời thường:** Tester **làm trên web như bình thường** (click, gõ, chọn…) → hệ thống **tự ghi lại** → tester **xem lại, sửa chút** → **Lưu** thành test case auto.  
 > **Vẫn giữ** cách nhập tay hiện tại. **Chưa dùng AI** cho đến SR-5.
 
-**Cập nhật:** 2026-07-22  
+**Cập nhật:** 2026-07-23  
 **Liên quan:** `AUTOMATION_STABILITY_ROADMAP.md` (P0–P6 xong; P7–P10 ⏸ tạm hoãn — ưu tiên Smart Record)
 
 ---
@@ -315,13 +315,13 @@ Quyền: giống dry-run (admin trước; mở employee khi pilot ổn).
    8.1 [x] SR-3.1 Intent blocks (`intentBlocks[]`)
    8.2 [x] SR-3.2 Gợi ý chờ (`autoWaitSuggestion`)
    8.3 [ ] SR-3.3 So DOM trước/sau (tùy chọn — có thể hoãn)
-9. [ ] SR-4 — review + xem thử + Lưu (chia 4.1 → 4.6)              ← đang làm (4.1–4.2 ✅)
+9. [x] SR-4 — review + xem thử + Lưu (chia 4.1 → 4.6)              ← đóng SR-4
    9.1 [x] SR-4.1 Merge API (nháp → test case)
    9.2 [x] SR-4.2 Patch draft API
    9.3 [x] SR-4.3 Preview API (dry-run từ session)
    9.4 [x] SR-4.4 UI review read-only
-   9.5 [ ] SR-4.5 UI edit draft                          ← TIẾP THEO
-   9.6 [ ] SR-4.6 UI preview + Lưu (+ metadata optional)
+   9.5 [x] SR-4.5 UI edit draft
+   9.6 [x] SR-4.6 UI preview + Lưu (metadata optional — chưa làm, không block)
 10. [ ] SR-5, SR-6 sau (AI / prompt-to-test — không thuộc pilot SR-1–4)
 ```
 
@@ -329,26 +329,24 @@ Quyền: giống dry-run (admin trước; mở employee khi pilot ổn).
 
 | Nhóm | Còn | Ghi chú |
 |------|-----|---------|
-| **SR-4** | **2 mục** — 4.5 → 4.6 | UI edit/Lưu trên TCM |
-| **SR-3.3** | 1 mục (tùy chọn) | So DOM — hoãn được; dễ hơn sau BL-2 |
-| **BL-2** | Extension gửi screenshot/DOM | Không block SR-4; nên trước SR-3.3 |
+| **SR-4** | ✅ Đã đóng | 4.1–4.6 xong — UI xem thử + Lưu trên TCM |
+| **BL-2** | ✅ Đã xong (extension) | Checkbox tùy chọn; ảnh/DOM cho event có ý nghĩa; xem trên UI review — chưa làm, không block |
+| **SR-3.3** | 1 mục (tùy chọn) | So DOM — có `domHtml` từ BL-2 rồi, có thể làm bất cứ lúc nào; hoãn được |
 | **BL-1** | XPath locator | Thấp nhất — chỉ khi pilot thấy CSS/role vẫn vỡ |
 | **SR-5 / SR-6** | Sau pilot | AI gợi ý / mô tả bằng lời — **không** tính vào đóng SR-4 |
 
-**Đã xong (không cần làm lại):** SR-0, SR-1, SR-2, SR-3.1, SR-3.2, SR-4.1, SR-4.2, SR-4.3, SR-4.4 + extension pilot 6.1–6.8.
+**Đã xong (không cần làm lại):** SR-0, SR-1, SR-2, SR-3.1, SR-3.2, SR-4.1, SR-4.2, SR-4.3, SR-4.4, SR-4.5, SR-4.6, BL-2 + extension pilot 6.1–6.8.
 
 ### Thứ tự pilot đã chọn (2026-07-22)
 
 ```text
-SR-4.4 → 4.5 → 4.6   (UI review/Lưu trên web — đóng SR-4)
-    → BL-2                   (extension gửi ảnh/DOM; có thể bổ sung UI ảnh nháp)
-    → SR-3.3                 (so DOM — cần domHtml từ BL-2)
+SR-4.4 → 4.5 → 4.6 ✅ (UI review/Lưu trên web — đóng SR-4)
+    → BL-2 ✅                (extension gửi ảnh/DOM — đã xong)
+    → SR-3.3                 (so DOM — có domHtml từ BL-2, chưa làm)
     → BL-1                   (xpath — chỉ khi pilot cần)
 ```
 
-**Đánh giá:** Hợp lý. Ưu tiên **đóng vòng sản phẩm** (ghi → review → xem thử → Lưu) trước; BL-2/SR-3.3/BL-1 là **nâng cấp chất lượng nháp**, không chặn merge. Lưu ý: SR-4.4–4.6 **không có ảnh từng bước** cho đến BL-2 — chấp nhận được nếu pilot chưa cần xem screenshot trên UI.
-
-**Lựa chọn khác (nếu muốn ảnh ngay trên màn review):** BL-2 **trước** SR-4.4 — không bắt buộc.
+**Đánh giá:** Hợp lý. Ưu tiên **đóng vòng sản phẩm** (ghi → review → xem thử → Lưu) trước; BL-2/SR-3.3/BL-1 là **nâng cấp chất lượng nháp**, không chặn merge. Lưu ý: sau BL-2, extension **gửi được** screenshot/DOM nhưng UI review (`AdminRecordingReviewScreen`) **chưa hiển thị** ảnh — cần thêm endpoint tải artifact theo `screenshotKey`/`domSnapshotKey` nếu muốn xem trên web; hiện chưa cần vì pilot chưa yêu cầu.
 
 ### Tiến độ chi tiết (cập nhật 2026-07-22)
 
@@ -356,7 +354,7 @@ SR-4.4 → 4.5 → 4.6   (UI review/Lưu trên web — đóng SR-4)
 |----|----------|------------|
 | Backend 2.8 | Externalize events (>300 / >4MB / >15 phút) | ✅ |
 | Backend 2.9 | Pause / resume API | ✅ |
-| Backend 2.10 | Screenshot/DOM artifact khi append | ✅ backend — ⏸ extension: [BL-2](#backlog-sau-sr-2-không-block-sr-3) |
+| Backend 2.10 | Screenshot/DOM artifact khi append | ✅ backend + ✅ extension (BL-2, 2026-07-23) |
 | Ext 6.1–6.3 | Scaffold MV3, capture DOM, payload schema | ✅ |
 | Ext 6.4–6.6 | Popup config, start/stop, batch events + CSRF | ✅ (commit `c379448`) |
 | Ext 6.7–6.8 | Pause/resume extension, auth errors, smoke test README | ✅ (commit `ce360a9`) |
@@ -368,31 +366,29 @@ SR-4.4 → 4.5 → 4.6   (UI review/Lưu trên web — đóng SR-4)
 | SR-4.2 | Patch draft API | ✅ |
 | SR-4.3 | Preview API (dry-run từ session) | ✅ |
 | SR-4.4 | UI review read-only | ✅ |
-| SR-4.5 | UI edit draft | ❌ **TIẾP THEO** |
-| SR-4.6 | UI preview + Lưu | ❌ chưa làm |
+| SR-4.5 | UI edit draft | ✅ |
+| SR-4.6 | UI preview + Lưu | ✅ đóng SR-4 |
 
 **SR-2 đã xong:** Bảng điểm locator; Playwright `getByRole(role, { name: value })`; pipeline ghi gán `value` = tên hiển thị khi chọn role (click/hover/assert…); bước `type` **không** dùng role (tránh trùng ô value với nội dung gõ); form nhập tay có loại **Role (ARIA)** + ô tên hiển thị; helper `applyChosenLocatorToStepFields` cho merge SR-4.
 
-**Đích pilot hiện tại:** Extension ghi → nháp `ready_for_review` → preview API (4.3 ✅) → **SR-4.4–4.6** UI review/Lưu.
+**Đích pilot hiện tại:** Extension ghi → nháp `ready_for_review` → preview API (4.3 ✅) → UI review (4.4 ✅) + edit (4.5 ✅) → UI xem thử + Lưu (4.6 ✅) — **SR-4 đã đóng**. BL-2 (ảnh/DOM extension) ✅ đã xong. Tiếp theo: SR-3.3 hoặc BL-1 (đều tùy chọn, không bắt buộc).
 
-**SR-3 đã đóng (3.1 + 3.2):** Intent blocks + gợi ý waitFor trên draft step (chỉ gợi ý review, không tự chèn bước). SR-3.3 hoãn sau BL-2 (xem [Thứ tự pilot](#thứ-tự-pilot-đã-chọn-2026-07-22)).
+**SR-3 đã đóng (3.1 + 3.2):** Intent blocks + gợi ý waitFor trên draft step (chỉ gợi ý review, không tự chèn bước). SR-3.3 (so DOM) giờ có `domHtml` sẵn từ BL-2, có thể làm bất cứ lúc nào — vẫn hoãn được nếu pilot chưa cần.
 
-**Code tiếp theo:** **SR-4.5** (UI edit draft). Sau đó 4.6 theo thứ tự pilot.
-
-**BL-2 (ảnh/DOM extension):** Sau SR-4 đầy đủ (thứ tự pilot). Không block 4.1–4.6. Cần cho ảnh nháp trên UI và là tiền đề SR-3.3.
+**Code tiếp theo:** Không còn mục bắt buộc nào trong pilot SR-1–4 + BL-2. Còn lại: **SR-3.3** (so DOM) hoặc **BL-1** (xpath, chỉ khi pilot thấy CSS/role vỡ) hoặc **SR-5/SR-6** (AI, sau khi pilot dùng thật SR-1–4 + BL-2 thấy ổn).
 
 Mỗi bước: `cd backend && npm test` — case cũ vẫn import/chạy được.
 
 ### Backlog sau SR-2 (không block SR-3 / SR-4 bắt buộc)
 
-> Hai hạng mục dưới **không** thuộc phạm vi SR-2 đã đóng. **Không chặn** merge hay review cơ bản (SR-4.1–4.6).
+> Các hạng mục dưới **không** thuộc phạm vi SR-2 đã đóng. **Không chặn** merge hay review cơ bản (SR-4.1–4.6).
 
 | ID | Hạng mục | Trạng thái | Ghi chú kỹ thuật | Làm khi nào gợi ý |
 |----|----------|------------|------------------|-------------------|
 | **BL-1** | **XPath locator (điểm 30)** | ⏸ Chưa implement | Enum `xpath` có trong `recordingConfig` / `LocatorCandidate`; **chưa** sinh candidate (`locatorScoring.js`); **chưa** có `targetType: 'xpath'` trên `AutomationStep` / engine. **`role` đã có** sau SR-2. Fallback cuối = **CSS**. | Pilot thấy CSS/role vẫn hay vỡ |
-| **BL-2** | **Screenshot + DOM từ extension** | ⏸ Nửa xong (backend ✅) | Backend `append` đã nhận `screenshotBase64` / `domHtml`; extension **chưa** gửi. `draftSteps[].screenshotKey` sẵn sàng. | **Không** bắt buộc trước/sau cả SR-4. Làm khi cần **ảnh trên UI review (SR-4.4+)** hoặc SR-3.3; hoãn sau SR-4.6 nếu pilot chưa cần ảnh |
+| **BL-2** | **Screenshot + DOM từ extension** | ✅ Xong (2026-07-23) | Backend nhận/lưu `screenshotBase64` / `domHtml` (sẵn từ trước). Extension: checkbox tùy chọn trong popup (mặc định TẮT); chỉ chụp cho `click`/`change`/`submit`/`navigation`/`file_upload`/`select_change` (bỏ qua `input`/`keypress` — tránh spam `captureVisibleTab` + rate limit); screenshot chụp ở `background/service-worker.js` (JPEG q=50), DOM lấy ở `content/content-script.js` (cắt 300KB). | Xem ảnh trên **UI review** (`AdminRecordingReviewScreen`) vẫn **chưa làm** — cần thêm endpoint tải theo `screenshotKey`/`domSnapshotKey`; làm riêng khi cần |
 
-**Không ảnh hưởng:** SR-4.1 merge, SR-4.2 patch, SR-4.3 preview, SR-4.6 Lưu — đều chạy được **không** có BL-2.
+**Không ảnh hưởng:** SR-4.1 merge, SR-4.2 patch, SR-4.3 preview, SR-4.6 Lưu — đều chạy được không đổi hành vi khi tắt checkbox BL-2 (mặc định).
 
 ---
 
@@ -488,3 +484,7 @@ intentBlocks: [{ blockId, label, draftStepIds }]         // SR-3+
 | 2026-07-22 | SR-4.3 preview API — dry-run từ draft session; test `recording-sr4-preview.test.js` |
 | 2026-07-22 | SR-4.2 patch draft API — `recordingDraftPatchService.js`, `recording-sr4-patch.test.js` |
 | 2026-07-22 | Đối chiếu code ↔ roadmap; thêm mục “Còn lại”, “Thứ tự pilot”; cập nhật trạng thái SR-4 |
+| 2026-07-22 | SR-4.4 UI review read-only — admin xem draft/intent blocks; `e2e/admin-recording-review.spec.ts` |
+| 2026-07-23 | SR-4.5 UI edit draft — sửa value/expected, chọn locator, Giữ/Bỏ bước, PATCH draft; e2e edit flow |
+| 2026-07-23 | SR-4.6 UI xem thử + Lưu — nút "Chạy thử" (preview API) + "Lưu vào test case" (merge API); tách `DryRunResultView` dùng chung với `AutomationDryRunPanel` (tránh trùng code hiển thị log/screenshot/trace); e2e preview/merge gating + merge flow; **đóng SR-4** |
+| 2026-07-23 | BL-2 (extension gửi ảnh/DOM) — checkbox tùy chọn trong popup (mặc định TẮT); chỉ chụp cho event có ý nghĩa (`click`/`change`/`submit`/`navigation`/`file_upload`/`select_change`, **bỏ qua** `input`/`keypress` để tránh spam `captureVisibleTab` + rate limit Chrome); screenshot chụp ở background service worker (JPEG q=50), DOM lấy ở content script (cắt 300KB, dưới ngưỡng backend 1MB); backend lưu/serve đã có từ trước, không đổi. Hiển thị ảnh trên UI review (SR-4.4+) **chưa làm** — để riêng, không block. Test: thủ công (extension không có test tự động, xem README bước 9); backend 249/249 không đổi vì không sửa backend |

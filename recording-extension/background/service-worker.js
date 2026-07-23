@@ -4,6 +4,7 @@ import {
   normalizeRecordingConfig,
 } from '../lib/extensionConfig.js';
 import { MESSAGE } from '../lib/messages.js';
+import { VISUAL_CAPTURE_RAW_TYPES } from '../lib/recordedEventConstants.js';
 import { EVENT_FLUSH_DEBOUNCE_MS } from '../lib/tcmApiConstants.js';
 import {
   appendRecordingEvents,
@@ -18,6 +19,7 @@ const CONFIG_KEY = 'tcmRecordingConfig';
 const SESSION_KEY = 'tcmRecordingApiSession';
 
 let isRecording = false;
+let captureVisualsEnabled = false;
 let pendingEvents = [];
 let flushTimer = null;
 let flushPromise = null;
@@ -37,6 +39,7 @@ const readConfig = async () => {
 const saveConfig = async (config) => {
   const nextConfig = normalizeRecordingConfig(config);
   await chrome.storage.local.set({ [CONFIG_KEY]: nextConfig });
+  captureVisualsEnabled = nextConfig.captureVisuals;
   return nextConfig;
 };
 
@@ -53,8 +56,12 @@ const writeLocalEvents = async (events) => {
 };
 
 const appendLocalEvent = async (event) => {
+  // Local debug log must not keep screenshotBase64/domHtml (MB-scale; fills chrome.storage.session).
+  const safeEvent = { ...(event || {}) };
+  delete safeEvent.screenshotBase64;
+  delete safeEvent.domHtml;
   const events = await readLocalEvents();
-  events.push(event);
+  events.push(safeEvent);
   await writeLocalEvents(events);
 };
 
@@ -82,6 +89,7 @@ const buildStateSnapshot = () => ({
   sessionActive: isSessionLive(),
   session: runtimeSession,
   pendingEventCount: pendingEvents.length,
+  captureVisuals: captureVisualsEnabled,
 });
 
 const respondSessionOk = (sendResponse, flags) => {
@@ -114,12 +122,36 @@ const broadcastRecordingState = async (nextState) => {
         await chrome.tabs.sendMessage(tab.id, {
           type: MESSAGE.SET_RECORDING_STATE,
           isRecording,
+          captureVisuals: captureVisualsEnabled,
         });
       } catch {
         // Content script is not injected on restricted pages.
       }
     }),
   );
+};
+
+/**
+ * BL-2 — best-effort screenshot for "significant" events (see VISUAL_CAPTURE_RAW_TYPES).
+ * Only the background service worker can call captureVisibleTab; never blocks/fails
+ * recording on capture errors (rate limit, restricted page, devtools open, etc.).
+ */
+const attachScreenshotIfNeeded = async (event, sender) => {
+  if (!captureVisualsEnabled || !VISUAL_CAPTURE_RAW_TYPES.includes(event?.rawType)) {
+    return event;
+  }
+
+  const windowId = sender?.tab?.windowId;
+  if (windowId === undefined) {
+    return event;
+  }
+
+  try {
+    const dataUrl = await chrome.tabs.captureVisibleTab(windowId, { format: 'jpeg', quality: 50 });
+    return dataUrl ? { ...event, screenshotBase64: dataUrl } : event;
+  } catch {
+    return event;
+  }
 };
 
 const clearFlushTimer = () => {
@@ -275,7 +307,7 @@ const stopApiRecording = async () => {
   return response?.session || null;
 };
 
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
     switch (message?.type) {
       case MESSAGE.GET_RECORDING_STATE:
@@ -321,9 +353,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         return;
       case MESSAGE.RECORDED_EVENT:
         if (isRecording && message.event) {
-          await appendLocalEvent(message.event);
+          const enrichedEvent = await attachScreenshotIfNeeded(message.event, sender);
+          await appendLocalEvent(enrichedEvent);
           if (runtimeSession.sessionId) {
-            pendingEvents.push(message.event);
+            pendingEvents.push(enrichedEvent);
             scheduleFlush();
           }
         }
@@ -353,7 +386,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return true;
 });
 
-restoreRuntimeSession().then(async () => {
+Promise.all([restoreRuntimeSession(), readConfig()]).then(async ([, config]) => {
+  captureVisualsEnabled = config.captureVisuals;
   isRecording = runtimeSession.status === 'recording';
   if (isSessionLive()) {
     await broadcastRecordingState(isRecording);

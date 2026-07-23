@@ -147,6 +147,9 @@ AI **tự chạy**, không chỉ hướng dẫn user — trừ khi cần xác nh
 | SR-4.2 patch draft | PATCH draft trên `ready_for_review` | `recording-sr4-patch.test.js` + integration |
 | SR-4.3 preview | Dry-run từ session (chưa merge) | `recording-sr4-preview.test.js` + integration |
 | SR-4.4 UI review | Read-only draft + intent blocks trên admin | `e2e/admin-recording-review.spec.ts` |
+| SR-4.5 UI edit draft | Sửa value/expected/locator, Giữ/Bỏ bước, PATCH draft | `e2e/admin-recording-review.spec.ts` |
+| SR-4.6 UI preview + Lưu | Nút "Chạy thử" (preview) + "Lưu vào test case" (merge), đóng SR-4 | `e2e/admin-recording-review.spec.ts` |
+| BL-2 extension ảnh/DOM | Checkbox tùy chọn; chụp cho click/change/submit/navigation/file_upload/select_change (bỏ qua input/keypress); screenshot ở background, DOM ở content script | Thủ công (extension không có test tự động) — xem `recording-extension/README.md` bước 9 |
 
 **Chạy gói recording:** `cd backend && node --test test/recording-unit.test.js test/recording-sr3.test.js test/recording-sr4.test.js test/recording-sr4-patch.test.js test/recording-sr4-preview.test.js test/integration/recording-session.integration.test.js --test-concurrency=1`
 

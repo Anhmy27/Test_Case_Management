@@ -27,6 +27,8 @@ export const getDefaultRecordingConfig = () => ({
   projectId: '',
   testCaseEntityId: '',
   baseUrl: DEFAULT_TEST_BASE_URL,
+  // BL-2: off by default — screenshot + DOM snapshot cost extra bandwidth/CPU per event.
+  captureVisuals: false,
 });
 
 export const normalizeApiBaseUrl = (apiBaseUrl) =>
@@ -39,4 +41,5 @@ export const normalizeRecordingConfig = (config = {}) => ({
   projectId: toTrimmed(config.projectId),
   testCaseEntityId: toTrimmed(config.testCaseEntityId),
   baseUrl: toTrimmed(config.baseUrl) || DEFAULT_TEST_BASE_URL,
+  captureVisuals: Boolean(config.captureVisuals),
 });

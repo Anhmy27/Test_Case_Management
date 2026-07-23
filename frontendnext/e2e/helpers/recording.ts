@@ -26,6 +26,31 @@ export async function getFirstProject(page: Page): Promise<{ id: string; name: s
   );
 }
 
+/** Returns the first test case entity ID in the project (merge target for SR-4.6 e2e). */
+export async function getFirstTestCase(page: Page, { projectId }: { projectId: string }): Promise<{ id: string }> {
+  return page.evaluate(
+    async ({ scopedProjectId, apiBase }) => {
+      const response = await fetch(`${apiBase}/api/test-cases?projectId=${encodeURIComponent(scopedProjectId)}`, {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        throw new Error(`GET /api/test-cases failed (${response.status})`);
+      }
+
+      const data = await response.json() as { testCases?: Array<Record<string, unknown>> };
+      const testCase = (data.testCases || [])[0];
+      if (!testCase) {
+        throw new Error("No test cases available for recording e2e");
+      }
+
+      return {
+        id: String(testCase.entityId || testCase.id || testCase._id || ""),
+      };
+    },
+    { scopedProjectId: projectId, apiBase: API_BASE },
+  );
+}
+
 /** Seeds a ready_for_review session with login-flow events (intent blocks + draft steps). */
 export async function createReadyRecordingSession(
   page: Page,

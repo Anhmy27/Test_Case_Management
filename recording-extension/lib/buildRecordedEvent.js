@@ -16,6 +16,7 @@ const createEventId = () => {
  *   payload?: object,
  *   occurredAt?: string | Date,
  *   eventId?: string,
+ *   domHtml?: string,
  * }} input
  */
 export const buildRecordedEvent = ({
@@ -24,6 +25,7 @@ export const buildRecordedEvent = ({
   payload = {},
   occurredAt = new Date(),
   eventId,
+  domHtml = '',
 } = {}) => {
   if (!RECORDED_EVENT_RAW_TYPES.includes(rawType)) {
     throw new Error(`Unsupported rawType: ${rawType}`);
@@ -34,11 +36,20 @@ export const buildRecordedEvent = ({
     throw new Error('occurredAt is invalid');
   }
 
-  return {
+  const event = {
     eventId: toTrimmed(eventId) || createEventId(),
     rawType,
     occurredAt: occurredAtDate.toISOString(),
     pageUrl: toTrimmed(pageUrl),
     payload: payload && typeof payload === 'object' ? payload : {},
   };
+
+  // Screenshot is attached later by the background service worker (only it can call
+  // chrome.tabs.captureVisibleTab); domHtml comes from the content script (has DOM access).
+  const trimmedDomHtml = typeof domHtml === 'string' ? domHtml.trim() : '';
+  if (trimmedDomHtml) {
+    event.domHtml = trimmedDomHtml;
+  }
+
+  return event;
 };
