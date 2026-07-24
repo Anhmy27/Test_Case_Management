@@ -10,7 +10,10 @@ const {
   discardRecordingSessionService,
 } = require('../services/recording/recordingSessionService');
 const { mergeRecordingSessionService } = require('../services/recording/recordingMergeService');
-const { patchRecordingDraftService } = require('../services/recording/recordingDraftPatchService');
+const {
+  patchRecordingDraftService,
+  insertDraftStepService,
+} = require('../services/recording/recordingDraftPatchService');
 const { previewRecordingSessionService } = require('../services/recording/recordingPreviewService');
 
 const startRecordingSession = asyncHandler(async (req, res) => {
@@ -134,6 +137,29 @@ const patchRecordingDraft = asyncHandler(async (req, res) => {
   res.json({ session });
 });
 
+const insertRecordingDraftStep = asyncHandler(async (req, res) => {
+  const session = await insertDraftStepService({
+    sessionId: req.params.sessionId,
+    user: req.user,
+    insertAfterDraftStepId: req.body.insertAfterDraftStepId || '',
+    inferredAction: req.body.inferredAction,
+    targetType: req.body.targetType || '',
+    target: req.body.target || '',
+    value: req.body.value || '',
+    expected: req.body.expected || '',
+  });
+
+  await auditFromRequest(req, {
+    action: 'recording.insert_draft_step',
+    resourceType: 'recording_session',
+    resourceId: session.id,
+    projectId: session.projectId,
+    metadata: { inferredAction: req.body.inferredAction },
+  });
+
+  res.status(201).json({ session });
+});
+
 const previewRecordingSession = asyncHandler(async (req, res) => {
   const result = await previewRecordingSessionService({
     sessionId: req.params.sessionId,
@@ -207,6 +233,7 @@ module.exports = {
   getRecordingSession,
   discardRecordingSession,
   patchRecordingDraft,
+  insertRecordingDraftStep,
   previewRecordingSession,
   mergeRecordingSession,
 };

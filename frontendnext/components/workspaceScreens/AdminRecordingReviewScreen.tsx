@@ -3,19 +3,28 @@
 import { useEffect, useState } from "react";
 import { formatVietnamDateTime } from "@/lib/vietnamDateTime";
 import {
+  buildDraftStepListWithGroups,
   formatLocatorCandidate,
   formatRecordingReviewStatus,
   formatRecordingSessionStatus,
   listRecordingTargetTestCases,
   recordingReviewStatusClassName,
   sortRecordingDraftSteps,
+  type InsertDraftStepInput,
   type RecordingDraftStep,
   type RecordingDraftStepPatch,
-  type RecordingIntentBlock,
   type RecordingPreviewResult,
   type RecordingSession,
   type RecordingTargetTestCase,
 } from "@/lib/recordingSession";
+import {
+  ACTION_META,
+  ALL_TARGET_TYPES,
+  TARGET_TYPE_LABELS,
+  getTargetFieldLabel,
+  getValueFieldLabel,
+  roleTargetTypeNeedsDisplayName,
+} from "@/lib/automationStepMeta";
 import DryRunResultView from "@/components/automation/DryRunResultView";
 import { Button, SectionCard, WorkbenchField, WORKBENCH_INPUT_CLS, WORKBENCH_SELECT_CLS } from "./shared";
 
@@ -24,6 +33,8 @@ type Props = {
   projectMismatch: boolean;
   onSaveDraft: (patches: RecordingDraftStepPatch[]) => Promise<boolean>;
   saving: boolean;
+  onInsertStep: (input: InsertDraftStepInput) => Promise<boolean>;
+  insertingStep: boolean;
   onPreview: (options: { baseUrl?: string; webId?: string; userKey?: string }) => Promise<RecordingPreviewResult | null>;
   previewing: boolean;
   onMerge: (testCaseId: string) => Promise<boolean>;
@@ -194,50 +205,160 @@ function DraftStepRow({
   );
 }
 
-function IntentBlocksPanel({
-  intentBlocks,
+const MANUAL_STEP_ACTION_OPTIONS = Object.entries(ACTION_META).map(([action, meta]) => ({
+  value: action,
+  label: meta.label,
+}));
+
+/** Chèn 1 bước nháp thủ công — tái dùng cùng bảng hành động/target-type với form automation của test case. */
+function AddDraftStepForm({
   draftSteps,
+  onInsert,
+  inserting,
 }: {
-  intentBlocks: RecordingIntentBlock[];
   draftSteps: RecordingDraftStep[];
+  onInsert: (input: InsertDraftStepInput) => Promise<boolean>;
+  inserting: boolean;
 }) {
-  if (!intentBlocks.length) {
+  const [open, setOpen] = useState(false);
+  const [insertAfter, setInsertAfter] = useState("");
+  const [action, setAction] = useState("click");
+  const [targetType, setTargetType] = useState("css");
+  const [target, setTarget] = useState("");
+  const [value, setValue] = useState("");
+  const [expected, setExpected] = useState("");
+
+  const meta = ACTION_META[action] ?? ACTION_META.click;
+  const allowedTargetTypes = meta.targetTypes.length > 0 ? meta.targetTypes : [...ALL_TARGET_TYPES];
+  const usesRoleDisplayName = roleTargetTypeNeedsDisplayName(action, targetType);
+  const showTargetType = meta.needsTarget || Boolean(meta.optionalTarget);
+  const showTarget = showTargetType;
+  const showValue = meta.needsValue || usesRoleDisplayName;
+  const showExpected = meta.needsExpected;
+
+  const handleActionChange = (nextAction: string) => {
+    setAction(nextAction);
+    const nextMeta = ACTION_META[nextAction] ?? ACTION_META.click;
+    const nextTypes = nextMeta.targetTypes.length > 0 ? nextMeta.targetTypes : [...ALL_TARGET_TYPES];
+    if (!nextTypes.includes(targetType)) {
+      setTargetType(nextTypes[0] || "css");
+    }
+  };
+
+  const handleSubmit = async () => {
+    const ok = await onInsert({
+      insertAfterDraftStepId: insertAfter || undefined,
+      inferredAction: action,
+      targetType: showTargetType ? targetType : undefined,
+      target: showTarget ? target.trim() : "",
+      value: showValue ? value.trim() : "",
+      expected: showExpected ? expected.trim() : "",
+    });
+    if (ok) {
+      setTarget("");
+      setValue("");
+      setExpected("");
+    }
+  };
+
+  if (!open) {
     return (
-      <SectionCard title="Intent blocks" subtitle="Nhóm ý định sau pipeline SR-3.1">
-        <p className="text-sm text-slate-500 dark:text-zinc-400">Chưa có intent block cho session này.</p>
-      </SectionCard>
+      <Button variant="secondary" size="sm" onClick={() => setOpen(true)}>
+        + Thêm bước
+      </Button>
     );
   }
 
-  const orderByStepId = new Map(
-    draftSteps.map((step) => [step.draftStepId, step.order]),
-  );
-
   return (
-    <SectionCard title="Intent blocks" subtitle="Nhóm ý định sau pipeline SR-3.1">
-      <div className="space-y-3">
-        {intentBlocks.map((block) => (
-          <div
-            key={block.blockId}
-            className="rounded-lg border border-slate-200 bg-white px-4 py-3 dark:border-zinc-700 dark:bg-zinc-900"
+    <div className="mt-3 space-y-2 rounded-lg border border-dashed border-slate-300 bg-slate-50/70 p-3 dark:border-zinc-700 dark:bg-zinc-900/40">
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <WorkbenchField label="Chèn sau bước">
+          <select
+            className={WORKBENCH_SELECT_CLS}
+            value={insertAfter}
+            onChange={(event) => setInsertAfter(event.target.value)}
           >
-            <div className="font-medium text-slate-900 dark:text-zinc-100">{block.label}</div>
-            <div className="mt-1 text-xs text-slate-500 dark:text-zinc-500">{block.blockId}</div>
-            <div className="mt-2 text-sm text-slate-700 dark:text-zinc-300">
-              Bước nháp:{" "}
-              {(block.draftStepIds || [])
-                .map((stepId) => {
-                  const order = orderByStepId.get(stepId);
-                  return order ? `#${order}` : stepId;
-                })
-                .join(", ") || "—"}
-            </div>
-          </div>
-        ))}
+            <option value="">— Cuối danh sách —</option>
+            {draftSteps.map((step) => (
+              <option key={step.draftStepId} value={step.draftStepId}>
+                #{step.order} {step.inferredAction}
+                {step.target ? ` · ${step.target}` : ""}
+              </option>
+            ))}
+          </select>
+        </WorkbenchField>
+        <WorkbenchField label="Hành động">
+          <select
+            className={WORKBENCH_SELECT_CLS}
+            value={action}
+            onChange={(event) => handleActionChange(event.target.value)}
+          >
+            {MANUAL_STEP_ACTION_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </WorkbenchField>
+        {showTargetType ? (
+          <WorkbenchField label="Loại selector">
+            <select
+              className={`${WORKBENCH_SELECT_CLS} font-mono`}
+              value={targetType}
+              onChange={(event) => setTargetType(event.target.value)}
+            >
+              {allowedTargetTypes.map((type) => (
+                <option key={type} value={type}>
+                  {TARGET_TYPE_LABELS[type] ?? type}
+                </option>
+              ))}
+            </select>
+          </WorkbenchField>
+        ) : null}
+        {showTarget ? (
+          <WorkbenchField label={getTargetFieldLabel(action, targetType)}>
+            <input
+              className={WORKBENCH_INPUT_CLS}
+              value={target}
+              onChange={(event) => setTarget(event.target.value)}
+              placeholder={usesRoleDisplayName ? "button · link · textbox" : meta.targetPlaceholder}
+            />
+          </WorkbenchField>
+        ) : null}
+        {showValue ? (
+          <WorkbenchField label={getValueFieldLabel(action, targetType)}>
+            <input
+              className={WORKBENCH_INPUT_CLS}
+              value={value}
+              onChange={(event) => setValue(event.target.value)}
+              placeholder={usesRoleDisplayName ? "Đăng nhập · Lưu · Email" : meta.valuePlaceholder}
+            />
+          </WorkbenchField>
+        ) : null}
+        {showExpected ? (
+          <WorkbenchField label="Chuỗi mong đợi">
+            <input
+              className={WORKBENCH_INPUT_CLS}
+              value={expected}
+              onChange={(event) => setExpected(event.target.value)}
+              placeholder={meta.expectedPlaceholder}
+            />
+          </WorkbenchField>
+        ) : null}
       </div>
-    </SectionCard>
+      <div className="flex items-center gap-2">
+        <Button variant="primary" size="sm" loading={inserting} onClick={handleSubmit}>
+          Thêm bước
+        </Button>
+        <Button variant="secondary" size="sm" onClick={() => setOpen(false)} disabled={inserting}>
+          Đóng
+        </Button>
+      </div>
+    </div>
   );
 }
+
+const DRAFT_STEP_COLUMN_COUNT = 9;
 
 /** SR-4.6 — xem thử (dry run từ draft) rồi lưu vào test case (merge), đóng SR-4. */
 function PreviewMergeSection({
@@ -422,6 +543,8 @@ export default function AdminRecordingReviewScreen({
   projectMismatch,
   onSaveDraft,
   saving,
+  onInsertStep,
+  insertingStep,
   onPreview,
   previewing,
   onMerge,
@@ -448,7 +571,7 @@ export default function AdminRecordingReviewScreen({
   }
 
   const draftSteps = sortRecordingDraftSteps(session.draftSteps || []);
-  const intentBlocks = session.intentBlocks || [];
+  const draftListItems = buildDraftStepListWithGroups(draftSteps, session.intentBlocks || []);
   const editable = session.status === "ready_for_review" && !projectMismatch;
   const pendingCount = Object.keys(drafts).length;
 
@@ -497,13 +620,11 @@ export default function AdminRecordingReviewScreen({
         </div>
       </SectionCard>
 
-      <IntentBlocksPanel intentBlocks={intentBlocks} draftSteps={draftSteps} />
-
       <SectionCard
         title="Draft steps"
         subtitle={
           editable
-            ? `${draftSteps.length} bước nháp · sửa value, locator, hoặc bỏ bước rồi bấm Lưu nháp`
+            ? `${draftSteps.length} bước nháp · tiêu đề nhóm xen trong bảng · sửa rồi bấm Lưu nháp`
             : projectMismatch
               ? `${draftSteps.length} bước nháp · chỉ xem (lệch project scope)`
               : `${draftSteps.length} bước nháp · chỉ xem (session đang ${formatRecordingSessionStatus(session.status)})`
@@ -550,20 +671,44 @@ export default function AdminRecordingReviewScreen({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 bg-white dark:divide-zinc-800 dark:bg-zinc-950">
-                {draftSteps.map((step) => (
-                  <DraftStepRow
-                    key={step.draftStepId}
-                    step={step}
-                    editable={editable}
-                    patch={drafts[step.draftStepId]}
-                    onFieldChange={(field, value) => handleFieldChange(step, field, value)}
-                    onReviewStatusChange={(reviewStatus) => handleFieldChange(step, "reviewStatus", reviewStatus)}
-                  />
-                ))}
+                {draftListItems.map((item) => {
+                  if (item.kind === "group") {
+                    return (
+                      <tr
+                        key={`group-${item.blockId}`}
+                        data-testid="draft-step-group"
+                        className="bg-slate-50 dark:bg-zinc-900/70"
+                      >
+                        <td
+                          colSpan={DRAFT_STEP_COLUMN_COUNT}
+                          className="px-3 py-2 text-sm font-semibold text-slate-800 dark:text-zinc-100"
+                        >
+                          {item.title}
+                        </td>
+                      </tr>
+                    );
+                  }
+
+                  const step = item.step;
+                  return (
+                    <DraftStepRow
+                      key={step.draftStepId}
+                      step={step}
+                      editable={editable}
+                      patch={drafts[step.draftStepId]}
+                      onFieldChange={(field, value) => handleFieldChange(step, field, value)}
+                      onReviewStatusChange={(reviewStatus) => handleFieldChange(step, "reviewStatus", reviewStatus)}
+                    />
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
+
+        {editable ? (
+          <AddDraftStepForm draftSteps={draftSteps} onInsert={onInsertStep} inserting={insertingStep} />
+        ) : null}
       </SectionCard>
 
       <PreviewMergeSection

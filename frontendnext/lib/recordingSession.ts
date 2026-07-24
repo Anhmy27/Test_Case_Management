@@ -145,6 +145,35 @@ export async function patchRecordingDraft(sessionId: string, patches: RecordingD
   return response.session;
 }
 
+/** Chèn 1 bước nháp thủ công (bất kỳ action nào) — insertAfterDraftStepId rỗng = thêm cuối danh sách. */
+export type InsertDraftStepInput = {
+  insertAfterDraftStepId?: string;
+  inferredAction: string;
+  targetType?: string;
+  target?: string;
+  value?: string;
+  expected?: string;
+};
+
+export async function insertRecordingDraftStep(sessionId: string, input: InsertDraftStepInput) {
+  const normalizedId = String(sessionId || "").trim();
+  if (!normalizedId) {
+    throw new Error("Session ID là bắt buộc");
+  }
+
+  const response = await apiRequest<{ session: RecordingSession }>(
+    `/api/recording/sessions/${encodeURIComponent(normalizedId)}/draft/steps`,
+    undefined,
+    { method: "POST", body: JSON.stringify(input) },
+  );
+
+  if (!response.session?.id) {
+    throw new Error("Không thêm được bước nháp");
+  }
+
+  return response.session;
+}
+
 /** Preview result — dry-run fields + session context (SR-4.6). */
 export type RecordingPreviewResult = DryRunResult & {
   sessionId: string;
@@ -258,4 +287,121 @@ export function formatLocatorCandidate(candidate: RecordingLocatorCandidate) {
 
 export function sortRecordingDraftSteps(steps: RecordingDraftStep[] = []) {
   return [...steps].sort((left, right) => Number(left.order || 0) - Number(right.order || 0));
+}
+
+export type DraftStepListItem =
+  | { kind: "group"; blockId: string; title: string }
+  | { kind: "step"; step: RecordingDraftStep };
+
+const KNOWN_INTENT_LABELS = new Set(["Đăng nhập", "Tìm kiếm", "Upload file"]);
+
+function truncateDisplayText(value: string, maxLength = 48) {
+  const trimmed = String(value || "").trim();
+  if (trimmed.length <= maxLength) {
+    return trimmed;
+  }
+  return `${trimmed.slice(0, maxLength - 1)}…`;
+}
+
+function shortenPageUrl(url: string) {
+  const trimmed = String(url || "").trim();
+  if (!trimmed) {
+    return "";
+  }
+  try {
+    const parsed = new URL(trimmed);
+    const path = parsed.pathname === "/" ? "" : parsed.pathname;
+    return path ? `${parsed.host}${path}` : parsed.host;
+  } catch {
+    return truncateDisplayText(trimmed, 56);
+  }
+}
+
+function stepLabelHint(step: RecordingDraftStep) {
+  return truncateDisplayText(String(step.target || step.value || "").trim());
+}
+
+/** Tester-facing title for one intent group — prefers action text over raw URL path labels. */
+export function formatDraftStepGroupTitle(
+  steps: RecordingDraftStep[] = [],
+  blockLabel = "",
+): string {
+  const label = String(blockLabel || "").trim();
+  if (KNOWN_INTENT_LABELS.has(label) || label.startsWith("Upload")) {
+    return label;
+  }
+
+  if (!steps.length) {
+    return label || "Nhóm thao tác";
+  }
+
+  const first = steps[0];
+  const action = String(first.inferredAction || "").trim().toLowerCase();
+
+  if (action === "goto" || action === "navigate") {
+    const page = shortenPageUrl(String(first.value || first.target || ""));
+    return page ? `Vào trang ${page}` : "Vào trang";
+  }
+
+  if (steps.length === 1) {
+    const hint = stepLabelHint(first);
+    if (action === "click") {
+      return hint ? `Click “${hint}”` : "Click";
+    }
+    if (action === "hover") {
+      return hint ? `Di chuột vào “${hint}”` : "Di chuột vào phần tử";
+    }
+    if (action === "type" || action === "fill") {
+      return hint ? `Điền “${hint}”` : "Điền ô nhập";
+    }
+    if (action === "select") {
+      return hint ? `Chọn “${hint}”` : "Chọn dropdown";
+    }
+    if (action === "upload") {
+      return "Upload file";
+    }
+    return first.inferredAction || "Thao tác";
+  }
+
+  const actions = steps.map((step) => String(step.inferredAction || "").trim().toLowerCase());
+  if (actions.every((item) => item === "click")) {
+    return `Các thao tác click (${steps.length} bước)`;
+  }
+
+  const head = formatDraftStepGroupTitle([first], "");
+  return `${head} · ${steps.length} bước`;
+}
+
+/** Insert group headers before the first draft step of each intent block (for inline list UI). */
+export function buildDraftStepListWithGroups(
+  draftSteps: RecordingDraftStep[] = [],
+  intentBlocks: RecordingIntentBlock[] = [],
+): DraftStepListItem[] {
+  const stepById = new Map(draftSteps.map((step) => [step.draftStepId, step]));
+  const groupByFirstStepId = new Map<string, { blockId: string; title: string }>();
+
+  for (const block of intentBlocks) {
+    const stepIds = Array.isArray(block.draftStepIds) ? block.draftStepIds : [];
+    const firstStepId = stepIds[0];
+    if (!firstStepId || groupByFirstStepId.has(firstStepId)) {
+      continue;
+    }
+    const stepsInBlock = stepIds
+      .map((stepId) => stepById.get(stepId))
+      .filter((step): step is RecordingDraftStep => Boolean(step));
+    groupByFirstStepId.set(firstStepId, {
+      blockId: block.blockId || firstStepId,
+      title: formatDraftStepGroupTitle(stepsInBlock, block.label || ""),
+    });
+  }
+
+  const items: DraftStepListItem[] = [];
+  for (const step of draftSteps) {
+    const group = groupByFirstStepId.get(step.draftStepId);
+    if (group) {
+      items.push({ kind: "group", blockId: group.blockId, title: group.title });
+    }
+    items.push({ kind: "step", step });
+  }
+  return items;
 }

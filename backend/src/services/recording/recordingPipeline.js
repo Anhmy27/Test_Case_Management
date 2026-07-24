@@ -211,6 +211,12 @@ const buildSemanticAction = (event) => {
         label: 'Gửi form',
         sourceEventIds: [event.eventId],
       };
+    case 'hover':
+      return {
+        semanticId: `HOVER_${slugToken(elementLabel, 'TARGET')}`,
+        label: `Di chuột vào ${elementLabel || 'phần tử'}`,
+        sourceEventIds: [event.eventId],
+      };
     case 'click':
     default:
       return {
@@ -265,6 +271,8 @@ const mapEventToAction = (rawType) => {
       return 'select';
     case 'file_upload':
       return 'upload';
+    case 'hover':
+      return 'hover';
     case 'click':
     case 'submit':
     default:

@@ -20,6 +20,7 @@
     'file_upload',
     'select_change',
     'keypress',
+    'hover',
   ];
   const MAX_PAYLOAD_TEXT_LENGTH = 200;
   const MAX_SELECTOR_LENGTH = 300;
@@ -196,7 +197,100 @@
     return truncate(tagName, MAX_SELECTOR_LENGTH);
   };
 
+  const countByAttributeSelector = (attribute, value) => {
+    const trimmed = toTrimmed(value);
+    if (!trimmed) {
+      return 0;
+    }
+    try {
+      return document.querySelectorAll(`[${attribute}="${escapeCssAttributeValue(trimmed)}"]`).length;
+    } catch {
+      return 0;
+    }
+  };
+
+  const countBySelector = (selector) => {
+    const trimmed = toTrimmed(selector);
+    if (!trimmed) {
+      return 0;
+    }
+    try {
+      return document.querySelectorAll(trimmed).length;
+    } catch {
+      return 0;
+    }
+  };
+
+  const countByVisibleText = (tagSelector, text) => {
+    const target = toTrimmed(text);
+    if (!target) {
+      return 0;
+    }
+    try {
+      let count = 0;
+      document.querySelectorAll(tagSelector).forEach((element) => {
+        if (getVisibleText(element) === target) {
+          count += 1;
+        }
+      });
+      return count;
+    } catch {
+      return 0;
+    }
+  };
+
+  const countByRoleAndName = (role, name) => {
+    const targetRole = toTrimmed(role);
+    const targetName = toTrimmed(name);
+    if (!targetRole || !targetName) {
+      return 0;
+    }
+    try {
+      let count = 0;
+      document.querySelectorAll('button, a, input, select, textarea, [role]').forEach((element) => {
+        if (getImplicitRole(element) === targetRole && getVisibleText(element) === targetName) {
+          count += 1;
+        }
+      });
+      return count;
+    } catch {
+      return 0;
+    }
+  };
+
+  /**
+   * Best-effort real DOM uniqueness per locator strategy (not an exact replica of
+   * Playwright's own matching — good enough signal so review/merge can prefer the
+   * locator that only the recorded element actually has, per strategy > raw score table).
+   */
+  const buildLocatorUniqueness = (descriptor, selector) => {
+    const uniqueness = {};
+    if (descriptor.testid) {
+      uniqueness.testid = countByAttributeSelector('data-testid', descriptor.testid) <= 1;
+    }
+    if (descriptor.id) {
+      uniqueness.id = countByAttributeSelector('id', descriptor.id) <= 1;
+    }
+    if (descriptor.placeholder) {
+      uniqueness.placeholder = countByAttributeSelector('placeholder', descriptor.placeholder) <= 1;
+    }
+    if (descriptor.label) {
+      uniqueness.label = countByVisibleText('label', descriptor.label) <= 1;
+    }
+    if (descriptor.text) {
+      uniqueness.text = countByVisibleText('button, a, [role], div, span, li, label, p', descriptor.text) <= 1;
+    }
+    if (descriptor.role && descriptor.roleName) {
+      uniqueness.role = countByRoleAndName(descriptor.role, descriptor.roleName) <= 1;
+    }
+    if (selector) {
+      uniqueness.css = countBySelector(selector) <= 1;
+    }
+    return uniqueness;
+  };
+
   const elementPayloadFromDescriptor = (descriptor = {}) => {
+    const selector = truncate(descriptor.selector || buildSimpleSelector(descriptor), MAX_SELECTOR_LENGTH);
     const payload = {
       tagName: truncate(descriptor.tagName, 40),
       testid: truncate(descriptor.testid, 120),
@@ -207,7 +301,8 @@
       text: truncate(descriptor.text, MAX_PAYLOAD_TEXT_LENGTH),
       role: truncate(descriptor.role, 40),
       roleName: truncate(descriptor.roleName, MAX_PAYLOAD_TEXT_LENGTH),
-      selector: truncate(descriptor.selector || buildSimpleSelector(descriptor), MAX_SELECTOR_LENGTH),
+      selector,
+      locatorUniqueness: buildLocatorUniqueness(descriptor, selector),
     };
 
     if (descriptor.value !== undefined && descriptor.value !== null) {
@@ -413,6 +508,64 @@
     }));
   };
 
+  /**
+   * Hover-triggered menus (dwell ≥800ms on a link/button/li) — mouse simply passing
+   * over an element must NOT record a step. Only one dwell timer is tracked at a time;
+   * re-hovering the same element after leaving it can fire again (tester intent).
+   */
+  const HOVER_DWELL_MS = 800;
+  const HOVER_SCOPE_SELECTOR = 'a, button, [role="button"], [role="link"], li';
+
+  let hoverTimer = null;
+  let hoverTargetElement = null;
+  let hoverFiredForTarget = null;
+
+  const clearHoverTimer = () => {
+    if (hoverTimer) {
+      clearTimeout(hoverTimer);
+      hoverTimer = null;
+    }
+  };
+
+  const resetHoverTracking = () => {
+    clearHoverTimer();
+    hoverTargetElement = null;
+    hoverFiredForTarget = null;
+  };
+
+  const onDocumentMouseOver = (event) => {
+    if (!isRecording || !event.isTrusted) {
+      return;
+    }
+    const element = resolveEventElement(event.target);
+    const scoped = element instanceof Element ? element.closest(HOVER_SCOPE_SELECTOR) : null;
+    if (!scoped || shouldIgnoreTarget(scoped) || scoped === hoverTargetElement) {
+      return;
+    }
+
+    clearHoverTimer();
+    hoverTargetElement = scoped;
+    hoverTimer = setTimeout(() => {
+      hoverTimer = null;
+      if (!isRecording || hoverTargetElement !== scoped || hoverFiredForTarget === scoped) {
+        return;
+      }
+      hoverFiredForTarget = scoped;
+      emitRecordedEvent(buildEventFromElement('hover', scoped));
+    }, HOVER_DWELL_MS);
+  };
+
+  const onDocumentMouseOut = (event) => {
+    if (!hoverTargetElement) {
+      return;
+    }
+    const related = event.relatedTarget;
+    if (related instanceof Node && hoverTargetElement.contains(related)) {
+      return;
+    }
+    resetHoverTracking();
+  };
+
   const emitNavigationIfChanged = (reason = 'navigation') => {
     const nextUrl = window.location.href;
     if (nextUrl === lastNavigationUrl) {
@@ -451,6 +604,8 @@
   document.addEventListener('change', onDocumentChange, true);
   document.addEventListener('keypress', onDocumentKeyPress, true);
   document.addEventListener('submit', onDocumentSubmit, true);
+  document.addEventListener('mouseover', onDocumentMouseOver, true);
+  document.addEventListener('mouseout', onDocumentMouseOut, true);
   window.addEventListener('popstate', () => emitNavigationIfChanged('popstate'));
   window.addEventListener('hashchange', () => emitNavigationIfChanged('hashchange'));
   window.addEventListener('pageshow', () => emitNavigationIfChanged('pageshow'));
@@ -463,6 +618,8 @@
       allowedOrigin = typeof message.allowedOrigin === 'string' ? message.allowedOrigin : '';
       if (isRecording) {
         lastNavigationUrl = window.location.href;
+      } else {
+        resetHoverTracking();
       }
       sendResponse({ ok: true, isRecording });
       return true;

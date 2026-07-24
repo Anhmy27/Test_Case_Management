@@ -9,6 +9,7 @@ export const RECORDED_EVENT_RAW_TYPES = [
   'file_upload',
   'select_change',
   'keypress',
+  'hover',
 ];
 
 export const MAX_PAYLOAD_TEXT_LENGTH = 200;

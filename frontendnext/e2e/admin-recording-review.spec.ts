@@ -15,7 +15,7 @@ test.describe("SR-4.4 Admin recording review (read-only)", () => {
     await page.getByLabel("Project scope").selectOption({ label: e2eProjectName });
   });
 
-  test("loads draft steps, intent blocks, and auto-wait hints read-only", async ({ page }) => {
+  test("loads draft steps with inline group headers and auto-wait hints read-only", async ({ page }) => {
     await page.goto("/workspace/admin/dashboard");
 
     const project = await getFirstProject(page);
@@ -40,8 +40,9 @@ test.describe("SR-4.4 Admin recording review (read-only)", () => {
     await expect(main.getByText("Phiên ghi", { exact: true })).toBeVisible({ timeout: 15_000 });
     await expect(main.getByText("ready for review", { exact: true })).toBeVisible();
     await expect(main.getByText(sessionId, { exact: true })).toBeVisible();
-    await expect(main.getByText("Intent blocks", { exact: true })).toBeVisible();
+    await expect(main.getByText("Intent blocks", { exact: true })).toHaveCount(0);
     await expect(main.getByText("Draft steps", { exact: true })).toBeVisible();
+    await expect(main.getByTestId("draft-step-group").first()).toBeVisible();
     await expect(main.getByText("Đăng nhập", { exact: true })).toBeVisible();
 
     await expect(main.getByRole("cell", { name: "goto", exact: true })).toBeVisible();
@@ -161,6 +162,34 @@ test.describe("SR-4.5 Admin recording review (edit draft)", () => {
     await expect(valueInput).toHaveValue("admin");
     await expect(main.getByRole("button", { name: /^Lưu nháp/ })).toBeDisabled();
   });
+
+  test("inserts a manual hover step and it persists on the session", async ({ page }) => {
+    await page.goto("/workspace/admin/dashboard");
+
+    const project = await getFirstProject(page);
+    const sessionId = await createReadyRecordingSession(page, { projectId: project.id });
+
+    await page.goto(`/workspace/admin/recording-review?sessionId=${encodeURIComponent(sessionId)}`);
+    const main = mainContent(page);
+    await expect(main.getByText("Draft steps", { exact: true })).toBeVisible({ timeout: 15_000 });
+
+    await main.getByRole("button", { name: "+ Thêm bước", exact: true }).click();
+    await main.getByLabel("Hành động").selectOption("hover");
+    await main.getByLabel("Loại selector").selectOption("text");
+    await main.getByLabel("Selector / text").fill("Chương trình học");
+    await main.getByRole("button", { name: "Thêm bước", exact: true }).click();
+
+    await expect(page.getByText("Đã thêm bước vào nháp", { exact: true })).toBeVisible({ timeout: 10_000 });
+    await expect(main.getByRole("cell", { name: "hover", exact: true })).toBeVisible();
+
+    const persisted = await fetchRecordingSessionViaBrowser(page, sessionId) as {
+      session: { draftSteps: Array<{ inferredAction: string; targetType: string; target: string; reviewStatus: string }> };
+    };
+    const hoverStep = persisted.session.draftSteps.find((step) => step.inferredAction === "hover");
+    expect(hoverStep?.targetType).toBe("text");
+    expect(hoverStep?.target).toBe("Chương trình học");
+    expect(hoverStep?.reviewStatus).toBe("edited");
+  });
 });
 
 test.describe("SR-4.6 Admin recording review (preview + merge)", () => {
@@ -181,7 +210,12 @@ test.describe("SR-4.6 Admin recording review (preview + merge)", () => {
     await expect(main.getByText("Xem thử & Lưu", { exact: true })).toBeVisible({ timeout: 15_000 });
 
     // Merge also needs a target test case entity ID — fill it so gating below only reflects pending edits.
-    await main.getByLabel("Test case").selectOption(testCase.id);
+    const testCaseSelect = main
+      .locator("label")
+      .filter({ has: page.locator("span", { hasText: /^Test case$/ }) })
+      .locator("select");
+    await expect(testCaseSelect).toBeEnabled({ timeout: 15_000 });
+    await testCaseSelect.selectOption(testCase.id);
 
     const previewButton = main.getByRole("button", { name: "Chạy thử" });
     const mergeButton = main.getByRole("button", { name: "Lưu vào test case" });
@@ -210,7 +244,12 @@ test.describe("SR-4.6 Admin recording review (preview + merge)", () => {
     const main = mainContent(page);
     await expect(main.getByText("Xem thử & Lưu", { exact: true })).toBeVisible({ timeout: 15_000 });
 
-    await main.getByLabel("Test case").selectOption(testCase.id);
+    const testCaseSelect = main
+      .locator("label")
+      .filter({ has: page.locator("span", { hasText: /^Test case$/ }) })
+      .locator("select");
+    await expect(testCaseSelect).toBeEnabled({ timeout: 15_000 });
+    await testCaseSelect.selectOption(testCase.id);
     await main.getByRole("button", { name: "Lưu vào test case" }).click();
 
     await expect(page.getByText(/Đã lưu \d+ bước vào test case/)).toBeVisible({ timeout: 10_000 });

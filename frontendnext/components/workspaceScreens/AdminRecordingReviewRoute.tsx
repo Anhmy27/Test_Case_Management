@@ -7,9 +7,11 @@ import { useAdminWorkspace } from "@/components/workspaceScreens/WorkspaceShell"
 import { TOPBAR_INPUT_CLS, WorkspaceContentSkeleton } from "@/components/workspaceScreens/shared";
 import {
   fetchRecordingSession,
+  insertRecordingDraftStep,
   mergeRecordingSession,
   patchRecordingDraft,
   previewRecordingSession,
+  type InsertDraftStepInput,
   type RecordingDraftStepPatch,
   type RecordingPreviewResult,
   type RecordingSession,
@@ -25,6 +27,7 @@ export default function AdminRecordingReviewRoute() {
   const [session, setSession] = useState<RecordingSession | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [insertingStep, setInsertingStep] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [merging, setMerging] = useState(false);
 
@@ -67,6 +70,25 @@ export default function AdminRecordingReviewRoute() {
       return false;
     } finally {
       setSaving(false);
+    }
+  }, [session, showNotice]);
+
+  const handleInsertStep = useCallback(async (input: InsertDraftStepInput) => {
+    if (!session) {
+      return false;
+    }
+
+    setInsertingStep(true);
+    try {
+      const updatedSession = await insertRecordingDraftStep(session.id, input);
+      setSession(updatedSession);
+      showNotice("Đã thêm bước vào nháp", "success");
+      return true;
+    } catch (error) {
+      showNotice(error instanceof Error ? error.message : "Không thêm được bước nháp", "error");
+      return false;
+    } finally {
+      setInsertingStep(false);
     }
   }, [session, showNotice]);
 
@@ -166,6 +188,8 @@ export default function AdminRecordingReviewRoute() {
       projectMismatch={projectMismatch}
       onSaveDraft={handleSaveDraft}
       saving={saving}
+      onInsertStep={handleInsertStep}
+      insertingStep={insertingStep}
       onPreview={handlePreview}
       previewing={previewing}
       onMerge={handleMerge}

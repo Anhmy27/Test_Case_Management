@@ -327,6 +327,30 @@ test('processRecordingEvents builds semantic labels and draft steps', () => {
   assert.equal(result.draftSteps[2].chosenLocatorIndex, 0);
 });
 
+test('processRecordingEvents maps hover raw type to a hover draft step (menu bung)', () => {
+  const result = processRecordingEvents({
+    baseUrl: 'http://localhost:3000/login',
+    events: [
+      baseEvent({
+        sequence: 0,
+        rawType: 'hover',
+        payload: { text: 'Chương trình học', tagName: 'a' },
+      }),
+      baseEvent({
+        sequence: 1,
+        rawType: 'click',
+        payload: { text: 'Lộ trình học Data Engineer', tagName: 'a' },
+      }),
+    ],
+  });
+
+  const hoverStep = result.draftSteps.find((step) => step.inferredAction === 'hover');
+  assert.ok(hoverStep, 'expected a hover draft step');
+  assert.equal(hoverStep.target, 'Chương trình học');
+  assert.match(result.semanticActions[0].semanticId, /^HOVER_/);
+  assert.equal(result.semanticActions[0].label, 'Di chuột vào Chương trình học');
+});
+
 test('buildLocatorCandidates scores and ranks candidates per roadmap table (SR-2 + BL-1 xpath)', () => {
   const candidates = buildLocatorCandidates({
     testid: 'login-btn',
@@ -377,6 +401,42 @@ test('applyChosenLocatorToStepFields can select xpath candidate (BL-1)', () => {
   });
   assert.equal(resolved.targetType, 'xpath');
   assert.equal(resolved.target, '//*[@data-testid=\'login-btn\']');
+});
+
+test('buildLocatorCandidates prioritizes a candidate confirmed unique on page over raw score', () => {
+  const candidates = buildLocatorCandidates({
+    role: 'link',
+    roleName: 'Chương trình học',
+    placeholder: 'Email',
+    selector: 'form.contact input[name="email"]',
+    locatorUniqueness: {
+      // Extension measured 4 role matches and 2 placeholder matches — neither unique —
+      // but the CSS selector only matches this one field.
+      role: false,
+      placeholder: false,
+      css: true,
+    },
+  });
+
+  assert.deepEqual(
+    candidates.map((candidate) => candidate.strategy),
+    ['css', 'role', 'placeholder'],
+  );
+  assert.equal(candidates[0].uniqueOnPage, true);
+  assert.equal(resolveChosenLocator(candidates).targetType, 'css');
+});
+
+test('buildLocatorCandidates keeps score-only order when extension sends no uniqueness data (older events)', () => {
+  const candidates = buildLocatorCandidates({
+    role: 'button',
+    roleName: 'Đăng ký ngay',
+    placeholder: 'Email',
+  });
+
+  assert.deepEqual(
+    candidates.map((candidate) => candidate.strategy),
+    ['role', 'placeholder'],
+  );
 });
 
 test('buildLocatorCandidates skips role when roleName is missing and falls back lower', () => {

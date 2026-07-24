@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const {
   applyDraftStepPatch,
   applyDraftStepPatches,
+  insertDraftStep,
 } = require('../src/services/recording/recordingDraftPatchService');
 const { convertDraftStepsToAutomationSteps } = require('../src/services/recording/recordingMergeService');
 const { buildLocatorCandidates } = require('../src/services/recording/locatorScoring');
@@ -173,4 +174,74 @@ test('SR-4.2 rejected draft step is excluded from merge conversion', () => {
   assert.equal(mergedSteps.length, 2);
   assert.equal(mergedSteps[0].action, 'goto');
   assert.equal(mergedSteps[1].action, 'type');
+});
+
+test('insertDraftStep appends a manual step at the end and renumbers order', () => {
+  const draftSteps = buildSampleDraftSteps();
+
+  insertDraftStep(draftSteps, {
+    inferredAction: 'hover',
+    targetType: 'text',
+    target: 'Chương trình học',
+  });
+
+  assert.equal(draftSteps.length, 4);
+  const inserted = draftSteps[3];
+  assert.equal(inserted.inferredAction, 'hover');
+  assert.equal(inserted.order, 4);
+  assert.equal(inserted.reviewStatus, 'edited');
+  assert.ok(inserted.draftStepId);
+  assert.notEqual(inserted.draftStepId, 'draft-click');
+});
+
+test('insertDraftStep inserts after a given draftStepId and shifts later steps', () => {
+  const draftSteps = buildSampleDraftSteps();
+
+  insertDraftStep(draftSteps, {
+    insertAfterDraftStepId: 'draft-goto',
+    inferredAction: 'waitFor',
+    targetType: 'css',
+    target: '#username',
+  });
+
+  assert.equal(draftSteps.length, 4);
+  assert.equal(draftSteps[0].draftStepId, 'draft-goto');
+  assert.equal(draftSteps[0].order, 1);
+  assert.equal(draftSteps[1].inferredAction, 'waitFor');
+  assert.equal(draftSteps[1].order, 2);
+  assert.equal(draftSteps[2].draftStepId, 'draft-type');
+  assert.equal(draftSteps[2].order, 3);
+  assert.equal(draftSteps[3].draftStepId, 'draft-click');
+  assert.equal(draftSteps[3].order, 4);
+});
+
+test('insertDraftStep rejects unknown insertAfterDraftStepId', () => {
+  assert.throws(
+    () => insertDraftStep(buildSampleDraftSteps(), {
+      insertAfterDraftStepId: 'missing',
+      inferredAction: 'click',
+      targetType: 'css',
+      target: '#ok',
+    }),
+    (error) => error.statusCode === 404 && /Draft step not found/.test(error.message),
+  );
+});
+
+test('insertDraftStep synthesizes a locator candidate so target/value survive merge', () => {
+  const draftSteps = buildSampleDraftSteps();
+
+  insertDraftStep(draftSteps, {
+    inferredAction: 'click',
+    targetType: 'role',
+    target: 'button',
+    value: 'Đăng ký ngay',
+  });
+
+  const mergedSteps = convertDraftStepsToAutomationSteps(draftSteps);
+  const mergedManualStep = mergedSteps[mergedSteps.length - 1];
+
+  assert.equal(mergedManualStep.action, 'click');
+  assert.equal(mergedManualStep.targetType, 'role');
+  assert.equal(mergedManualStep.target, 'button');
+  assert.equal(mergedManualStep.value, 'Đăng ký ngay');
 });

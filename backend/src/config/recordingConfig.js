@@ -23,6 +23,7 @@ const RECORDED_EVENT_RAW_TYPES = [
   'file_upload',
   'select_change',
   'keypress',
+  'hover',
 ];
 
 const LOCATOR_STRATEGIES = [

@@ -1,4 +1,9 @@
-const { DRAFT_REVIEW_STATUSES, READY_FOR_REVIEW_STATUS } = require('../../config/recordingConfig');
+const crypto = require('crypto');
+const {
+  DRAFT_REVIEW_STATUSES,
+  READY_FOR_REVIEW_STATUS,
+  LOCATOR_STRATEGIES,
+} = require('../../config/recordingConfig');
 const { httpError } = require('../../utils/httpError');
 const {
   applyChosenLocatorToStepFields,
@@ -143,8 +148,90 @@ const patchRecordingDraftService = async ({ sessionId, draftSteps: patches, user
   return serializeRecordingSession(session);
 };
 
+/**
+ * Manual insert has no recorded DOM, so it carries no scored locatorCandidates. Without a
+ * synthetic candidate, `applyChosenLocatorToStepFields` (SR-2) would fall back to an empty
+ * css target on merge (locatorScoring.resolveChosenLocator with 0 candidates) and silently
+ * drop whatever the tester typed. One candidate mirroring the typed targetType/target keeps
+ * that value through merge, same as a recorded step would.
+ */
+const buildManualLocatorCandidate = (targetType, target, value) => {
+  const strategy = String(targetType || '').trim().toLowerCase();
+  const targetValue = String(target || '').trim();
+  if (!strategy || !targetValue || !LOCATOR_STRATEGIES.includes(strategy)) {
+    return [];
+  }
+  return [{
+    strategy,
+    value: targetValue,
+    roleName: strategy === 'role' ? String(value || '').trim() : '',
+    score: 100,
+    uniqueOnPage: true,
+  }];
+};
+
+/**
+ * Insert one manually-authored draft step (mutates + returns `draftSteps`). Pulled out of
+ * `insertDraftStepService` so it can be unit-tested without a DB-backed session, same split
+ * as `applyDraftStepPatches` / `patchRecordingDraftService`.
+ */
+const insertDraftStep = (draftSteps = [], {
+  insertAfterDraftStepId,
+  inferredAction,
+  targetType,
+  target,
+  value,
+  expected,
+} = {}) => {
+  let insertIndex = draftSteps.length;
+  const afterId = String(insertAfterDraftStepId || '').trim();
+  if (afterId) {
+    const afterIndex = draftSteps.findIndex((step) => String(step.draftStepId) === afterId);
+    if (afterIndex === -1) {
+      throw httpError(404, `Draft step not found: ${afterId}`);
+    }
+    insertIndex = afterIndex + 1;
+  }
+
+  const newStep = {
+    draftStepId: crypto.randomUUID(),
+    order: insertIndex + 1,
+    inferredAction: String(inferredAction || '').trim(),
+    targetType: String(targetType || '').trim(),
+    target: String(target || '').trim(),
+    value: String(value || '').trim(),
+    expected: String(expected || '').trim(),
+    locatorCandidates: buildManualLocatorCandidate(targetType, target, value),
+    chosenLocatorIndex: 0,
+    reviewStatus: 'edited',
+    screenshotKey: '',
+    autoWaitSuggestion: '',
+    sourceSemanticId: 'MANUAL_STEP',
+  };
+
+  draftSteps.splice(insertIndex, 0, newStep);
+  draftSteps.forEach((step, index) => {
+    step.order = index + 1;
+  });
+
+  return draftSteps;
+};
+
+const insertDraftStepService = async ({ sessionId, user, ...stepFields }) => {
+  const session = await getRecordingSessionForUser(sessionId, user);
+  assertPatchableSessionStatus(session);
+
+  insertDraftStep(session.draftSteps, stepFields);
+  session.markModified('draftSteps');
+  await session.save();
+
+  return serializeRecordingSession(session);
+};
+
 module.exports = {
   applyDraftStepPatch,
   applyDraftStepPatches,
   patchRecordingDraftService,
+  insertDraftStep,
+  insertDraftStepService,
 };

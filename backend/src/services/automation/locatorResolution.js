@@ -47,12 +47,17 @@ const resolveLocator = (page, step) => {
   return buildLocator(page, targetType, target, { name: toString(step.value) });
 };
 
-/** click + Text: button, link, and elements with button role — not button-only */
+/**
+ * click + text: prefer button/link by accessible name, then fall back to visible text
+ * (menu items often are div/span — not <button>/<a>).
+ * Uniqueness still enforced by requireUniqueLocator.
+ */
 const resolveTextClickLocator = (page, target) => {
   const name = toString(target);
   const button = page.getByRole('button', { name, exact: false });
   const link = page.getByRole('link', { name, exact: false });
-  return button.or(link);
+  const byText = page.getByText(name, { exact: false });
+  return button.or(link).or(byText);
 };
 
 const buildAmbiguousLocatorMessage = (count, targetType, target) =>

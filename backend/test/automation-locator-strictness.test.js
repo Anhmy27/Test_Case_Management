@@ -6,6 +6,7 @@ const {
   buildAmbiguousLocatorMessage,
   requireUniqueLocator,
   resolveLocator,
+  resolveTextClickLocator,
 } = require('../src/services/automation/locatorResolution');
 
 const mockLocator = (count) => ({
@@ -144,4 +145,49 @@ test('resolveLocator maps xpath targetType to page.locator with xpath= prefix (B
 
   resolveLocator(page, { targetType: 'xpath', target: 'xpath=//button[@id="ok"]' });
   assert.equal(calls[1], 'xpath=//button[@id="ok"]');
+});
+
+test('resolveTextClickLocator unions button, link, and getByText', () => {
+  const roleCalls = [];
+  const textCalls = [];
+  const chain = [];
+
+  const makeBranch = (label) => {
+    const branch = {
+      label,
+      or(next) {
+        chain.push([label, next.label]);
+        return makeBranch(`${label}|${next.label}`);
+      },
+    };
+    return branch;
+  };
+
+  const page = {
+    getByRole: (role, options) => {
+      roleCalls.push({ role, options });
+      return makeBranch(role);
+    },
+    getByText: (name, options) => {
+      textCalls.push({ name, options });
+      return makeBranch('text');
+    },
+  };
+
+  const locator = resolveTextClickLocator(page, 'Lộ trình học Data Engineer');
+
+  assert.equal(roleCalls.length, 2);
+  assert.equal(roleCalls[0].role, 'button');
+  assert.equal(roleCalls[1].role, 'link');
+  assert.deepEqual(roleCalls[0].options, { name: 'Lộ trình học Data Engineer', exact: false });
+  assert.equal(textCalls.length, 1);
+  assert.deepEqual(textCalls[0], {
+    name: 'Lộ trình học Data Engineer',
+    options: { exact: false },
+  });
+  assert.deepEqual(chain, [
+    ['button', 'link'],
+    ['button|link', 'text'],
+  ]);
+  assert.equal(locator.label, 'button|link|text');
 });

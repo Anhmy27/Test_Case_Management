@@ -5,6 +5,12 @@ const {
   optionalTrimmedString,
 } = require('./commonSchemas');
 const { DRAFT_REVIEW_STATUSES, RECORDED_EVENT_RAW_TYPES } = require('../config/recordingConfig');
+const automationStepSchema = require('../models/AutomationStep');
+
+// Manual draft step insert must accept the same action/targetType vocabulary as
+// TestCase.automation.steps (single source of truth: the Mongoose enum below).
+const MANUAL_DRAFT_STEP_ACTIONS = automationStepSchema.path('action').enumValues;
+const MANUAL_DRAFT_STEP_TARGET_TYPES = automationStepSchema.path('targetType').enumValues;
 
 const recordingSessionIdParamsSchema = z.object({
   sessionId: objectIdString,
@@ -73,6 +79,16 @@ const patchRecordingDraftBodySchema = z.object({
     .max(200),
 });
 
+/** Chèn 1 bước nháp thủ công (bất kỳ action nào) trước khi merge. */
+const insertDraftStepBodySchema = z.object({
+  insertAfterDraftStepId: optionalTrimmedString(),
+  inferredAction: z.enum(MANUAL_DRAFT_STEP_ACTIONS),
+  targetType: z.enum(MANUAL_DRAFT_STEP_TARGET_TYPES).optional(),
+  target: z.string().optional(),
+  value: z.string().optional(),
+  expected: z.string().optional(),
+});
+
 module.exports = {
   recordingSessionIdParamsSchema,
   startRecordingSessionBodySchema,
@@ -81,4 +97,5 @@ module.exports = {
   mergeRecordingSessionBodySchema,
   previewRecordingSessionBodySchema,
   patchRecordingDraftBodySchema,
+  insertDraftStepBodySchema,
 };

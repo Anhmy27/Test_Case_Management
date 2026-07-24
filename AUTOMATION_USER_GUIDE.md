@@ -37,7 +37,7 @@ Khi bạn chọn **Loại selector** + điền **Selector / text**, engine (`pla
 - Engine **đếm** số phần tử khớp selector — cần **đúng 1** phần tử.
 - **Khớp 0** → fail ngay (không tìm thấy).
 - **Khớp > 1** → **run thật:** fail; **dry run:** WARNING trong log và vẫn dùng phần tử đầu (để debug).
-- **`click` + Text:** tìm **button** hoặc **link** (`<a>`) có chữ đó — không chỉ button.
+- **`click` + Text:** tìm **button**, **link** (`<a>`), hoặc phần tử có chữ đó (`getByText`) — menu `div`/`span` cũng click được nếu khớp đúng 1 element.
 
 **Retry bước (P4):** Lỗi **tạm** (timeout, phần tử chưa bấm được…) → engine **thử lại tối đa 2 lần**. **Assert sai** (text/URL không khớp mong đợi) → **không** retry.
 
@@ -152,7 +152,7 @@ HTML: `<input id="5">`
 - HTML: `<button>Đăng nhập</button>` hoặc `<span>Xin chào</span>`
 - Điền: loại **Text** → `Đăng nhập`
 - Khớp **một phần** chuỗi (không cần đúng 100%).
-- **`click` + Text:** tìm **button** hoặc **link** có chữ đó. `<span>` chỉ chữ không click được — dùng CSS hoặc `data-testid`.
+- **`click` + Text:** tìm **button**, **link**, hoặc phần tử có chữ đó (`getByText`). Nếu khớp nhiều element → fail (ambiguous) — thu hẹp chữ hoặc dùng CSS/`data-testid`.
 - Dùng khi: nút chỉ có chữ, không có id/class.
 
 ### data-testid
@@ -172,7 +172,7 @@ Làm theo thứ tự sau (dừng ở bước đầu tiên làm được):
 2. Có id?              → ID hoặc CSS #id
 3. Input có label?     → Label
 4. Input có placeholder? → Placeholder (chỉ type)
-5. Nút chỉ có chữ?     → Text (click) — button hoặc link
+5. Nút/menu chỉ có chữ? → Text (click) — button, link, hoặc chữ trên trang (đúng 1 element)
 6. Còn lại             → CSS (class, name, type, F12 copy)
 ```
 
@@ -271,7 +271,7 @@ Cột **Loại selector** = các lựa chọn trong dropdown **Loại selector**
 | **goto** + path `/login` | Ghép với **URL gốc**: `https://app.com` + `/login` → `https://app.com/login`. |
 | **wait** (Đợi) | Có trên UI nhưng **chưa lưu được vào database** — tạm dùng **waitFor** hoặc báo team nếu cần bật. |
 | **upload** | Đường dẫn file là path trên **máy chạy backend**, không phải path trên máy bạn chọn trong trình duyệt. |
-| **click** + Text | Tìm **button** hoặc **link** có chữ đó; nếu fail, thử **CSS** hoặc `data-testid`. |
+| **click** + Text | Tìm **button**, **link**, hoặc chữ trên trang (`getByText`); nhiều khớp → dùng CSS/`data-testid`. |
 
 ---
 

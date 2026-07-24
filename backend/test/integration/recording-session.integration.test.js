@@ -704,6 +704,109 @@ test('SR-4.2 patch draft rejects session that is not ready_for_review', async ()
   });
 });
 
+test('manual draft step insert lands in the right position and survives merge', async () => {
+  await withIntegrationHarness(async (harness) => {
+    const { seedAutomationExecutionFixture } = require('../helpers/executionFixtures');
+    const fixture = await seedAutomationExecutionFixture(harness);
+
+    const startRes = await fixture.adminClient.post(
+      '/api/recording/sessions',
+      {
+        projectId: fixture.ids.projectId,
+        baseUrl: 'http://localhost:3000/login',
+        testCaseEntityId: fixture.ids.testCaseId,
+      },
+      201,
+    );
+    const sessionId = startRes.body.session.id;
+
+    await fixture.adminClient.post(
+      `/api/recording/sessions/${sessionId}/events`,
+      {
+        events: [
+          {
+            rawType: 'input',
+            pageUrl: 'http://localhost:3000/login',
+            payload: { name: 'username', value: 'admin' },
+          },
+          {
+            rawType: 'click',
+            pageUrl: 'http://localhost:3000/login',
+            payload: { testid: 'login-btn' },
+          },
+        ],
+      },
+      200,
+    );
+    await fixture.adminClient.post(`/api/recording/sessions/${sessionId}/stop`, {}, 200);
+
+    const stopped = await fixture.adminClient.get(`/api/recording/sessions/${sessionId}`, 200);
+    const typeStep = stopped.body.session.draftSteps.find((step) => step.inferredAction === 'type');
+    assert.ok(typeStep);
+
+    const insertRes = await fixture.adminClient.post(
+      `/api/recording/sessions/${sessionId}/draft/steps`,
+      {
+        insertAfterDraftStepId: typeStep.draftStepId,
+        inferredAction: 'hover',
+        targetType: 'text',
+        target: 'Chương trình học',
+      },
+      201,
+    );
+
+    const insertedSteps = insertRes.body.session.draftSteps;
+    assert.equal(insertedSteps.length, 4);
+    assert.equal(insertedSteps[2].inferredAction, 'hover');
+    assert.equal(insertedSteps[2].target, 'Chương trình học');
+    assert.equal(insertedSteps[2].reviewStatus, 'edited');
+    assert.equal(insertedSteps[3].inferredAction, 'click');
+
+    const mergeRes = await fixture.adminClient.post(
+      `/api/recording/sessions/${sessionId}/merge`,
+      {},
+      200,
+    );
+
+    assert.equal(mergeRes.body.mergedStepsCount, 4);
+    assert.equal(mergeRes.body.testCase.automation.steps[2].action, 'hover');
+    assert.equal(mergeRes.body.testCase.automation.steps[2].targetType, 'text');
+    assert.equal(mergeRes.body.testCase.automation.steps[2].target, 'Chương trình học');
+  });
+});
+
+test('manual draft step insert rejects session that is not ready_for_review', async () => {
+  await withIntegrationHarness(async (harness) => {
+    const admin = await harness.createUser({
+      name: 'Recording Insert Guard Admin',
+      email: 'recording-insert-guard@integration.test',
+      password: 'pass1234',
+      role: 'admin',
+    });
+    const adminClient = harness.createClient();
+    await adminClient.post('/api/auth/login', { email: admin.email, password: 'pass1234' }, 200);
+
+    const projectRes = await adminClient.post(
+      '/api/projects',
+      { name: 'Recording Insert Guard Project', code: 'RIG' },
+      201,
+    );
+    const projectId = projectRes.body.project.entityId || projectRes.body.project.id;
+
+    const startRes = await adminClient.post(
+      '/api/recording/sessions',
+      { projectId, baseUrl: 'http://localhost:3000/login' },
+      201,
+    );
+
+    await adminClient.post(
+      `/api/recording/sessions/${startRes.body.session.id}/draft/steps`,
+      { inferredAction: 'click', targetType: 'css', target: '#ok' },
+      400,
+    );
+  });
+});
+
 test('SR-4.3 preview dry-runs draft steps without merging test case', async () => {
   await withStubbedDryRunAutomation(
     async ({ testCaseId, user }) => ({

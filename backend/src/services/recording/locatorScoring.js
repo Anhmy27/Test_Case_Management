@@ -71,31 +71,72 @@ const pushCandidate = (candidates, strategy, value, { roleName = '', uniqueOnPag
 };
 
 /**
+ * Extension measures real DOM uniqueness at record time (`content-bridge.js` →
+ * `payload.locatorUniqueness`) — best-effort per strategy, not always present
+ * (older recorded events, manually-added draft steps). Fall back to the previous
+ * static assumption (attribute-based strategies assumed unique; text/css/xpath not).
+ */
+const resolveUniqueOnPage = (uniqueness, strategy, fallback) => {
+  if (uniqueness && Object.prototype.hasOwnProperty.call(uniqueness, strategy)) {
+    return Boolean(uniqueness[strategy]);
+  }
+  return fallback;
+};
+
+/** Prefer a locator that only matches the recorded element over a higher-scored one that doesn't. */
+const sortCandidatesByUniquenessThenScore = (candidates) =>
+  candidates.sort((left, right) => {
+    if (left.uniqueOnPage !== right.uniqueOnPage) {
+      return left.uniqueOnPage ? -1 : 1;
+    }
+    return right.score - left.score;
+  });
+
+/**
  * Build ranked locator candidates from a recorded element payload.
- * Order follows the roadmap score table; ties keep table order (stable sort).
+ * Ranking: candidates confirmed unique on page (real DOM check when available) first,
+ * then by roadmap score table within each group; ties keep table order (stable sort).
  * @param {object} payload
  * @returns {{ strategy: string, value: string, roleName: string, score: number, uniqueOnPage: boolean }[]}
  */
 const buildLocatorCandidates = (payload = {}) => {
   const candidates = [];
+  const uniqueness = payload.locatorUniqueness && typeof payload.locatorUniqueness === 'object'
+    ? payload.locatorUniqueness
+    : null;
 
-  pushCandidate(candidates, 'testid', toString(payload.testid));
+  pushCandidate(candidates, 'testid', toString(payload.testid), {
+    uniqueOnPage: resolveUniqueOnPage(uniqueness, 'testid', true),
+  });
 
   const role = toString(payload.role);
   const roleName = toString(payload.roleName);
   if (role && roleName) {
-    pushCandidate(candidates, 'role', role, { roleName });
+    pushCandidate(candidates, 'role', role, {
+      roleName,
+      uniqueOnPage: resolveUniqueOnPage(uniqueness, 'role', true),
+    });
   }
 
-  pushCandidate(candidates, 'id', toString(payload.id));
-  pushCandidate(candidates, 'label', toString(payload.label));
-  pushCandidate(candidates, 'placeholder', toString(payload.placeholder));
-  pushCandidate(candidates, 'text', toString(payload.text), { uniqueOnPage: false });
-  pushCandidate(candidates, 'css', toString(payload.selector), { uniqueOnPage: false });
-  // BL-1 — lowest score; review fallback when CSS/role still break.
+  pushCandidate(candidates, 'id', toString(payload.id), {
+    uniqueOnPage: resolveUniqueOnPage(uniqueness, 'id', true),
+  });
+  pushCandidate(candidates, 'label', toString(payload.label), {
+    uniqueOnPage: resolveUniqueOnPage(uniqueness, 'label', true),
+  });
+  pushCandidate(candidates, 'placeholder', toString(payload.placeholder), {
+    uniqueOnPage: resolveUniqueOnPage(uniqueness, 'placeholder', true),
+  });
+  pushCandidate(candidates, 'text', toString(payload.text), {
+    uniqueOnPage: resolveUniqueOnPage(uniqueness, 'text', false),
+  });
+  pushCandidate(candidates, 'css', toString(payload.selector), {
+    uniqueOnPage: resolveUniqueOnPage(uniqueness, 'css', false),
+  });
+  // BL-1 — lowest score; review fallback when CSS/role still break. Never measured, always last.
   pushCandidate(candidates, 'xpath', buildXPathFromPayload(payload), { uniqueOnPage: false });
 
-  return candidates.sort((left, right) => right.score - left.score);
+  return sortCandidatesByUniquenessThenScore(candidates);
 };
 
 /**
@@ -113,8 +154,9 @@ const filterCandidatesForAction = (candidates, action) => {
 };
 
 /**
- * Default locator = highest-scoring candidate. Tester can pick another
- * candidate at review time (SR-4) — this never changes automatically at runtime.
+ * Default locator = first candidate after sorting (unique-on-page first, then score).
+ * Tester can pick another candidate at review time (SR-4) — this never changes
+ * automatically at runtime.
  * @param {ReturnType<typeof buildLocatorCandidates>} candidates
  * @param {{ chosenLocatorIndex?: number, action?: string }} [options]
  */
