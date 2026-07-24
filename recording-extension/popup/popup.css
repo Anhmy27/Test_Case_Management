@@ -34,7 +34,8 @@ h1 {
   color: #cbd5e1;
 }
 
-.form-grid input {
+.form-grid input,
+.form-grid select {
   border: 1px solid #334155;
   border-radius: 8px;
   padding: 8px 10px;
@@ -43,7 +44,8 @@ h1 {
   font-size: 12px;
 }
 
-.form-grid input:disabled {
+.form-grid input:disabled,
+.form-grid select:disabled {
   opacity: 0.7;
 }
 

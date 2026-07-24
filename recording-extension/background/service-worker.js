@@ -17,6 +17,8 @@ import {
 const LOCAL_EVENTS_KEY = 'tcmRecordingLocalEvents';
 const CONFIG_KEY = 'tcmRecordingConfig';
 const SESSION_KEY = 'tcmRecordingApiSession';
+const PANEL_WINDOW_KEY = 'tcmRecordingPanelWindowId';
+const PANEL_URL = chrome.runtime.getURL('popup/popup.html');
 
 let isRecording = false;
 let captureVisualsEnabled = false;
@@ -414,6 +416,75 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   });
 
   return true;
+});
+
+const findControlPanelWindow = async () => {
+  const stored = await chrome.storage.session.get(PANEL_WINDOW_KEY);
+  const storedId = stored[PANEL_WINDOW_KEY];
+  if (storedId) {
+    try {
+      return await chrome.windows.get(storedId);
+    } catch {
+      await chrome.storage.session.remove(PANEL_WINDOW_KEY);
+    }
+  }
+
+  const windows = await chrome.windows.getAll({ populate: true, windowTypes: ['popup'] });
+  return windows.find((window) => {
+    const tabUrl = window.tabs?.[0]?.url || '';
+    return tabUrl === PANEL_URL || tabUrl.startsWith(`${PANEL_URL}?`);
+  }) || null;
+};
+
+const closeControlPanelWindow = async () => {
+  const existing = await findControlPanelWindow();
+  if (existing?.id) {
+    try {
+      await chrome.windows.remove(existing.id);
+    } catch {
+      // Already closed.
+    }
+  }
+  await chrome.storage.session.remove(PANEL_WINDOW_KEY);
+};
+
+const openControlPanelWindow = async () => {
+  const existing = await findControlPanelWindow();
+  if (existing?.id) {
+    await chrome.windows.update(existing.id, { focused: true });
+    await chrome.storage.session.set({ [PANEL_WINDOW_KEY]: existing.id });
+    return;
+  }
+
+  const created = await chrome.windows.create({
+    url: PANEL_URL,
+    type: 'popup',
+    width: 400,
+    height: 700,
+    focused: true,
+  });
+
+  if (created?.id) {
+    await chrome.storage.session.set({ [PANEL_WINDOW_KEY]: created.id });
+  }
+};
+
+// Chrome's default action popup closes on blur — use a dedicated window instead.
+// Click the extension icon to open/close; recording continues even if the window is closed.
+chrome.action.onClicked.addListener(async () => {
+  const existing = await findControlPanelWindow();
+  if (existing?.id) {
+    await closeControlPanelWindow();
+    return;
+  }
+  await openControlPanelWindow();
+});
+
+chrome.windows.onRemoved.addListener(async (windowId) => {
+  const stored = await chrome.storage.session.get(PANEL_WINDOW_KEY);
+  if (Number(stored[PANEL_WINDOW_KEY]) === Number(windowId)) {
+    await chrome.storage.session.remove(PANEL_WINDOW_KEY);
+  }
 });
 
 Promise.all([restoreRuntimeSession(), readConfig()]).then(async ([, config]) => {

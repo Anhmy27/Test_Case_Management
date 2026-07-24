@@ -11,6 +11,9 @@ const RECORDING_SESSION_STATUSES = [
   'failed',
 ];
 
+/** Status that allows draft patch / preview / merge (SR-4). */
+const READY_FOR_REVIEW_STATUS = 'ready_for_review';
+
 const RECORDED_EVENT_RAW_TYPES = [
   'click',
   'input',
@@ -61,6 +64,7 @@ const buildRecordingSessionExpiresAt = (fromDate = new Date()) =>
 
 module.exports = {
   RECORDING_SESSION_STATUSES,
+  READY_FOR_REVIEW_STATUS,
   RECORDED_EVENT_RAW_TYPES,
   LOCATOR_STRATEGIES,
   DRAFT_REVIEW_STATUSES,

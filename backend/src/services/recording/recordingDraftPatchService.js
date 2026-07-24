@@ -1,4 +1,4 @@
-const { DRAFT_REVIEW_STATUSES } = require('../../config/recordingConfig');
+const { DRAFT_REVIEW_STATUSES, READY_FOR_REVIEW_STATUS } = require('../../config/recordingConfig');
 const { httpError } = require('../../utils/httpError');
 const {
   applyChosenLocatorToStepFields,
@@ -9,14 +9,12 @@ const {
   serializeRecordingSession,
 } = require('./recordingSessionService');
 
-const PATCHABLE_SESSION_STATUS = 'ready_for_review';
-
 const assertPatchableSessionStatus = (session) => {
   if (session.status === 'merged') {
     throw httpError(400, 'Cannot patch draft on a merged recording session');
   }
 
-  if (session.status !== PATCHABLE_SESSION_STATUS) {
+  if (session.status !== READY_FOR_REVIEW_STATUS) {
     throw httpError(400, `Cannot patch draft on session with status ${session.status}`);
   }
 };
@@ -146,7 +144,6 @@ const patchRecordingDraftService = async ({ sessionId, draftSteps: patches, user
 };
 
 module.exports = {
-  PATCHABLE_SESSION_STATUS,
   applyDraftStepPatch,
   applyDraftStepPatches,
   patchRecordingDraftService,

@@ -6,7 +6,7 @@ Chrome extension pilot for Smart Recording **SR-1.0**.
 
 - Captures click, input, change, select, file upload, submit, keypress, navigation.
 - Builds payloads compatible with backend `recordedEventInputSchema`.
-- Popup: nhập **API TCM**, **Project ID**, **Base URL**, test case entity ID (tùy chọn).
+- Popup: nhập **API TCM**, **Project ID**, **Base URL**; chọn **Test case** từ danh sách (tuỳ chọn).
 - **Bắt đầu ghi** → `POST /api/recording/sessions`
 - Gửi event theo batch (debounce ~800ms, tối đa 100 event/lần) → `POST .../events`
 - **Tạm dừng / Tiếp tục** → `POST .../pause` / `POST .../resume` (không bắt event khi tạm dừng)
@@ -16,7 +16,7 @@ Chrome extension pilot for Smart Recording **SR-1.0**.
 - **[BL-2] Chụp ảnh + DOM (tùy chọn, checkbox trong popup, mặc định TẮT):**
   - Chỉ áp dụng cho event "có ý nghĩa": `click`, `change`, `submit`, `navigation`, `file_upload`, `select_change` — **bỏ qua** `input`/`keypress` (gõ từng chữ) để tránh spam `chrome.tabs.captureVisibleTab` (giới hạn số lần gọi/giây của Chrome) và vì các event gõ chữ đã được backend gộp thành 1 bước (`mergeTypingEvents`).
   - Screenshot: `background/service-worker.js` gọi `chrome.tabs.captureVisibleTab()` (chỉ background mới gọi được) khi nhận `RECORDED_EVENT`, JPEG quality 50, gắn vào `event.screenshotBase64`. Lỗi capture (rate limit, trang bị chặn...) không làm hỏng phiên ghi — bỏ qua ảnh, event vẫn được gửi.
-  - DOM: `content/content-script.js` tự lấy `document.documentElement.outerHTML` (có DOM trực tiếp), cắt về tối đa `MAX_DOM_HTML_LENGTH` (300KB) để nằm dưới giới hạn backend `maxDomBytes` (1MB), gắn vào `event.domHtml`.
+  - DOM: `content/content-bridge.js` lấy `document.documentElement.outerHTML` (có DOM trực tiếp), cắt về tối đa `MAX_DOM_HTML_LENGTH` (300KB) để nằm dưới giới hạn backend `maxDomBytes` (1MB), gắn vào `event.domHtml`.
   - Backend đã có sẵn (`recordingEventArtifacts.js`) — lưu screenshot vào `uploads/recording/{sessionId}/steps/`, DOM vào `uploads/recording/{sessionId}/dom/`. Gắn `screenshotKey` vào **draft step**; `domSnapshotKey` + `domFingerprint` nằm trên **event.payload** (không phải field của draft). Xem ảnh trên UI review **chưa làm** — ngoài phạm vi BL-2 này.
 
 ## Prerequisites

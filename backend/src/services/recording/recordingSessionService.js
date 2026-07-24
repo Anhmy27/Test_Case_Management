@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const RecordingSession = require('../../models/RecordingSession');
+const { READY_FOR_REVIEW_STATUS } = require('../../config/recordingConfig');
 const { httpError } = require('../../utils/httpError');
 const { assertAllowedBaseUrl } = require('../../utils/automationUrlPolicy');
 const { findProjectByReference } = require('../../utils/entityResolvers');
@@ -189,7 +190,7 @@ const stopRecordingSessionService = async ({ sessionId, user }) => {
     session.semanticActions = processed.semanticActions;
     session.draftSteps = processed.draftSteps;
     session.intentBlocks = processed.intentBlocks;
-    session.status = 'ready_for_review';
+    session.status = READY_FOR_REVIEW_STATUS;
     session.errorMessage = '';
     await session.save();
 

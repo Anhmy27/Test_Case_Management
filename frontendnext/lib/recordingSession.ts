@@ -1,4 +1,4 @@
-import { apiRequest } from "@/lib/api";
+import { apiRequest, getId } from "@/lib/api";
 import type { DryRunResult } from "@/lib/automationDryRun";
 import { TARGET_TYPE_LABELS } from "@/lib/automationStepMeta";
 
@@ -50,12 +50,51 @@ export type RecordingSession = {
   intentBlocks: RecordingIntentBlock[];
 };
 
+/** Test case option for merge / extension — id is canonical entityId via getId(). */
+export type RecordingTargetTestCase = {
+  id: string;
+  label: string;
+};
+
 const REVIEW_STATUS_LABELS: Record<string, string> = {
   pending: "Chờ duyệt",
   accepted: "Giữ",
   rejected: "Bỏ",
   edited: "Đã sửa",
 };
+
+function formatTestCaseOptionLabel(testCase: Record<string, unknown>, id: string) {
+  const caseKey = String(testCase.caseKey || testCase.key || "").trim();
+  const title = String(testCase.title || testCase.name || "").trim();
+  if (caseKey && title) {
+    return `${caseKey} — ${title}`;
+  }
+  return caseKey || title || id;
+}
+
+export async function listRecordingTargetTestCases(projectId: string): Promise<RecordingTargetTestCase[]> {
+  const normalizedProjectId = String(projectId || "").trim();
+  if (!normalizedProjectId) {
+    return [];
+  }
+
+  const response = await apiRequest<{ testCases?: Array<Record<string, unknown>> }>(
+    `/api/test-cases?projectId=${encodeURIComponent(normalizedProjectId)}`,
+  );
+
+  return (response.testCases || [])
+    .map((testCase) => {
+      const id = getId(testCase);
+      if (!id) {
+        return null;
+      }
+      return {
+        id,
+        label: formatTestCaseOptionLabel(testCase, id),
+      };
+    })
+    .filter((item): item is RecordingTargetTestCase => Boolean(item));
+}
 
 export async function fetchRecordingSession(sessionId: string) {
   const normalizedId = String(sessionId || "").trim();

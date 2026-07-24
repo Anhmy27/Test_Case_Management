@@ -6,6 +6,7 @@ import {
   formatLocatorCandidate,
   formatRecordingReviewStatus,
   formatRecordingSessionStatus,
+  listRecordingTargetTestCases,
   recordingReviewStatusClassName,
   sortRecordingDraftSteps,
   type RecordingDraftStep,
@@ -13,6 +14,7 @@ import {
   type RecordingIntentBlock,
   type RecordingPreviewResult,
   type RecordingSession,
+  type RecordingTargetTestCase,
 } from "@/lib/recordingSession";
 import DryRunResultView from "@/components/automation/DryRunResultView";
 import { Button, SectionCard, WorkbenchField, WORKBENCH_INPUT_CLS, WORKBENCH_SELECT_CLS } from "./shared";
@@ -259,6 +261,8 @@ function PreviewMergeSection({
   const [webId, setWebId] = useState("");
   const [userKey, setUserKey] = useState("");
   const [testCaseIdInput, setTestCaseIdInput] = useState(session.testCaseEntityId || "");
+  const [testCaseOptions, setTestCaseOptions] = useState<RecordingTargetTestCase[]>([]);
+  const [loadingTestCases, setLoadingTestCases] = useState(false);
   const [previewResult, setPreviewResult] = useState<RecordingPreviewResult | null>(null);
 
   useEffect(() => {
@@ -266,11 +270,51 @@ function PreviewMergeSection({
     setTestCaseIdInput(session.testCaseEntityId || "");
   }, [session.id, session.testCaseEntityId]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadTestCases = async () => {
+      if (!session.projectId) {
+        setTestCaseOptions([]);
+        return;
+      }
+
+      setLoadingTestCases(true);
+      try {
+        const options = await listRecordingTargetTestCases(session.projectId);
+        if (cancelled) {
+          return;
+        }
+        setTestCaseOptions(options);
+        setTestCaseIdInput((current) => {
+          const preferred = current || session.testCaseEntityId || "";
+          return options.some((option) => option.id === preferred) ? preferred : "";
+        });
+      } catch {
+        if (!cancelled) {
+          setTestCaseOptions([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingTestCases(false);
+        }
+      }
+    };
+
+    void loadTestCases();
+    return () => {
+      cancelled = true;
+    };
+  }, [session.id, session.projectId, session.testCaseEntityId]);
+
   if (session.status === "merged") {
+    const mergedLabel = testCaseOptions.find((option) => option.id === session.testCaseEntityId)?.label
+      || session.testCaseEntityId
+      || "—";
     return (
       <SectionCard title="Đã lưu vào test case" subtitle="Session đã merge — không sửa/xem thử được nữa">
         <p className="text-sm text-slate-700 dark:text-zinc-300">
-          Test case entity: <span className="font-medium">{session.testCaseEntityId || "—"}</span>
+          Test case: <span className="font-medium">{mergedLabel}</span>
         </p>
       </SectionCard>
     );
@@ -342,13 +386,22 @@ function PreviewMergeSection({
       ) : null}
 
       <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-slate-100 pt-3 dark:border-zinc-800">
-        <WorkbenchField label="Test case entity ID" className="min-w-[220px]">
-          <input
-            className={WORKBENCH_INPUT_CLS}
+        <WorkbenchField label="Test case" className="min-w-[280px]">
+          <select
+            className={WORKBENCH_SELECT_CLS}
             value={testCaseIdInput}
+            disabled={projectMismatch || loadingTestCases}
             onChange={(event) => setTestCaseIdInput(event.target.value)}
-            placeholder={session.testCaseEntityId ? undefined : "Bắt buộc nếu session chưa gắn test case"}
-          />
+          >
+            <option value="">
+              {loadingTestCases ? "Đang tải test case..." : "Chọn test case để lưu"}
+            </option>
+            {testCaseOptions.map((option) => (
+              <option key={option.id} value={option.id}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </WorkbenchField>
         <Button
           variant="primary"
@@ -430,7 +483,7 @@ export default function AdminRecordingReviewScreen({
           <MetaItem label="Session ID" value={session.id} />
           <MetaItem label="Trạng thái" value={formatRecordingSessionStatus(session.status)} />
           <MetaItem label="Base URL" value={session.baseUrl} />
-          <MetaItem label="Test case entity" value={session.testCaseEntityId || "—"} />
+          <MetaItem label="Test case" value={session.testCaseEntityId || "—"} />
           <MetaItem label="Số event" value={String(session.eventCount ?? 0)} />
           <MetaItem
             label="Dừng lúc"

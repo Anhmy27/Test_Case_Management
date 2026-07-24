@@ -1,5 +1,6 @@
 import { getDefaultRecordingConfig, normalizeRecordingConfig, sessionIdLabel } from '../lib/extensionConfig.js';
 import { MESSAGE } from '../lib/messages.js';
+import { listProjectTestCases } from '../lib/tcmRecordingApi.js';
 
 const configForm = document.getElementById('configForm');
 const apiBaseUrlInput = document.getElementById('apiBaseUrl');
@@ -15,6 +16,8 @@ const clearButton = document.getElementById('clearEvents');
 const statusEl = document.getElementById('status');
 const eventLogEl = document.getElementById('eventLog');
 
+const EMPTY_TEST_CASE_OPTION = { id: '', label: '— Không gắn sẵn —' };
+
 const sendMessage = (message) => chrome.runtime.sendMessage(message);
 
 const readFormConfig = () => normalizeRecordingConfig({
@@ -25,13 +28,48 @@ const readFormConfig = () => normalizeRecordingConfig({
   captureVisuals: captureVisualsInput.checked,
 });
 
-const fillFormConfig = (config = {}) => {
+const fillTestCaseOptions = (options, selectedId = '') => {
+  const normalizedSelected = String(selectedId || '').trim();
+  const rows = [EMPTY_TEST_CASE_OPTION, ...(Array.isArray(options) ? options : [])];
+  testCaseEntityIdInput.innerHTML = '';
+  for (const option of rows) {
+    const element = document.createElement('option');
+    element.value = option.id;
+    element.textContent = option.label;
+    testCaseEntityIdInput.appendChild(element);
+  }
+  testCaseEntityIdInput.value = rows.some((option) => option.id === normalizedSelected)
+    ? normalizedSelected
+    : '';
+};
+
+const refreshTestCaseOptions = async ({ selectedId } = {}) => {
+  const apiBaseUrl = apiBaseUrlInput.value;
+  const projectId = projectIdInput.value;
+  const preferredSelected = selectedId !== undefined
+    ? selectedId
+    : testCaseEntityIdInput.value;
+
+  if (!String(apiBaseUrl || '').trim() || !String(projectId || '').trim()) {
+    fillTestCaseOptions([], preferredSelected);
+    return;
+  }
+
+  try {
+    const options = await listProjectTestCases({ apiBaseUrl, projectId });
+    fillTestCaseOptions(options, preferredSelected);
+  } catch {
+    fillTestCaseOptions([], preferredSelected);
+  }
+};
+
+const fillFormConfig = async (config = {}) => {
   const defaults = getDefaultRecordingConfig();
   apiBaseUrlInput.value = config.apiBaseUrl || defaults.apiBaseUrl;
   projectIdInput.value = config.projectId || '';
-  testCaseEntityIdInput.value = config.testCaseEntityId || '';
   baseUrlInput.value = config.baseUrl || defaults.baseUrl;
   captureVisualsInput.checked = Boolean(config.captureVisuals);
+  await refreshTestCaseOptions({ selectedId: config.testCaseEntityId || '' });
 };
 
 const setRecordingUi = ({ isRecording, isPaused, sessionActive }) => {
@@ -103,7 +141,7 @@ const refresh = async () => {
     sendMessage({ type: MESSAGE.GET_RECORDING_STATE }),
   ]);
 
-  fillFormConfig(configResponse?.config);
+  await fillFormConfig(configResponse?.config);
   applyStateResponse(stateResponse);
   await renderEvents();
 };
@@ -117,7 +155,7 @@ const runSessionAction = async (type, fallbackError) => {
   await refresh();
 };
 
-configForm.addEventListener('change', async () => {
+const persistFormConfig = async () => {
   if (startButton.disabled) {
     return;
   }
@@ -125,6 +163,14 @@ configForm.addEventListener('change', async () => {
     type: MESSAGE.SAVE_CONFIG,
     config: readFormConfig(),
   });
+};
+
+configForm.addEventListener('change', async (event) => {
+  const target = event.target;
+  if (target === apiBaseUrlInput || target === projectIdInput) {
+    await refreshTestCaseOptions();
+  }
+  await persistFormConfig();
 });
 
 startButton.addEventListener('click', async () => {

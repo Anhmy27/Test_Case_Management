@@ -1,11 +1,10 @@
 const TestCase = require('../../models/TestCase');
+const { READY_FOR_REVIEW_STATUS } = require('../../config/recordingConfig');
 const { httpError } = require('../../utils/httpError');
 const { findLatestTestCaseByReference, findProjectByReference } = require('../../utils/entityResolvers');
 const { updateVersionedDocument, normalizeAutomationSteps } = require('../shared/versioningCore');
 const { applyChosenLocatorToStepFields } = require('./locatorScoring');
 const { getRecordingSessionForUser } = require('./recordingSessionService');
-
-const MERGEABLE_SESSION_STATUS = 'ready_for_review';
 
 const isRejectedDraftStep = (draftStep) => String(draftStep?.reviewStatus || '').trim() === 'rejected';
 
@@ -81,7 +80,7 @@ const mergeRecordingSessionService = async ({ sessionId, testCaseId, user }) => 
     throw httpError(400, 'Recording session has already been merged');
   }
 
-  if (session.status !== MERGEABLE_SESSION_STATUS) {
+  if (session.status !== READY_FOR_REVIEW_STATUS) {
     throw httpError(400, `Cannot merge session with status ${session.status}`);
   }
 

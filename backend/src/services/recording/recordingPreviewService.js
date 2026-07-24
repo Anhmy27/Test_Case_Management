@@ -1,16 +1,15 @@
+const { READY_FOR_REVIEW_STATUS } = require('../../config/recordingConfig');
 const { httpError } = require('../../utils/httpError');
 const dryRunService = require('../automation/dryRunService');
 const { convertDraftStepsToAutomationSteps } = require('./recordingMergeService');
 const { getRecordingSessionForUser } = require('./recordingSessionService');
-
-const PREVIEWABLE_SESSION_STATUS = 'ready_for_review';
 
 const assertPreviewableSessionStatus = (session) => {
   if (session.status === 'merged') {
     throw httpError(400, 'Cannot preview a merged recording session');
   }
 
-  if (session.status !== PREVIEWABLE_SESSION_STATUS) {
+  if (session.status !== READY_FOR_REVIEW_STATUS) {
     throw httpError(400, `Cannot preview session with status ${session.status}`);
   }
 };

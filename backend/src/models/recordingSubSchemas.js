@@ -183,7 +183,6 @@ const intentBlockSchema = new mongoose.Schema(
 );
 
 module.exports = {
-  locatorCandidateSchema,
   recordedEventSchema,
   semanticActionSchema,
   recordedStepDraftSchema,

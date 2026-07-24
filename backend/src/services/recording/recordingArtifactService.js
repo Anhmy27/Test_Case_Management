@@ -55,15 +55,6 @@ const buildRecordingSessionPrefix = (sessionId) => {
 const isRecordingArtifactKey = (key) =>
   normalizeSlashes(key).startsWith(`${RECORDING_ARTIFACT_PREFIX}/`);
 
-const recordingContentTypeFromKey = (key) => {
-  const normalized = normalizeSlashes(key).toLowerCase();
-  if (normalized.endsWith('.png')) return 'image/png';
-  if (normalized.endsWith('.jpg') || normalized.endsWith('.jpeg')) return 'image/jpeg';
-  if (normalized.endsWith('.webp')) return 'image/webp';
-  if (normalized.endsWith('.html') || normalized.endsWith('.htm')) return 'text/html';
-  return 'application/octet-stream';
-};
-
 const ensureDirectory = (dirPath) => {
   if (!fs.existsSync(dirPath)) {
     fs.mkdirSync(dirPath, { recursive: true });
@@ -116,23 +107,6 @@ const createRecordingArtifactService = ({ rootDir = ARTIFACT_ROOT_DIR } = {}) =>
       }
     },
 
-    resolveReadablePath(key) {
-      const absolutePath = resolveRecordingKeyToAbsolutePath(rootDir, key);
-      return fs.existsSync(absolutePath) ? absolutePath : null;
-    },
-
-    readBuffer(key) {
-      const absolutePath = this.resolveReadablePath(key);
-      if (!absolutePath) {
-        throw new Error('Recording artifact file is missing');
-      }
-      return fs.readFileSync(absolutePath);
-    },
-
-    getContentType(key) {
-      return recordingContentTypeFromKey(key);
-    },
-
     deleteSessionArtifacts(sessionId) {
       const prefix = buildRecordingSessionPrefix(sessionId);
       const sessionDir = resolveRecordingKeyToAbsolutePath(
@@ -162,9 +136,7 @@ const resetRecordingArtifactServiceForTests = () => {
 module.exports = {
   buildRecordingStepScreenshotKey,
   buildRecordingDomSnapshotKey,
-  buildRecordingSessionPrefix,
   isRecordingArtifactKey,
-  recordingContentTypeFromKey,
   createRecordingArtifactService,
   getRecordingArtifactService,
   resetRecordingArtifactServiceForTests,

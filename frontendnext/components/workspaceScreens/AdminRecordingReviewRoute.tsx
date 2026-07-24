@@ -14,12 +14,13 @@ import {
   type RecordingPreviewResult,
   type RecordingSession,
 } from "@/lib/recordingSession";
+import { findEntityByReference, matchesSelectedEntity } from "@/lib/api";
 
 export default function AdminRecordingReviewRoute() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const sessionIdFromUrl = String(searchParams.get("sessionId") || "").trim();
-  const { currentUser, selectedProjectId, setTopbar, showNotice } = useAdminWorkspace();
+  const { currentUser, selectedProjectId, projects, setTopbar, showNotice } = useAdminWorkspace();
   const sessionIdInputRef = useRef<HTMLInputElement>(null);
   const [session, setSession] = useState<RecordingSession | null>(null);
   const [loading, setLoading] = useState(false);
@@ -141,11 +142,18 @@ export default function AdminRecordingReviewRoute() {
     return () => setTopbar(null);
   }, [loadSession, sessionIdFromUrl, setTopbar]);
 
+  // Scope dropdown uses entityId; session.projectId is often the version document _id.
+  // Resolve both through the projects list so the same logical project is not flagged.
+  const sessionProject = session?.projectId
+    ? findEntityByReference(projects, session.projectId)
+    : undefined;
   const projectMismatch = Boolean(
     session
     && selectedProjectId
     && session.projectId
-    && session.projectId !== selectedProjectId,
+    && !(sessionProject
+      ? matchesSelectedEntity(sessionProject, selectedProjectId)
+      : session.projectId === selectedProjectId),
   );
 
   if (loading && !session) {

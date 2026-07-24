@@ -8,7 +8,11 @@
   <body>
     <main>
       <h1>TCM Ghi bước</h1>
-      <p class="hint">Đăng nhập admin trên TCM web trước. Extension gọi API recording TCM.</p>
+      <p class="hint">
+        Đăng nhập admin trên TCM web trước. Cửa sổ này
+        <strong>không tự tắt</strong> khi click ra ngoài — chỉ đóng bằng nút X
+        hoặc bấm lại icon extension. Đóng cửa sổ không dừng ghi.
+      </p>
 
       <form id="configForm" class="form-grid">
         <label>
@@ -20,8 +24,10 @@
           <input id="projectId" name="projectId" type="text" placeholder="Mongo ObjectId" required />
         </label>
         <label>
-          Test case entity ID (tùy chọn)
-          <input id="testCaseEntityId" name="testCaseEntityId" type="text" placeholder="TC_..." />
+          Test case (tuỳ chọn)
+          <select id="testCaseEntityId" name="testCaseEntityId">
+            <option value="">— Không gắn sẵn —</option>
+          </select>
         </label>
         <label>
           Base URL trang test

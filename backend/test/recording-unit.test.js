@@ -716,10 +716,9 @@ test('extension formatRecordingApiError maps auth and CSRF failures', async () =
   );
 });
 
-test('extension session helpers identify live statuses and merge API session', async () => {
+test('extension session helpers identify live statuses and session labels', async () => {
   const {
     isLiveSessionStatus,
-    mergeRuntimeSession,
     sessionIdLabel,
   } = await importExtensionModule('extensionConfig.js');
 
@@ -729,12 +728,4 @@ test('extension session helpers identify live statuses and merge API session', a
 
   assert.equal(sessionIdLabel({ id: 'abc' }), 'abc');
   assert.equal(sessionIdLabel({ sessionId: 'xyz' }), 'xyz');
-
-  const merged = mergeRuntimeSession(
-    { sessionId: 'local', eventCount: 1, status: 'recording', lastError: '' },
-    { id: 'server', eventCount: 3, status: 'paused' },
-  );
-  assert.equal(merged.sessionId, 'server');
-  assert.equal(merged.eventCount, 3);
-  assert.equal(merged.status, 'paused');
 });

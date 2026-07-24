@@ -181,7 +181,7 @@ test.describe("SR-4.6 Admin recording review (preview + merge)", () => {
     await expect(main.getByText("Xem thử & Lưu", { exact: true })).toBeVisible({ timeout: 15_000 });
 
     // Merge also needs a target test case entity ID — fill it so gating below only reflects pending edits.
-    await main.getByLabel("Test case entity ID").fill(testCase.id);
+    await main.getByLabel("Test case").selectOption(testCase.id);
 
     const previewButton = main.getByRole("button", { name: "Chạy thử" });
     const mergeButton = main.getByRole("button", { name: "Lưu vào test case" });
@@ -210,7 +210,7 @@ test.describe("SR-4.6 Admin recording review (preview + merge)", () => {
     const main = mainContent(page);
     await expect(main.getByText("Xem thử & Lưu", { exact: true })).toBeVisible({ timeout: 15_000 });
 
-    await main.getByLabel("Test case entity ID").fill(testCase.id);
+    await main.getByLabel("Test case").selectOption(testCase.id);
     await main.getByRole("button", { name: "Lưu vào test case" }).click();
 
     await expect(page.getByText(/Đã lưu \d+ bước vào test case/)).toBeVisible({ timeout: 10_000 });

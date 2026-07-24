@@ -21,6 +21,3 @@ export const MAX_SELECTOR_LENGTH = 300;
  * into one draft step by the backend pipeline anyway (see mergeTypingEvents).
  */
 export const VISUAL_CAPTURE_RAW_TYPES = ['click', 'change', 'submit', 'navigation', 'file_upload', 'select_change'];
-
-/** Client-side DOM snapshot cap (chars) — stay safely under backend maxDomBytes (1MB, recordingConfig.js). */
-export const MAX_DOM_HTML_LENGTH = 300_000;

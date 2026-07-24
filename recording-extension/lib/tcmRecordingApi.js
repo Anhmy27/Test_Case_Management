@@ -158,3 +158,33 @@ export const pauseRecordingSession = ({ apiBaseUrl, sessionId }) =>
 
 export const resumeRecordingSession = ({ apiBaseUrl, sessionId }) =>
   postSessionMutation(apiBaseUrl, sessionId, 'resume');
+
+/**
+ * List test cases for the project (admin). Used by popup select — value is entityId/_id.
+ * @returns {{ id: string, label: string }[]}
+ */
+export const listProjectTestCases = async ({ apiBaseUrl, projectId }) => {
+  const normalizedProjectId = toTrimmed(projectId);
+  if (!normalizedProjectId) {
+    return [];
+  }
+
+  const data = await apiRequest(
+    apiBaseUrl,
+    `/api/test-cases?projectId=${encodeURIComponent(normalizedProjectId)}`,
+  );
+  const testCases = Array.isArray(data?.testCases) ? data.testCases : [];
+
+  return testCases
+    .map((testCase) => {
+      const id = String(testCase?.entityId || testCase?.id || testCase?._id || '').trim();
+      if (!id) {
+        return null;
+      }
+      const caseKey = String(testCase?.caseKey || testCase?.key || '').trim();
+      const title = String(testCase?.title || testCase?.name || '').trim();
+      const label = caseKey && title ? `${caseKey} — ${title}` : (caseKey || title || id);
+      return { id, label };
+    })
+    .filter(Boolean);
+};

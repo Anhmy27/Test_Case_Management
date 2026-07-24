@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TCM Smart Recording",
-  "version": "0.1.3",
+  "version": "0.1.5",
   "description": "Record browser actions as draft automation steps for Test Case Management.",
   "permissions": ["storage", "cookies", "tabs", "scripting"],
   "host_permissions": ["http://*/*", "https://*/*"],
@@ -10,8 +10,7 @@
     "type": "module"
   },
   "action": {
-    "default_popup": "popup/popup.html",
-    "default_title": "TCM Smart Recording"
+    "default_title": "TCM Smart Recording — mở/đóng bảng điều khiển"
   },
   "content_scripts": [
     {
