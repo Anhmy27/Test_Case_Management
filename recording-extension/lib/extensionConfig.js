@@ -31,3 +31,22 @@ export const normalizeRecordingConfig = (config = {}) => ({
   baseUrl: toTrimmed(config.baseUrl) || DEFAULT_TEST_BASE_URL,
   captureVisuals: Boolean(config.captureVisuals),
 });
+
+/** scheme + host + port; empty string if URL is invalid. */
+export const getUrlOrigin = (url) => {
+  try {
+    return new URL(toTrimmed(url)).origin;
+  } catch {
+    return '';
+  }
+};
+
+/**
+ * Only same-origin as session Base URL is recorded.
+ * Path/query changes on that origin are allowed; other domains/tabs are ignored.
+ */
+export const isAllowedRecordingPageUrl = (pageUrl, baseUrl) => {
+  const baseOrigin = getUrlOrigin(baseUrl);
+  const pageOrigin = getUrlOrigin(pageUrl);
+  return Boolean(baseOrigin && pageOrigin && baseOrigin === pageOrigin);
+};

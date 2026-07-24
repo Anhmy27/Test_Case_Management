@@ -699,6 +699,23 @@ test('extension normalizeRecordingConfig trims and applies defaults', async () =
   assert.equal(normalizeApiBaseUrl('http://localhost:5000/'), 'http://localhost:5000');
 });
 
+test('extension isAllowedRecordingPageUrl keeps same origin only', async () => {
+  const {
+    getUrlOrigin,
+    isAllowedRecordingPageUrl,
+  } = await importExtensionModule('extensionConfig.js');
+
+  const baseUrl = 'https://ncsgroup.vn/app';
+  assert.equal(getUrlOrigin(baseUrl), 'https://ncsgroup.vn');
+  assert.equal(isAllowedRecordingPageUrl('https://ncsgroup.vn/sukien', baseUrl), true);
+  assert.equal(isAllowedRecordingPageUrl('https://ncsgroup.vn/sukien?x=1#y', baseUrl), true);
+  assert.equal(isAllowedRecordingPageUrl('http://ncsgroup.vn/sukien', baseUrl), false);
+  assert.equal(isAllowedRecordingPageUrl('https://www.ncsgroup.vn/', baseUrl), false);
+  assert.equal(isAllowedRecordingPageUrl('https://other.example/', baseUrl), false);
+  assert.equal(isAllowedRecordingPageUrl('not-a-url', baseUrl), false);
+  assert.equal(isAllowedRecordingPageUrl('https://ncsgroup.vn/', ''), false);
+});
+
 test('extension formatRecordingApiError maps auth and CSRF failures', async () => {
   const { formatRecordingApiError } = await importExtensionModule('tcmRecordingApi.js');
 

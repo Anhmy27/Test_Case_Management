@@ -1,4 +1,6 @@
 import {
+  getUrlOrigin,
+  isAllowedRecordingPageUrl,
   isLiveSessionStatus,
   MAX_LOCAL_EVENT_LOG,
   normalizeRecordingConfig,
@@ -87,13 +89,19 @@ const restoreRuntimeSession = async () => {
 const isSessionLive = () =>
   Boolean(runtimeSession.sessionId && isLiveSessionStatus(runtimeSession.status));
 
-const buildStateSnapshot = () => ({
+const resolveAllowedOrigin = async () => {
+  const config = await readConfig();
+  return getUrlOrigin(config.baseUrl);
+};
+
+const buildStateSnapshot = async () => ({
   isRecording,
   isPaused: runtimeSession.status === 'paused',
   sessionActive: isSessionLive(),
   session: runtimeSession,
   pendingEventCount: pendingEvents.length,
   captureVisuals: captureVisualsEnabled,
+  allowedOrigin: await resolveAllowedOrigin(),
 });
 
 const respondSessionOk = (sendResponse, flags) => {
@@ -116,6 +124,7 @@ const applyApiSession = (apiSession, fallbackStatus) => {
 
 const broadcastRecordingState = async (nextState) => {
   isRecording = Boolean(nextState);
+  const allowedOrigin = await resolveAllowedOrigin();
   const tabs = await chrome.tabs.query({});
   await Promise.all(
     tabs.map(async (tab) => {
@@ -136,6 +145,7 @@ const broadcastRecordingState = async (nextState) => {
           type: MESSAGE.SET_RECORDING_STATE,
           isRecording,
           captureVisuals: captureVisualsEnabled,
+          allowedOrigin,
         });
       } catch {
         // Content script is not injected on restricted pages.
@@ -341,7 +351,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   (async () => {
     switch (message?.type) {
       case MESSAGE.GET_RECORDING_STATE:
-        sendResponse(buildStateSnapshot());
+        sendResponse(await buildStateSnapshot());
         return;
       case MESSAGE.GET_CONFIG:
         sendResponse({ config: await readConfig() });
@@ -383,6 +393,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
       case MESSAGE.RECORDED_EVENT:
         if (isRecording && message.event) {
+          const config = await readConfig();
+          if (!isAllowedRecordingPageUrl(message.event.pageUrl, config.baseUrl)) {
+            sendResponse({ ok: true, skipped: true, pendingEventCount: pendingEvents.length });
+            return;
+          }
           await enqueueRecordedEvent(async () => {
             const enrichedEvent = await attachScreenshotIfNeeded(message.event, sender);
             await appendLocalEvent(enrichedEvent);
@@ -411,7 +426,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({
       ok: false,
       error: runtimeSession.lastError,
-      ...buildStateSnapshot(),
+      ...(await buildStateSnapshot()),
     });
   });
 

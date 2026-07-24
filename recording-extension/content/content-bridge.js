@@ -235,7 +235,19 @@
 
   let isRecording = false;
   let captureVisuals = false;
+  let allowedOrigin = '';
   let lastNavigationUrl = window.location.href;
+
+  const isPageAllowedForRecording = (pageUrl) => {
+    if (!allowedOrigin) {
+      return false;
+    }
+    try {
+      return new URL(pageUrl || window.location.href).origin === allowedOrigin;
+    } catch {
+      return false;
+    }
+  };
 
   const captureDomHtmlIfNeeded = (rawType) => {
     if (!captureVisuals || !VISUAL_CAPTURE_RAW_TYPES.includes(rawType)) {
@@ -261,9 +273,11 @@
       const response = await chrome.runtime.sendMessage({ type: MESSAGE.GET_RECORDING_STATE });
       isRecording = Boolean(response?.isRecording);
       captureVisuals = Boolean(response?.captureVisuals);
+      allowedOrigin = typeof response?.allowedOrigin === 'string' ? response.allowedOrigin : '';
     } catch {
       isRecording = false;
       captureVisuals = false;
+      allowedOrigin = '';
     }
   };
 
@@ -283,6 +297,9 @@
 
   const emitRecordedEvent = (event) => {
     if (!isRecording || !event) {
+      return;
+    }
+    if (!isPageAllowedForRecording(event.pageUrl)) {
       return;
     }
     sendRuntimeMessage({
@@ -443,6 +460,7 @@
     if (message?.type === MESSAGE.SET_RECORDING_STATE) {
       isRecording = Boolean(message.isRecording);
       captureVisuals = Boolean(message.captureVisuals);
+      allowedOrigin = typeof message.allowedOrigin === 'string' ? message.allowedOrigin : '';
       if (isRecording) {
         lastNavigationUrl = window.location.href;
       }
