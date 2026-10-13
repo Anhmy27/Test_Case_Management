@@ -9,7 +9,6 @@ export const ADMIN_NAV_ITEMS: ReadonlyArray<AppShellNavItem> = [
   { key: "issue-types", label: "Issue Types" },
   { key: "groups", label: "Groups" },
   { key: "test-cases", label: "Test Cases" },
-  { key: "recording-review", label: "Recording Review" },
   { key: "test-cases-history", label: "Execution History" },
   { key: "versions", label: "Versions" },
   { key: "test-plans", label: "Test Plans" },
