@@ -8,6 +8,7 @@ import { TOPBAR_INPUT_CLS, WorkspaceContentSkeleton } from "@/components/workspa
 import {
   fetchRecordingSession,
   insertRecordingDraftStep,
+  listRecordingSessions,
   mergeRecordingSession,
   patchRecordingDraft,
   previewRecordingSession,
@@ -15,6 +16,7 @@ import {
   type RecordingDraftStepPatch,
   type RecordingPreviewResult,
   type RecordingSession,
+  type RecordingSessionSummary,
 } from "@/lib/recordingSession";
 import { findEntityByReference, matchesSelectedEntity } from "@/lib/api";
 
@@ -30,6 +32,8 @@ export default function AdminRecordingReviewRoute() {
   const [insertingStep, setInsertingStep] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [merging, setMerging] = useState(false);
+  const [sessions, setSessions] = useState<RecordingSessionSummary[]>([]);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
 
   const loadSession = useCallback(async (sessionId: string) => {
     const normalizedId = String(sessionId || "").trim();
@@ -129,6 +133,46 @@ export default function AdminRecordingReviewRoute() {
     }
   }, [session, showNotice, loadSession]);
 
+  const refreshSessions = useCallback(async () => {
+    if (!selectedProjectId) {
+      setSessions([]);
+      return;
+    }
+
+    setSessionsLoading(true);
+    try {
+      setSessions(await listRecordingSessions(selectedProjectId));
+    } catch (error) {
+      setSessions([]);
+      showNotice(error instanceof Error ? error.message : "Không tải được danh sách phiên ghi", "error");
+    } finally {
+      setSessionsLoading(false);
+    }
+  }, [selectedProjectId, showNotice]);
+
+  useEffect(() => {
+    if (!currentUser) {
+      return;
+    }
+    void refreshSessions();
+  }, [currentUser, refreshSessions]);
+
+  const handleSelectSession = useCallback((sessionId: string) => {
+    if (sessionIdInputRef.current) {
+      sessionIdInputRef.current.value = sessionId;
+    }
+    void loadSession(sessionId);
+  }, [loadSession]);
+
+  const handleBackToList = useCallback(() => {
+    setSession(null);
+    if (sessionIdInputRef.current) {
+      sessionIdInputRef.current.value = "";
+    }
+    router.replace("/workspace/admin/recording-review");
+    void refreshSessions();
+  }, [refreshSessions, router]);
+
   useEffect(() => {
     if (!currentUser || !sessionIdFromUrl) {
       return;
@@ -194,6 +238,11 @@ export default function AdminRecordingReviewRoute() {
       previewing={previewing}
       onMerge={handleMerge}
       merging={merging}
+      sessions={sessions}
+      sessionsLoading={sessionsLoading}
+      onSelectSession={handleSelectSession}
+      onRefreshSessions={() => void refreshSessions()}
+      onBackToList={handleBackToList}
     />
   );
 }

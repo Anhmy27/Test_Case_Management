@@ -7,6 +7,7 @@ const {
   resumeRecordingSessionService,
   stopRecordingSessionService,
   getRecordingSessionService,
+  listRecordingSessionsService,
   discardRecordingSessionService,
 } = require('../services/recording/recordingSessionService');
 const { mergeRecordingSessionService } = require('../services/recording/recordingMergeService');
@@ -100,6 +101,15 @@ const getRecordingSession = asyncHandler(async (req, res) => {
     user: req.user,
   });
   res.json({ session });
+});
+
+const listRecordingSessions = asyncHandler(async (req, res) => {
+  const sessions = await listRecordingSessionsService({
+    projectId: req.query.projectId,
+    limit: req.query.limit,
+    user: req.user,
+  });
+  res.json({ sessions });
 });
 
 const discardRecordingSession = asyncHandler(async (req, res) => {
@@ -231,6 +241,7 @@ module.exports = {
   resumeRecordingSession,
   stopRecordingSession,
   getRecordingSession,
+  listRecordingSessions,
   discardRecordingSession,
   patchRecordingDraft,
   insertRecordingDraftStep,

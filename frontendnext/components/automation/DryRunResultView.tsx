@@ -81,11 +81,13 @@ export default function DryRunResultView({ result }: Props) {
 
   return (
     <div className="space-y-3">
-      <div className={`rounded border px-2 py-0.5 !text-[10px] leading-snug ${dryRunStatusClassName(result.status)}`}>
+      <div className={`rounded-lg border px-3 py-2 text-base font-semibold ${dryRunStatusClassName(result.status)}`}>
         <div>
           {dryRunStatusLabel(result.status)} · {formatDryRunDuration(result.durationMs)}
         </div>
-        <div className="mt-0.5 whitespace-pre-line text-slate-600">{result.note}</div>
+        {result.note ? (
+          <div className="mt-1 whitespace-pre-line text-sm font-normal text-slate-600">{result.note}</div>
+        ) : null}
       </div>
 
       {Array.isArray(result.logs) && result.logs.length > 0 ? (

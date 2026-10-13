@@ -96,6 +96,36 @@ export async function listRecordingTargetTestCases(projectId: string): Promise<R
     .filter((item): item is RecordingTargetTestCase => Boolean(item));
 }
 
+/** Row in the "recent recordings" list — no events or draft steps. */
+export type RecordingSessionSummary = {
+  id: string;
+  projectId: string;
+  baseUrl: string;
+  status: string;
+  eventCount: number;
+  draftStepCount: number;
+  startedAt?: string | null;
+  stoppedAt?: string | null;
+  createdAt?: string | null;
+  mergedAt?: string | null;
+  mergedTestCaseEntityId?: string;
+  testCaseEntityId?: string;
+};
+
+/** Recent recording sessions of the current admin for one project (newest first). */
+export async function listRecordingSessions(projectId: string, limit = 30) {
+  const normalizedProjectId = String(projectId || "").trim();
+  if (!normalizedProjectId) {
+    return [];
+  }
+
+  const response = await apiRequest<{ sessions?: RecordingSessionSummary[] }>(
+    `/api/recording/sessions?projectId=${encodeURIComponent(normalizedProjectId)}&limit=${limit}`,
+  );
+
+  return response.sessions || [];
+}
+
 export async function fetchRecordingSession(sessionId: string) {
   const normalizedId = String(sessionId || "").trim();
   if (!normalizedId) {

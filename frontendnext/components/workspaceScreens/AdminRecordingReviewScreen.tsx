@@ -15,6 +15,7 @@ import {
   type RecordingDraftStepPatch,
   type RecordingPreviewResult,
   type RecordingSession,
+  type RecordingSessionSummary,
   type RecordingTargetTestCase,
 } from "@/lib/recordingSession";
 import {
@@ -39,6 +40,11 @@ type Props = {
   previewing: boolean;
   onMerge: (testCaseId: string) => Promise<boolean>;
   merging: boolean;
+  sessions: RecordingSessionSummary[];
+  sessionsLoading: boolean;
+  onSelectSession: (sessionId: string) => void;
+  onRefreshSessions: () => void;
+  onBackToList: () => void;
 };
 
 type PatchableField = keyof Omit<RecordingDraftStepPatch, "draftStepId">;
@@ -538,6 +544,83 @@ function PreviewMergeSection({
   );
 }
 
+function RecordingSessionList({
+  sessions,
+  loading,
+  onSelect,
+  onRefresh,
+}: {
+  sessions: RecordingSessionSummary[];
+  loading: boolean;
+  onSelect: (sessionId: string) => void;
+  onRefresh: () => void;
+}) {
+  return (
+    <SectionCard
+      title="Phiên ghi gần đây"
+      subtitle="Các phiên bạn đã ghi trong project đang chọn — bấm Mở để xem và sửa nháp"
+      actions={(
+        <Button variant="secondary" size="sm" onClick={onRefresh} loading={loading}>
+          Làm mới
+        </Button>
+      )}
+    >
+      {sessions.length === 0 ? (
+        <p className="text-sm text-slate-600 dark:text-zinc-400">
+          {loading
+            ? "Đang tải danh sách..."
+            : "Chưa có phiên ghi nào trong project này. Dùng extension TCM Smart Recording để ghi, rồi bấm Dừng ghi."}
+        </p>
+      ) : (
+        <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-zinc-700">
+          <table className="min-w-full divide-y divide-slate-200 dark:divide-zinc-700">
+            <thead className="bg-slate-50 dark:bg-zinc-900/80">
+              <tr>
+                {["Thời gian", "Base URL", "Trạng thái", "Event", "Bước nháp", ""].map((heading) => (
+                  <th
+                    key={heading || "action"}
+                    className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-zinc-500"
+                  >
+                    {heading}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 bg-white dark:divide-zinc-800 dark:bg-zinc-950">
+              {sessions.map((item) => (
+                <tr
+                  key={item.id}
+                  data-testid="recording-session-row"
+                  className="hover:bg-slate-50 dark:hover:bg-zinc-900"
+                >
+                  <td className="whitespace-nowrap px-3 py-2 text-sm text-slate-700 dark:text-zinc-300">
+                    {item.createdAt ? formatVietnamDateTime(item.createdAt) : "—"}
+                  </td>
+                  <td className="break-all px-3 py-2 text-sm text-slate-900 dark:text-zinc-100">{item.baseUrl}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-sm text-slate-700 dark:text-zinc-300">
+                    {formatRecordingSessionStatus(item.status)}
+                  </td>
+                  <td className="px-3 py-2 text-sm text-slate-700 dark:text-zinc-300">{item.eventCount}</td>
+                  <td className="px-3 py-2 text-sm text-slate-700 dark:text-zinc-300">{item.draftStepCount}</td>
+                  <td className="px-3 py-2 text-right">
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={() => onSelect(item.id)}
+                    >
+                      Mở
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </SectionCard>
+  );
+}
+
 export default function AdminRecordingReviewScreen({
   session,
   projectMismatch,
@@ -549,6 +632,11 @@ export default function AdminRecordingReviewScreen({
   previewing,
   onMerge,
   merging,
+  sessions,
+  sessionsLoading,
+  onSelectSession,
+  onRefreshSessions,
+  onBackToList,
 }: Props) {
   const [drafts, setDrafts] = useState<DraftPatchMap>({});
 
@@ -559,14 +647,18 @@ export default function AdminRecordingReviewScreen({
 
   if (!session) {
     return (
-      <SectionCard
-        title="Recording review"
-        subtitle="Nhập Session ID ở thanh trên và bấm Tải nháp để xem draft steps"
-      >
-        <p className="text-sm text-slate-600 dark:text-zinc-400">
+      <div className="space-y-5">
+        <RecordingSessionList
+          sessions={sessions}
+          loading={sessionsLoading}
+          onSelect={onSelectSession}
+          onRefresh={onRefreshSessions}
+        />
+        <p className="text-sm text-slate-500 dark:text-zinc-400">
           Màn hình này xem và sửa nháp từ phiên ghi — chưa ghi vào test case cho đến khi Lưu (SR-4.6).
+          Cũng có thể nhập Session ID ở thanh trên rồi bấm Tải nháp.
         </p>
-      </SectionCard>
+      </div>
     );
   }
 
@@ -592,6 +684,12 @@ export default function AdminRecordingReviewScreen({
 
   return (
     <div className="space-y-5">
+      <div>
+        <Button variant="secondary" size="sm" onClick={onBackToList}>
+          ← Danh sách phiên ghi
+        </Button>
+      </div>
+
       {projectMismatch ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-100">
           Session thuộc project khác với project đang chọn ở scope. Vẫn hiển thị read-only.

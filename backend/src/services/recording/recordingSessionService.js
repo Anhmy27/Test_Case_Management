@@ -1,4 +1,6 @@
 const crypto = require('crypto');
+const mongoose = require('mongoose');
+const Project = require('../../models/Project');
 const RecordingSession = require('../../models/RecordingSession');
 const { READY_FOR_REVIEW_STATUS } = require('../../config/recordingConfig');
 const { httpError } = require('../../utils/httpError');
@@ -208,6 +210,77 @@ const getRecordingSessionService = async ({ sessionId, user }) => {
   return serializeRecordingSession(session);
 };
 
+const LIST_SESSIONS_DEFAULT_LIMIT = 30;
+const LIST_SESSIONS_MAX_LIMIT = 100;
+
+/**
+ * Recent recording sessions of the current user for one project (all project versions),
+ * without heavy event payloads. Discarded sessions are hidden.
+ */
+const listRecordingSessionsService = async ({ projectId, user, limit }) => {
+  const project = await findProjectByReference(projectId);
+  if (!project) {
+    throw httpError(404, 'Project not found');
+  }
+
+  const userId = resolveUserId(user);
+  if (!userId) {
+    throw httpError(401, 'Authentication required');
+  }
+
+  const projectEntityId = project.entityId || project._id;
+  const projectVersionIds = await Project.find({
+    $or: [{ entityId: projectEntityId }, { _id: projectEntityId }],
+  }).select('_id').lean();
+
+  const normalizedLimit = Math.min(
+    Math.max(Number(limit) || LIST_SESSIONS_DEFAULT_LIMIT, 1),
+    LIST_SESSIONS_MAX_LIMIT,
+  );
+
+  const sessions = await RecordingSession.aggregate([
+    {
+      $match: {
+        project: { $in: projectVersionIds.map((item) => item._id) },
+        recordedBy: new mongoose.Types.ObjectId(userId),
+        status: { $ne: 'discarded' },
+      },
+    },
+    { $sort: { createdAt: -1 } },
+    { $limit: normalizedLimit },
+    {
+      $project: {
+        project: 1,
+        baseUrl: 1,
+        status: 1,
+        eventCount: 1,
+        startedAt: 1,
+        stoppedAt: 1,
+        createdAt: 1,
+        mergedAt: 1,
+        mergedTestCaseEntityId: 1,
+        testCaseEntityId: 1,
+        draftStepCount: { $size: { $ifNull: ['$draftSteps', []] } },
+      },
+    },
+  ]);
+
+  return sessions.map((session) => ({
+    id: String(session._id),
+    projectId: String(session.project),
+    baseUrl: session.baseUrl,
+    status: session.status,
+    eventCount: session.eventCount || 0,
+    draftStepCount: session.draftStepCount || 0,
+    startedAt: session.startedAt || null,
+    stoppedAt: session.stoppedAt || null,
+    createdAt: session.createdAt || null,
+    mergedAt: session.mergedAt || null,
+    mergedTestCaseEntityId: session.mergedTestCaseEntityId || '',
+    testCaseEntityId: session.testCaseEntityId || '',
+  }));
+};
+
 const discardRecordingSessionService = async ({ sessionId, user, reason }) => {
   const session = await getRecordingSessionForUser(sessionId, user);
 
@@ -233,6 +306,7 @@ module.exports = {
   resumeRecordingSessionService,
   stopRecordingSessionService,
   getRecordingSessionService,
+  listRecordingSessionsService,
   discardRecordingSessionService,
   getRecordingSessionForUser,
   serializeRecordingSession,

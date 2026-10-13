@@ -3,6 +3,7 @@ const {
   objectIdString,
   nonEmptyString,
   optionalTrimmedString,
+  optionalPositiveIntFromQuery,
 } = require('./commonSchemas');
 const { DRAFT_REVIEW_STATUSES, RECORDED_EVENT_RAW_TYPES } = require('../config/recordingConfig');
 const automationStepSchema = require('../models/AutomationStep');
@@ -21,6 +22,11 @@ const startRecordingSessionBodySchema = z.object({
   baseUrl: nonEmptyString().url('baseUrl must be a valid URL'),
   testCaseEntityId: optionalTrimmedString(),
 });
+
+const listRecordingSessionsQuerySchema = z.object({
+  projectId: objectIdString,
+  limit: optionalPositiveIntFromQuery,
+}).passthrough();
 
 const recordedEventInputSchema = z.object({
   eventId: optionalTrimmedString(),
@@ -92,6 +98,7 @@ const insertDraftStepBodySchema = z.object({
 module.exports = {
   recordingSessionIdParamsSchema,
   startRecordingSessionBodySchema,
+  listRecordingSessionsQuerySchema,
   appendRecordingEventsBodySchema,
   discardRecordingSessionBodySchema,
   mergeRecordingSessionBodySchema,
